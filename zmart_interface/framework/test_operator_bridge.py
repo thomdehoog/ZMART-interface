@@ -880,7 +880,7 @@ def test_the_bridge_hands_out_the_page_it_was_built_with(tmp_path, monkeypatch):
     to be told where it is only in development, where a dev server holds the
     page instead so that edits reload live.
     """
-    built = tmp_path / "static"
+    built = tmp_path / "build"
     (built / "sub").mkdir(parents=True)
     (built / "index.html").write_text("<!doctype html>the page", encoding="utf-8")
     (built / "worker.js").write_text("// a background program", encoding="utf-8")

@@ -40,7 +40,7 @@ from pathlib import Path
 
 #: What ``npm run build`` leaves, and the package carries: the page and
 #: neuroglancer's two background programs beside it. The bridge hands them out.
-BUILT = Path(__file__).resolve().parent / "framework" / "window" / "static" / "index.html"
+BUILT = Path(__file__).resolve().parent / "framework" / "window" / "build" / "index.html"
 
 #: Where ``npm run dev`` serves the page while it is being worked on.
 DEV_URL = "http://127.0.0.1:5174/"

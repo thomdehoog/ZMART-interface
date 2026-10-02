@@ -90,7 +90,7 @@ export default defineConfig({
     viteSingleFile({ useRecommendedBuildConfig: false }),
   ],
   build: {
-    outDir: "zmart_interface/framework/window/static",
+    outDir: "zmart_interface/framework/window/build",
     emptyOutDir: true,
     /* Fold everything into the page except neuroglancer's background programs,
        which have to stay files of their own. */

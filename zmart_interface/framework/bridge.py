@@ -233,7 +233,7 @@ def _instruments() -> list:
 
 
 #: Where ``npm run build`` leaves the page, beside the window that shows it.
-THE_PAGE = Path(__file__).resolve().parent / "window" / "static"
+THE_PAGE = Path(__file__).resolve().parent / "window" / "build"
 
 #: What a run made through this page is called. One name for the workflow, so
 #: two runs are told apart by their hash and not by what somebody typed.

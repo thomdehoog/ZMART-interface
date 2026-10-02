@@ -1,0 +1,4 @@
+# The built page is kept exactly as `npm run build` writes it, on every machine:
+# a test compares it with a fresh build byte for byte, and a checkout that turned
+# its line endings into Windows ones would make the two disagree.
+zmart_interface/framework/window/build/** -text

@@ -53,9 +53,10 @@ dependencies = [
 # The drivers for real microscopes. Install the extra of the driver too, for
 # example the Leica's: pip install "zmart-drivers[leica] @ git+...".
 drivers = ["zmart-drivers @ git+https://github.com/thomdehoog/ZMART-drivers"]
-# What the tests need beyond the interface: pytest, and the reader of the OME
-# description inside a TIFF, which the analysis steps run in-process use.
-test = ["pytest>=8", "ome-types>=0.5"]
+# What working on the interface needs beyond running it: pytest, and the reader
+# of the OME description inside a TIFF, which the analysis steps run in-process
+# use. The page's own tools come from npm (see README.md).
+dev = ["pytest>=8", "ome-types>=0.5"]
 
 [project.urls]
 Repository = "https://github.com/thomdehoog/ZMART-interface"
@@ -70,8 +71,10 @@ namespaces = false
 
 [tool.setuptools.package-data]
 # The built page ships with the package: the microscope PC cannot build it.
-# The page's JavaScript sources stay in the repository; only the build goes.
-"zmart_interface.framework" = ["window/static/*"]
+# The page's JavaScript sources, and its tests, stay in the repository; only
+# the build goes. The Python tests beside the code stay behind too; setup.py
+# says how.
+"zmart_interface.framework" = ["window/build/*"]
 "zmart_interface.mock_microscope.zmart_controller" = ["zmart.json"]
 
 [tool.pytest.ini_options]
@@ -81,7 +84,7 @@ python_files = ["test_*.py"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-extend-exclude = ["node_modules", "zmart_interface/framework/window/static"]
+extend-exclude = ["node_modules", "zmart_interface/framework/window/build"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
