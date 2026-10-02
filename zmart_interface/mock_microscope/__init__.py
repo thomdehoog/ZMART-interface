@@ -17,6 +17,7 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import subprocess
@@ -30,8 +31,22 @@ import zmart_controller as _controller
 #: The folder the ZMART Controller is pointed at to plug the mock in.
 FOLDER = Path(__file__).resolve().parent
 
-#: How the mock's entry in the controller's list names its maker.
-VENDOR = "mock"
+#: The mock's whole name in the controller's list, as its ``zmart.json`` gives it.
+#: The page and the bridge know the mock by all three parts, never by the
+#: vendor alone: the ZMART Controller ships a pretend microscope of its own
+#: (a slide of beads) whose vendor is "mock" too, and an operator who chose
+#: "Mock" must get this one.
+IDENTITY = {
+    key: json.loads((FOLDER / "zmart_controller" / "zmart.json").read_text(encoding="utf-8"))[
+        "instruments"
+    ][0][key]
+    for key in ("vendor", "microscope", "api")
+}
+
+
+def is_the_mock(connection: dict) -> bool:
+    """Whether a connection entry is this mock, compared by its whole name."""
+    return all(connection.get(key) == value for key, value in IDENTITY.items())
 
 
 def register() -> list[dict]:

@@ -29,7 +29,7 @@
  * `scanOverview` again, with the targets as the positions.
  */
 
-import { APIS } from "./instruments.js";
+import { APIS, THE_MOCK } from "./instruments.js";
 import { sampleReading } from "./settings.js";
 import { makeRng } from "./pretend-sample/rng.js";
 import { METRICS, METRIC_KEYS, sweep } from "./pretend-sample/sweep.js";
@@ -522,7 +522,7 @@ const TRAVEL_UM = { x: 120_000, y: 80_000 };
 
 /** The two drivers the controller registers on a machine with both. */
 export const pretendInstruments = () => [
-  { vendor: "mock", microscope: "mock-scope", api: "mock-api", client: "mock-client" },
+  { ...THE_MOCK, client: "mock-client" },
   { vendor: "leica", microscope: "stellaris5-y42h93", api: "navigator-expert", client: "PythonClient" },
 ];
 

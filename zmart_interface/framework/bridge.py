@@ -265,7 +265,7 @@ def _connect(asked: dict) -> dict:
     # microscope: the bridge opens and closes it, and nothing else may.
     _session = Instrument(zmart_controller.session.set_instrument(connection))
     _context = dict(_session.context)
-    if connection.get("vendor") == mock_microscope.VENDOR:
+    if mock_microscope.is_the_mock(connection):
         mock_microscope.open_the_window(connection)
     try:
         info = _session.get_info()

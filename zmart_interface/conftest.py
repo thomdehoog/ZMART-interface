@@ -38,7 +38,7 @@ def mock_instrument(tmp_path) -> dict:
     """The mock's entry in the controller's list, saving its images in this test's folder."""
     mock_microscope.register()
     instrument = next(
-        one for one in zmart_controller.get_instruments() if one["vendor"] == mock_microscope.VENDOR
+        one for one in zmart_controller.get_instruments() if mock_microscope.is_the_mock(one)
     )
     return {**instrument, "output_root": str(tmp_path / "images")}
 
