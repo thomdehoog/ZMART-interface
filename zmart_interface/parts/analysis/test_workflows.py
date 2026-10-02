@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
+
 import pytest
 
 from zmart_interface.parts.analysis import workflows
@@ -41,8 +44,15 @@ def test_a_folder_without_workflows_is_said_plainly(tmp_path, monkeypatch):
 
 
 def test_without_the_variable_the_workflows_beside_the_engine_are_used(monkeypatch):
-    """This machine's ZMART-analysis is an editable install of a checkout."""
+    """An editable install of a ZMART-analysis checkout is found without the variable.
+
+    Installed as a plain package (as on GitHub's machines) the workflows are not
+    beside the engine at all, so there is nothing for this test to find.
+    """
     monkeypatch.delenv(workflows.ENV, raising=False)
+    spec = importlib.util.find_spec("engine")
+    if spec is None or not (Path(spec.origin).resolve().parent.parent / "workflows").is_dir():
+        pytest.skip("ZMART-analysis is installed as a package here, not as a checkout")
     root = workflows.workflows_root()
     assert root.name == "workflows"
     # The pipelines the interface runs: focus, detection both ways, and the plots.
