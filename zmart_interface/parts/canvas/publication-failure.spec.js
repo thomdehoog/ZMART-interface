@@ -57,7 +57,9 @@ for (const bake of [false, true]) test(`publication failure preserves valid pixe
     await page.waitForTimeout(3200); // At least two normal 1.5-second polls.
     expect(chunks).toEqual([]);
     expect((await page.request.post(`${origin}/recover`)).ok()).toBe(true);
-    await expect.poll(async () => pixel(await photo(), 224)).toEqual([180, 180, 180]);
+    // The claim is that the pixels come back, not how fast: a machine without a
+    // graphics card draws in software, and there the redraw takes far longer.
+    await expect.poll(async () => pixel(await photo(), 224), { timeout: 30_000 }).toEqual([180, 180, 180]);
     const recovered = await photo("recovered-publication.png");
     expect(pixel(recovered, 64)).toEqual([120, 120, 120]);
     expect(pixel(recovered, 448)).toEqual([240, 240, 240]);
