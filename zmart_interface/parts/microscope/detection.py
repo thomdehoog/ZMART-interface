@@ -1,0 +1,246 @@
+"""Detection either side of the analysis: a field's record in, targets out.
+
+The same shape as :mod:`focus_score`: what a capture becomes as the step's
+input, what the step's answer becomes in the run's own terms, and a finder
+that goes through a warm analysis. The pipeline is ``object_analysis`` in
+ZMART-analysis; nothing about detecting is done here.
+
+Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
+University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
+"""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+from typing import Any, Callable
+
+#: The ZMART-analysis pipeline that finds the objects in one field, by how the
+#: page asked for them to be found. Both are the same three steps and answer
+#: under the same name; the fast one places detection in the classical
+#: environment, so a watershed never pays the torch worker's spawn.
+PIPELINES = {"robust": "object_analysis", "fast": "object_analysis_fast"}
+
+#: Which way the image's axes point on the stage: a column to the right is
+#: +x, a row down is +y. The mock cuts its frames straight from the sample, so
+#: for it this is simply true. A real driver knows its own turn (the Leica
+#: keeps it in ``orientation.json``) and the record is where it belongs; until
+#: a record carries it, this is the assumption, made in one place.
+IMAGE_TO_STAGE = [[1.0, 0.0], [0.0, 1.0]]
+
+
+def pixel_size_of(record: dict, fallback: float) -> float:
+    """The pixel size the capture was taken at, in micrometres.
+
+    From the capture's own OME-Zarr store when it has one: the scale the
+    writer recorded is the instrument's word at the time of the capture.
+    ``fallback`` is what the instrument reports *now*, which is only right
+    while the same job is still selected -- a detection re-run after the
+    target job was chosen took the 40x pixel size for the 10x overview, and
+    a 30 um diameter became 211 px.
+    """
+    store = record.get("zarr")
+    if not store:
+        return float(fallback)
+    try:
+        import zarr  # noqa: PLC0415 -- kept off the import path, as the bridge does
+
+        attrs = dict(zarr.open(str(store), mode="r").attrs)
+        multiscale = ((attrs.get("ome") or attrs).get("multiscales") or [{}])[0]
+        axes = [axis.get("name") for axis in multiscale.get("axes", [])]
+        for transform in multiscale["datasets"][0].get("coordinateTransformations", []):
+            if transform.get("type") == "scale":
+                return float(transform["scale"][axes.index("x") if "x" in axes else -1])
+    except Exception:  # noqa: BLE001 -- a store that will not say is answered by the fallback
+        pass
+    return float(fallback)
+
+
+def what_was_captured(record: dict, *, field: int, pixel_um: float, settings: dict) -> dict:
+    """The step's input for one field: its first channel, and where it was taken.
+
+    Detection reads the Z maximum, and the first channel is the one a sample's
+    nuclei are in. Where the field is comes off the record, because the
+    acquisition is the only thing that knows. The settings arrive in the
+    page's units -- a diameter in micrometres -- and leave in the detector's,
+    pixels, since the detector has never seen the instrument.
+    """
+    planes = record.get("planes") or []
+    first_time = min((int(p.get("t", 0)) for p in planes), default=0)
+    planes = [p for p in planes if int(p.get("t", 0)) == first_time]
+    lowest_index = min((int(p.get("z", 0)) for p in planes), default=0)
+    every = [plane for plane in planes if int(plane.get("z", 0)) == lowest_index]
+    if not every:
+        raise RuntimeError(
+            "the capture reported no planes, so there is nothing to detect on"
+        )
+    # The first channel the capture has, whatever the instrument numbers it:
+    # requiring the number 0 refused a Leica job whose channels start at 1.
+    first = min(int(plane.get("c", 0)) for plane in every)
+    plane = next(plane for plane in every if int(plane.get("c", 0)) == first)
+    others = sorted(
+        (p for p in every if int(p.get("c", 0)) != first),
+        key=lambda p: int(p.get("c", 0)),
+    )
+    given = {
+        **({"synthetic_pixels": record["synthetic_pixels"]} if record.get("synthetic_pixels") else {}),
+        "image_path": plane["path"],
+        "tile_id": [record["acquisition_type"], int(field), 0],
+        "tile_stage_xy_um": [float(plane["x_um"]), float(plane["y_um"])],
+        "tile_z_um": float(plane["z_um"]),
+        "source_pixel_size_um": [pixel_size_of(record, pixel_um)] * 2,
+        "image_to_stage": IMAGE_TO_STAGE,
+        "gpu": True,
+    }
+    pixel_um = given["source_pixel_size_um"][0]
+    stacked = len({p.get("z", 0) for p in planes}) > 1
+    if stacked and not record.get("zarr"):
+        raise RuntimeError("Stack detection requires the completed OME-Zarr position")
+    if others:
+        # Segmentation stays on the first channel; the rest ride along so
+        # the features can be measured on every colour -- each measured
+        # column (intensity_mean_c1, ...) becomes a gating axis with no
+        # page work at all.
+        given["extra_channel_paths"] = [p["path"] for p in others]
+    if record.get("zarr"):
+        # The capture's canonical form is its OME-Zarr position, and the
+        # analysis reads it when there is one: the same reader handles both
+        # (`load_plane`), so this only renames the door. The store's channels
+        # are packed 0..n-1, so channel 0 is the first channel whatever the
+        # instrument numbered it; segmentation stays on it, and the rest ride
+        # along by index for the per-colour features. Results stay filed
+        # beside the vendor's `data`, where every reader already looks.
+        given["image_path"] = record["zarr"]
+        given["channels"] = [0]
+        given["z_selection"] = "max"
+        if stacked:
+            given["tile_z_um"] = None
+        given.pop("extra_channel_paths", None)
+        if others:
+            given["extra_channel_indices"] = list(range(1, len(others) + 1))
+        analysis = Path(plane["path"]).parent
+        while analysis.name and analysis.name != "data":
+            analysis = analysis.parent
+        if analysis.name == "data":
+            given["output_dir"] = str(analysis.parent / "analysis")
+    # How the objects are found: the page's word for it is the step's.
+    method = settings.get("method") or "robust"
+    if method not in PIPELINES:
+        raise ValueError(f"unknown detection method {method!r}")
+    given["method"] = method
+    if method == "fast" and settings.get("threshold") is not None:
+        given["threshold"] = float(settings["threshold"])
+    if settings.get("diameter") is not None:
+        given["diameter"] = float(settings["diameter"]) / float(pixel_um)
+    if settings.get("cellprob") is not None:
+        given["cellprob_threshold"] = float(settings["cellprob"])
+    if settings.get("border"):
+        # The page says micrometres from the field's edge; the detector is
+        # told pixels, like the diameter. Zero means the filter stays off.
+        given["border_margin_px"] = float(settings["border"]) / float(pixel_um)
+    if int(settings.get("binning") or 1) > 1:
+        # Segment on a copy this many times smaller each side: most of the
+        # waiting gone, the masks scaled back to the full frame by the
+        # pipeline itself. One means full size and nothing is sent.
+        given["segmentation_binning"] = int(settings["binning"])
+    return given
+
+
+def as_targets(table: dict, *, field: int, pixel_um: float) -> list[dict]:
+    """The object table as targets: each one where it is on the stage, how large
+    in micrometres, and how bright -- what the gate is drawn across."""
+    props = table["objects"]["properties"]
+    pixel_area = float(pixel_um) ** 2
+    targets = []
+    for index, object_id in enumerate(props["object_id"]):
+        area = float(props["area"][index]) * pixel_area
+        targets.append({
+            "id": object_id,
+            "field": int(field),
+            "x": float(props["stage_x_um"][index]),
+            "y": float(props["stage_y_um"][index]),
+            "area": area,
+            "intensity": float(props["intensity_mean"][index]),
+            "r": math.sqrt(area / math.pi),
+            # The mask label this object wears in its field's checkpoint --
+            # what lets the page paint exactly this cell's pixels.
+            "label": int(props["label"][index]),
+            # The whole feature row rides along: what an operator gates on is
+            # a decision made later, and a column dropped here is an axis the
+            # page cannot offer.
+            "features": {
+                name: float(values[index])
+                for name, values in props.items()
+                if isinstance(values[index], (int, float))
+            },
+        })
+    return targets
+
+
+def through(analysis: Any, *, pixel_um: float) -> Callable[[dict, int, dict], dict]:
+    """Find the targets in each field through *analysis*, whose workers are running.
+
+    The analysis is passed in and never built here, so its lifetime is the
+    caller's -- held for as long as the page is connected, not one per field.
+    Each field answers ``{"cells": [...], "device": ...}``: the device the
+    segmentation ran on travels with the field, because a run that fell back
+    to the CPU took ten times longer and nothing on the page said why.
+    """
+
+    def found_in(result: dict, given: dict, field: int) -> dict:
+        # The table stands under the pipeline's name; the detection step's
+        # own record stands beside it, stripped of its arrays, and that is
+        # where the device it ran on is written.
+        detection = result.get("detect_objects") or {}
+        device = (detection.get("detector_params") or {}).get("device")
+        return {
+            "cells": as_targets(result["object_analysis"], field=field,
+                                pixel_um=given["source_pixel_size_um"][0]),
+            "device": device,
+        }
+
+    class Finder:
+        """One field at a time by a call; many at once by :meth:`each`."""
+
+        def __call__(self, record: dict, field: int, settings: dict) -> dict:
+            given = what_was_captured(record, field=field, pixel_um=pixel_um, settings=settings)
+            return found_in(analysis.run(PIPELINES[given["method"]], given), given, field)
+
+        def each(self, records: dict, settings: dict, *, at_once: int, until=None):
+            """Find in every field of *records* (``{field: record}``), *at_once*
+            of them in flight, yielding ``(field, found)`` as each lands and
+            ``(field, error)`` for one whose pipeline failed. Fields are
+            independent, so the order they land in is the engine's."""
+            givens = {
+                field: what_was_captured(record, field=field, pixel_um=pixel_um, settings=settings)
+                for field, record in records.items()
+            }
+            pipelines = {PIPELINES[given["method"]] for given in givens.values()}
+            if len(pipelines) != 1:
+                raise ValueError("every field of one run is found the same way")
+            for field, outcome in analysis.run_each(pipelines.pop(), givens, at_once=at_once, until=until):
+                if isinstance(outcome, Exception):
+                    yield field, outcome
+                else:
+                    yield field, found_in(outcome, givens[field], field)
+
+    return Finder()
+
+
+def width_of(settings: dict) -> int:
+    """How many fields are found at once, by how they are found.
+
+    The watershed is about a second of one CPU a field and fields are
+    independent, so the fast way runs as wide as half the machine's cores,
+    up to the twelve the pipeline allows. Cellpose holds a model on the
+    card, so the robust way runs one at a time. ``at_once`` in the settings
+    is the operator's own number.
+    """
+    import os  # noqa: PLC0415 -- the only use in this module
+
+    asked = settings.get("at_once")
+    if asked:
+        return max(1, int(asked))
+    if (settings.get("method") or "robust") == "fast":
+        return max(2, min(12, (os.cpu_count() or 2) // 2))
+    return 1
