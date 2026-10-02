@@ -109,10 +109,22 @@ class Instrument:
     def acquire(self, *, acquisition_type: str, position_label: str,
                 options: dict | None = None) -> dict:
         return unwrap(
-            self._session.acquire(
+            self.acquire_answer(
                 acquisition_type=acquisition_type, position_label=position_label, options=options,
             ),
             "capture an image",
+        )
+
+    def acquire_answer(self, *, acquisition_type: str, position_label: str,
+                       options: dict | None = None) -> dict:
+        """``acquire``'s answer exactly as the controller gives it.
+
+        ``{"success": ..., "report": ...}``, with the report's ``files`` and
+        ``planes`` as the driver wrote them. The page asks for a capture this
+        way, so it reads the same answer a Python script would.
+        """
+        return self._session.acquire(
+            acquisition_type=acquisition_type, position_label=position_label, options=options,
         )
 
     def disconnect(self) -> None:

@@ -21,7 +21,12 @@ parts that plug into the interface's sides:
   `{"success": ..., "report": ...}`. `parts/microscope/instrument.py` reads those
   answers once for everyone: it hands back the report, and turns
   `success: False` into `InstrumentDeclined`, a sentence the page shows where
-  the operator pressed. The bridge offers whatever microscopes the controller
+  the operator pressed. A capture is the exception the page sees: `/api/acquire`
+  passes the controller's answer on untouched, so the page reads the report's
+  `files` and `planes` (each plane's file, its channel, depth and moment `c`,
+  `z`, `t`, and the stage position `x_um`, `y_um`, `z_um`) exactly as a Python
+  script would, and nothing in the interface reads a driver's file names. The
+  bridge offers whatever microscopes the controller
   lists (`get_instruments`: the drivers this computer has registered, and those
   installed as packages), plus the mock microscope, and `--driver` plugs one
   more in for a session.

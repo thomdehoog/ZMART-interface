@@ -56,6 +56,20 @@ def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
     assert "images" not in report
 
 
+def test_a_stack_says_which_depth_and_height_each_picture_is(mock_instrument):
+    """Every plane of a focus stack fits the controller's ``planes`` contract, one depth each."""
+    raw = zmart_controller.session.set_instrument(mock_instrument)
+    try:
+        answer = raw.acquire(acquisition_type="focussing", position_label="F0")
+    finally:
+        raw.disconnect()
+    assert check_acquire_answer(answer) == []
+    planes = answer["report"]["planes"]
+    assert [plane["z"] for plane in planes] == list(range(len(planes)))
+    heights = [plane["z_um"] for plane in planes]
+    assert heights == sorted(heights) and len(set(heights)) == len(planes) > 1
+
+
 def test_the_mock_keeps_its_own_name_beside_the_controllers_mock(tmp_path, monkeypatch):
     """The controller's own pretend microscope (a slide of beads) never takes this one's place.
 

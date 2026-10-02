@@ -13,7 +13,7 @@ const curveAt = (peak) => ({
 });
 
 /** A bridge that answers every route of the run and keeps the calls. */
-function bridgeTakingTargets({ peak = 12, curve = true } = {}) {
+function bridgeTakingTargets({ peak = 12, curve = true, declining = false } = {}) {
   const calls = [];
   let landed = 0;
   globalThis.fetch = vi.fn(async (url, init) => {
@@ -26,7 +26,10 @@ function bridgeTakingTargets({ peak = 12, curve = true } = {}) {
     }
     if (route === "/api/xyz") return answer({ x: { value: body.x }, y: { value: body.y }, z: { value: body.z ?? 0 } });
     if (route === "/api/state") return answer({ applied: body });
-    if (route === "/api/acquire") return answer({ acquisition_type: body.acquisition_type, position_label: body.position_label });
+    if (route === "/api/acquire") {
+      if (declining) return answer({ success: false, report: { reason: "the laser is off", files: [], planes: [] } });
+      return answer({ success: true, report: { acquisition_type: body.acquisition_type, position_label: body.position_label } });
+    }
     if (route === "/api/targets/acquire/focus") {
       return answer({ z: curve ? peak : null, lost: !curve, traces: curve ? { brenner: curveAt(peak) } : null });
     }
@@ -149,6 +152,21 @@ describe("the live target run", () => {
     const landed = calls.find(([route]) => route === "/api/targets/acquire/landed")[1];
     expect(landed.position.z).toBe(33);
     expect(landed.focus).toEqual({ job: "Focussing", z_map_um: null, z_peak_um: null, found: false });
+  });
+
+  it("lands the capture's report, not the controller's envelope around it", async () => {
+    const calls = bridgeTakingTargets();
+    await backend.acquireTargets({ positions: positions.slice(0, 1), state: null });
+    const landed = calls.find(([route]) => route === "/api/targets/acquire/landed")[1];
+    expect(landed.record).toEqual({ acquisition_type: "targets", position_label: "L0" });
+  });
+
+  it("stops the run with the driver's reason when the microscope declines a capture", async () => {
+    const calls = bridgeTakingTargets({ declining: true });
+    await expect(backend.acquireTargets({ positions, state: null }))
+      .rejects.toThrow("the microscope could not capture an image: the laser is off");
+    expect(calls.some(([route]) => route === "/api/targets/acquire/landed")).toBe(false);
+    expect(calls.at(-1)[0]).toBe("/api/targets/acquire/end");
   });
 
   it("stops after the tile in hand, and ends the run as stopped", async () => {

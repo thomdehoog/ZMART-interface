@@ -181,7 +181,8 @@ export const backend = {
   },
 
   /**
-   * Capture once where the stage is standing, answering with the record.
+   * Capture once where the stage is standing, answering as the controller
+   * does: `{success, report}`, the report holding `files` and `planes`.
    *
    * The names are the convention's, flat and complete: what the capture was,
    * which capture it was, where on the sample, and which plane of it — so
@@ -196,15 +197,18 @@ export const backend = {
     const path = `${acquisition_type}/${acquisition_type}_${hash6}_`
       + `${position_label}_T000000_C00_Z00000.ome.tiff`;
     return {
-      acquisition_type,
-      acquisition_hash: hash6,
-      position_label,
-      format: options?.format ?? "ome-tiff",
-      position: { ...where },
-      files: [path],
-      /* Where each plane was taken travels with it, as the real record's
-         planes do: the record is the only thing that knows. */
-      planes: [{ t: 0, z: 0, c: 0, path, x_um: where.x, y_um: where.y, z_um: where.z }],
+      success: true,
+      report: {
+        acquisition_type,
+        acquisition_hash: hash6,
+        position_label,
+        format: options?.format ?? "ome-tiff",
+        position: { ...where },
+        files: [path],
+        /* Where each plane was taken travels with it, as the real record's
+           planes do: the record is the only thing that knows. */
+        planes: [{ t: 0, z: 0, c: 0, path, x_um: where.x, y_um: where.y, z_um: where.z }],
+      },
     };
   },
 

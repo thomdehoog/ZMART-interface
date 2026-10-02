@@ -43,36 +43,22 @@ to black. An operator looking for signal would be sent to exactly the wrong
 places. So one dark point and one bright point are settled from the whole scan
 and shared by every field in it.
 
-## What the microscope's files look like
+## Which file is which picture
 
-The Leica driver writes one plane per file, with everything flat — every
-channel, every depth and every moment its own file — and says which is which
-in the name:
-
-    {acquisition}_{hash}_{label}_T{tttttt}_C{cc}_Z{zzzzz}.ome.tiff
-
-The name is read here rather than imported from the driver, deliberately: this
-runs over a folder of files that may have been copied off the microscope
-entirely, and reaching into a vendor's package to read a filename would tie
-the picture to that vendor.
+Every microscope names its files its own way, so a name is never read here.
+The acquisition's record says it instead: its ``planes`` give, for every
+picture, the file it is in and its channel, depth and moment (``c``, ``z``,
+``t``), the shape the ZMART Controller's contract fixes for every driver.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-#: The exported filename, as the driver writes it. One plane per file.
-_PLANE_NAME = re.compile(
-    r"^(?P<acquisition>[a-z0-9]+(?:-[a-z0-9]+)*)_(?P<hash>[0-9a-z]{6})"
-    r"_(?P<label>[A-Za-z0-9_-]+)_T(?P<t>\d{6})_C(?P<c>\d{2})_Z(?P<z>\d{5})"
-    r"\.ome\.tiffs?$"
-)
 
 #: How many pixels one field's small copy may have.
 #:
@@ -116,57 +102,12 @@ EASY_TO_SEE = 0.45
 
 @dataclass(frozen=True)
 class Plane:
-    """One exported file, and what its name says about it."""
+    """One picture of a field: the file it is in, and its channel, depth and moment."""
 
     path: Path
-    acquisition: str
-    hash6: str
-    label: str
     t: int
     c: int
     z: int
-
-
-def read_planes(folder: Path | str) -> list[Plane]:
-    """Find the exported planes in a folder, and read what their names say.
-
-    Files that do not follow the convention are ignored rather than refused:
-    a folder copied off a microscope usually has a log or a settings file in
-    it, and choking on those would help nobody.
-    """
-    found = []
-    for path in sorted(Path(folder).iterdir()):
-        match = _PLANE_NAME.match(path.name)
-        if not match:
-            continue
-        parts = match.groupdict()
-        found.append(
-            Plane(
-                path=path,
-                acquisition=parts["acquisition"],
-                hash6=parts["hash"],
-                label=parts["label"],
-                t=int(parts["t"]),
-                c=int(parts["c"]),
-                z=int(parts["z"]),
-            )
-        )
-    return found
-
-
-def group_by_field(planes: list[Plane]) -> dict[str, list[Plane]]:
-    """Gather the planes belonging to each field, in a settled order.
-
-    A field is one place on the sample. Everything the microscope took there —
-    every colour, every depth, every moment — belongs to it, and the small
-    copy shows all of them together.
-    """
-    fields: dict[str, list[Plane]] = {}
-    for plane in planes:
-        fields.setdefault(plane.label, []).append(plane)
-    for label in fields:
-        fields[label].sort(key=lambda p: (p.t, p.z, p.c))
-    return fields
 
 
 def pixel_size_um(path: Path | str) -> float:
@@ -450,11 +391,11 @@ def _as_jpeg(stretched: Any, quality: int) -> bytes:
 def make_what_is_missing(into: Path | str, fields: dict) -> Path | None:
     """Bring a view up to date with what has been imaged, and return its note.
 
-    ``fields`` maps a field's label to ``(planes, centre_um)`` -- the files the
-    driver reported writing there, and the middle of that field as the run
-    recorded sending the stage. Both come from the run, because neither is in
-    the files: a TIFF says how large a pixel is and nothing about where it was
-    taken.
+    ``fields`` maps a field's label to ``(planes, centre_um)`` -- the record's
+    plane entries for the pictures taken there, and the middle of that field as
+    the run recorded sending the stage. Both come from the run, because
+    neither is in the files: a TIFF says how large a pixel is and nothing about
+    where it was taken.
 
     Only fields with no picture yet are made, so asking again as a scan grows
     costs one encode per new field rather than a rebuild. ``None`` when nothing
@@ -471,13 +412,14 @@ def make_what_is_missing(into: Path | str, fields: dict) -> Path | None:
     for label, (planes, centre_um) in sorted(fields.items()):
         if label in already or not planes:
             continue
-        made = add_a_small_picture(into, planes, centre_um)
+        made = add_a_small_picture(into, label, planes, centre_um)
     return into / "tiles.json" if made and made.get("tiles") else None
 
 
 def add_a_small_picture(
     into: Path | str,
-    paths: list[Path | str],
+    label: str,
+    planes: list[dict],
     centre_um: tuple[float, float],
     *,
     budget_px: int = SMALL_ENOUGH,
@@ -485,10 +427,11 @@ def add_a_small_picture(
 ) -> dict:
     """Add one field to a scan's pictures while the scan is still being taken.
 
-    ``paths`` are the planes of a single field, as the driver reported writing
-    them; ``centre_um`` is the middle of that field, as the run recorded
-    sending the stage there. The picture is written and ``tiles.json`` beside
-    it grows by one, so a viewer watching the note sees the field appear.
+    ``planes`` are the record's plane entries for the single field named
+    ``label``, as the driver reported writing them; ``centre_um`` is the middle
+    of that field, as the run recorded sending the stage there. The picture is
+    written and ``tiles.json`` beside it grows by one, so a viewer watching the
+    note sees the field appear.
 
     This is :func:`make_small_pictures` one field at a time, and it differs in
     exactly one way, which is worth stating rather than leaving to be
@@ -502,8 +445,7 @@ def add_a_small_picture(
     """
     into = Path(into)
     into.mkdir(parents=True, exist_ok=True)
-    planes = _planes_among(paths)
-    label = planes[0].label
+    planes = _planes_among(planes)
 
     whole = _flatten(planes)
     picture = _shrink_to(whole, budget_px)
@@ -592,20 +534,19 @@ def make_slice_copies(
         for entry, picture in zip(slices, pictures):
             (into / entry["name"]).write_bytes(_as_jpeg(_stretch(picture, low, high), quality))
         return slices
-    height_of = {str(Path(plane["path"])): plane.get("z_um") for plane in planes}
-    parsed = _planes_among([plane["path"] for plane in planes])
+    height_of = {int(plane["z"]): plane.get("z_um") for plane in planes}
     by_height: dict[int, list[Plane]] = {}
-    for plane in parsed:
+    for plane in _planes_among(planes):
         by_height.setdefault(plane.z, []).append(plane)
 
-    slices, pictures = [], []
-    for z, group in sorted(by_height.items()):
-        first = group[0]
-        pictures.append(_shrink_to(_flatten(group), budget_px))
-        slices.append({
-            "z_um": height_of.get(str(first.path)),
-            "name": f"{first.acquisition}_{first.hash6}_{first.label}_Z{z:05d}.jpg",
-        })
+    pictures = [_shrink_to(_flatten(group), budget_px) for _z, group in sorted(by_height.items())]
+    # Named after the first file and the pictures themselves, as the store's
+    # slices are, so a stack taken again under the same name never hands the
+    # page the old slices.
+    stem = Path(planes[0]["path"]).name.split(".")[0]
+    stamp = _fingerprint(pictures)
+    slices = [{"z_um": height_of.get(z), "name": f"{stem}_{stamp}_Z{z:05d}.jpg"}
+              for z in sorted(by_height)]
 
     low, high = _one_brightening_for_the_whole_scan(pictures)
     for entry, picture in zip(slices, pictures):
@@ -622,31 +563,14 @@ def _fingerprint(pictures: list) -> str:
     return digest.hexdigest()[:6]
 
 
-def _planes_among(paths: list[Path | str]) -> list[Plane]:
-    """The planes of one field, in a settled order, from the files naming them."""
-    planes = []
-    for path in paths:
-        path = Path(path)
-        match = _PLANE_NAME.match(path.name)
-        if not match:
-            raise ValueError(f"{path.name} is not a canonical plane name")
-        parts = match.groupdict()
-        planes.append(
-            Plane(
-                path=path,
-                acquisition=parts["acquisition"],
-                hash6=parts["hash"],
-                label=parts["label"],
-                t=int(parts["t"]),
-                c=int(parts["c"]),
-                z=int(parts["z"]),
-            )
-        )
+def _planes_among(entries: list[dict]) -> list[Plane]:
+    """One field's pictures, in a settled order, from the record's plane entries."""
+    planes = [
+        Plane(path=Path(entry["path"]), t=int(entry["t"]), c=int(entry["c"]), z=int(entry["z"]))
+        for entry in entries
+    ]
     if not planes:
         raise ValueError("a field with no planes cannot be pictured")
-    labels = {plane.label for plane in planes}
-    if len(labels) > 1:
-        raise ValueError(f"one picture is one field, and these are {sorted(labels)}")
     return sorted(planes, key=lambda plane: (plane.t, plane.z, plane.c))
 
 
@@ -672,8 +596,7 @@ def _note_in(into: Path) -> dict:
 
 
 def make_small_pictures(
-    folder: Path | str,
-    where_each_field_is: dict[str, tuple[float, float]],
+    fields: dict,
     into: Path | str,
     *,
     budget_px: int = SMALL_ENOUGH,
@@ -681,11 +604,13 @@ def make_small_pictures(
 ) -> dict:
     """Make one small JPEG per field, and a note of where each one belongs.
 
-    ``where_each_field_is`` maps a field's label — the one in the file names —
-    to the middle of that field in micrometres, as the run recorded sending the
-    stage there. It is required, because the files do not say (see the note at
-    the top of this file). A field whose place is not given is left out and
-    named in the result, rather than being drawn somewhere invented.
+    ``fields`` maps a field's label to ``(planes, centre_um)``, as for
+    :func:`make_what_is_missing`: the record's plane entries for the pictures
+    taken there, and the middle of that field in micrometres, as the run
+    recorded sending the stage there. The place is required, because the files
+    do not say (see the note at the top of this file). A field whose place is
+    None is left out and named in the result, rather than being drawn somewhere
+    invented.
 
     Returns the note that is also written to ``tiles.json`` beside the
     pictures: every field, the file holding its picture, the piece of sample
@@ -705,21 +630,21 @@ def make_small_pictures(
     """
     into = Path(into)
     into.mkdir(parents=True, exist_ok=True)
-    fields = group_by_field(read_planes(folder))
-
     # First pass: read every field once, and keep only a small copy of each.
     placed_nowhere = []
     small_copies = []
-    for label, planes in sorted(fields.items()):
-        if label not in where_each_field_is:
+    for label, (entries, centre_um) in sorted(fields.items()):
+        if centre_um is None:
             placed_nowhere.append(label)
             continue
+        planes = _planes_among(entries)
         whole = _flatten(planes)
         full_height, full_width = whole.shape[:2]
         um_per_pixel = pixel_size_um(planes[0].path)
         small_copies.append(
             {
                 "label": label,
+                "centre_um": centre_um,
                 "picture": _shrink_to(whole, budget_px),
                 "width_um": full_width * um_per_pixel,
                 "height_um": full_height * um_per_pixel,
@@ -736,7 +661,7 @@ def make_small_pictures(
         stretched = _stretch(copy["picture"], low, high)
         name = f"{copy['label']}.jpg"
         (into / name).write_bytes(_as_jpeg(stretched, quality))
-        centre_x, centre_y = where_each_field_is[copy["label"]]
+        centre_x, centre_y = copy["centre_um"]
         tiles.append(
             {
                 "label": copy["label"],

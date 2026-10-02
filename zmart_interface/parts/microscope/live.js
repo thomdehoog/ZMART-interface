@@ -62,6 +62,19 @@ async function request(route, payload) {
 
 const rest = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * The report inside the controller's answer to `acquire`, or the driver's
+ * reason as a plain sentence when the microscope declined. The bridge passes
+ * the controller's `{success, report}` on untouched, so the page reads a
+ * capture exactly as a Python script does.
+ */
+export function capturedBy(answer) {
+  if (answer?.success === true) return answer.report;
+  const report = answer?.report;
+  const reason = typeof report === "string" ? report : report?.reason ?? report?.message;
+  throw new Error(`the microscope could not capture an image: ${reason ?? "the driver gave no reason"}`);
+}
+
 /* The operator's hand on the focus map: read by the loop before each drive. */
 let targetsStopAsked = false;
 let focusStopAsked = false;
@@ -251,8 +264,10 @@ export const backend = {
 
   /**
    * Capture once where the stage is standing: `acquire` through the
-   * controller, answering with the driver's record — what it wrote, and
-   * where. The one place a client learns the paths of the files a run made.
+   * controller, answering as the controller does — `{success, report}`, the
+   * report's `files` naming every file saved and its `planes` which channel,
+   * depth and stage position each picture is. The one place a client learns
+   * the paths of the files a run made.
    */
   async acquire({ acquisition_type, position_label, options = null }) {
     return ask("/api/acquire", { acquisition_type, position_label, options });
@@ -301,9 +316,9 @@ export const backend = {
             x: point.x, y: point.y, ...(Number.isFinite(startZ) ? { z: startZ } : {}),
           });
           say("capturing");
-          const record = await ask("/api/acquire", {
+          const record = capturedBy(await ask("/api/acquire", {
             acquisition_type: "focussing", position_label: labels[index],
-          });
+          }));
           say("scoring");
           landed = await ask("/api/focus/score", { record, centre: at.z.value, point });
         } catch (why) {
@@ -463,9 +478,9 @@ export const backend = {
           if (focus.state) await ask("/api/state", focus.state);
           const stood = await ask("/api/xyz", { ...at, x: focusXY.x, y: focusXY.y });
           standing = stood.z.value;
-          const stack = await ask("/api/acquire", {
+          const stack = capturedBy(await ask("/api/acquire", {
             acquisition_type: "target-focussing", position_label: labels[index], options: null,
-          });
+          }));
           const scored = await ask("/api/targets/acquire/focus", {
             record: stack, centre: standing, x: focusXY.x, y: focusXY.y,
           });
@@ -483,9 +498,9 @@ export const backend = {
         /* Already standing there after a stack with no peak: no second drive. */
         const stood = focus && !found.found && !focusMoves && !zOffsetUm
           ? { z: { value: standing } } : await ask("/api/xyz", at);
-        const record = await ask("/api/acquire", {
+        const record = capturedBy(await ask("/api/acquire", {
           acquisition_type: "targets", position_label: labels[index], options: null,
-        });
+        }));
         const landed = await ask("/api/targets/acquire/landed", {
           record, position: { x, y, z: stood.z.value }, focus: found,
         });

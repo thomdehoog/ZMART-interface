@@ -173,22 +173,27 @@ export function promisesOfABackend(expect) {
            will land is knowable in advance, what one capture produced is not.
            One acquisition is one file per plane, and the driver names them. */
         const label = "K00_M000001_G000000_P000042_V00";
-        const record = await backend.acquire({
+        const answer = await backend.acquire({
           acquisition_type: "overview", position_label: label,
         });
+        /* The controller's own answer, as a Python script receives it. */
+        expect(Object.keys(answer).sort(), "the controller's two parts").toEqual(["report", "success"]);
+        expect(answer.success).toBe(true);
+        const record = answer.report;
+        expect(record.position_label).toBe(label);
         /* `files` is the name the ZMART Controller's contract fixes for every
-           file a capture saved; each plane's file is one of them. */
+           file a capture saved; each plane's file is one of them. How a
+           driver names its files is its own business, so no name is read. */
         expect(record.files.length, "it names what it wrote").toBeGreaterThan(0);
         expect(record.files).toEqual(expect.arrayContaining(record.planes.map((p) => p.path)));
         expect(record.images, "the old name is gone").toBeUndefined();
         for (const plane of record.planes) {
-          for (const axis of ["t", "z", "c"]) {
-            expect(typeof plane[axis], `a plane says its ${axis}`).toBe("number");
+          for (const key of ["t", "z", "c"]) {
+            expect(Number.isInteger(plane[key]) && plane[key] >= 0, `a plane counts its ${key} from 0`).toBe(true);
           }
-          /* The canonical name, flat: what the capture was, which capture it
-             was, where on the sample, and which plane of it. */
-          expect(plane.path).toContain(`overview_${record.acquisition_hash}_${label}_`);
-          expect(plane.path).toMatch(/_T\d{6}_C\d{2}_Z\d{5}\.ome\.tiff$/);
+          for (const key of ["x_um", "y_um", "z_um"]) {
+            expect(plane[key] === null || Number.isFinite(plane[key]), `${key} is micrometres or unknown`).toBe(true);
+          }
         }
       },
     },
@@ -275,7 +280,7 @@ export function promisesOfABackend(expect) {
         const canvas = await theCanvasOf(backend);
         const going = across(canvas, 0.5, 0.5);
         await backend.set_xyz({ ...going, z: um(await backend.get_xyz()).z });
-        const record = await backend.acquire({
+        const { report: record } = await backend.acquire({
           acquisition_type: "overview", position_label: "contract",
         });
         expect(record.planes.length, "a capture has planes").toBeGreaterThan(0);
