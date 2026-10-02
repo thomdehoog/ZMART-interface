@@ -258,10 +258,17 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await expect(viewModes).toHaveValue("projection");
       await expect(viewModes.locator("option")).toHaveText(["Projection", "Z-slices (Top view)", "Z-slice (Absolute)", "3D"]);
       await expect(viewModes.locator("option:disabled")).toHaveCount(3);
+      /* The viewer's press comes right before the acquisitions strip, and left
+         of it whenever the two share a row. A narrow canvas, or a machine with
+         wider fonts, wraps the strip onto its own row; that is allowed (see
+         toolbar.spec.js), so only the same row is held to left-of. */
       expect(await page.locator("#viewer-pick").evaluate((press) => {
         const strip = press.nextElementSibling;
-        return strip?.id === "acquisition-pick" && press.getBoundingClientRect().right <= strip.getBoundingClientRect().left;
-      }), "the viewer's press stands directly left of the acquisitions strip").toBe(true);
+        if (strip?.id !== "acquisition-pick") return false;
+        const a = press.getBoundingClientRect(), b = strip.getBoundingClientRect();
+        const sameRow = a.top < b.bottom && b.top < a.bottom;
+        return !sameRow || a.right <= b.left;
+      }), "the viewer's press comes right before the acquisitions strip").toBe(true);
       await expect(page.locator("#viewer-pick .bar-word")).toHaveText("viewer");
       await expect.poll(() => page.evaluate(() => {
         const rows = window.__thePicture.layersForMeasurement();
