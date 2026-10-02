@@ -9,13 +9,26 @@
  * friendlier words on the ids it happens to know.
  */
 
+/**
+ * The interface's own pretend microscope, by its whole name, as its
+ * `zmart.json` gives it. Known by all three parts, never by the vendor alone:
+ * the ZMART Controller ships a pretend microscope of its own (a slide of
+ * beads) whose vendor is "mock" too, and an operator who chose "Mock" must
+ * get this one.
+ */
+export const THE_MOCK = Object.freeze({ vendor: "mock", microscope: "kidney-mock", api: "zmart-interface" });
+
+/** Whether a connection entry is the interface's own mock, compared by its whole name. */
+export const isTheMock = (entry) =>
+  Boolean(entry) && Object.entries(THE_MOCK).every(([key, value]) => entry[key] === value);
+
 export const MICROSCOPES = {
-  "mock-scope": { label: "Mock", detail: "the interface's pretend microscope" },
+  [THE_MOCK.microscope]: { label: "Mock", detail: "the interface's pretend microscope" },
   "stellaris5-y42h93": { label: "Leica Stellaris 5", detail: "y42h93" },
 };
 
 export const APIS = {
-  "mock-api": { label: "Mock API", detail: "in-process · made-up data" },
+  [THE_MOCK.api]: { label: "Mock API", detail: "in-process · made-up data" },
   "navigator-expert": { label: "Navigator Expert", detail: "CAM socket 8895 · LAS X 4.9" },
 };
 
@@ -50,6 +63,19 @@ export function choicesFrom(instruments) {
     });
   }
   return microscopes;
+}
+
+/**
+ * Where the interface's own mock sits among the grouped choices: the
+ * microscope's key and the api's, ready for the Connect card to select.
+ * `null` when it is not listed.
+ */
+export function theMockAmong(choices) {
+  for (const scope of choices ?? []) {
+    const api = scope.apis.find((one) => isTheMock(one.connection));
+    if (api) return { microscope: scope.key, api: api.key };
+  }
+  return null;
 }
 
 export const DEFAULT_SESSION = {

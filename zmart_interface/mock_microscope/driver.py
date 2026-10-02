@@ -862,7 +862,9 @@ def _connection_status(handle: MockHandle) -> dict[str, str]:
     elapsed = time.monotonic() - handle.connected_at
     user = _user_position(handle)
     answers = {
-        "driver": "mock · mock-scope · mock-api",
+        "driver": " · ".join(
+            str(handle.connection.get(key)) for key in ("vendor", "microscope", "api")
+        ),
         "client": str(handle.client),
         "serial": handle.serial,
         "stage": f"x {user['x']:.1f} · y {user['y']:.1f} · z {user['z']:.1f} um",

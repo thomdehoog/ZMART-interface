@@ -8,18 +8,18 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  choicesFrom, describeSession,
+  THE_MOCK, choicesFrom, describeSession, isTheMock, theMockAmong,
 } from "../../parts/microscope/instruments.js";
 import { pretendInstruments } from "../../parts/microscope/mock.js";
 
 describe("choicesFrom", () => {
   it("groups the registry's entries into microscopes with their apis, in registry order", () => {
     const choices = choicesFrom([
-      { vendor: "mock", microscope: "mock-scope", api: "mock-api", client: "mock-client" },
+      { ...THE_MOCK, client: "mock-client" },
       { vendor: "leica", microscope: "stellaris5-y42h93", api: "navigator-expert", client: "PythonClient" },
       { vendor: "leica", microscope: "stellaris5-y42h93", api: "pyapi", client: "PythonClient" },
     ]);
-    expect(choices.map((m) => m.key)).toEqual(["mock/mock-scope", "leica/stellaris5-y42h93"]);
+    expect(choices.map((m) => m.key)).toEqual(["mock/kidney-mock", "leica/stellaris5-y42h93"]);
     expect(choices[1].apis.map((a) => a.key)).toEqual(["navigator-expert", "pyapi"]);
   });
 
@@ -36,10 +36,22 @@ describe("choicesFrom", () => {
   });
 
   it("keeps the whole entry under each api, untouched, for set_instrument", () => {
-    const entry = { vendor: "mock", microscope: "mock-scope", api: "mock-api", client: "mock-client", extra: 1 };
+    const entry = { ...THE_MOCK, client: "mock-client", extra: 1 };
     const [mock] = choicesFrom([entry]);
     expect(mock.apis[0].connection).toEqual(entry);
     expect(mock.apis[0].connection).not.toBe(entry);
+  });
+
+  it("finds the interface's own mock by its whole name, not by its vendor", () => {
+    /* The ZMART Controller ships a pretend microscope of its own, a slide of
+       beads, whose vendor is "mock" too. Chosen by vendor, the page's "Mock"
+       could quietly be that one. */
+    const beads = { vendor: "mock", microscope: "mock-scope", api: "mock-api", client: "mock-client" };
+    const both = choicesFrom([beads, { ...THE_MOCK, client: "mock-client" }]);
+    expect(theMockAmong(both)).toEqual({ microscope: "mock/kidney-mock", api: "zmart-interface" });
+    expect(theMockAmong(choicesFrom([beads]))).toBeNull();
+    expect(isTheMock({ ...THE_MOCK, output_root: "x" })).toBe(true);
+    expect(isTheMock(beads)).toBe(false);
   });
 
   it("describes a session by its entry", () => {

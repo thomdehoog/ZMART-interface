@@ -17,12 +17,16 @@ fixture reads the reports, as the bridge does.
 
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
+import zmart_controller
 import zmart_controller.session
+from zmart_controller import utils
 from zmart_controller.utils import check_acquire_answer, validate_driver
 
+from zmart_interface import mock_microscope
 from zmart_interface.mock_microscope import driver as mock_driver
 from zmart_interface.parts.microscope.instrument import InstrumentDeclined
 
@@ -50,6 +54,38 @@ def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
     report = answer["report"]
     assert report["files"] == [plane["path"] for plane in report["planes"]] + report["metadata"]
     assert "images" not in report
+
+
+def test_the_mock_keeps_its_own_name_beside_the_controllers_mock(tmp_path, monkeypatch):
+    """The controller's own pretend microscope (a slide of beads) never takes this one's place.
+
+    The controller's setup guide plugs its mock in once, and the computer
+    remembers it. Both used to call themselves mock / mock-scope / mock-api,
+    so "Mock" on the page quietly became the bead slide. Here a driver with
+    the bead mock's name is plugged in first, then this mock, and the page's
+    "Mock" must still be driven by this mock's own functions.
+    """
+    monkeypatch.setattr(utils, "REGISTRY", dict(utils.REGISTRY))
+    beads = tmp_path / "beads" / "zmart_controller"
+    beads.mkdir(parents=True)
+    (beads / "zmart.json").write_text(json.dumps({"contract": 1, "instruments": [
+        {"vendor": "mock", "microscope": "mock-scope", "api": "mock-api"}]}))
+    (beads / "__init__.py").write_text("".join(
+        f"def {name}(*args, **kwargs):\n    return 'beads'\n" for name in utils.OPS))
+    zmart_controller.register_driver(beads.parent, remember=False)
+
+    added = mock_microscope.register()
+
+    assert added == [{**mock_microscope.IDENTITY, "client": "mock-client"}]
+    ours = [one for one in zmart_controller.get_instruments() if mock_microscope.is_the_mock(one)]
+    assert len(ours) == 1
+    ops, _ = utils.resolve(ours[0])
+    assert ops["acquire"].__module__.startswith("zmart_interface.mock_microscope")
+
+
+def test_the_mock_is_known_by_its_whole_name_not_by_its_vendor():
+    assert mock_microscope.is_the_mock({**mock_microscope.IDENTITY, "output_root": "x"})
+    assert not mock_microscope.is_the_mock({"vendor": "mock", "microscope": "mock-scope", "api": "mock-api"})
 
 
 def test_every_answer_comes_in_two_parts(mock_instrument):

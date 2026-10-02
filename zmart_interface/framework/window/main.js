@@ -16,7 +16,7 @@ import { burst } from "./confetti.js";
 import { assembleWorkflows } from "../rules/finding-workflows.js";
 import { watchStagePosition } from "../../workflows/target_acquisition/shared/stage-position.js";
 import {
-  DEFAULT_SESSION, choicesFrom, describeSession,
+  DEFAULT_SESSION, choicesFrom, describeSession, theMockAmong,
 } from "../../parts/microscope/instruments.js";
 import { isFailed } from "../../parts/microscope/connection-status.js";
 import { displayedPictureAddress } from "../../parts/canvas/display-of.js";
@@ -398,8 +398,9 @@ let stageWatch = null;
     return backend.instruments().then((list) => {
       state.instruments = choicesFrom(list);
       if (!chosenMicroscope()) {
-        const mock = state.instruments.find((m) => m.vendor === "mock");
-        state.session.microscope = (mock ?? state.instruments[0])?.key ?? null;
+        const mock = theMockAmong(state.instruments);
+        state.session.microscope = mock?.microscope ?? state.instruments[0]?.key ?? null;
+        if (mock) state.session.api = mock.api;
       }
       if (!chosenApi()) state.session.api = chosenMicroscope()?.apis[0]?.key ?? null;
       renderSetup(); renderActionBar();

@@ -18,6 +18,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isTheMock } from "../../../../parts/microscope/instruments.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..", "..", "..", "..", "..");
@@ -132,7 +133,7 @@ export async function startTheBridge({ port, connect = true } = {}) {
   }
 
   const { instruments } = await ask("/api/instruments");
-  const scope = instruments.find((one) => one.vendor === "mock");
+  const scope = instruments.find(isTheMock);
   if (!scope) throw new Error("the bridge has no mock microscope to connect to");
   const opened = connect ? await ask("/api/connect", { connection: scope }) : null;
 

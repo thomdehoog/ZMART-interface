@@ -19,6 +19,7 @@
 
 import { beforeAll, describe, expect, it } from "vitest";
 import { promisesOfABackend } from "./backend-contract.js";
+import { isTheMock } from "./instruments.js";
 import { backend as pretend } from "./mock.js";
 
 const promises = promisesOfABackend(expect);
@@ -54,7 +55,7 @@ describe.skipIf(!bridgeAt)("the live backend keeps the same promises", () => {
        real microscope and move it. Driving the real one is a deliberate act,
        so it takes a word from whoever is running this. */
     const offered = await live.instruments();
-    const mockDriver = offered.find((one) => one.vendor === "mock");
+    const mockDriver = offered.find(isTheMock);
     if (!mockDriver && !process.env.BACKEND_BRIDGE_MAY_MOVE_THE_MICROSCOPE) {
       throw new Error(
         "this bridge offers no mock driver, and these promises drive the stage."

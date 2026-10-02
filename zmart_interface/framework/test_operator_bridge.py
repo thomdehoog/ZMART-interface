@@ -23,6 +23,7 @@ import pytest
 import zmart_controller
 import zmart_controller.session
 
+from zmart_interface import mock_microscope
 from zmart_interface.framework import bridge
 from zmart_interface.parts.microscope.instrument import Instrument, InstrumentDeclined
 
@@ -1806,7 +1807,7 @@ def test_before_a_session_the_list_comes_from_the_root_the_entry_names(monkeypat
         monkeypatch.setattr(bridge, "_run", None)
         monkeypatch.setattr(bridge, "_output_root", None)
         monkeypatch.setattr(bridge, "PROTOCOL_LIBRARY", Path(root) / "library")
-        connection = {"vendor": "mock", "microscope": "mock-scope", "api": "mock-api", "output_root": root}
+        connection = {**mock_microscope.IDENTITY, "output_root": root}
         listed = bridge._protocols(connection)["protocols"]
         assert [one["id"] for one in listed] == ["target-acquisition_a1b2c3"]
         assert listed[0]["protocol"] == {"version": 1}
