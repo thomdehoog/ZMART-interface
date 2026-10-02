@@ -1,6 +1,6 @@
 # The interface's tests on Linux and Windows: the page's unit tests (vitest),
-# the Python tests (pytest), and a check that the page builds into the three
-# files that ship inside the package.
+# the Python tests (pytest), and a check that the committed page in
+# zmart_interface/framework/window/build is exactly what `npm run build` makes.
 #
 # None of these needs a microscope: they run on the mock. The two Python tests
 # that run an analysis step in its own conda environment skip themselves here,
@@ -64,11 +64,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[test]"
+      - run: python -m pip install -e ".[dev]"
       - run: python -m pytest -q -p no:cacheprovider
 
   build:
-    name: the page builds (ubuntu)
+    name: the committed page is what the build makes (ubuntu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,20 +80,14 @@ jobs:
           node-version: "22"
           cache: npm
       # The build reads neuroglancer's patches from the installed viewer.
-      - run: python -m pip install -e .
+      - run: python -m pip install -e ".[dev]"
       - run: npm ci
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-      - run: npm run build
-        env:
-          PYTHON: python
-      - name: three files, as the package ships them
-        run: |
-          ls zmart_interface/framework/window/static
-          test "$(ls zmart_interface/framework/window/static | wc -l)" -eq 3
-          test -f zmart_interface/framework/window/static/index.html
-          test -f zmart_interface/framework/window/static/async_computation.bundle.js
-          ls zmart_interface/framework/window/static/chunk_worker.bundle-*.js
+      # Builds the page twice into a temporary folder and compares both, file
+      # by file, with the committed one. The Python jobs skip this test,
+      # because they do not run `npm ci`.
+      - run: python -m pytest -q -p no:cacheprovider zmart_interface/framework/test_the_built_page.py
 
   browser:
     name: browser tests without analysis (ubuntu, by hand)

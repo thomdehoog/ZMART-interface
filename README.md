@@ -2,7 +2,7 @@
 
 [![python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/downloads/)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![tests](https://img.shields.io/badge/tests-pytest%20%7C%20vitest%20%7C%20playwright-blue)](#testing)
+[![tests](https://img.shields.io/badge/tests-pytest%20%7C%20vitest%20%7C%20playwright-blue)](#development-and-testing)
 [![status](https://img.shields.io/badge/status-release%20candidate-orange)](#status)
 
 <img src="docs/zmart-interface-icon.png" align="left" width="150" alt="ZMART interface">
@@ -59,16 +59,24 @@ an engine must offer, so that another viewer can be put in its place.
 
 ### Install
 
-The interface needs Python 3.11 or 3.12, and on Windows the WebView2 runtime that draws its
-window (already part of Windows 11). Create an environment from conda-forge, then install the
-interface into it. This also installs the ZMART Controller, ZMART-viewer and the ZMART-analysis
-engine:
+There are two ways to set the interface up. **Production** is for running it, on a microscope
+PC or on your own computer; **development** is for changing it, and is described under
+[Development and testing](#development-and-testing).
+
+For production, the interface needs Python 3.11 or 3.12, and on Windows the WebView2 runtime
+that draws its window (already part of Windows 11). Create an environment from conda-forge,
+then install the interface into it. This also installs the ZMART Controller, ZMART-viewer and
+the ZMART-analysis engine:
 
 ```bash
 conda create -n zmart-interface -c conda-forge python=3.12 pip git
 conda activate zmart-interface
 pip install "zmart-interface @ git+https://github.com/thomdehoog/ZMART-interface"
 ```
+
+What this installs is the interface's Python code and its page, already built. The page is
+built on a developer's computer and committed with the code, so a production install needs no
+Node.js, and it brings no tests and no browsers with it.
 
 Focus maps and object detection run ZMART-analysis workflows, which live in a checkout of
 the ZMART-analysis repository together with the environments they run in. Clone it, create
@@ -127,20 +135,38 @@ later:
 - **One viewer engine**: the three engines in the viewer slot will later be merged with
   ZMART-viewer's own engine.
 
-## Testing
+## Development and testing
 
-The tests need no microscope: they run on the mock. From a clone of this repository, with
-Node 22.12 or newer for the page:
+To change the interface, work in a clone of this repository. Besides Python you need Node.js
+22.12 or newer, which builds the page and runs its tests; conda-forge has it. The page's tests
+also need a browser, which Playwright downloads. `PLAYWRIGHT_BROWSERS_PATH` decides where it
+goes: point it outside your user profile, so a few hundred megabytes do not land there (on the
+ZMB workstations programs may only run from `C:\ProgramData\MinicondaZMB`, so put it there).
 
 ```bash
-pip install -e ".[test]"
+conda create -n zmart-interface-dev -c conda-forge python=3.12 pip git "nodejs>=22.12"
+conda activate zmart-interface-dev
+git clone https://github.com/thomdehoog/ZMART-interface
+cd ZMART-interface
+pip install -e ".[dev]"
 npm ci
-python -m pytest          # the bridge, the storage, the analysis seam, the mock
+set PLAYWRIGHT_BROWSERS_PATH=C:\ProgramData\MinicondaZMB\ms-playwright
+npx playwright install chromium
+```
+
+The tests need no microscope: they run on the mock.
+
+```bash
+python -m pytest          # the bridge, the storage, the analysis seam, the mock, the built page
 npm run test:unit         # the page's rules and arithmetic (vitest)
 npm run build             # the page, as it ships inside the package
-npx playwright install chromium
 npx playwright test zmart_interface/workflows/target_acquisition/walk.spec.js
 ```
+
+The built page in `zmart_interface/framework/window/build/` is committed, because a production
+install cannot build it. After changing the page, run `npm run build` and commit that folder
+with your change: one of the Python tests builds the page afresh and fails if the committed
+folder differs from it. [Building the page](docs/building-the-page.md) says more.
 
 The last line is the main acceptance test: all ten steps walked on the built page, through the
 real bridge and the mock microscope, with the focus map and the detection run through

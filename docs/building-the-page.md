@@ -7,7 +7,7 @@ builds anything.
 
 ```bash
 npm ci            # the page's packages, and neuroglancer's patch
-npm run build     # the page and two files beside it -> zmart_interface/framework/window/static/
+npm run build     # the page and two files beside it -> zmart_interface/framework/window/build/
 npm run dev       # http://127.0.0.1:5174, reloads on save; open it with `zmart-interface --dev`
 ```
 
@@ -23,7 +23,7 @@ Playwright browsers must live there.
 
 ## What the build produces, and why it is three files rather than one
 
-`npm run build` writes three files into `zmart_interface/framework/window/static/`:
+`npm run build` writes three files into `zmart_interface/framework/window/build/`:
 
 | file | what it is | how large |
 | --- | --- | --- |
@@ -92,8 +92,17 @@ corner saying where the third went. Serve the folder over HTTP and all three are
 there; the `zmart-interface` window now does exactly that, which is also the
 closer imitation of how the page will really be handed out.
 
-`build.outDir` points at `zmart_interface/framework/window/static/`, beside the
+`build.outDir` points at `zmart_interface/framework/window/build/`, beside the
 window that shows it. The built files are committed and ship in the package,
 because the microscope PC cannot build them; rebuild and commit them after any
-change to the page's sources.
+change to the page's sources. Only the built page goes into the package: the
+JavaScript sources and every test stay in the repository.
+
+`zmart_interface/framework/test_the_built_page.py` holds the two to each other.
+It builds the page twice into a temporary folder and fails unless both builds
+and the committed folder agree, file for file and byte for byte. So a change to
+the page that was never rebuilt is caught, and so is a build that comes out
+differently each time. It skips, and says why, where Node.js or `npm ci` is
+missing. `.gitattributes` keeps the built files exactly as the build wrote them,
+so a Windows checkout does not change their line endings and set the two apart.
 

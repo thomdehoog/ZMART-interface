@@ -9,7 +9,7 @@ ZMART driver.
 What is where:
 
 - ``framework/``: the shell that runs a workflow -- the window (``window/``,
-  in JavaScript; the built page in ``window/static/``), the rules for steps,
+  in JavaScript; the built page in ``window/build/``), the rules for steps,
   and ``bridge.py``, the HTTP door through which the page reaches the
   controller.
 - ``parts/``: what a workflow is built from -- the canvas and its drawing
