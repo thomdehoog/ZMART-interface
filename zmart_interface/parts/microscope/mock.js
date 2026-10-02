@@ -201,7 +201,7 @@ export const backend = {
       position_label,
       format: options?.format ?? "ome-tiff",
       position: { ...where },
-      images: [path],
+      files: [path],
       /* Where each plane was taken travels with it, as the real record's
          planes do: the record is the only thing that knows. */
       planes: [{ t: 0, z: 0, c: 0, path, x_um: where.x, y_um: where.y, z_um: where.z }],
@@ -312,7 +312,7 @@ export const backend = {
             /* One plane per record, saying where it was driven: a record
                with empty planes read fine against the page and undefined
                against anything that looked inside. */
-            images: [path],
+            files: [path],
             planes: [{ t: 0, c: 0, z: 0, path, x_um: p.x, y_um: p.y, z_um: p.z ?? null }],
           });
         }
@@ -372,7 +372,7 @@ export const backend = {
       records.push({
         acquisition_type: "targets",
         position_label: labelFor(stableAt, p),
-        images: [path],
+        files: [path],
         planes: [{ t: 0, c: 0, z: 0, path, x_um: p.x, y_um: p.y, z_um: z }],
         requested_position_um: { x: p.x, y: p.y, z },
         taken: performance.now(),

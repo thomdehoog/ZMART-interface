@@ -1091,7 +1091,9 @@ def _the_view_of(acquisition_type: str) -> Path | None:
         if _view_built.get(acquisition_type) == len(records) and note.is_file():
             return note if records else None
         made = make_what_is_missing(view_of(acquisition_type), {
-            record["position_label"]: (record["images"], _the_middle_of(record))
+            record["position_label"]: (
+                [plane["path"] for plane in record["planes"]], _the_middle_of(record)
+            )
             for record in records
         })
         _view_built[acquisition_type] = len(records)

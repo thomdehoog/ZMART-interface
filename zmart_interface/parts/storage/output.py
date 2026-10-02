@@ -110,44 +110,54 @@ def position_label(
 
 
 def move_record_images(record: dict, data_dir: Any) -> dict:
-    """Move a driver's returned files unchanged and update its record paths.
+    """Move every file a capture saved into the run, unchanged, and update the record's paths.
 
-    The images go to *data_dir* and the state the driver printed for them to
-    ``data_dir/metadata/ZMART_state``, the shape every driver writes -- so what the record
-    names in the run is what it named in staging. Every source and destination
-    is validated before the first move.  If a later move fails, already moved
-    files are rolled back to their original paths so one multi-plane record is
-    never half-relocated.
+    ``files`` is where the driver lists every file it saved, the name the
+    ZMART Controller's contract fixes so the interface finds the pictures on
+    any microscope. Each file lands in *data_dir* under its own name, except
+    two kinds of description that sit beside the images: the state the driver
+    printed (named under ``metadata``) goes to ``data_dir/metadata/ZMART_state``,
+    and the microscope software's own metadata (named under
+    ``vendor_metadata``) to ``data_dir/metadata/vendor``. Every file a plane
+    or a description names must be one of the files, so that the record can
+    never disagree with itself about what was saved.
+
+    Every source and destination is checked before the first move. If a later
+    move fails, the files already moved go back where they were, so one
+    capture is never left half in staging and half in the run.
     """
 
-    images = record.get("images")
-    if not isinstance(images, list) or not images:
-        raise RuntimeError("acquire returned no image paths to organize")
+    files = record.get("files")
+    if not isinstance(files, list) or not files:
+        raise RuntimeError(
+            "the acquisition listed no files: a driver must name every file it saved under 'files'"
+        )
+    sources = list(dict.fromkeys(Path(value) for value in files))
+    named = [plane["path"] for plane in record.get("planes", [])]
+    named += [*record.get("metadata", []), *record.get("vendor_metadata", [])]
+    unlisted = [value for value in named if Path(value) not in sources]
+    if unlisted:
+        raise RuntimeError(f"the capture names {unlisted}, not among the files it saved")
 
-    sources = list(dict.fromkeys(Path(value) for value in images))
-    plane_paths = [Path(plane["path"]) for plane in record.get("planes", [])]
-    sources.extend(path for path in plane_paths if path not in sources)
     destination = Path(data_dir)
-    destination.mkdir(parents=True, exist_ok=True)
-
-    printed = list(dict.fromkeys(Path(value) for value in record.get("metadata", [])))
-    moves = [(source, destination / source.name) for source in sources]
-    moves.extend(
-        (source, destination / "metadata" / "ZMART_state" / source.name) for source in printed
-    )
+    beside = {
+        **{Path(value): destination / "metadata" / "vendor" for value in record.get("vendor_metadata", [])},
+        **{Path(value): destination / "metadata" / "ZMART_state" for value in record.get("metadata", [])},
+    }
+    moves = [(source, beside.get(source, destination) / source.name) for source in sources]
     targets = [target for _, target in moves]
     if len(targets) != len(set(targets)):
-        raise RuntimeError("acquire returned different image paths with the same filename")
+        raise RuntimeError("acquire returned different files with the same filename")
     for source, target in moves:
-        if not source.is_file():
-            raise FileNotFoundError(f"acquired image does not exist: {source}")
-        target.parent.mkdir(parents=True, exist_ok=True)
+        if not source.exists():
+            raise FileNotFoundError(f"acquired file does not exist: {source}")
         if target.exists():
-            raise FileExistsError(f"refusing to replace an existing acquisition image: {target}")
+            raise FileExistsError(f"refusing to replace an existing acquisition file: {target}")
 
     moved: list[tuple[Path, Path]] = []
     try:
         for source, target in moves:
+            target.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(source), str(target))
             moved.append((source, target))
     except Exception:
@@ -157,10 +167,11 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
                 shutil.move(str(target), str(source))
         raise
 
-    mapped = {str(source): str(target) for source, target in moves}
-    record["images"] = [mapped[str(Path(value))] for value in images]
+    mapped = {source: str(target) for source, target in moves}
+    record["files"] = [mapped[source] for source in sources]
     for plane in record.get("planes", []):
-        plane["path"] = mapped[str(Path(plane["path"]))]
-    if printed:
-        record["metadata"] = [mapped[str(path)] for path in printed]
+        plane["path"] = mapped[Path(plane["path"])]
+    for key in ("metadata", "vendor_metadata"):
+        if record.get(key):
+            record[key] = [mapped[Path(value)] for value in record[key]]
     return record

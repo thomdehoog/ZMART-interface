@@ -21,7 +21,7 @@ import os
 
 import pytest
 import zmart_controller.session
-from zmart_controller.utils import validate_driver
+from zmart_controller.utils import check_acquire_answer, validate_driver
 
 from zmart_interface.mock_microscope import driver as mock_driver
 from zmart_interface.parts.microscope.instrument import InstrumentDeclined
@@ -37,6 +37,19 @@ def session(mock_session):
 
 def test_the_mock_fits_the_controllers_contract(mock_instrument):
     assert validate_driver(mock_instrument) == []
+
+
+def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
+    """``files`` names the images and the state printed beside them, as the controller's contract asks."""
+    raw = zmart_controller.session.set_instrument(mock_instrument)
+    try:
+        answer = raw.acquire(acquisition_type="overview", position_label="P0")
+    finally:
+        raw.disconnect()
+    assert check_acquire_answer(answer) == []
+    report = answer["report"]
+    assert report["files"] == [plane["path"] for plane in report["planes"]] + report["metadata"]
+    assert "images" not in report
 
 
 def test_every_answer_comes_in_two_parts(mock_instrument):
