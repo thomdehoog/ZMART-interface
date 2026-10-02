@@ -415,7 +415,11 @@ def _user_position(handle: MockHandle) -> dict[str, float]:
 
 
 def get_xyz(handle: MockHandle, *, with_actuators: dict | None = None) -> dict:
-    """Report the position per axis (um) with its actuator and its travel."""
+    """Report the position per axis (um) with its actuator, its travel, and its reach.
+
+    ``range`` is how far the stage travels; ``reach`` is everywhere a picture
+    can show along that axis (see :data:`REACH_UM`).
+    """
     _require_open(handle)
     chosen = _resolve_actuators(with_actuators)
     user = _user_position(handle)
@@ -423,6 +427,7 @@ def get_xyz(handle: MockHandle, *, with_actuators: dict | None = None) -> dict:
         axis: {
             "value": user[axis], "actuator": chosen[axis], "unit": "um",
             "range": list(TRAVEL_UM[axis]),
+            "reach": list(REACH_UM[axis]),
         }
         for axis in ("x", "y", "z")
     }
@@ -837,28 +842,27 @@ def run_procedure(handle: MockHandle, procedure: dict) -> dict:
     return {"ran": dict(procedure)}
 
 
-def _the_canvas() -> dict[str, list[float]]:
+def _the_reach() -> dict[str, list[float]]:
     """Everywhere a capture can reach: the stage's whole travel, and half a field beyond it.
 
     A field is centred where the stage stands, so one taken at the edge of the
     travel reaches half its width further, and a stack reaches half its depth
-    above and below. The viewer refuses, whole, a capture that reaches outside
-    the canvas, and the stage stands at its zero, at the edge of where it
-    travels, until the operator first moves it. So the canvas is the widest
-    field's half and the deepest stack's half beyond the travel on every side.
+    above and below. The interface lays out the viewer's area from this, and
+    the viewer refuses, whole, a capture that reaches outside that area; the
+    stage stands at its zero, at the edge of where it travels, until the
+    operator first moves it. So the reach is the widest field's half and the
+    deepest stack's half beyond the travel on every side.
     """
     half_field = max(px * um for px, um in (frame_of(job, "overview") for job in JOBS)) / 2
     stacks = [_ONE_PLANE, *_STACKS.values(), *JOB_STACKS.values()]
     half_stack = max((one["z_planes"] - 1) * one["z_step_um"] for one in stacks) / 2
-    reach = {"x": half_field, "y": half_field, "z": half_stack}
-    return {
-        f"{axis}_um": [low - reach[axis], high + reach[axis]]
-        for axis, (low, high) in TRAVEL_UM.items()
-    }
+    beyond = {"x": half_field, "y": half_field, "z": half_stack}
+    return {axis: [low - beyond[axis], high + beyond[axis]] for axis, (low, high) in TRAVEL_UM.items()}
 
 
-#: The area the page draws as the stage, and the viewer places pictures on, in micrometres.
-CANVAS_UM = _the_canvas()
+#: How far a picture reaches per axis, in micrometres: what ``get_xyz`` reports
+#: as ``reach``, and so the area the page draws and the viewer places pictures on.
+REACH_UM = _the_reach()
 
 # The connection checks, in the order they answer, each with the delay after
 # connect (seconds) at which its answer becomes available. Until then a client
@@ -899,14 +903,14 @@ def _connection_status(handle: MockHandle) -> dict[str, str]:
 
 
 def get_info(handle: MockHandle) -> dict:
-    """Describe the microscope, the connection's health, and the area to draw.
+    """Describe the microscope and the connection's health.
 
     ``output_root`` is where images are saved, and ``description`` the
     microscope in plain words, as every ZMART driver gives them.
     ``connection_status`` is what a client shows under Connect: one row per
     key, its value the answer or ``"pending"`` until the check has answered
-    (a value beginning ``failed`` is a failed check). ``canvas`` is the area
-    a client draws to scale, in the micrometres ``get_xyz`` counts in.
+    (a value beginning ``failed`` is a failed check). The area a client
+    draws to scale is not here: it is ``get_xyz``'s ``reach``, per axis.
     """
     _require_open(handle)
     root = Path(handle.connection.get("output_root") or "mock-output")
@@ -914,7 +918,6 @@ def get_info(handle: MockHandle) -> dict:
         "output_root": str(root),
         "description": DESCRIPTION,
         "connection_status": _connection_status(handle),
-        "canvas": {axis: list(span) for axis, span in CANVAS_UM.items()},
         "tile_positions": [dict(pos) for pos in handle.tile_positions],
         "focus_positions": [
             {"x": pos["x"], "y": pos["y"], "z": pos["z"]} for pos in handle.tile_positions

@@ -22,7 +22,7 @@ function bridgeAnswering(statuses) {
     if (url.endsWith("/api/info")) {
       const status = statuses[Math.min(polls, statuses.length - 1)];
       polls += 1;
-      return { ok: true, json: async () => ({ connection_status: status, canvas: { x_um: [0, 10], y_um: [0, 5] } }) };
+      return { ok: true, json: async () => ({ connection_status: status, output_root: "D:/runs" }) };
     }
     throw new Error(`unexpected ${url}`);
   });
@@ -49,7 +49,7 @@ describe("the live connect", () => {
     const { info } = await done;
     expect(seen.keys).toEqual(["driver", "client", "stage"]);
     expect(seen.answers).toEqual([[0, "mock"], [1, "mock-client"], [2, "x 0 · y 0"]]);
-    expect(info.canvas).toEqual({ x_um: [0, 10], y_um: [0, 5] });
+    expect(info.output_root).toBe("D:/runs");
     expect(calls.filter((u) => u.endsWith("/api/info"))).toHaveLength(3);
   });
 

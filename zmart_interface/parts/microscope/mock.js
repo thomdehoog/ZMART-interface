@@ -92,9 +92,10 @@ export const backend = {
     return { info: await this.info() };
   },
 
-  /** The instrument's account of itself: here, the pretend canvas. */
+  /** The instrument's account of itself: nothing the page reads. Where the
+   *  stage goes and how far its pictures reach are `get_xyz`'s to say. */
   async info() {
-    return { canvas: pretendCanvas() };
+    return {};
   },
 
   /** Where the stage is, per axis in micrometres: the controller's `get_xyz`. */
@@ -116,9 +117,9 @@ export const backend = {
   async set_xyz({ x, y, z }) {
     await wait(220);
     where = {
-      x: withinTravel(x ?? where.x, TRAVEL_UM.x),
-      y: withinTravel(y ?? where.y, TRAVEL_UM.y),
-      z: z ?? where.z,
+      x: withinTravel(x ?? where.x, RANGE_UM.x),
+      y: withinTravel(y ?? where.y, RANGE_UM.y),
+      z: withinTravel(z ?? where.z, RANGE_UM.z),
     };
     return standingAt(where);
   },
@@ -539,8 +540,10 @@ export const pretendConnectionStatus = ({ connection }) => ({
   "Storage writable": "smart/organoid-screen_a7f3c1/",
 });
 
-/** Its canvas: the travel a page draws to scale. */
-const pretendCanvas = () => ({ x_um: [0, TRAVEL_UM.x], y_um: [0, TRAVEL_UM.y] });
+/** How far each axis travels, `[min, max]` in micrometres, as `get_xyz`
+ *  reports it in `range`. Its pictures are named, never drawn, so they
+ *  reach no further than the stage: `reach` is the same. */
+const RANGE_UM = { x: [0, TRAVEL_UM.x], y: [0, TRAVEL_UM.y], z: [-2_000, 2_000] };
 
 /** Where on the sample a capture is, in the workflow's own label: the same
  *  five fields the bridge composes, so a run reads alike either way. */
@@ -581,11 +584,9 @@ const pretendPositionUm = () => ({ x: TRAVEL_UM.x * 0.04, y: TRAVEL_UM.y * 0.04,
 let where = pretendPositionUm();
 
 /** No further than the stage goes, which is what a real one answers with. */
-const withinTravel = (v, span) => Math.max(0, Math.min(span, v));
+const withinTravel = (v, [low, high]) => Math.max(low, Math.min(high, v));
 
 /** A position, shaped the way the controller reports one. */
-const standingAt = ({ x, y, z }) => ({
-  x: { value: x, unit: "um" },
-  y: { value: y, unit: "um" },
-  z: { value: z, unit: "um" },
-});
+const standingAt = (at) => Object.fromEntries(["x", "y", "z"].map((axis) => [axis, {
+  value: at[axis], unit: "um", range: [...RANGE_UM[axis]], reach: [...RANGE_UM[axis]],
+}]));

@@ -782,11 +782,13 @@ let stageWatch = null;
           state.checks[k].result = result;
           sessionShown?.answer(k, result);
         },
-      }).then(async ({ info }) => {
+      }).then(async () => {
         /* The session is open and every check has answered. The canvas is
-           the instrument's from here — its travel from get_info — and the
-           stage mark stands where get_xyz says the stage is. */
-        takeTheCanvas(info?.canvas);
+           the instrument's from here — laid out over the reach get_xyz
+           reports, everywhere a picture can show — and the stage mark stands
+           where get_xyz says the stage is. A driver that gives no reach is
+           told to the operator as a failed connection. */
+        takeTheReach(await backend.get_xyz());
         /* From here the stage mark is the instrument's: a watch of its own
            reads get_xyz every few seconds for as long as the session is open,
            and again at once after any move this page makes. */
@@ -3073,7 +3075,7 @@ let stageWatch = null;
   const toWorld = (...a) => stage.toWorld(...a);
   const carrierOriginUm = () => stage.carrierOriginUm();
   const whereTheStageIs = () => stage.whereTheStageIs();
-  const takeTheCanvas = (canvas) => stage.takeTheCanvas(canvas);
+  const takeTheReach = (reading) => stage.takeTheReach(reading);
   const takeThePosition = (at) => stage.takeThePosition(at);
   const drawScaleBar = (...a) => stage.drawScaleBar(...a);
 

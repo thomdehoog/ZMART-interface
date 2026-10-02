@@ -96,6 +96,10 @@ def start(run_folder: Path | str, *, bake: bool = False, canvas: dict | None = N
     Never raises: connecting to the microscope must not fail over the
     picture server, so a viewer that cannot start becomes a sentence in
     :func:`status` instead.
+
+    ``canvas`` is the area pictures are laid out on, ``{"x_um", "y_um",
+    "z_um"}`` as ``[min, max]``: the reach get_xyz reports per axis, so a
+    picture taken anywhere the stage can go lands inside it.
     """
     with _the_turn:
         if _viewer["server"] is not None:
