@@ -176,8 +176,11 @@ export function promisesOfABackend(expect) {
         const record = await backend.acquire({
           acquisition_type: "overview", position_label: label,
         });
-        expect(record.images.length, "it names what it wrote").toBeGreaterThan(0);
-        expect(record.images).toEqual(record.planes.map((p) => p.path));
+        /* `files` is the name the ZMART Controller's contract fixes for every
+           file a capture saved; each plane's file is one of them. */
+        expect(record.files.length, "it names what it wrote").toBeGreaterThan(0);
+        expect(record.files).toEqual(expect.arrayContaining(record.planes.map((p) => p.path)));
+        expect(record.images, "the old name is gone").toBeUndefined();
         for (const plane of record.planes) {
           for (const axis of ["t", "z", "c"]) {
             expect(typeof plane[axis], `a plane says its ${axis}`).toBe("number");

@@ -114,7 +114,7 @@ class _Driver:
             "acquisition_type": acquisition_type,
             "acquisition_hash": "aaaaaa",
             "position_label": position_label,
-            "images": [plane["path"] for plane in planes],
+            "files": [plane["path"] for plane in planes],
             "planes": planes,
             "found_at": self.at["z"] if self.height_key else None,
         }
@@ -471,7 +471,7 @@ class _Capturing(_Driver):
         return {
             "acquisition_type": acquisition_type,
             "position_label": position_label,
-            "images": [str(path)],
+            "files": [str(path)],
             "planes": [{"t": 0, "z": 0, "c": 0, "path": str(path),
                         "x_um": 0.0, "y_um": 0.0, "z_um": 0.0}],
         }
@@ -490,7 +490,7 @@ def test_a_capture_answers_with_the_record_the_driver_made(monkeypatch):
         "acquisition_type": "overview",
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
-    assert [Path(p).name for p in record["images"]] == [
+    assert [Path(p).name for p in record["files"]] == [
         "K00_M000001_G000000_P000007_V00.tiff"
     ]
     assert record["planes"][0]["c"] == 0
@@ -580,7 +580,7 @@ def test_a_scan_keeps_the_record_of_every_capture(monkeypatch):
         "K00_M000000_G000000_P000000_V00",
         "K00_M000000_G000000_P000001_V00",
     ]
-    assert all(r["images"] for r in scanned["records"])
+    assert all(r["files"] for r in scanned["records"])
 
 
 # --- the target run, the page's own loop ------------------------------------
@@ -743,7 +743,7 @@ def test_a_scan_really_captures_at_every_position(mock_instrument, monkeypatch, 
     written = sorted((bridge._run / "overview" / "data").glob("*.ome.tiff"))
     assert len(written) == 3 * 3  # three positions, one file per channel
     for record in records:
-        for path in record["images"]:
+        for path in (plane["path"] for plane in record["planes"]):
             assert Path(path).is_file()
             assert Path(path).parent == bridge._run / "overview" / "data"
     # And the state it was captured under is printed beside them, once each.

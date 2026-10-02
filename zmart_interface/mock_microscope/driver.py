@@ -480,8 +480,9 @@ def acquire(
         handle, paths[0].parent, acquisition_type, acquisition_hash, position_label
     )
     # The two keys a client follows, in the shapes the real driver answers
-    # with: ``images`` the simple list, ``planes`` the manifest that tells a
-    # channel from a z. Each plane says where on the sample it was taken,
+    # with: ``files`` every file saved, the name the ZMART Controller's
+    # contract fixes, and ``planes`` the manifest that tells a channel from a
+    # z. Each plane says where on the sample it was taken,
     # because the driver is the only thing that knows: a saved file says how
     # large a pixel is and nothing about where it came from, and the stage
     # stands at the middle of a stack while its planes are spread either side.
@@ -511,7 +512,7 @@ def acquire(
         "settle": settle,
         "job": options["job"],
         "position": _user_position(handle),
-        "images": [plane["path"] for plane in planes],
+        "files": [*(plane["path"] for plane in planes), str(printed)],
         "planes": planes,
         # What the driver printed about this capture, beside the images.
         "metadata": [str(printed)],

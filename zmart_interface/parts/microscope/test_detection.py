@@ -24,7 +24,7 @@ def _record(**planes_extra):
     return {
         "acquisition_type": "overview", "acquisition_hash": "abc123",
         "position_label": "K00_M000001_G000001_P000004_V00",
-        "images": [p["path"] for p in planes], "planes": planes,
+        "files": [p["path"] for p in planes], "planes": planes,
     }
 
 
