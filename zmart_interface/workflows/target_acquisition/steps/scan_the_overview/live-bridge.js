@@ -72,6 +72,20 @@ export async function openTheChannelBox(page, channel) {
 export const pythonForTheBridge = () => process.env.PYTHON ?? "python";
 
 /**
+ * How the walks start that Python: the command, its arguments and the folder.
+ *
+ * `-P` keeps the folder Python starts in off its search path. The walks start
+ * from the root of this repository, where a folder called `zmart_interface`
+ * sits; without `-P` Python imports that folder in front of the installed
+ * package, and the walk tests the clone instead of what an operator installs.
+ * A developer with an editable install still gets their working copy, since
+ * the installation itself points Python there.
+ */
+export const bridgePython = (...args) => ({
+  command: pythonForTheBridge(), args: ["-P", ...args], cwd: REPO,
+});
+
+/**
  * Start a bridge on *port*, connected to the mock microscope.
  *
  * The scan is not started: `image(positions)` drives it one call at a time, so
@@ -94,8 +108,8 @@ export function operateTheInstrument(method, ...args) {
     "from zmart_interface.mock_microscope.window import Api",
     `print(json.dumps(getattr(Api(), ${JSON.stringify(method)})(*json.loads(sys.argv[1]))))`,
   ].join("\n");
-  const said = execFileSync(pythonForTheBridge(), ["-c", program, JSON.stringify(args)],
-    { cwd: REPO, encoding: "utf8" });
+  const python = bridgePython("-c", program, JSON.stringify(args));
+  const said = execFileSync(python.command, python.args, { cwd: python.cwd, encoding: "utf8" });
   return JSON.parse(said);
 }
 
@@ -104,11 +118,10 @@ export async function startTheBridge({ port, connect = true } = {}) {
      inside the project looks to the development server like somebody editing
      the page, which reloads the browser mid-test. */
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), "zmart-bridge-"));
-  const bridge = spawn(
-    pythonForTheBridge(),
-    ["-m", "zmart_interface.framework.bridge", "--port", String(port), "--output-root", folder],
-    { stdio: "inherit", cwd: REPO },
+  const python = bridgePython(
+    "-m", "zmart_interface.framework.bridge", "--port", String(port), "--output-root", folder,
   );
+  const bridge = spawn(python.command, python.args, { stdio: "inherit", cwd: python.cwd });
 
   const at = `http://127.0.0.1:${port}`;
   const ask = async (route, payload) => {
