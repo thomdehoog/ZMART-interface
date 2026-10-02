@@ -837,9 +837,28 @@ def run_procedure(handle: MockHandle, procedure: dict) -> dict:
     return {"ran": dict(procedure)}
 
 
-# The area the page draws as the stage, in micrometres: a little inside the
-# travel, as a real stage has some travel beyond its nominal working area.
-CANVAS_UM = {"x_um": [0.0, 120_000.0], "y_um": [0.0, 80_000.0], "z_um": [0.0, 10_000.0]}
+def _the_canvas() -> dict[str, list[float]]:
+    """Everywhere a capture can reach: the stage's whole travel, and half a field beyond it.
+
+    A field is centred where the stage stands, so one taken at the edge of the
+    travel reaches half its width further, and a stack reaches half its depth
+    above and below. The viewer refuses, whole, a capture that reaches outside
+    the canvas, and the stage stands at its zero, at the edge of where it
+    travels, until the operator first moves it. So the canvas is the widest
+    field's half and the deepest stack's half beyond the travel on every side.
+    """
+    half_field = max(px * um for px, um in (frame_of(job, "overview") for job in JOBS)) / 2
+    stacks = [_ONE_PLANE, *_STACKS.values(), *JOB_STACKS.values()]
+    half_stack = max((one["z_planes"] - 1) * one["z_step_um"] for one in stacks) / 2
+    reach = {"x": half_field, "y": half_field, "z": half_stack}
+    return {
+        f"{axis}_um": [low - reach[axis], high + reach[axis]]
+        for axis, (low, high) in TRAVEL_UM.items()
+    }
+
+
+#: The area the page draws as the stage, and the viewer places pictures on, in micrometres.
+CANVAS_UM = _the_canvas()
 
 # The connection checks, in the order they answer, each with the delay after
 # connect (seconds) at which its answer becomes available. Until then a client

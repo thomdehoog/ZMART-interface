@@ -88,6 +88,35 @@ def test_the_mock_is_known_by_its_whole_name_not_by_its_vendor():
     assert not mock_microscope.is_the_mock({"vendor": "mock", "microscope": "mock-scope", "api": "mock-api"})
 
 
+def test_the_canvas_holds_a_field_taken_anywhere_the_stage_can_go():
+    """The canvas is the whole travel and half the widest field beyond it, on every side.
+
+    The viewer refuses, whole, a capture that reaches outside the canvas. A
+    stage standing at the edge of its travel takes a field that reaches half
+    its width further, so a canvas any smaller loses those pictures.
+    """
+    widest = max(px * um for px, um in (mock_driver.frame_of(job, "overview") for job in mock_driver.JOBS))
+    for axis in ("x", "y"):
+        low, high = mock_driver.TRAVEL_UM[axis]
+        assert mock_driver.CANVAS_UM[f"{axis}_um"] == [low - widest / 2, high + widest / 2]
+
+
+def test_a_field_taken_before_the_stage_has_moved_lies_on_the_canvas(mock_instrument):
+    """Right after Connect, where an operator may first press Acquire, the field is on the canvas."""
+    raw = zmart_controller.session.set_instrument(mock_instrument)
+    try:
+        canvas = raw.get_info()["report"]["canvas"]
+        report = raw.acquire(acquisition_type="overview", position_label="P0")["report"]
+    finally:
+        raw.disconnect()
+    plane = report["planes"][0]
+    height, width = tifffile.imread(plane["path"]).shape
+    for axis, across in (("x", width), ("y", height)):
+        half = across * 4.0 / 2
+        low, high = canvas[f"{axis}_um"]
+        assert low <= plane[f"{axis}_um"] - half and plane[f"{axis}_um"] + half <= high
+
+
 def test_every_answer_comes_in_two_parts(mock_instrument):
     raw = zmart_controller.session.set_instrument(mock_instrument)
     try:
