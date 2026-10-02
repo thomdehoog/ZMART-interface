@@ -271,8 +271,11 @@ def _connect(asked: dict) -> dict:
         mock_microscope.open_the_window(connection)
     try:
         info = _session.get_info()
+        standing = _session.get_xyz()
+        area = _the_viewers_area(standing)
     except Exception:
-        # A microscope that cannot describe itself is not a session to keep.
+        # A microscope that cannot describe itself, or say how far its
+        # pictures reach, is not a session to keep.
         _session.disconnect()
         _session = None
         raise
@@ -283,7 +286,7 @@ def _connect(asked: dict) -> dict:
         from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels
 
         try:
-            _pixel_provider = KidneyPixels(focus_z_um=float(_session.get_xyz()["z"]["value"]))
+            _pixel_provider = KidneyPixels(focus_z_um=float(standing["z"]["value"]))
             _pixel_provider.recipe["focus_reference"] = "session-connect"
         except Exception:
             _session.disconnect()
@@ -319,8 +322,31 @@ def _connect(asked: dict) -> dict:
     # Baked, always: the zoomed-out picture composed on demand from every
     # position measured seconds a chunk against milliseconds baked, and the
     # first screen of a scan is zoomed out.
-    viewer_service.start(_run, bake=True, canvas=info.get("canvas"))
+    viewer_service.start(_run, bake=True, canvas=area)
     return {"context": _context, "info": info, "run": str(_run)}
+
+
+def _the_viewers_area(reading: dict) -> dict[str, list[float]]:
+    """The area the viewer lays pictures out on: get_xyz's ``reach``, axis by axis.
+
+    ``reach`` is everywhere a picture can show along an axis -- the stage's
+    travel and half a field (or half a stack) beyond it -- in the
+    micrometres get_xyz counts in. The viewer refuses, whole, a picture that
+    falls outside its area, so the area is laid out before the first picture
+    from what the driver says, never guessed. A driver that does not say is
+    refused at connect, in words the operator can act on.
+    """
+    area = {}
+    for axis in ("x", "y", "z"):
+        reach = (reading.get(axis) or {}).get("reach")
+        if not (isinstance(reach, (list, tuple)) and len(reach) == 2):
+            raise RuntimeError(
+                f"the microscope's driver does not say how far its pictures reach along {axis} "
+                "(get_xyz gives no 'reach'), so the area to show them on cannot be laid out; "
+                "the driver needs updating to the controller's current contract"
+            )
+        area[f"{axis}_um"] = [float(reach[0]), float(reach[1])]
+    return area
 
 
 def _disconnect() -> dict:
@@ -1790,7 +1816,7 @@ class _Bridge(BaseHTTPRequestHandler):
                 self._answer({"instruments": _instruments()})
             elif path == "/api/info":
                 # The driver's account of the session: its connection checks
-                # (polled while they answer) and the canvas.
+                # (polled while they answer).
                 with _the_instruments_turn:
                     self._answer(_require_session().get_info())
             elif path == "/api/xyz":

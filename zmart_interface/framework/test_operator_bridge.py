@@ -1274,6 +1274,44 @@ def test_a_fresh_connect_forgets_the_last_sessions_runs(mock_instrument, monkeyp
         bridge._disconnect()
 
 
+def test_the_viewer_is_laid_out_over_the_reach_get_xyz_reports(mock_instrument, monkeypatch, tmp_path):
+    """The viewer's area is where the driver says pictures can show, axis by axis.
+
+    It comes from get_xyz's ``reach`` -- the same answer a script would read
+    through the controller -- so nothing above the controller needs to know
+    which driver is underneath.
+    """
+    started = {}
+    monkeypatch.setattr(
+        bridge.viewer_service, "start", lambda run, **kw: started.update(kw, run=run)
+    )
+    instrument = {**mock_instrument, "output_root": str(tmp_path)}
+    try:
+        bridge._connect({"connection": instrument})
+        reading = bridge._session.get_xyz()
+    finally:
+        bridge._disconnect()
+    assert started["canvas"] == {
+        f"{axis}_um": reading[axis]["reach"] for axis in ("x", "y", "z")
+    }
+
+
+def test_a_driver_that_gives_no_reach_is_said_so_plainly():
+    """A driver that does not say how far its pictures reach cannot have its area laid out.
+
+    The controller's validate_driver already refuses such a driver; the
+    bridge says the same thing in words the operator can act on, rather
+    than drawing an area somebody guessed.
+    """
+    reading = {
+        "x": {"value": 0.0, "range": [0.0, 10.0], "reach": [-1.0, 11.0]},
+        "y": {"value": 0.0, "range": [0.0, 10.0]},
+        "z": {"value": 0.0, "range": [0.0, 10.0], "reach": [-1.0, 11.0]},
+    }
+    with pytest.raises(RuntimeError, match=r"does not say how far its pictures reach along y"):
+        bridge._the_viewers_area(reading)
+
+
 def test_the_optics_line_names_the_leica_lens(monkeypatch):
     """The Leica's objective is {name, magnification, slotIndex} -- no
     aperture, no immersion. The name is what identifies the lens on the

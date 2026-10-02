@@ -77,7 +77,10 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
 
         def get_xyz(self):
             self.reads += 1
-            return {"success": True, "report": {"z": {"value": self.height, "unit": "um"}}}
+            report = {axis: {"value": 0.0, "unit": "um", "range": [0.0, 1000.0],
+                             "reach": [-50.0, 1050.0]} for axis in ("x", "y", "z")}
+            report["z"]["value"] = self.height
+            return {"success": True, "report": report}
 
         def disconnect(self):
             pass
@@ -102,7 +105,8 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         first((64,64), np.uint8, plane={"x_um":512,"y_um":512,"z_um":435,"c":0}, pixel_um=(2,2))
         assert first.focus_z_um == 420 and session.reads == 1
     else:
-        assert first is None and session.reads == 0
+        # Connect reads the stage once, for the reach the viewer is laid out over.
+        assert first is None and session.reads == 1
         session.height = 435
     bridge._connect({"connection": {"vendor": "test"}})
     if enabled:
@@ -110,7 +114,7 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         assert first.focus_z_um == 420
         assert session.reads == 2
     else:
-        assert session.reads == 0
+        assert session.reads == 2  # one reading per connection, never one per capture
 
 
 def test_focus_reference_translation_does_not_change_pixels():

@@ -41,30 +41,33 @@ export const um = (reading) => ({
  * than written down, because the two backends are two different instruments
  * and only one of them is pretend.
  */
-const somewhereElse = (from, canvas) => {
+const somewhereElse = (from, travel) => {
   const mid = (range) => (range[0] + range[1]) / 2;
   const step = (range) => (range[1] - range[0]) / 6;
   return {
-    x: from.x > mid(canvas.x_um) ? from.x - step(canvas.x_um) : from.x + step(canvas.x_um),
-    y: from.y > mid(canvas.y_um) ? from.y - step(canvas.y_um) : from.y + step(canvas.y_um),
+    x: from.x > mid(travel.x) ? from.x - step(travel.x) : from.x + step(travel.x),
+    y: from.y > mid(travel.y) ? from.y - step(travel.y) : from.y + step(travel.y),
     z: from.z,
   };
 };
 
-/** The instrument's own travel, for every coordinate a promise drives to:
-    written numbers were the mock's stage, and out-of-travel drives on
-    anything real. */
-const theCanvasOf = async (backend) => (await backend.info()).canvas;
+/** The instrument's own travel, `get_xyz`'s `range` per axis, for every
+    coordinate a promise drives to: written numbers were the mock's stage,
+    and out-of-travel drives on anything real. */
+const theTravelOf = async (backend) => {
+  const at = await backend.get_xyz();
+  return { x: at.x.range, y: at.y.range };
+};
 
 /** A place a given fraction of the way across the travel. */
-const across = (canvas, fx, fy) => ({
-  x: canvas.x_um[0] + fx * (canvas.x_um[1] - canvas.x_um[0]),
-  y: canvas.y_um[0] + fy * (canvas.y_um[1] - canvas.y_um[0]),
+const across = (travel, fx, fy) => ({
+  x: travel.x[0] + fx * (travel.x[1] - travel.x[0]),
+  y: travel.y[0] + fy * (travel.y[1] - travel.y[0]),
 });
 
-const spanOf = (canvas) => [
-  canvas.x_um[1] - canvas.x_um[0],
-  canvas.y_um[1] - canvas.y_um[0],
+const spanOf = (travel) => [
+  travel.x[1] - travel.x[0],
+  travel.y[1] - travel.y[0],
 ];
 
 /**
@@ -97,7 +100,7 @@ export function promisesOfABackend(expect) {
     {
       what: "is standing where it was driven",
       async keep(backend) {
-        const going = somewhereElse(um(await backend.get_xyz()), await theCanvasOf(backend));
+        const going = somewhereElse(um(await backend.get_xyz()), await theTravelOf(backend));
         await backend.set_xyz(going);
         const now = um(await backend.get_xyz());
         expect(now.x, "x arrived").toBeCloseTo(going.x, 0);
@@ -107,7 +110,7 @@ export function promisesOfABackend(expect) {
     {
       what: "answers a drive with where it ended up",
       async keep(backend) {
-        const going = somewhereElse(um(await backend.get_xyz()), await theCanvasOf(backend));
+        const going = somewhereElse(um(await backend.get_xyz()), await theTravelOf(backend));
         const answered = um(await backend.set_xyz(going));
         /* The answer and the reading afterwards agree, which is what lets the
            page move the mark on the answer instead of waiting for the watch. */
@@ -117,7 +120,7 @@ export function promisesOfABackend(expect) {
     {
       what: "leaves an axis alone when it is not asked about",
       async keep(backend) {
-        const start = somewhereElse(um(await backend.get_xyz()), await theCanvasOf(backend));
+        const start = somewhereElse(um(await backend.get_xyz()), await theTravelOf(backend));
         await backend.set_xyz(start);
         const now = um(await backend.set_xyz({ x: start.x - 5_000 }));
         expect(now.y, "y held").toBeCloseTo(start.y, 0);
@@ -200,10 +203,10 @@ export function promisesOfABackend(expect) {
     {
       what: "measures a focus point and reports a height for it",
       async keep(backend) {
-        const canvas = await theCanvasOf(backend);
+        const travel = await theTravelOf(backend);
         const { points } = await backend.measureFocus(
-          [across(canvas, 0.25, 0.3)],
-          { metric: "brenner", extent: spanOf(canvas) },
+          [across(travel, 0.25, 0.3)],
+          { metric: "brenner", extent: spanOf(travel) },
         );
         expect(points.length, "one point asked for, one back").toBe(1);
         const [point] = points;
@@ -221,14 +224,14 @@ export function promisesOfABackend(expect) {
     {
       what: "keeps every point it was asked about, in the order asked",
       async keep(backend) {
-        const canvas = await theCanvasOf(backend);
+        const travel = await theTravelOf(backend);
         const asked = [
-          across(canvas, 0.1, 0.15),
-          across(canvas, 0.4, 0.4),
-          across(canvas, 0.75, 0.75),
+          across(travel, 0.1, 0.15),
+          across(travel, 0.4, 0.4),
+          across(travel, 0.75, 0.75),
         ];
         const { points } = await backend.measureFocus(asked, {
-          metric: "brenner", extent: spanOf(canvas),
+          metric: "brenner", extent: spanOf(travel),
         });
         expect(points.map((p) => [p.x, p.y])).toEqual(asked.map((p) => [p.x, p.y]));
       },
@@ -239,11 +242,11 @@ export function promisesOfABackend(expect) {
         /* The page starts each point's stack at the height just found at the
            point before, so it has to be asked after that point is reported,
            never all at once up front. */
-        const canvas = await theCanvasOf(backend);
-        const asked = [across(canvas, 0.2, 0.2), across(canvas, 0.3, 0.3), across(canvas, 0.4, 0.4)];
+        const travel = await theTravelOf(backend);
+        const asked = [across(travel, 0.2, 0.2), across(travel, 0.3, 0.3), across(travel, 0.4, 0.4)];
         const happened = [];
         await backend.measureFocus(asked, {
-          metric: "brenner", extent: spanOf(canvas),
+          metric: "brenner", extent: spanOf(travel),
           beginAt: (index) => { happened.push(`begin ${index}`); return undefined; },
           onPoint: (_, index) => happened.push(`landed ${index}`),
         });
@@ -253,19 +256,28 @@ export function promisesOfABackend(expect) {
       },
     },
     {
-      what: "says how far the stage can go, and what the session stands on",
+      what: "says how far the stage can go and its pictures reach, and what the session stands on",
       async keep(backend) {
         const checks = [];
-        const { info } = await backend.connect(
+        await backend.connect(
           { connection: (await backend.instruments())[0] },
           { onChecks: (keys) => checks.push(...keys) },
         );
-        /* The page sizes its canvas from this and lists these under Connect.
-           The mock always reported both; the Leica reported neither, so a
-           real connect drew a canvas of no size with nothing to say. */
-        for (const axis of ["x_um", "y_um"]) {
-          expect(Array.isArray(info.canvas?.[axis]), `canvas.${axis} is a range`).toBe(true);
-          expect(info.canvas[axis][1], `canvas.${axis} spans something`).toBeGreaterThan(info.canvas[axis][0]);
+        /* The page lays the stage out from `get_xyz`'s reach and lists the
+           checks under Connect. The mock always reported both; the Leica once
+           reported neither, so a real connect drew a stage of no size with
+           nothing to say. Reach holds the travel: a picture taken at the
+           edge of travel shows at least as far as the stage went. */
+        const at = await backend.get_xyz();
+        for (const axis of ["x", "y", "z"]) {
+          const { range, reach } = at[axis];
+          expect(Array.isArray(range) && range.length === 2, `${axis} has a travel range`).toBe(true);
+          expect(Array.isArray(reach) && reach.length === 2, `${axis} has a reach`).toBe(true);
+          expect(reach[0], `${axis} reaches at least as low as it travels`).toBeLessThanOrEqual(range[0]);
+          expect(reach[1], `${axis} reaches at least as high as it travels`).toBeGreaterThanOrEqual(range[1]);
+        }
+        for (const axis of ["x", "y"]) {
+          expect(at[axis].reach[1], `${axis}'s reach spans something`).toBeGreaterThan(at[axis].reach[0]);
         }
         expect(checks.length, "the checks are named as they are asked").toBeGreaterThan(0);
         await backend.disconnect();
@@ -277,8 +289,8 @@ export function promisesOfABackend(expect) {
         /* The whole display path leans on these three fields, and no promise
            held them: the record is the only thing that knows where on the
            sample a file came from. */
-        const canvas = await theCanvasOf(backend);
-        const going = across(canvas, 0.5, 0.5);
+        const travel = await theTravelOf(backend);
+        const going = across(travel, 0.5, 0.5);
         await backend.set_xyz({ ...going, z: um(await backend.get_xyz()).z });
         const { report: record } = await backend.acquire({
           acquisition_type: "overview", position_label: "contract",
@@ -316,8 +328,8 @@ export function promisesOfABackend(expect) {
            operator is watching had a mark that trailed the run -- the
            positions are in every progress answer already, and saying them is
            the backend's job because only its records know where it stood. */
-        const canvas = await theCanvasOf(backend);
-        const positions = [across(canvas, 0.4, 0.4), across(canvas, 0.6, 0.6)];
+        const travel = await theTravelOf(backend);
+        const positions = [across(travel, 0.4, 0.4), across(travel, 0.6, 0.6)];
         const stood = [];
         await backend.scanOverview({
           positions, ms: 200,
