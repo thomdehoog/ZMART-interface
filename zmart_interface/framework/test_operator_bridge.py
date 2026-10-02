@@ -232,7 +232,7 @@ def _measured(asked):
             "x": point["x"], "y": point["y"],
             **({"z": start} if isinstance(start, (int, float)) else {}),
         })
-        record = bridge._capture({"acquisition_type": "focussing", "position_label": begun["labels"][index]})
+        record = bridge._capture({"acquisition_type": "focussing", "position_label": begun["labels"][index]})["report"]
         bridge._score_focus({"record": record, "centre": at["z"]["value"], "point": point})
     bridge._end_focus({})
     assert bridge._focus["error"] is None, bridge._focus["error"]
@@ -478,23 +478,43 @@ class _Capturing(_Driver):
         }
 
 
-def test_a_capture_answers_with_the_record_the_driver_made(monkeypatch):
+def test_a_capture_answers_as_the_controller_does(monkeypatch):
     """The record is the half nothing else can reconstruct.
 
     Where a run will land is in `get_info`; what one capture wrote is only
     known to the capture — a driver names its own files, and one acquisition
-    can be many planes. Answered whole rather than picked over.
+    can be many planes. The controller's answer is passed on whole, envelope
+    and all, so the page reads what a Python script would.
     """
     driver = _Capturing()
     monkeypatch.setattr(bridge, "_session", _plugged(driver))
-    record = bridge._capture({
+    answer = bridge._capture({
         "acquisition_type": "overview",
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
-    assert [Path(p).name for p in record["files"]] == [
-        "K00_M000001_G000000_P000007_V00.tiff"
-    ]
-    assert record["planes"][0]["c"] == 0
+    path = str(driver.staging / "overview" / "K00_M000001_G000000_P000007_V00.tiff")
+    assert answer == {"success": True, "report": {
+        "acquisition_type": "overview",
+        "position_label": "K00_M000001_G000000_P000007_V00",
+        "files": [path],
+        "planes": [{"t": 0, "z": 0, "c": 0, "path": path,
+                    "x_um": 0.0, "y_um": 0.0, "z_um": 0.0}],
+    }}
+
+
+def test_a_capture_the_microscope_declined_is_answered_not_raised(monkeypatch):
+    """A script sees ``success`` false and the driver's reason; so does the page."""
+    declined = {"success": False, "report": {"reason": "the image never arrived", "files": [],
+                                              "planes": []}}
+
+    class _Declining:
+        context = {"vendor": "test", "microscope": "declining", "api": "test"}
+
+        def acquire(self, **_asked):
+            return declined
+
+    monkeypatch.setattr(bridge, "_session", Instrument(_Declining()))
+    assert bridge._capture({"acquisition_type": "overview", "position_label": "A1"}) == declined
 
 
 def test_the_options_a_capture_is_given_reach_the_driver(monkeypatch):
@@ -599,12 +619,12 @@ def _targets_taken(positions, *, append=False, focus=None):
         if focus:
             stack = bridge._capture({
                 "acquisition_type": "target-focussing", "position_label": begun["labels"][index],
-            })
+            })["report"]
             found = bridge._score_target_focus({"record": stack, "centre": at["z"]["value"],
                                                 "x": position["x"], "y": position["y"]})
             if found["z"] is not None:
                 at = bridge._drive_to({"x": position["x"], "y": position["y"], "z": found["z"]})
-        record = bridge._capture({"acquisition_type": "targets", "position_label": begun["labels"][index]})
+        record = bridge._capture({"acquisition_type": "targets", "position_label": begun["labels"][index]})["report"]
         bridge._target_landed({
             "record": record,
             "position": {"x": position["x"], "y": position["y"], "z": at["z"]["value"]},

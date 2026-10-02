@@ -46,8 +46,10 @@ The verbs, and what they are made of
   themselves; the bridge puts them in ``changeable``, which is where the
   contract says a client's instructions go.
 * ``POST /api/acquire`` — capture once where the stage is standing
-  (``acquire``), answering with the driver's record: what it wrote, and where.
-  The one place a client learns the paths of the files a run made.
+  (``acquire``), answering with the controller's own answer, untouched:
+  ``{"success", "report"}``, the report's ``files`` naming every file saved and
+  its ``planes`` which channel, depth and stage position each picture is. The
+  one place a client learns the paths of the files a run made.
 * ``POST /api/focus/begin``, ``POST /api/focus/score`` and ``POST /api/focus/end``
   — the focus map, driven by the page one stack at a time: begin clears the
   focussing acquisition and names the stacks; the page drives (``/api/xyz``)
@@ -519,19 +521,20 @@ def _apply_state(asked: dict) -> dict:
 
 
 def _capture(asked: dict) -> dict:
-    """Capture once where the stage is standing, and answer with the record.
+    """Capture once where the stage is standing, and answer as the controller does.
 
-    The record is the half nothing else can reconstruct. Where a run will land
-    is in ``get_info``; what one capture wrote is known only to the capture —
-    the driver names its own files, and one acquisition is one file per plane.
-    So it is answered whole rather than picked over.
+    The answer is the controller's own, ``{"success": ..., "report": ...}``,
+    passed on untouched: the report's ``files`` lists every file the capture
+    saved and its ``planes`` say which channel, depth and stage position each
+    picture is. What one capture wrote is known only to the capture, so it is
+    answered whole rather than picked over, and a capture the microscope
+    declined is an answer with ``success`` false, as it is to a script.
 
     ``options`` go through as they came from ``get_acquisition_options``.
     Whatever is left out the driver fills from its own actives, which is why
     nothing here invents a default.
     """
-    session = _require_session()
-    return session.acquire(
+    return _require_session().acquire_answer(
         acquisition_type=str(asked["acquisition_type"]),
         position_label=str(asked["position_label"]),
         options=asked.get("options"),
@@ -1091,9 +1094,7 @@ def _the_view_of(acquisition_type: str) -> Path | None:
         if _view_built.get(acquisition_type) == len(records) and note.is_file():
             return note if records else None
         made = make_what_is_missing(view_of(acquisition_type), {
-            record["position_label"]: (
-                [plane["path"] for plane in record["planes"]], _the_middle_of(record)
-            )
+            record["position_label"]: (record["planes"], _the_middle_of(record))
             for record in records
         })
         _view_built[acquisition_type] = len(records)
