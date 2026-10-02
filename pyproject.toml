@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zmart-interface"
+version = "0.1.0rc1"
+description = "The ZMART operator window: walk a smart-microscopy run step by step, on any microscope the ZMART Controller drives."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Thom de Hoog", email = "thom.dehoog@zmb.uzh.ch" }]
+keywords = ["microscopy", "smart microscopy", "operator interface", "ome-zarr"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Image Acquisition",
+]
+# What the interface needs to run. The three ZMART packages are not on PyPI,
+# so they are installed from their own repositories.
+dependencies = [
+    # The one way to drive any microscope; every command goes through it.
+    "zmart-controller @ git+https://github.com/thomdehoog/ZMART-controller",
+    # The picture server that shows the run as it is acquired.
+    "zmart-viewer @ git+https://github.com/thomdehoog/ZMART-viewer",
+    # The engine that scores focus and finds objects, each step in its own
+    # environment. Its workflows stay in a checkout of the repository; see
+    # zmart_interface/parts/analysis/workflows.py.
+    "zmart-analysis @ git+https://github.com/thomdehoog/ZMART-analysis",
+    # Reading and writing the OME-Zarr images every capture is kept as.
+    "ngio==1.1.0",
+    "zarr>=3,<4",
+    "numpy>=1.24",
+    # Reading the image files a microscope writes.
+    "tifffile>=2024.1",
+    # The small pictures beside the canvas, and the detection masks.
+    "pillow>=10",
+    # The mock microscope's sample (scikit-image's kidney section, fetched by
+    # pooch the first time) and the synthetic pixels for the LAS X simulator.
+    "scikit-image>=0.22",
+    "scipy>=1.10",
+    "pooch>=1.8",
+    # The analysis engine reads its pipelines from YAML.
+    "pyyaml>=6",
+    # Checking that the installed viewer is a version this interface was tested with.
+    "packaging>=23",
+    # The operator window itself (WebView2 on Windows).
+    "pywebview>=5",
+]
+
+[project.optional-dependencies]
+# The drivers for real microscopes. Install the extra of the driver too, for
+# example the Leica's: pip install "zmart-drivers[leica] @ git+...".
+drivers = ["zmart-drivers @ git+https://github.com/thomdehoog/ZMART-drivers"]
+# What the tests need beyond the interface: pytest, and the reader of the OME
+# description inside a TIFF, which the analysis steps run in-process use.
+test = ["pytest>=8", "ome-types>=0.5"]
+
+[project.urls]
+Repository = "https://github.com/thomdehoog/ZMART-interface"
+"ZMART Microscopy" = "https://github.com/thomdehoog/ZMART-microscopy"
+
+[project.scripts]
+zmart-interface = "zmart_interface.launcher:main"
+
+[tool.setuptools.packages.find]
+include = ["zmart_interface*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+# The built page ships with the package: the microscope PC cannot build it.
+# The page's JavaScript sources stay in the repository; only the build goes.
+"zmart_interface.framework" = ["window/static/*"]
+"zmart_interface.mock_microscope.zmart_controller" = ["zmart.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["zmart_interface"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["node_modules", "zmart_interface/framework/window/static"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501", "B008"]

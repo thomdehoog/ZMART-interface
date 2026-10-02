@@ -1,0 +1,264 @@
+/**
+ * Step 1's channel — the session: what to open, and what came back.
+ *
+ * Connecting is not one action but a handful of questions, and the operator
+ * needs to see the answers: an autofocus that fails an hour into a run
+ * because the storage path was never writable is a bad way to find out. So
+ * the card is two boxes. The first is what the session is opened with — the
+ * microscope, its API, the password — and it locks once the session is open,
+ * because everything after this was read through it. The second is what the
+ * driver said when it opened: one row per check its `get_info` reports
+ * (whether the stage answers, which limits and calibration it loaded, where
+ * images go), each waiting until its answer arrives. How a microscope is set
+ * up -- its limits, its origin, its calibration -- belongs to the driver's own
+ * setup, so the card offers no choice of configuration: it shows what the
+ * driver says it stands on.
+ *
+ * The card reaches for nothing around it. What it shows and what it does
+ * arrive in `ctx`; the handle it gives back is how a check's answer lands
+ * in the row already on screen.
+ */
+
+import { sideGroup } from "../../../../framework/window/panels.js";
+import { isFailed } from "../../../../parts/microscope/connection-status.js";
+
+export function renderSessionCard(host, ctx) {
+  const session = ctx.session();
+  const connected = ctx.connected();
+  let connectBtn = null;
+  let connectHint = null;
+  const connecting = ctx.connecting();
+  /* The first step is headed the way every other step is: the name above the
+     box, the box holding the work. What the session was opened with is
+     already in the fields and in the rail beside them, so a third copy in the
+     corner was the panel talking about itself. */
+  const { group, body: card } = sideGroup("Connect to the microscope");
+  card.classList.add("session-card");
+  if (connected) card.classList.add("done");
+
+  {
+    const locked = connected || connecting;
+    const form = document.createElement("div");
+    form.className = "session-form";
+
+    const scope = document.createElement("label");
+    scope.className = "field";
+    scope.innerHTML = "<span>Microscope</span><select></select>";
+    const scopeSel = scope.querySelector("select");
+    for (const m of ctx.instruments()) {
+      const o = document.createElement("option");
+      o.value = m.key;
+      o.textContent = m.detail ? `${m.label} · ${m.detail}` : m.label;
+      scopeSel.append(o);
+    }
+    if (!ctx.instruments().length) {
+      const o = document.createElement("option");
+      o.value = ""; o.textContent = "no instruments listed";
+      scopeSel.append(o);
+    }
+    scopeSel.value = session.microscope ?? "";
+    scopeSel.disabled = locked || !ctx.instruments().length;
+    scopeSel.addEventListener("change", () => {
+      session.microscope = scopeSel.value;
+      session.api = ctx.chosenMicroscope()?.apis[0]?.key ?? null;
+      ctx.changed();
+    });
+
+    const api = document.createElement("label");
+    api.className = "field";
+    api.innerHTML = "<span>API</span><select></select>";
+    const apiSel = api.querySelector("select");
+    for (const a of ctx.chosenMicroscope()?.apis ?? []) {
+      const o = document.createElement("option");
+      o.value = a.key;
+      o.textContent = a.detail ? `${a.label} · ${a.detail}` : a.label;
+      apiSel.append(o);
+    }
+    apiSel.value = session.api ?? "";
+    apiSel.disabled = locked || !ctx.chosenMicroscope();
+    apiSel.addEventListener("change", () => {
+      session.api = apiSel.value;
+      ctx.changed();
+    });
+
+    const pw = document.createElement("label");
+    pw.className = "field";
+    pw.innerHTML = '<span>Password</span><input type="password" autocomplete="current-password">';
+    const pwInput = pw.querySelector("input");
+    pwInput.value = session.password;
+    pwInput.disabled = locked;
+    /* Typing must not rebuild the card: re-rendering destroys the very
+       input being typed into, which drops focus after every keystroke.
+       Only what depends on the password is touched. */
+    pwInput.addEventListener("input", () => {
+      session.password = pwInput.value;
+    });
+
+    form.append(scope, api, pw);
+
+    /* The protocol to open on: a new one, or one a finished run wrote on
+       this machine. The list is the
+       machine's, known only through the session, so the row says so until
+       the session is open and then fills -- and stays live while the rows
+       above it lock, since choosing is applying every step's settings. */
+    if (ctx.protocols) {
+      const listed = ctx.protocols();
+      const chosen = ctx.protocolChosen?.() ?? null;
+      const row = document.createElement("label");
+      row.className = "field";
+      row.innerHTML = "<span>Protocol</span><select></select>";
+      const pick = row.querySelector("select");
+      pick.id = "protocol-pick";
+      const when = (seconds) => new Date(seconds * 1000)
+        .toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+      const fresh = document.createElement("option");
+      fresh.value = "";
+      fresh.textContent = listed.length ? "New protocol" : "New protocol — none written on this machine yet";
+      pick.append(fresh);
+      /* The most recent few, saved ones by name and runs by their time;
+         the chosen one stays listed however old; and a file of the
+         operator's own, picked through the system's dialog. */
+      const recent = listed.slice(0, 8);
+      if (chosen && !recent.some((one) => one.id === chosen)) {
+        const held = listed.find((one) => one.id === chosen);
+        if (held) recent.push(held);
+      }
+      for (const one of recent) {
+        const o = document.createElement("option");
+        o.value = one.id;
+        o.textContent = one.saved || one.fromFile ? `${one.id} · ${when(one.written)}` : `run · ${when(one.written)} · ${one.id.slice(-6)}`;
+        pick.append(o);
+      }
+      const fromFile = document.createElement("option");
+      fromFile.value = "__file__";
+      fromFile.textContent = "Load from file…";
+      pick.append(fromFile);
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.accept = ".json,application/json";
+      fileInput.id = "protocol-file";
+      fileInput.hidden = true;
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        if (file) ctx.chooseProtocolFromFile?.(file);
+        pick.value = chosen ?? "";
+      });
+      pick.value = chosen ?? "";
+      /* Chosen before the session opens and locked with the rest of the
+         row once it has: a run is opened on one protocol. */
+      pick.disabled = locked;
+      pick.addEventListener("change", () => {
+        if (pick.value === "__file__") { fileInput.click(); return; }
+        ctx.chooseProtocol(pick.value || null);
+      });
+      form.append(row, fileInput);
+      const note = document.createElement("p");
+      note.className = "setup-note";
+      note.id = "protocol-note";
+      note.textContent = ctx.protocolNote?.() ?? "";
+      note.hidden = !note.textContent;
+      form.append(note);
+    }
+    card.append(form);
+  }
+
+  /* What the session was opened with is one thing; what came back when it
+     was opened is another, so the answers stand in a box of their own under
+     it. Every check is listed the moment the session is opened and each one
+     ticks as its answer comes back — the row is the question, the mark is the
+     answer. An open session is not editable, so the fields above stay on show
+     as the record of what it was opened with. */
+  let checks = null;
+  const rows = [];
+  if (ctx.checks().length) {
+    const made = sideGroup("Connection checks");
+    checks = made.body;
+    /* Beside the session's box, not inside it: two boxes standing in the
+       channel, the way every other step's boxes stand. */
+    host.append(made.group);
+    const list = document.createElement("div");
+    list.className = "check-list";
+    for (const c of ctx.checks()) {
+      const answered = c.result !== null;
+      const failed = answered && isFailed(c.result);
+      const row = document.createElement("div");
+      row.className = "check-row" + (answered ? "" : " pending") + (failed ? " failed" : "");
+      row.innerHTML = '<span class="check-mark"></span><span class="check-name"></span>'
+        + '<span class="check-value"></span>';
+      row.querySelector(".check-mark").textContent = failed ? "✗" : "✓";
+      row.querySelector(".check-name").textContent = c.label;
+      row.querySelector(".check-value").textContent = answered ? c.result : "";
+      rows.push(row);
+      list.append(row);
+    }
+    checks.append(list);
+  }
+
+  /* The button sits at the end of the card, after everything it acts on —
+     the rule every other step already follows. Once the session is open the
+     press has nothing left to do, so what stands in its place is not a button
+     at all: a green lamp and the word for it, the way an instrument says it is
+     on. The way back out is the button, beside it. */
+  {
+    const foot = document.createElement("div");
+    foot.className = "session-foot";
+    const row = document.createElement("div");
+    row.className = "session-buttons";
+
+    if (connected) {
+      const held = document.createElement("div");
+      held.className = "session-state";
+      held.innerHTML = '<i class="lamp"></i>';
+      held.append("Connected");
+
+      const out = document.createElement("button");
+      out.type = "button";
+      out.className = "danger";
+      out.textContent = "Disconnect";
+      out.addEventListener("click", () => ctx.disconnect());
+      row.append(held, out);
+    } else {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "run";
+      btn.textContent = connecting ? "connecting…" : "Connect";
+      /* The password is the instrument's business, not the page's: the
+         field starts empty and stays optional, and an instrument that wants
+         one says so when the session is opened. The page once refused to
+         connect without one, which only stood in the way of the mock. */
+      btn.disabled = connecting || !ctx.chosenConnection();
+      btn.addEventListener("click", () => ctx.connect());
+      row.append(btn);
+      /* The way out is there from the moment a connect begins, not once it
+         has finished: a connect that hangs on a check is exactly when an
+         operator needs it, and there was nothing to press. */
+      if (connecting) {
+        const out = document.createElement("button");
+        out.type = "button";
+        out.className = "danger";
+        out.textContent = "Disconnect";
+        out.addEventListener("click", () => ctx.disconnect());
+        row.append(out);
+      }
+    }
+
+    foot.append(row);
+    card.append(foot);
+  }
+
+  host.prepend(group);
+
+  /* Only the answer lands. The row is already on screen, so filling one in
+     touches that row rather than rebuilding the card under the operator —
+     which would restart every other row's arrival along with it. */
+  return {
+    answer(k, result) {
+      const row = rows[k];
+      if (!row) return;
+      row.classList.remove("pending");
+      row.classList.toggle("failed", isFailed(result));
+      row.querySelector(".check-mark").textContent = isFailed(result) ? "✗" : "✓";
+      row.querySelector(".check-value").textContent = result;
+    },
+  };
+}

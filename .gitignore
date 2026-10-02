@@ -1,0 +1,17 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# The page's build tools, and what the browser tests leave behind
+node_modules/
+test-results/
+playwright-report/
+
+# A run the mock microscope writes when it is given nowhere else to write
+mock-output/
+
+# Built pages live in zmart_interface/framework/window/static/ and ARE
+# committed: the microscope PC cannot build them.
