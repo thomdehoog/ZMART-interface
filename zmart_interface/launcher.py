@@ -79,8 +79,7 @@ def main(argv: list[str] | None = None) -> int:
               "`python -m zmart_interface.framework.bridge` and open its address in a browser")
         return 1
 
-    server = bridge.serve(0, args.output_root, simulator_pixels=args.simulator_pixels,
-                          drivers=args.driver)
+    server = bridge.serve(0, args.output_root, simulator_pixels=args.simulator_pixels)
     bridge_at = f"http://127.0.0.1:{server.server_address[1]}"
     if args.dev:
         # The development server holds the page so edits reload live, which

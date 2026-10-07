@@ -1,86 +1,64 @@
 /**
  * What can be connected to, and what this page calls it.
  *
- * The list is the controller's: `get_instruments` answers with one entry per
- * registered driver, and an entry is the connection dict `set_instrument`
- * takes — identified by vendor, microscope and api, with whatever
- * driver-specific extras it carries. The page never invents an instrument;
- * it only groups the entries the way the Connect card asks, and puts
- * friendlier words on the ids it happens to know.
+ * The list comes from the bridge (`GET /api/instruments`) as names: the
+ * interface's own mock microscope, `interface-mock`, then every driver
+ * registered on this computer, by its name
+ * (`zmart_controller.get_drivers()`, the controller's own mock, `mock`,
+ * first). Connect sends the chosen name back. The page never invents an
+ * instrument; it only puts friendlier words on the names it happens to know.
  */
 
 /**
- * The interface's own pretend microscope, by its whole name, as its
- * `zmart.json` gives it. Known by all three parts, never by the vendor alone:
- * the ZMART Controller ships a pretend microscope of its own (a slide of
- * beads) whose vendor is "mock" too, and an operator who chose "Mock" must
+ * The interface's own pretend microscope, by the name the bridge offers it
+ * under. The ZMART Controller has a pretend microscope of its own too (a
+ * slide of beads, listed as `mock`), and an operator who chose "Mock" must
  * get this one.
  */
-export const THE_MOCK = Object.freeze({ vendor: "mock", microscope: "kidney-mock", api: "zmart-interface" });
+export const THE_MOCK = "interface-mock";
 
-/** Whether a connection entry is the interface's own mock, compared by its whole name. */
-export const isTheMock = (entry) =>
-  Boolean(entry) && Object.entries(THE_MOCK).every(([key, value]) => entry[key] === value);
+/** Whether a listed name is the interface's own mock. */
+export const isTheMock = (name) => name === THE_MOCK;
 
+/** Friendlier words for the names the page knows; any other is shown as it is. */
 export const MICROSCOPES = {
-  [THE_MOCK.microscope]: { label: "Mock", detail: "the interface's pretend microscope" },
-  "stellaris5-y42h93": { label: "Leica Stellaris 5", detail: "y42h93" },
-};
-
-export const APIS = {
-  [THE_MOCK.api]: { label: "Mock API", detail: "in-process · made-up data" },
-  "navigator-expert": { label: "Navigator Expert", detail: "CAM socket 8895 · LAS X 4.9" },
+  [THE_MOCK]: { label: "Mock", detail: "the interface's pretend microscope",
+    api: "Mock API", apiDetail: "in-process · made-up data" },
+  mock: { label: "Mock beads", detail: "the controller's pretend microscope",
+    api: "Mock API", apiDetail: "in-process · made-up data" },
 };
 
 /**
- * The registry's entries, grouped the way the Connect card asks: one
- * microscope, then the APIs registered for it, each API carrying the entry
- * to connect with. Registry order is kept.
+ * The listed names, shaped the way the Connect card asks: one microscope per
+ * name, each with the one driver it is plugged in through. List order is kept.
  */
 export function choicesFrom(instruments) {
-  const microscopes = [];
-  for (const entry of instruments ?? []) {
-    const key = `${entry.vendor}/${entry.microscope}`;
-    let scope = microscopes.find((m) => m.key === key);
-    if (!scope) {
-      const known = MICROSCOPES[entry.microscope];
-      scope = {
-        key,
-        vendor: entry.vendor,
-        microscope: entry.microscope,
-        label: known?.label ?? entry.microscope,
-        detail: known?.detail ?? entry.vendor,
-        apis: [],
-      };
-      microscopes.push(scope);
-    }
-    const api = APIS[entry.api];
-    scope.apis.push({
-      key: entry.api,
-      label: api?.label ?? entry.api,
-      detail: api?.detail ?? "",
-      connection: { ...entry },
-    });
-  }
-  return microscopes;
+  return (instruments ?? []).map((name) => {
+    const known = MICROSCOPES[name];
+    return {
+      key: name,
+      label: known?.label ?? name,
+      detail: known?.detail ?? "",
+      apis: [{
+        key: name, label: known?.api ?? "ZMART driver", detail: known?.apiDetail ?? "", instrument: name,
+      }],
+    };
+  });
 }
 
 /**
- * Where the interface's own mock sits among the grouped choices: the
- * microscope's key and the api's, ready for the Connect card to select.
- * `null` when it is not listed.
+ * Where the interface's own mock sits among the choices: the microscope's
+ * key and the driver's, ready for the Connect card to select. `null` when it
+ * is not listed.
  */
 export function theMockAmong(choices) {
-  for (const scope of choices ?? []) {
-    const api = scope.apis.find((one) => isTheMock(one.connection));
-    if (api) return { microscope: scope.key, api: api.key };
-  }
-  return null;
+  const scope = (choices ?? []).find((one) => isTheMock(one.key));
+  return scope ? { microscope: scope.key, api: scope.apis[0].key } : null;
 }
 
 export const DEFAULT_SESSION = {
-  /* Chosen once the instruments are listed: the first the registry offers,
-     which is the mock, so a page opened by accident drives nothing. */
+  /* Chosen once the instruments are listed: the interface's mock when it is
+     listed, so a page opened by accident drives nothing. */
   microscope: null,
   api: null,
   /* Empty on purpose. It used to be prefilled so the mock could be clicked
@@ -90,9 +68,7 @@ export const DEFAULT_SESSION = {
   password: "",
 };
 
-export const describeSession = ({ connection }) => {
-  if (!connection) return "not chosen";
-  const scope = MICROSCOPES[connection.microscope]?.label ?? connection.microscope;
-  const api = APIS[connection.api]?.label ?? connection.api;
-  return `${scope} · ${api}`;
+export const describeSession = ({ instrument }) => {
+  if (!instrument) return "not chosen";
+  return MICROSCOPES[instrument]?.label ?? instrument;
 };

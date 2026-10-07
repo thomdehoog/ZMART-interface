@@ -148,7 +148,7 @@ export async function startTheBridge({ port, connect = true } = {}) {
   const { instruments } = await ask("/api/instruments");
   const scope = instruments.find(isTheMock);
   if (!scope) throw new Error("the bridge has no mock microscope to connect to");
-  const opened = connect ? await ask("/api/connect", { connection: scope }) : null;
+  const opened = connect ? await ask("/api/connect", { instrument: scope }) : null;
 
   return {
     /* Where the pictures of the overview are served — the same address the

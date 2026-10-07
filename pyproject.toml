@@ -75,7 +75,6 @@ namespaces = false
 # the build goes. The Python tests beside the code stay behind too; setup.py
 # says how.
 "zmart_interface.framework" = ["window/build/*"]
-"zmart_interface.mock_microscope.zmart_controller" = ["zmart.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["zmart_interface"]

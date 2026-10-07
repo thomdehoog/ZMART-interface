@@ -75,7 +75,7 @@ def _needs_the_analysis_environment(name: str) -> None:
 
 def _a_mock_session(instrument) -> Instrument:
     """The mock microscope through the controller, as the bridge connects it."""
-    return Instrument(zmart_controller.session.set_instrument(instrument))
+    return Instrument(zmart_controller.session.set_instrument(mock_microscope, instrument))
 
 
 class _Driver:
@@ -97,7 +97,7 @@ class _Driver:
         self.staging = Path(tempfile.mkdtemp(prefix="zmart-driver-"))
 
     def get_xyz(self) -> dict:
-        return {axis: {"value": v, "unit": "um"} for axis, v in self.at.items()}
+        return {axis: {"value": v} for axis, v in self.at.items()}
 
     def set_state(self, state: dict) -> dict:
         self.applied.append(dict(state))
@@ -168,7 +168,6 @@ def test_a_drive_answers_with_the_position_the_move_reported(driver):
         "y": 42_000.0,
         "z": -380.0,
     }
-    assert all(reading["unit"] == "um" for reading in went.values())
 
 
 def test_an_axis_not_asked_about_is_left_where_it_stands(driver):
@@ -520,7 +519,7 @@ def test_a_capture_the_microscope_declined_is_answered_not_raised(monkeypatch):
                                               "planes": []}}
 
     class _Declining:
-        context = {"vendor": "test", "microscope": "declining", "api": "test"}
+        context = {"driver": "declining"}
 
         def get_acquisition_settings(self):
             return {"success": True, "content": {}}
@@ -1289,16 +1288,16 @@ def test_the_reading_survives_a_leica_shaped_state(monkeypatch):
     assert "STELLARIS-1" in bridge._reading("acquisition")["summary"]
 
 
-def test_a_fresh_connect_forgets_the_last_sessions_runs(mock_instrument, monkeypatch, tmp_path):
+def test_a_fresh_connect_forgets_the_last_sessions_runs(monkeypatch, tmp_path):
     """The bridge outlives the page. A new session opened over old records
     rebuilt the previous scan's pictures into the fresh run's view, so a
     just-connected canvas showed a scan nobody had taken."""
-    instrument = {**mock_instrument, "output_root": str(tmp_path)}
+    monkeypatch.setattr(bridge, "_output_root", str(tmp_path))
     bridge._records["overview"] = [{"stale": True}]
     bridge._scan.update(running=False, done=5, of=5, error=None, acquisition_type="overview")
     bridge._focus.update(running=False, done=3, of=3, error=None, points=[{"x": 1}])
     try:
-        bridge._connect({"connection": instrument})
+        bridge._connect({"instrument": bridge.INTERFACE_MOCK})
         assert bridge._records == {}
         assert bridge._the_scan()["done"] == 0 and bridge._the_scan()["records"] == []
         assert bridge._focus["points"] == []
@@ -1306,10 +1305,10 @@ def test_a_fresh_connect_forgets_the_last_sessions_runs(mock_instrument, monkeyp
         bridge._disconnect()
 
 
-def test_the_viewer_is_laid_out_over_the_reach_get_xyz_reports(mock_instrument, monkeypatch, tmp_path):
+def test_the_viewer_is_laid_out_over_the_canvas_get_xyz_reports(monkeypatch, tmp_path):
     """The viewer's area is where the driver says pictures can show, axis by axis.
 
-    It comes from get_xyz's ``reach`` -- the same answer a script would read
+    It comes from get_xyz's ``canvas`` -- the same answer a script would read
     through the controller -- so nothing above the controller needs to know
     which driver is underneath.
     """
@@ -1317,30 +1316,30 @@ def test_the_viewer_is_laid_out_over_the_reach_get_xyz_reports(mock_instrument, 
     monkeypatch.setattr(
         bridge.viewer_service, "start", lambda run, **kw: started.update(kw, run=run)
     )
-    instrument = {**mock_instrument, "output_root": str(tmp_path)}
+    monkeypatch.setattr(bridge, "_output_root", str(tmp_path))
     try:
-        bridge._connect({"connection": instrument})
+        bridge._connect({"instrument": bridge.INTERFACE_MOCK})
         reading = bridge._session.get_xyz()
     finally:
         bridge._disconnect()
     assert started["canvas"] == {
-        f"{axis}_um": reading[axis]["reach"] for axis in ("x", "y", "z")
+        f"{axis}_um": reading[axis]["canvas"] for axis in ("x", "y", "z")
     }
 
 
-def test_a_driver_that_gives_no_reach_is_said_so_plainly():
-    """A driver that does not say how far its pictures reach cannot have its area laid out.
+def test_a_driver_that_gives_no_canvas_is_said_so_plainly():
+    """A driver that does not say where its pictures can show cannot have its area laid out.
 
     The controller's validate_driver already refuses such a driver; the
     bridge says the same thing in words the operator can act on, rather
     than drawing an area somebody guessed.
     """
     reading = {
-        "x": {"value": 0.0, "range": [0.0, 10.0], "reach": [-1.0, 11.0]},
-        "y": {"value": 0.0, "range": [0.0, 10.0]},
-        "z": {"value": 0.0, "range": [0.0, 10.0], "reach": [-1.0, 11.0]},
+        "x": {"value": 0.0, "actuator": "motoric", "canvas": [-1.0, 11.0]},
+        "y": {"value": 0.0, "actuator": "motoric"},
+        "z": {"value": 0.0, "actuator": "motoric", "canvas": [-1.0, 11.0]},
     }
-    with pytest.raises(RuntimeError, match=r"does not say how far its pictures reach along y"):
+    with pytest.raises(RuntimeError, match=r"does not say where its pictures can show along y"):
         bridge._the_viewers_area(reading)
 
 
@@ -1897,9 +1896,31 @@ def test_before_a_session_the_list_comes_from_the_root_the_entry_names(monkeypat
         monkeypatch.setattr(bridge, "_run", None)
         monkeypatch.setattr(bridge, "_output_root", None)
         monkeypatch.setattr(bridge, "PROTOCOL_LIBRARY", Path(root) / "library")
-        connection = {**mock_microscope.IDENTITY, "output_root": root}
+        connection = {"client": "mock-client", "output_root": root}
         listed = bridge._protocols(connection)["protocols"]
         assert [one["id"] for one in listed] == ["target-acquisition_a1b2c3"]
         assert listed[0]["protocol"] == {"version": 1}
         # An entry that names no folder lists only the saved ones, until connected.
         assert bridge._protocols({**connection, "output_root": None})["protocols"] == []
+
+
+def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_drivers(tmp_path):
+    """The Connect step offers the interface's mock, then the controller's list of drivers.
+
+    A driver registered once on the computer appears by its name, and connect
+    plugs it in by that name with its own connection. The interface's mock is
+    offered once, registered or not. A name that is not listed is refused
+    before anything is imported.
+    """
+    beads = tmp_path / "beads" / "zmart_controller_plugin.py"
+    beads.parent.mkdir()
+    beads.write_text('from zmart_controller.mock import *  # noqa\n'
+                     'NAME = "beads"\nCONNECTION = {"mock_timing": "instant"}\n')
+    zmart_controller.register_driver(beads)
+    zmart_controller.register_driver(Path(mock_microscope.__file__).parent)
+
+    assert bridge._instruments() == ["interface-mock", "mock", "beads"]
+    assert bridge._saved_connection("beads") == {"mock_timing": "instant"}
+    assert bridge._saved_connection("interface-mock") == {"client": "mock-client"}
+    with pytest.raises(ValueError, match="no microscope is listed as 'os'"):
+        bridge._connect({"instrument": "os"})

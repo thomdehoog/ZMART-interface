@@ -17,18 +17,15 @@ fixture reads the content of each, as the bridge does.
 
 from __future__ import annotations
 
-import json
 import os
 
 import pytest
 import zmart_controller
 import zmart_controller.session
-from zmart_controller import utils
 from zmart_controller.utils import check_acquire_answer, validate_driver
 
 from zmart_interface import mock_microscope
 from zmart_interface.mock_microscope import driver as mock_driver
-from zmart_interface.parts.microscope.instrument import InstrumentDeclined
 
 tifffile = pytest.importorskip("tifffile")
 pytest.importorskip("skimage")
@@ -40,12 +37,12 @@ def session(mock_session):
 
 
 def test_the_mock_fits_the_controllers_contract(mock_instrument):
-    assert validate_driver(mock_instrument) == []
+    assert validate_driver(mock_microscope, mock_instrument) == []
 
 
 def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
     """``files`` names the images and the state printed beside them, as the controller's contract asks."""
-    raw = zmart_controller.session.set_instrument(mock_instrument)
+    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
     try:
         answer = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})
     finally:
@@ -58,7 +55,7 @@ def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
 
 def test_the_folder_setting_says_where_the_files_go(mock_instrument):
     """``folder`` groups a capture's files; left empty, they go straight into the output folder."""
-    raw = zmart_controller.session.set_instrument(mock_instrument)
+    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
     try:
         assert raw.get_acquisition_settings()["content"]["folder"]["active"] == ""
         grouped = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})
@@ -74,7 +71,7 @@ def test_the_folder_setting_says_where_the_files_go(mock_instrument):
 
 def test_a_stack_says_which_depth_and_height_each_picture_is(mock_instrument):
     """Every plane of a focus stack fits the controller's ``planes`` contract, one depth each."""
-    raw = zmart_controller.session.set_instrument(mock_instrument)
+    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
     try:
         answer = raw.acquire(position_label="F0", acquisition_settings={"folder": "focussing"})
     finally:
@@ -86,75 +83,46 @@ def test_a_stack_says_which_depth_and_height_each_picture_is(mock_instrument):
     assert heights == sorted(heights) and len(set(heights)) == len(planes) > 1
 
 
-def test_the_mock_keeps_its_own_name_beside_the_controllers_mock(tmp_path, monkeypatch):
-    """The controller's own pretend microscope (a slide of beads) never takes this one's place.
+def test_the_canvas_holds_a_picture_taken_anywhere_the_stage_can_go(mock_instrument):
+    """get_xyz's canvas is the whole travel, and half the widest field and deepest stack beyond it.
 
-    The controller's setup guide plugs its mock in once, and the computer
-    remembers it. Both used to call themselves mock / mock-scope / mock-api,
-    so "Mock" on the page quietly became the bead slide. Here a driver with
-    the bead mock's name is plugged in first, then this mock, and the page's
-    "Mock" must still be driven by this mock's own functions.
-    """
-    monkeypatch.setattr(utils, "REGISTRY", dict(utils.REGISTRY))
-    beads = tmp_path / "beads" / "zmart_controller"
-    beads.mkdir(parents=True)
-    (beads / "zmart.json").write_text(json.dumps({"contract": 1, "instruments": [
-        {"vendor": "mock", "microscope": "mock-scope", "api": "mock-api"}]}))
-    (beads / "__init__.py").write_text("".join(
-        f"def {name}(*args, **kwargs):\n    return 'beads'\n" for name in utils.OPS))
-    zmart_controller.register_driver(beads.parent, remember=False)
-
-    added = mock_microscope.register()
-
-    assert added == [{**mock_microscope.IDENTITY, "client": "mock-client"}]
-    ours = [one for one in zmart_controller.get_instruments() if mock_microscope.is_the_mock(one)]
-    assert len(ours) == 1
-    ops, _ = utils.resolve(ours[0])
-    assert ops["acquire"].__module__.startswith("zmart_interface.mock_microscope")
-
-
-def test_the_mock_is_known_by_its_whole_name_not_by_its_vendor():
-    assert mock_microscope.is_the_mock({**mock_microscope.IDENTITY, "output_root": "x"})
-    assert not mock_microscope.is_the_mock({"vendor": "mock", "microscope": "mock-scope", "api": "mock-api"})
-
-
-def test_the_reach_holds_a_picture_taken_anywhere_the_stage_can_go(mock_instrument):
-    """get_xyz's reach is the whole travel, and half the widest field and deepest stack beyond it.
-
-    The viewer refuses, whole, a capture that reaches outside the area it was
-    laid out with, and the interface lays that area out from this reach. A
-    stage standing at the edge of its travel takes a field that reaches half
-    its width further, and a stack half its depth, so any smaller reach loses
+    The viewer refuses, whole, a capture that shows outside the area it was
+    laid out with, and the interface lays that area out from this canvas. A
+    stage standing at the edge of its travel takes a field that shows half
+    its width further, and a stack half its depth, so any smaller canvas loses
     those pictures.
     """
     widest = max(px * um for px, um in (mock_driver.frame_of(job, "overview") for job in mock_driver.JOBS))
     stacks = [{"z_planes": 1, "z_step_um": 0.0}, *mock_driver.JOB_STACKS.values()]
     deepest = max((one["z_planes"] - 1) * one["z_step_um"] for one in stacks)
-    raw = zmart_controller.session.set_instrument(mock_instrument)
+    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
     try:
         report = raw.get_xyz()["content"]
     finally:
         raw.disconnect()
     for axis, half in (("x", widest / 2), ("y", widest / 2), ("z", deepest / 2)):
         low, high = mock_driver.TRAVEL_UM[axis]
-        assert report[axis]["reach"] == [low - half, high + half], axis
-    assert deepest > 0, "the mock takes stacks, so z reaches past the travel"
+        assert report[axis] == {
+            "value": report[axis]["value"], "actuator": report[axis]["actuator"],
+            "canvas": [low - half, high + half],
+        }, axis
+    assert deepest > 0, "the mock takes stacks, so z's canvas goes past the travel"
 
 
 def test_the_mock_says_nothing_of_a_canvas_in_get_info(mock_instrument):
     """The area pictures can cover is get_xyz's, per axis; get_info no longer carries a copy."""
-    raw = zmart_controller.session.set_instrument(mock_instrument)
+    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
     try:
         assert "canvas" not in raw.get_info()["content"]
     finally:
         raw.disconnect()
 
 
-def test_a_field_taken_before_the_stage_has_moved_lies_within_the_reach(mock_instrument):
-    """Right after Connect, where an operator may first press Acquire, the field is within reach."""
-    raw = zmart_controller.session.set_instrument(mock_instrument)
+def test_a_field_taken_before_the_stage_has_moved_lies_within_the_canvas(mock_instrument):
+    """Right after Connect, where an operator may first press Acquire, the field is on the canvas."""
+    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
     try:
-        reach = raw.get_xyz()["content"]
+        canvas = raw.get_xyz()["content"]
         report = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})["content"]
     finally:
         raw.disconnect()
@@ -162,32 +130,30 @@ def test_a_field_taken_before_the_stage_has_moved_lies_within_the_reach(mock_ins
     height, width = tifffile.imread(plane["path"]).shape
     for axis, across in (("x", width), ("y", height)):
         half = across * 4.0 / 2
-        low, high = reach[axis]["reach"]
+        low, high = canvas[axis]["canvas"]
         assert low <= plane[f"{axis}_um"] - half and plane[f"{axis}_um"] + half <= high
 
 
 def test_every_answer_comes_in_two_parts(mock_instrument):
-    raw = zmart_controller.session.set_instrument(mock_instrument)
+    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
     try:
         info = raw.get_info()
         assert info["success"] is True
         assert {"output_root", "description", "connection_status"} <= set(info["content"])
-        assert raw.get_xyz()["content"]["x"]["range"] == list(mock_driver.TRAVEL_UM["x"])
+        assert set(raw.get_xyz()["content"]["x"]) == {"value", "actuator", "canvas"}
     finally:
         raw.disconnect()
 
 
-def test_a_move_outside_the_travel_is_declined_and_nothing_moves(mock_instrument, session):
-    raw = zmart_controller.session.set_instrument(mock_instrument)
+def test_a_move_outside_the_travel_is_refused_and_nothing_moves(mock_instrument):
+    """The canvas is wider than the travel; a move past the travel is a mistake, refused before moving."""
+    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
     try:
-        answer = raw.set_xyz(10_000_000.0, 0.0, 0.0)
-        assert answer["success"] is False
-        assert "outside the stage's travel" in answer["content"]["reason"]
+        with pytest.raises(ValueError, match=r"x = 1e\+07 um is outside the stage's travel"):
+            raw.set_xyz(10_000_000.0, 0.0, 0.0)
         assert raw.get_xyz()["content"]["x"]["value"] == 0.0
     finally:
         raw.disconnect()
-    with pytest.raises(InstrumentDeclined, match=r"could not move the stage: x = 1e\+07 um is outside"):
-        session.set_xyz(10_000_000.0, 0.0, 0.0)
 
 
 def test_the_window_is_open_only_while_a_live_window_holds_the_lock(tmp_path):

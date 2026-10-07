@@ -51,12 +51,16 @@ const somewhereElse = (from, travel) => {
   };
 };
 
-/** The instrument's own travel, `get_xyz`'s `range` per axis, for every
+/** The instrument's own extent, `get_xyz`'s `canvas` per axis, for every
     coordinate a promise drives to: written numbers were the mock's stage,
-    and out-of-travel drives on anything real. */
+    and out-of-travel drives on anything real. The canvas is wider than the
+    travel by half a field at each end, and the driver refuses a move past
+    the travel; every place a promise drives to is at least a tenth of the
+    way in from either edge, which on any real stage is far more than half a
+    field, so it is always inside the travel. */
 const theTravelOf = async (backend) => {
   const at = await backend.get_xyz();
-  return { x: at.x.range, y: at.y.range };
+  return { x: at.x.canvas, y: at.y.canvas };
 };
 
 /** A place a given fraction of the way across the travel. */
@@ -256,28 +260,28 @@ export function promisesOfABackend(expect) {
       },
     },
     {
-      what: "says how far the stage can go and its pictures reach, and what the session stands on",
+      what: "says where its pictures can show, and what the session stands on",
       async keep(backend) {
         const checks = [];
         await backend.connect(
-          { connection: (await backend.instruments())[0] },
+          { instrument: (await backend.instruments())[0] },
           { onChecks: (keys) => checks.push(...keys) },
         );
-        /* The page lays the stage out from `get_xyz`'s reach and lists the
+        /* The page lays the stage out from `get_xyz`'s canvas and lists the
            checks under Connect. The mock always reported both; the Leica once
            reported neither, so a real connect drew a stage of no size with
-           nothing to say. Reach holds the travel: a picture taken at the
-           edge of travel shows at least as far as the stage went. */
+           nothing to say. Each axis says exactly its position, its motor and
+           its canvas; the travel stays inside the driver. */
         const at = await backend.get_xyz();
         for (const axis of ["x", "y", "z"]) {
-          const { range, reach } = at[axis];
-          expect(Array.isArray(range) && range.length === 2, `${axis} has a travel range`).toBe(true);
-          expect(Array.isArray(reach) && reach.length === 2, `${axis} has a reach`).toBe(true);
-          expect(reach[0], `${axis} reaches at least as low as it travels`).toBeLessThanOrEqual(range[0]);
-          expect(reach[1], `${axis} reaches at least as high as it travels`).toBeGreaterThanOrEqual(range[1]);
+          expect(Object.keys(at[axis]).sort(), `${axis} reads value, actuator and canvas`)
+            .toEqual(["actuator", "canvas", "value"]);
+          const { canvas } = at[axis];
+          expect(Array.isArray(canvas) && canvas.length === 2, `${axis} has a canvas`).toBe(true);
+          expect(canvas[0], `${axis}'s canvas runs low to high`).toBeLessThanOrEqual(canvas[1]);
         }
         for (const axis of ["x", "y"]) {
-          expect(at[axis].reach[1], `${axis}'s reach spans something`).toBeGreaterThan(at[axis].reach[0]);
+          expect(at[axis].canvas[1], `${axis}'s canvas spans something`).toBeGreaterThan(at[axis].canvas[0]);
         }
         expect(checks.length, "the checks are named as they are asked").toBeGreaterThan(0);
         await backend.disconnect();

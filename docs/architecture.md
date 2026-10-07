@@ -30,11 +30,19 @@ parts that plug into the interface's sides:
   the interface's own business, not the controller's: the interface passes the
   name to the driver as its `folder` acquisition setting when the driver offers
   one, and files the capture under that name itself, never reading it back from
-  the driver's answer. The
-  bridge offers whatever microscopes the controller
-  lists (`get_instruments`: the drivers this computer has registered, and those
-  installed as packages), plus the mock microscope, and `--driver` plugs one
-  more in for a session.
+  the driver's answer. A driver is a Python module with one function per
+  command, registered once on a computer with `zmart_controller.register_driver`
+  (pointed at its `zmart_controller_plugin.py`, which gives its name).
+  The bridge offers the interface's own mock (as `interface-mock`, plugged in
+  by its module) and then every name `zmart_controller.get_drivers()` lists,
+  the controller's own mock `mock` first, and connects with
+  `set_instrument(name, connection)`: the driver's own connection plus the
+  password the operator typed. The area the page and the viewer lay
+  the stage out on is `get_xyz`'s `canvas`: everywhere a picture can show,
+  which is the travel widened by half a field. The travel itself stays in the
+  driver; the page lets fields be drawn over the whole canvas, and a move past
+  the travel is refused by the driver with a sentence the operator sees,
+  rather than the page guessing where the travel ends.
 - **ZMART-viewer.** Every capture is converted the moment it lands into one
   OME-Zarr image per position (`parts/storage/zarr_positions.py`, declared by
   the small writer in `zmart_interface/zmart_storage/`). The viewer's server,
@@ -47,8 +55,9 @@ parts that plug into the interface's sides:
   `parts/analysis/workflows.py` finds the pipelines in a ZMART-analysis
   checkout.
 - **The mock microscope** (`zmart_interface/mock_microscope/`) is a complete
-  ZMART driver with no hardware, plugged into the controller by its folder like
-  any other, and is what every test runs on.
+  ZMART driver with no hardware: the package itself holds one function per
+  command, so it plugs into the controller like any other driver, and it is
+  what every test runs on.
 
 The page itself has five parts, each with one job. If you know which part your
 change belongs to, you know which file to open.

@@ -1,6 +1,0 @@
-{
-  "contract": 1,
-  "instruments": [
-    {"vendor": "mock", "microscope": "kidney-mock", "api": "zmart-interface", "client": "mock-client"}
-  ]
-}

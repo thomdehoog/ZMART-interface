@@ -16,13 +16,13 @@
  * arguments, and what the page may do back to the picture is the handle it
  * returns.
  *
- * Its size is the instrument's: `get_xyz` gives, per axis, the reach —
+ * Its size is the instrument's: `get_xyz` gives, per axis, the canvas —
  * everywhere a picture can show — and the position of the mark. Before a
  * session there is a frame of its own, so the picture has something to draw.
  */
 
 import { putTheCanvasIn } from "../../../parts/canvas/viewer.js";
-import { theReachOf } from "../../../parts/microscope/reach.js";
+import { theCanvasOf } from "../../../parts/microscope/canvas.js";
 /* What each step draws on the picture. A step owns its own layers — what they
    are, when the run has anything for them, and what a press on one means — and
    the workflow says only where each sits in the stack. */
@@ -123,10 +123,10 @@ const view = {
    inside it and not the scan inside that. Everything else is drawn in the
    same coordinates and lands where it belongs.
 
-   Its size is the instrument's: `get_xyz` gives the reach -- the travel and
+   Its size is the instrument's: `get_xyz` gives the canvas -- the travel and
    half a field beyond it, everywhere a picture can show -- and connecting
    takes it. Before a session there is a frame of its own, so the picture
-   has something to draw; it is never stood in for an instrument's reach. */
+   has something to draw; it is never stood in for an instrument's canvas. */
 const TRAVEL_BEFORE_A_SESSION = [120_000, 80_000];
 const STAGE_UM = [...TRAVEL_BEFORE_A_SESSION];
 /* Where the travel begins. The size alone assumed every instrument's frame
@@ -135,11 +135,11 @@ const STAGE_UM = [...TRAVEL_BEFORE_A_SESSION];
 const STAGE_ORIGIN_UM = [0, 0];
 let stageReported = null;
 
-/** Lay the stage out over the reach one `get_xyz` reading gives. Throws a
+/** Lay the stage out over the canvas one `get_xyz` reading gives. Throws a
     sentence for the operator when the driver gives none: a guessed area
     would place pictures where they were not taken. */
-function takeTheReach(reading) {
-  const canvas = theReachOf(reading);
+function takeTheCanvas(reading) {
+  const canvas = theCanvasOf(reading);
   STAGE_ORIGIN_UM[0] = canvas.x_um[0];
   STAGE_ORIGIN_UM[1] = canvas.y_um[0];
   STAGE_UM[0] = canvas.x_um[1] - canvas.x_um[0];
@@ -1887,7 +1887,7 @@ function legendSettles() {
     unproject: (px, py) => theCanvas.unproject(px, py),
     /** How much sample one screen pixel covers right now. */
     umPerPixel: () => 1 / view.scale,
-    takeTheReach,
+    takeTheCanvas,
     forgetTheCanvas,
     takeThePosition,
     layers: () => theCanvas.layersAbove.map(({ key, label, shown, staysSolid }) =>

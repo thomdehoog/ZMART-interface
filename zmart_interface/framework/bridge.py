@@ -88,10 +88,12 @@ once — the scan holds it per position, not for the whole run, so a readout
 during a scan waits briefly rather than failing.
 
 Which microscope answers is the operator's choice, made on the Connect step
-from the controller's list (``get_instruments``): the drivers this computer
-has registered, the drivers installed as packages, and the mock microscope,
-which the bridge always offers. ``--driver`` plugs in one more for this
-session only.
+from ``GET /api/instruments``: the interface's own mock microscope, listed as
+``interface-mock``, then the drivers registered on this computer, by their
+names (``zmart_controller.get_drivers()``: the controller's own mock,
+``mock``, first). A driver is registered once on a computer with
+``zmart_controller.register_driver(<its zmart_controller_plugin.py>)``, and
+the bridge plugs it in by its name.
 
 Run it on its own, for a browser instead of the window::
 
@@ -113,7 +115,7 @@ from pathlib import Path
 
 import zmart_controller
 import zmart_controller.session
-from zmart_controller.utils import config_root
+from zmart_controller.utils import config_root, find_driver
 
 from zmart_interface import mock_microscope
 from zmart_interface.parts.analysis import warm
@@ -190,11 +192,7 @@ def _a_run_has_the_stage() -> bool:
 def _the_stage_was_sent_to(x: float, y: float, z: float) -> None:
     """A run's own record of where it drove the stage, for the clock above."""
     global _last_xyz
-    _last_xyz = {
-        "x": {"value": float(x), "unit": "um"},
-        "y": {"value": float(y), "unit": "um"},
-        "z": {"value": float(z), "unit": "um"},
-    }
+    _last_xyz = {"x": {"value": float(x)}, "y": {"value": float(y)}, "z": {"value": float(z)}}
 
 # How the driver was chosen; filled by connect, shown by /api/connect replies.
 _context: dict = {}
@@ -206,30 +204,35 @@ def _require_session():
     return _session
 
 
-def _register_known_drivers(extra: list[str] = ()) -> None:
-    """Make sure the controller's list of instruments holds what this machine has.
+#: The name the interface's own mock microscope is offered under, from its
+#: plug-in. It is always offered, registered or not, and the bridge plugs the
+#: package in directly.
+INTERFACE_MOCK = mock_microscope.NAME
 
-    The page's Microscope list is the controller's own answer to "what can I
-    connect to" (``get_instruments``). That list already holds every driver
-    this computer remembers and every driver installed as a package; the
-    bridge adds two things to it. The mock microscope is always offered, so
-    the interface can be tried and tested without an instrument. And any
-    driver named with ``--driver`` is plugged in for this session only. A
-    driver that cannot be plugged in is reported once and left out, so one
-    broken driver never hides the others.
+
+def _instruments() -> list[str]:
+    """The microscopes the Connect step offers, by name, in the order it shows them.
+
+    The interface's own mock first, so a page opened by accident drives
+    nothing real, then every driver registered on this computer, as the
+    controller lists them.
     """
-    mock_microscope.register()
-    for driver in extra:
-        try:
-            for instrument in zmart_controller.register_driver(driver, remember=False):
-                print(f"bridge: driver {driver} plugged in as "
-                      f"{instrument.get('vendor')}/{instrument.get('microscope')}")
-        except Exception as why:  # noqa: BLE001 -- one broken driver must not hide the rest
-            print(f"bridge: driver {driver} could not be plugged in: {why}")
+    return [INTERFACE_MOCK, *(name for name in zmart_controller.get_drivers() if name != INTERFACE_MOCK)]
 
 
-def _instruments() -> list:
-    return zmart_controller.get_instruments()
+def _saved_connection(name: str) -> dict:
+    """The connection a listed microscope is plugged in with, before anything is added to it.
+
+    For a registered driver, its own ``CONNECTION``, or the one saved when it
+    was registered. Finding it
+    imports the driver, which is why a name that is not listed is refused
+    first: the page can only ever name a microscope this computer offers.
+    """
+    if name == INTERFACE_MOCK:
+        return dict(mock_microscope.CONNECTION)
+    if name not in _instruments():
+        raise ValueError(f"no microscope is listed as {name!r}; listed: {_instruments()}")
+    return find_driver(name)[1]
 
 
 #: Where ``npm run build`` leaves the page, beside the window that shows it.
@@ -248,34 +251,41 @@ _run: Path | None = None
 #: Where runs go, when this bridge was started with somewhere to put them.
 #: A driver that discovers its own (the Leica finds the root beside LAS X)
 #: needs none of this; one that cannot has to be told, and the page has
-#: nowhere to say it -- it connects with the entry the registry listed.
+#: nowhere to say it -- it connects with the entry the list offered.
 _output_root: str | None = None
 
 
 def _connect(asked: dict) -> dict:
-    """Open the session for one of the registry's entries and answer with the driver's account."""
+    """Open the session for one of the listed microscopes and answer with the driver's account.
+
+    ``asked["instrument"]`` is a name from :func:`_instruments`, and
+    ``asked["password"]``, when given, is what the operator typed; it is
+    handed to the driver with the connection that was saved for it.
+    """
     global _session, _context, _pixel_provider
-    connection = asked.get("connection")
-    if not isinstance(connection, dict):
-        raise ValueError(
-            "connect needs the instrument's connection entry, as listed by /api/instruments"
-        )
+    name = asked.get("instrument")
+    if not isinstance(name, str):
+        raise ValueError("connect needs the name of one of the microscopes listed by /api/instruments")
+    connection = _saved_connection(name)
+    if asked.get("password"):
+        connection["password"] = asked["password"]
     if _output_root is not None:
-        connection = {**connection, "output_root": _output_root}
+        connection["output_root"] = _output_root
     global _run
     # A session of the bridge's own, not the controller's one "active"
     # microscope: the bridge opens and closes it, and nothing else may.
-    _session = Instrument(zmart_controller.session.set_instrument(connection))
-    _context = dict(_session.context)
-    if mock_microscope.is_the_mock(connection):
+    driver = mock_microscope if name == INTERFACE_MOCK else name
+    _session = Instrument(zmart_controller.session.set_instrument(driver, connection))
+    _context = {**_session.context, "name": name}
+    if driver is mock_microscope:
         mock_microscope.open_the_window(connection)
     try:
         info = _session.get_info()
         standing = _session.get_xyz()
         area = _the_viewers_area(standing)
     except Exception:
-        # A microscope that cannot describe itself, or say how far its
-        # pictures reach, is not a session to keep.
+        # A microscope that cannot describe itself, or say where its
+        # pictures can show, is not a session to keep.
         _session.disconnect()
         _session = None
         raise
@@ -327,9 +337,9 @@ def _connect(asked: dict) -> dict:
 
 
 def _the_viewers_area(reading: dict) -> dict[str, list[float]]:
-    """The area the viewer lays pictures out on: get_xyz's ``reach``, axis by axis.
+    """The area the viewer lays pictures out on: get_xyz's ``canvas``, axis by axis.
 
-    ``reach`` is everywhere a picture can show along an axis -- the stage's
+    ``canvas`` is everywhere a picture can show along an axis -- the stage's
     travel and half a field (or half a stack) beyond it -- in the
     micrometres get_xyz counts in. The viewer refuses, whole, a picture that
     falls outside its area, so the area is laid out before the first picture
@@ -338,14 +348,14 @@ def _the_viewers_area(reading: dict) -> dict[str, list[float]]:
     """
     area = {}
     for axis in ("x", "y", "z"):
-        reach = (reading.get(axis) or {}).get("reach")
-        if not (isinstance(reach, (list, tuple)) and len(reach) == 2):
+        canvas = (reading.get(axis) or {}).get("canvas")
+        if not (isinstance(canvas, (list, tuple)) and len(canvas) == 2):
             raise RuntimeError(
-                f"the microscope's driver does not say how far its pictures reach along {axis} "
-                "(get_xyz gives no 'reach'), so the area to show them on cannot be laid out; "
+                f"the microscope's driver does not say where its pictures can show along {axis} "
+                "(get_xyz gives no 'canvas'), so the area to show them on cannot be laid out; "
                 "the driver needs updating to the controller's current contract"
             )
-        area[f"{axis}_um"] = [float(reach[0]), float(reach[1])]
+        area[f"{axis}_um"] = [float(canvas[0]), float(canvas[1])]
     return area
 
 
@@ -356,7 +366,7 @@ def _disconnect() -> dict:
         _session = None
     _run = None
     _pixel_provider = None
-    # The context is the session's: a vendor left over from the last one
+    # The context is the session's: a name left over from the last one
     # made the next session's readings pretend it was the mock.
     _context = {}
     # The workers outlive a focus map on purpose, but not the session: a
@@ -501,7 +511,7 @@ def _reading(kind: str) -> dict:
 
     summary = (_optics(observed) or observed.get("serial")
                or observed.get("serial_number")
-               or _context.get("microscope", "instrument"))
+               or _context.get("name", "instrument"))
     # The frame, not the pixel size: a collapsed configuration is read to
     # answer "how much ground does one press get me", and a pixel size answers
     # that only once multiplied by a format the line does not carry.
@@ -622,11 +632,7 @@ def _drive_to(asked: dict) -> dict:
     if not arrived:
         _last_xyz = session.get_xyz()
         return _last_xyz
-    _last_xyz = {
-        axis: {"value": float(arrived[axis]), "unit": "um"}
-        for axis in ("x", "y", "z")
-        if axis in arrived
-    }
+    _last_xyz = {axis: {"value": float(arrived[axis])} for axis in ("x", "y", "z") if axis in arrived}
     return _last_xyz
 
 
@@ -1903,8 +1909,10 @@ class _Bridge(BaseHTTPRequestHandler):
             elif self.path == "/api/protocol/save":
                 self._answer(_save_protocol_to_library(asked))
             elif self.path == "/api/protocols":
-                # Before connecting: what the driver can say about the root.
-                self._answer(_protocols(asked.get("connection")))
+                # Before connecting: what the chosen microscope's saved
+                # connection can say about the root.
+                chosen = asked.get("instrument")
+                self._answer(_protocols(_saved_connection(chosen) if chosen else None))
             elif self.path == "/api/targets/acquire/begin":
                 self._answer(_begin_target_run(asked))
             elif self.path == "/api/targets/acquire/focus":
@@ -1937,7 +1945,7 @@ _simulator_pixels_enabled = False
 
 
 def _a_bridge_on(
-    port: int, output_root: str | None = None, *, simulator_pixels=False, drivers=(),
+    port: int, output_root: str | None = None, *, simulator_pixels=False,
 ) -> ThreadingHTTPServer:
     """A bridge ready to answer, with every driver this machine has.
 
@@ -1949,15 +1957,14 @@ def _a_bridge_on(
     _simulator_pixels_enabled = bool(simulator_pixels)
     _pixel_provider = None
     _output_root = output_root
-    _register_known_drivers(list(drivers))
     return ThreadingHTTPServer(("127.0.0.1", port), _Bridge)
 
 
 def serve(
-    port: int = 8600, output_root: str | None = None, *, simulator_pixels=False, drivers=(),
+    port: int = 8600, output_root: str | None = None, *, simulator_pixels=False,
 ) -> ThreadingHTTPServer:
     """Start a bridge in a background thread and hand back its server."""
-    server = _a_bridge_on(port, output_root, simulator_pixels=simulator_pixels, drivers=drivers)
+    server = _a_bridge_on(port, output_root, simulator_pixels=simulator_pixels)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
@@ -1968,8 +1975,6 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="synthetic pixels, only for captures identified as LAS X SIMULATOR")
     parser.add_argument("--output-root",
                         help="where runs go, for a driver that cannot discover its own")
-    parser.add_argument("--driver", action="append", default=[], metavar="FOLDER_OR_MODULE",
-                        help="plug in one more driver for this session only (may be repeated)")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1978,8 +1983,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8600)
     add_arguments(parser)
     args = parser.parse_args(argv)
-    server = _a_bridge_on(args.port, args.output_root, simulator_pixels=args.simulator_pixels,
-                          drivers=args.driver)
+    server = _a_bridge_on(args.port, args.output_root, simulator_pixels=args.simulator_pixels)
     print(f"bridge listening on 127.0.0.1:{args.port}")
     server.serve_forever()
     return 0
