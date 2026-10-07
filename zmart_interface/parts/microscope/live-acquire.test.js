@@ -27,8 +27,8 @@ function bridgeTakingTargets({ peak = 12, curve = true, declining = false } = {}
     if (route === "/api/xyz") return answer({ x: { value: body.x }, y: { value: body.y }, z: { value: body.z ?? 0 } });
     if (route === "/api/state") return answer({ applied: body });
     if (route === "/api/acquire") {
-      if (declining) return answer({ success: false, report: { reason: "the laser is off", files: [], planes: [] } });
-      return answer({ success: true, report: { acquisition_type: body.acquisition_type, position_label: body.position_label } });
+      if (declining) return answer({ success: false, content: { reason: "the laser is off", files: [], planes: [] } });
+      return answer({ success: true, content: { position_label: body.position_label } });
     }
     if (route === "/api/targets/acquire/focus") {
       return answer({ z: curve ? peak : null, lost: !curve, traces: curve ? { brenner: curveAt(peak) } : null });
@@ -61,7 +61,7 @@ describe("the live target run", () => {
     ]);
     expect(calls[0][1]).toEqual({ positions, append: false });
     expect(calls[2][1]).toEqual({ x: 10, y: 20, z: 5 });
-    expect(calls[3][1]).toEqual({ acquisition_type: "targets", position_label: "L0", options: null });
+    expect(calls[3][1]).toEqual({ folder: "targets", position_label: "L0", acquisition_settings: null });
     expect(calls[4][1].position).toEqual({ x: 10, y: 20, z: 5 });
     expect(calls[4][1].focus).toBeNull();
     expect(seen).toEqual([[1, 2, 5, 1], [2, 2, 6, 2]]);
@@ -85,7 +85,7 @@ describe("the live target run", () => {
       "/api/targets/acquire/end",
     ]);
     expect(calls[1][1]).toEqual({ job: "Focussing" });
-    expect(calls[3][1]).toEqual({ acquisition_type: "target-focussing", position_label: "L0", options: null });
+    expect(calls[3][1]).toEqual({ folder: "target-focussing", position_label: "L0", acquisition_settings: null });
     expect(calls[4][1]).toMatchObject({ centre: 5, x: 10, y: 20 });
     /* The target job first, then the drive to the peak the page chose from
        the curve by the map's own rule: a job switch may move the optics,
@@ -154,11 +154,11 @@ describe("the live target run", () => {
     expect(landed.focus).toEqual({ job: "Focussing", z_map_um: null, z_peak_um: null, found: false });
   });
 
-  it("lands the capture's report, not the controller's envelope around it", async () => {
+  it("lands the capture's content, not the controller's envelope around it", async () => {
     const calls = bridgeTakingTargets();
     await backend.acquireTargets({ positions: positions.slice(0, 1), state: null });
     const landed = calls.find(([route]) => route === "/api/targets/acquire/landed")[1];
-    expect(landed.record).toEqual({ acquisition_type: "targets", position_label: "L0" });
+    expect(landed.record).toEqual({ position_label: "L0" });
   });
 
   it("stops the run with the driver's reason when the microscope declines a capture", async () => {

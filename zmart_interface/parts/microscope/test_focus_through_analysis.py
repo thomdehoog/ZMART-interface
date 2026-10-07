@@ -53,7 +53,7 @@ def scope(mock_session):
 def focus_at(session, x_um: float, y_um: float, centre_um: float) -> dict:
     """Drive to (x, y), acquire the stack around *centre_um*, and score it.
 
-    ``focussing`` is what tells the instrument this capture is a stack rather
+    The ``focussing`` folder is what tells the mock this capture is a stack rather
     than a picture, and the stack is centred on the height driven to -- which
     is the whole reason a caller drives to the middle of the range it wants
     searched rather than to the bottom of it. The heights are worked out from
@@ -61,7 +61,7 @@ def focus_at(session, x_um: float, y_um: float, centre_um: float) -> dict:
     same arithmetic has to serve every driver.
     """
     session.set_xyz(x_um, y_um, centre_um)
-    record = session.acquire(acquisition_type="focussing", position_label="K00_P000000")
+    record = session.acquire(folder="focussing", position_label="K00_P000000")
 
     scored = score_focus(
         {
@@ -189,7 +189,7 @@ def test_a_capture_that_says_no_heights_is_refused_rather_than_guessed(scope):
     """
     truth = mock_driver.sharp_height_um(*CLEAN)
     scope.set_xyz(*CLEAN, truth)
-    record = scope.acquire(acquisition_type="focussing", position_label="K00_P000000")
+    record = scope.acquire(folder="focussing", position_label="K00_P000000")
 
     silent = {
         **record,
@@ -211,7 +211,7 @@ def test_every_plane_says_where_on_the_sample_it_was_taken(scope):
     stack is taken around where the drive stands.
     """
     scope.set_xyz(*CLEAN, 5_000.0)
-    record = scope.acquire(acquisition_type="focussing", position_label="K00_P000000")
+    record = scope.acquire(folder="focussing", position_label="K00_P000000")
 
     assert {(plane["x_um"], plane["y_um"]) for plane in record["planes"]} == {CLEAN}
     heights = [plane["z_um"] for plane in record["planes"]]

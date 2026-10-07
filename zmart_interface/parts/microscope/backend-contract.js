@@ -130,7 +130,7 @@ export function promisesOfABackend(expect) {
     {
       what: "offers a menu of what a capture may be told, and what is chosen",
       async keep(backend) {
-        const menu = await backend.get_acquisition_options();
+        const menu = await backend.get_acquisition_settings();
         const named = Object.entries(menu);
         expect(named.length, "the instrument offers something").toBeGreaterThan(0);
         for (const [name, spec] of named) {
@@ -152,13 +152,13 @@ export function promisesOfABackend(expect) {
         /* Whatever the instrument calls its stored recipes. Every one has
            them, and which is chosen is the setting an operator reaches for
            before anything else. */
-        const { job } = await backend.get_acquisition_options();
+        const { job } = await backend.get_acquisition_settings();
         const other = job.options.find((one) => one !== job.active);
         const { applied } = await backend.set_state({ job: other });
         expect(applied.job, "the driver says it took the job").toBe(other);
         /* And says so when asked again — an instrument that reports one job
            and captures with another is worse than one that refuses. */
-        expect((await backend.get_acquisition_options()).job.active).toBe(other);
+        expect((await backend.get_acquisition_settings()).job.active).toBe(other);
       },
     },
     {
@@ -177,12 +177,12 @@ export function promisesOfABackend(expect) {
            One acquisition is one file per plane, and the driver names them. */
         const label = "K00_M000001_G000000_P000042_V00";
         const answer = await backend.acquire({
-          acquisition_type: "overview", position_label: label,
+          folder: "overview", position_label: label,
         });
         /* The controller's own answer, as a Python script receives it. */
-        expect(Object.keys(answer).sort(), "the controller's two parts").toEqual(["report", "success"]);
+        expect(Object.keys(answer).sort(), "the controller's two parts").toEqual(["content", "success"]);
         expect(answer.success).toBe(true);
-        const record = answer.report;
+        const record = answer.content;
         expect(record.position_label).toBe(label);
         /* `files` is the name the ZMART Controller's contract fixes for every
            file a capture saved; each plane's file is one of them. How a
@@ -292,8 +292,8 @@ export function promisesOfABackend(expect) {
         const travel = await theTravelOf(backend);
         const going = across(travel, 0.5, 0.5);
         await backend.set_xyz({ ...going, z: um(await backend.get_xyz()).z });
-        const { report: record } = await backend.acquire({
-          acquisition_type: "overview", position_label: "contract",
+        const { content: record } = await backend.acquire({
+          folder: "overview", position_label: "contract",
         });
         expect(record.planes.length, "a capture has planes").toBeGreaterThan(0);
         for (const plane of record.planes) {

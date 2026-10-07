@@ -3,7 +3,7 @@
 The mock is a complete ZMART driver that needs no hardware. It plugs into
 the ZMART Controller by its folder (``zmart_controller/zmart.json`` and the
 functions beside it), answers every command in the controller's
-``{"success", "report"}`` shape, and writes real image files, so the whole
+``{"success", "content"}`` shape, and writes real image files, so the whole
 interface -- the bridge, the page, the analysis and the viewer -- can be run
 and tested on a desk.
 

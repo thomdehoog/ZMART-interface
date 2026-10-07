@@ -135,7 +135,9 @@ def _write_a_position(record: dict, into: Path | str, *, pixel_provider=None) ->
     # The store's name leads with the acquisition type, the way the run
     # writers name theirs (``overview_pos00000.ome.zarr``): the viewer reads
     # which stores belong together off the names, and a store named only by
-    # its position would stand under a heading of its own.
+    # its position would stand under a heading of its own. The type is the
+    # interface's own, stamped on the record by the bridge from what it asked
+    # for; drivers do not report it.
     kind = record.get("acquisition_type") or "capture"
     published = into / f"{kind}_{record['position_label']}.ome.zarr"
     # Written somewhere the viewer is not looking, and moved into place only

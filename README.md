@@ -41,7 +41,7 @@ a picture of the sample, and keeps every result where the operator can see and c
 It sits on top of the ZMART Controller, and two other ZMART parts plug into its sides:
 
 - **The controller** carries every command to the microscope's driver: move, read the
-  settings, acquire. Each command answers `{"success": ..., "report": ...}`; when the
+  settings, acquire. Each command answers `{"success": ..., "content": ...}`; when the
   microscope says it could not do something, the interface shows that sentence where you
   pressed.
 - **ZMART-analysis** scores the focus stacks and finds the objects, each step in its own

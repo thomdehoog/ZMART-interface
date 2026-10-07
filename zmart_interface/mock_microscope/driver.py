@@ -10,7 +10,7 @@ from it, and here and there a speck of dust that is sharp at the wrong
 height -- the failure a focus routine has to survive.
 
 The functions here return their answers as they are. The controller's
-two-part reply, ``{"success": ..., "report": ...}``, is added by the plug-in
+two-part reply, ``{"success": ..., "content": ...}``, is added by the plug-in
 next door (``zmart_controller/__init__.py``), which is the folder the ZMART
 Controller looks for when the mock is plugged in.
 
@@ -62,8 +62,10 @@ JOBS: tuple[str, ...] = (
 )
 
 #: What each kind of acquisition captures. On a real instrument this comes from
-#: the settings the operator imported for that kind of scan; here it is how the
-#: driver knows what is being asked of it, since nothing else about a mock says.
+#: the settings the operator imported for that kind of scan. The mock has only
+#: one clue to what is being asked of it: the ``folder`` acquisition setting the
+#: interface fills with the name of the acquisition, so a capture into a folder
+#: called ``focussing`` is taken as a focus stack.
 #: A ``focussing`` capture is a stack -- 61 planes over +/-34 um, fine enough
 #: that a speck a micrometre or two wide lands on a plane at all. A stack that
 #: stepped past its dust could not show the failure focusing exists to survive.
@@ -150,7 +152,7 @@ TRAVEL_UM = {"x": (-5_000.0, 125_000.0), "y": (-5_000.0, 85_000.0), "z": (-1_000
 class Refused(Exception):
     """A request the mock declines, safely: nothing was moved or changed.
 
-    The plug-in answers it as ``{"success": False, "report": {"reason": ...}}``,
+    The plug-in answers it as ``{"success": False, "content": {"reason": ...}}``,
     the controller's way of saying "I could not, and it is safe to carry on".
     """
 
@@ -365,14 +367,18 @@ def get_actuators(handle: MockHandle) -> dict:
     return {axis: list(opts) for axis, opts in _ACTUATORS.items()}
 
 
-def get_acquisition_options(handle: MockHandle) -> dict:
-    """The acquisition + saving options this instrument offers (options + active).
+def get_acquisition_settings(handle: MockHandle) -> dict:
+    """The acquisition + saving settings this instrument offers (options + active).
 
     Driver-owned and answered on demand; the controller caches nothing.
+    ``folder`` is free text: the folder under the output folder the files go
+    into, or straight into the output folder when it is empty. It is how a
+    client keeps the pictures of one kind of scan together.
     """
     _require_open(handle)
     _read_the_settings(handle)
     return {
+        "folder": {"options": "any text; empty saves straight into output_root", "active": ""},
         "job": {"options": list(JOBS), "active": handle.job},
         "backlash_correction": {"options": [True, False], "active": True},
         "format": {"options": ["ome-tiff", "ome-zarr"], "active": "ome-tiff"},
@@ -380,17 +386,19 @@ def get_acquisition_options(handle: MockHandle) -> dict:
     }
 
 
-def _with_defaults(handle: MockHandle, options: dict | None) -> dict:
-    """Validate options against the menu, filling omissions from the active defaults."""
-    menu = get_acquisition_options(handle)
+def _with_defaults(handle: MockHandle, settings: dict | None) -> dict:
+    """Validate settings against the menu, filling omissions from the active defaults."""
+    menu = get_acquisition_settings(handle)
     resolved = {name: spec["active"] for name, spec in menu.items()}
-    if options:
-        for name, value in options.items():
-            if name not in menu:
-                raise ValueError(f"unknown acquisition option {name!r}")
-            if value not in menu[name]["options"]:
-                raise ValueError(f"invalid value {value!r} for acquisition option {name!r}")
-        resolved.update(options)
+    for name, value in (settings or {}).items():
+        if name not in menu:
+            raise ValueError(f"unknown acquisition setting {name!r}")
+        allowed = menu[name]["options"]
+        if isinstance(allowed, list) and value not in allowed:
+            raise ValueError(f"invalid value {value!r} for acquisition setting {name!r}")
+        resolved[name] = value
+    if not isinstance(resolved["folder"], str):
+        raise ValueError(f"acquisition setting 'folder' must be text, not {resolved['folder']!r}")
     return resolved
 
 
@@ -452,37 +460,39 @@ def set_xyz(
 
 
 def acquire(
-    handle: MockHandle, *, acquisition_type: str, position_label: str, options: dict | None = None
+    handle: MockHandle, *, position_label: str, acquisition_settings: dict | None = None
 ) -> dict:
     """Capture a frame and save it, returning the record.
 
-    ``acquisition_type`` is the scan kind; ``position_label`` names the output.
-    The driver fills omitted options (acquisition + saving) from its active
-    defaults. Captures and saves in one step -- there is no separate export.
+    ``position_label`` names the output. The driver fills omitted settings
+    (acquisition + saving) from its active defaults; ``folder`` puts the files
+    in a folder of that name. Captures and saves in one step -- there is no
+    separate export.
     """
     _require_open(handle)
     _read_the_settings(handle)
-    options = _with_defaults(handle, options)
-    settle = "backlash-corrected" if options["backlash_correction"] else "direct"
+    settings = _with_defaults(handle, acquisition_settings)
+    folder = settings["folder"]
+    settle = "backlash-corrected" if settings["backlash_correction"] else "direct"
     acquisition_hash = uuid.uuid4().hex[:6]
     # The stage is standing at the centre of the range; the job says how far
     # either side to go and in what steps. One 2-D plane per file, flat, which
     # is what every ZMART driver writes -- a stack is a list of planes, never
     # one stacked file.
-    heights = stack_heights(handle, acquisition_type)
+    heights = stack_heights(handle, folder)
     taken = [
         (channel, z_index, height)
         for z_index, height in enumerate(heights)
-        for channel in range(channels_of(handle, acquisition_type))
+        for channel in range(channels_of(handle, folder))
     ]
     paths = [
         _write_a_frame(
-            handle, acquisition_type, acquisition_hash, position_label, channel, z_index, height
+            handle, folder, acquisition_hash, position_label, channel, z_index, height
         )
         for channel, z_index, height in taken
     ]
     printed = _print_the_state(
-        handle, paths[0].parent, acquisition_type, acquisition_hash, position_label
+        handle, paths[0].parent, folder, acquisition_hash, position_label
     )
     # The two keys a client follows, in the shapes the real driver answers
     # with: ``files`` every file saved, the name the ZMART Controller's
@@ -509,13 +519,13 @@ def acquire(
         for (channel, z_index, height), path in zip(taken, paths)
     ]
     return {
-        "acquisition_type": acquisition_type,
         "acquisition_hash": acquisition_hash,
         "position_label": position_label,
-        "format": options["format"],
-        "procedure": options["procedure"],
+        "folder": folder,
+        "format": settings["format"],
+        "procedure": settings["procedure"],
         "settle": settle,
-        "job": options["job"],
+        "job": settings["job"],
         "position": _user_position(handle),
         "files": [*(plane["path"] for plane in planes), str(printed)],
         "planes": planes,
@@ -524,28 +534,33 @@ def acquire(
     }
 
 
-def stack_heights(handle: MockHandle, acquisition_type: str) -> list[float]:
+def _named(folder: str, acquisition_hash: str, position_label: str) -> str:
+    """The start every file of one capture shares: folder, hash and label."""
+    return f"{folder + '_' if folder else ''}{acquisition_hash}_{position_label}"
+
+
+def stack_heights(handle: MockHandle, folder: str) -> list[float]:
     """The frame heights this kind of capture visits, around where it stands.
 
     A single-plane capture visits exactly where the stage is. A stack is
     centred there, which is why a caller drives to the middle of the range it
     wants searched rather than to the bottom of it.
     """
-    stack = JOB_STACKS.get(handle.job, _STACKS.get(acquisition_type, _ONE_PLANE))
+    stack = JOB_STACKS.get(handle.job, _STACKS.get(folder, _ONE_PLANE))
     centre = handle.z
     middle = (stack["z_planes"] - 1) / 2
     return [centre + (index - middle) * stack["z_step_um"] for index in range(stack["z_planes"])]
 
 
-def channels_of(handle: MockHandle, acquisition_type: str) -> int:
+def channels_of(handle: MockHandle, folder: str) -> int:
     """How many channels this capture takes, one file per channel: the job's
     say first, as on a real instrument, then the kind of capture's."""
-    return JOB_STACKS.get(handle.job, _STACKS.get(acquisition_type, _ONE_PLANE))["channels"]
+    return JOB_STACKS.get(handle.job, _STACKS.get(folder, _ONE_PLANE))["channels"]
 
 
 def _write_a_frame(
     handle: MockHandle,
-    acquisition_type: str,
+    folder: str,
     acquisition_hash: str,
     position_label: str,
     channel: int,
@@ -569,18 +584,19 @@ def _write_a_frame(
     import tifffile  # noqa: PLC0415
 
     root = Path(handle.connection.get("output_root") or "mock-output")
-    # ``<type>/data``: the pixels in a folder of their own, so what is made
+    # ``<folder>/data``: the pixels in a folder of their own, so what is made
     # from them afterwards -- a stitched view, an analysis, the vendor's copy --
     # becomes a folder beside it rather than a file to be told apart by name.
-    # The canonical name, flat, one file per plane: what the capture was, which
-    # capture it was, where on the sample, and which plane of it. Nothing has to
-    # be opened to know what it holds.
-    path = root / acquisition_type / "data" / (
-        f"{acquisition_type}_{acquisition_hash}_{position_label}_"
+    # With no folder asked for, the files go straight into the output folder.
+    # The canonical name, flat, one file per plane: which folder it was asked
+    # into, which capture it was, where on the sample, and which plane of it.
+    # Nothing has to be opened to know what it holds.
+    path = (root / folder / "data" if folder else root) / (
+        f"{_named(folder, acquisition_hash, position_label)}_"
         f"T000000_C{channel:02d}_Z{z_index:05d}.ome.tiff"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
-    frame_px, px = frame_of(handle.job, acquisition_type)
+    frame_px, px = frame_of(handle.job, folder)
     where = _user_position(handle)
     frame = _the_sample_from(np, where["x"], where["y"], height_um, channel, frame_px, px)
     size = frame.shape[0]
@@ -621,14 +637,14 @@ _JOB_FRAMES: dict[str, tuple[int, float]] = {
 }
 
 
-def frame_of(job: str, acquisition_type: str) -> tuple[int, float]:
+def frame_of(job: str, folder: str) -> tuple[int, float]:
     """How wide a capture under this job is in pixels, and how much sample
     one pixel covers, in micrometres. The Focussing job's frame is a stack's
     frame already -- 256 um of fine pixels; a stack taken under any other
     job takes half that job's side, as an autofocus window is smaller than
     the camera's frame."""
     frame_px, pixel_um = _JOB_FRAMES.get(job, (_FRAME_PX, _PIXEL_UM))
-    if acquisition_type == "focussing" and job != "Focussing":
+    if folder == "focussing" and job != "Focussing":
         return frame_px // 2, pixel_um
     return frame_px, pixel_um
 
@@ -732,7 +748,7 @@ def _the_sample_from(
 def _print_the_state(
     handle: MockHandle,
     data: Path,
-    acquisition_type: str,
+    folder: str,
     acquisition_hash: str,
     position_label: str,
 ) -> Path:
@@ -748,7 +764,7 @@ def _print_the_state(
     metadata.mkdir(parents=True, exist_ok=True)
     printed = (
         metadata
-        / f"{acquisition_type}_{acquisition_hash}_{position_label}_T000000_ZMART_state.json"
+        / f"{_named(folder, acquisition_hash, position_label)}_T000000_ZMART_state.json"
     )
     printed.write_text(json.dumps(get_state(handle), indent=2), encoding="utf-8")
     return printed
@@ -934,4 +950,4 @@ Stage: x and y move the slide, z moves the focus, all in micrometres from the st
 
 Settings (the changeable part of the state): job is the stored recipe the next capture is taken with, one of Overview (256 x 256 pixels of 4 um, three channels), Overview stack (the same, 7 planes 2 um apart), Focussing (a 61-plane stack of 1 um pixels, one channel), Target (128 x 128 pixels of 1 um, three channels), Target stack (the same, 11 planes 1 um apart) and Target focussing (41 planes 0.5 um apart, one channel). laser_power and gain are kept but change nothing in the pictures. The job is also chosen in the mock instrument's own window, the way an operator chooses one in the vendor's software.
 
-Acquiring saves one OME-TIFF per plane and channel under the output folder, in a folder named by the acquisition type, each file named by the acquisition type, a short hash, the position label, the channel and the plane."""
+Acquiring saves one OME-TIFF per plane and channel under the output folder, in the folder the folder setting names (straight into the output folder when it is empty), each file named by that folder, a short hash, the position label, the channel and the plane."""

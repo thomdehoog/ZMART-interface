@@ -28,7 +28,7 @@ def test_a_job_chosen_in_the_window_is_the_one_the_driver_stands_on(mock_session
     Api().choose("Target")
     assert Api().state()["job"] == "Target"
     assert mock_session.get_state()["changeable"]["job"] == "Target"
-    record = mock_session.acquire(acquisition_type="targets", position_label="T0")
+    record = mock_session.acquire(folder="targets", position_label="T0")
     assert record["job"] == "Target"
 
 

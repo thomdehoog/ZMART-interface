@@ -5,8 +5,8 @@ names the instrument, and the functions below are found by name. Each one
 calls the mock's own function in ``driver.py`` and answers in the
 controller's two-part shape::
 
-    {"success": True,  "report": ...}   done
-    {"success": False, "report": {"reason": ...}}   declined, nothing changed
+    {"success": True,  "content": ...}   done
+    {"success": False, "content": {"reason": ...}}   declined, nothing changed
 
 A request the mock declines safely -- a move outside the stage's travel -- is
 answered with ``success: False``. Anything else that goes wrong is raised, as
@@ -36,10 +36,10 @@ def _answered(function):
     @functools.wraps(function)
     def answer(*args, **kwargs):
         try:
-            report = function(*args, **kwargs)
+            content = function(*args, **kwargs)
         except _driver.Refused as why:
-            return {"success": False, "report": {"reason": str(why)}}
-        return {"success": True, "report": report}
+            return {"success": False, "content": {"reason": str(why)}}
+        return {"success": True, "content": content}
 
     return answer
 
@@ -52,7 +52,7 @@ get_xyz = _answered(_driver.get_xyz)
 set_xyz = _answered(_driver.set_xyz)
 get_state = _answered(_driver.get_state)
 set_state = _answered(_driver.set_state)
-get_acquisition_options = _answered(_driver.get_acquisition_options)
+get_acquisition_settings = _answered(_driver.get_acquisition_settings)
 acquire = _answered(_driver.acquire)
 get_procedures = _answered(_driver.get_procedures)
 run_procedure = _answered(_driver.run_procedure)

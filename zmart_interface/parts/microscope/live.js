@@ -63,15 +63,15 @@ async function request(route, payload) {
 const rest = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * The report inside the controller's answer to `acquire`, or the driver's
+ * The content inside the controller's answer to `acquire`, or the driver's
  * reason as a plain sentence when the microscope declined. The bridge passes
- * the controller's `{success, report}` on untouched, so the page reads a
+ * the controller's `{success, content}` on untouched, so the page reads a
  * capture exactly as a Python script does.
  */
 export function capturedBy(answer) {
-  if (answer?.success === true) return answer.report;
-  const report = answer?.report;
-  const reason = typeof report === "string" ? report : report?.reason ?? report?.message;
+  if (answer?.success === true) return answer.content;
+  const content = answer?.content;
+  const reason = typeof content === "string" ? content : content?.reason ?? content?.message;
   throw new Error(`the microscope could not capture an image: ${reason ?? "the driver gave no reason"}`);
 }
 
@@ -230,12 +230,12 @@ export const backend = {
 
   /**
    * What the instrument offers for a capture, and what is chosen now:
-   * `get_acquisition_options` through the controller. A readout — asking
+   * `get_acquisition_settings` through the controller. A readout — asking
    * changes nothing — and handed on in the driver's own words, because the
    * same shape goes back to `acquire`.
    */
-  async get_acquisition_options() {
-    return ask("/api/acquisition_options");
+  async get_acquisition_settings() {
+    return ask("/api/acquisition_settings");
   },
 
   /**
@@ -264,13 +264,19 @@ export const backend = {
 
   /**
    * Capture once where the stage is standing: `acquire` through the
-   * controller, answering as the controller does — `{success, report}`, the
-   * report's `files` naming every file saved and its `planes` which channel,
+   * controller, answering as the controller does — `{success, content}`, the
+   * content's `files` naming every file saved and its `planes` which channel,
    * depth and stage position each picture is. The one place a client learns
    * the paths of the files a run made.
+   *
+   * `folder` is the page's own name for the acquisition this capture belongs
+   * to (overview, focussing, targets, ...), not part of the controller's
+   * contract. The bridge offers it to the driver as its `folder` acquisition
+   * setting when the driver has one, so the pictures of one acquisition stay
+   * together on disk.
    */
-  async acquire({ acquisition_type, position_label, options = null }) {
-    return ask("/api/acquire", { acquisition_type, position_label, options });
+  async acquire({ position_label, acquisition_settings = null, folder = null }) {
+    return ask("/api/acquire", { position_label, acquisition_settings, folder });
   },
 
   /**
@@ -317,7 +323,7 @@ export const backend = {
           });
           say("capturing");
           const record = capturedBy(await ask("/api/acquire", {
-            acquisition_type: "focussing", position_label: labels[index],
+            folder: "focussing", position_label: labels[index],
           }));
           say("scoring");
           landed = await ask("/api/focus/score", { record, centre: at.z.value, point });
@@ -479,7 +485,7 @@ export const backend = {
           const stood = await ask("/api/xyz", { ...at, x: focusXY.x, y: focusXY.y });
           standing = stood.z.value;
           const stack = capturedBy(await ask("/api/acquire", {
-            acquisition_type: "target-focussing", position_label: labels[index], options: null,
+            folder: "target-focussing", position_label: labels[index], acquisition_settings: null,
           }));
           const scored = await ask("/api/targets/acquire/focus", {
             record: stack, centre: standing, x: focusXY.x, y: focusXY.y,
@@ -499,7 +505,7 @@ export const backend = {
         const stood = focus && !found.found && !focusMoves && !zOffsetUm
           ? { z: { value: standing } } : await ask("/api/xyz", at);
         const record = capturedBy(await ask("/api/acquire", {
-          acquisition_type: "targets", position_label: labels[index], options: null,
+          folder: "targets", position_label: labels[index], acquisition_settings: null,
         }));
         const landed = await ask("/api/targets/acquire/landed", {
           record, position: { x, y, z: stood.z.value }, focus: found,
