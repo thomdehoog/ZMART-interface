@@ -29,7 +29,7 @@
  * `scanOverview` again, with the targets as the positions.
  */
 
-import { APIS, THE_MOCK } from "./instruments.js";
+import { MICROSCOPES, THE_MOCK } from "./instruments.js";
 import { sampleReading } from "./settings.js";
 import { makeRng } from "./pretend-sample/rng.js";
 import { METRICS, METRIC_KEYS, sweep } from "./pretend-sample/sweep.js";
@@ -68,7 +68,7 @@ export const backend = {
     return null;
   },
 
-  /** What can be connected to: the registry's entries, as the controller lists them. */
+  /** What can be connected to: the interface's list of microscopes, as the bridge gives it. */
   async instruments() {
     return pretendInstruments();
   },
@@ -110,17 +110,20 @@ export const backend = {
    * The pretend stage moves, and that matters. It stood at one spot before,
    * which made every reading of it identical and hid a whole class of fault —
    * a page that never sees the position change is a page nobody can catch
-   * drawing the mark in the wrong place. It also stops at the ends of its
-   * travel, because a real one does, and the answer is what it did rather
-   * than what it was asked.
+   * drawing the mark in the wrong place. A move past the end of its travel
+   * is refused before anything moves, the way a real driver refuses it, and
+   * the stage stays where it was.
    */
   async set_xyz({ x, y, z }) {
     await wait(220);
-    where = {
-      x: withinTravel(x ?? where.x, RANGE_UM.x),
-      y: withinTravel(y ?? where.y, RANGE_UM.y),
-      z: withinTravel(z ?? where.z, RANGE_UM.z),
-    };
+    const to = { x: x ?? where.x, y: y ?? where.y, z: z ?? where.z };
+    for (const axis of ["x", "y", "z"]) {
+      const [low, high] = TRAVEL_RANGE_UM[axis];
+      if (to[axis] < low || to[axis] > high) {
+        throw new Error(`${axis} = ${to[axis]} um is outside the stage's travel [${low}, ${high}] um`);
+      }
+    }
+    where = to;
     return standingAt(where);
   },
 
@@ -531,25 +534,23 @@ export { makeRng };
 /** How far this pretend stage travels, in micrometres. */
 const TRAVEL_UM = { x: 120_000, y: 80_000 };
 
-/** The two drivers the controller registers on a machine with both. */
-export const pretendInstruments = () => [
-  { ...THE_MOCK, client: "mock-client" },
-  { vendor: "leica", microscope: "stellaris5-y42h93", api: "navigator-expert", client: "PythonClient" },
-];
+/** The list a microscope PC with the Leica installed as "stellaris" would
+ *  offer: the interface's mock first, then the controller's list. */
+export const pretendInstruments = () => [THE_MOCK, "mock", "stellaris"];
 
-export const pretendConnectionStatus = ({ connection }) => ({
-  "Microscope reachable": connection?.api === "navigator-expert" ? "127.0.0.1:8895" : "in-process",
+export const pretendConnectionStatus = ({ instrument }) => ({
+  "Microscope reachable": MICROSCOPES[instrument] ? "in-process" : "127.0.0.1:8895",
   "Credentials accepted": "token valid",
-  "API version": APIS[connection?.api]?.detail ?? "unknown",
+  "API version": MICROSCOPES[instrument]?.apiDetail ?? "LAS X 4.9",
   "Stage responds": "x 0.0 · y 0.0 · z −412.0 µm",
   "Objectives listed": "5x, 63x",
   "Storage writable": "smart/organoid-screen_a7f3c1/",
 });
 
-/** How far each axis travels, `[min, max]` in micrometres, as `get_xyz`
- *  reports it in `range`. Its pictures are named, never drawn, so they
- *  reach no further than the stage: `reach` is the same. */
-const RANGE_UM = { x: [0, TRAVEL_UM.x], y: [0, TRAVEL_UM.y], z: [-2_000, 2_000] };
+/** How far each axis travels, `[min, max]` in micrometres. Its pictures are
+ *  named, never drawn, so they show no further than the stage goes: the
+ *  `canvas` `get_xyz` reports is the travel itself. */
+const TRAVEL_RANGE_UM = { x: [0, TRAVEL_UM.x], y: [0, TRAVEL_UM.y], z: [-2_000, 2_000] };
 
 /** Where on the sample a capture is, in the workflow's own label: the same
  *  five fields the bridge composes, so a run reads alike either way. */
@@ -589,10 +590,7 @@ const pretendPositionUm = () => ({ x: TRAVEL_UM.x * 0.04, y: TRAVEL_UM.y * 0.04,
    stays where it was put. */
 let where = pretendPositionUm();
 
-/** No further than the stage goes, which is what a real one answers with. */
-const withinTravel = (v, [low, high]) => Math.max(low, Math.min(high, v));
-
 /** A position, shaped the way the controller reports one. */
 const standingAt = (at) => Object.fromEntries(["x", "y", "z"].map((axis) => [axis, {
-  value: at[axis], unit: "um", range: [...RANGE_UM[axis]], reach: [...RANGE_UM[axis]],
+  value: at[axis], actuator: "motoric", canvas: [...TRAVEL_RANGE_UM[axis]],
 }]));

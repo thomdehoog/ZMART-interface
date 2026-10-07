@@ -98,7 +98,7 @@ def start(run_folder: Path | str, *, bake: bool = False, canvas: dict | None = N
     :func:`status` instead.
 
     ``canvas`` is the area pictures are laid out on, ``{"x_um", "y_um",
-    "z_um"}`` as ``[min, max]``: the reach get_xyz reports per axis, so a
+    "z_um"}`` as ``[min, max]``: the canvas get_xyz reports per axis, so a
     picture taken anywhere the stage can go lands inside it.
     """
     with _the_turn:

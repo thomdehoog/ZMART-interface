@@ -1,11 +1,26 @@
 """The interface's test microscope: a pretend instrument, plugged in like any driver.
 
-The mock is a complete ZMART driver that needs no hardware. It plugs into
-the ZMART Controller by its folder (``zmart_controller/zmart.json`` and the
-functions beside it), answers every command in the controller's
-``{"success", "content"}`` shape, and writes real image files, so the whole
-interface -- the bridge, the page, the analysis and the viewer -- can be run
-and tested on a desk.
+The mock is a complete ZMART driver that needs no hardware. Its functions,
+one per command (``connect``, ``get_xyz``, ``acquire``, ...), are in
+``zmart_controller_plugin.py`` with its ``NAME``, ``interface-mock``, and are
+listed here too, so the package itself can be plugged in like any driver::
+
+    import zmart_controller
+    from zmart_interface import mock_microscope
+
+    zmart_controller.set_instrument(mock_microscope, {"output_root": "my_images"})
+
+or registered once on a computer with ``zmart_controller.register_driver``
+(pointed at this folder) and plugged in as ``"interface-mock"``.
+
+Each function answers in the controller's two-part shape,
+``{"success": True, "content": ...}``. The mock never needs to decline
+softly: a request that is itself wrong -- a move outside the stage's travel,
+an unknown motor or job -- raises ``ValueError`` before anything moves, and
+anything else that goes wrong is raised as well, as the controller's contract
+asks. The mock writes real image files, so the whole interface -- the
+bridge, the page, the analysis and the viewer -- can be run and tested on a
+desk.
 
 ``driver.py`` is the pretend instrument itself, ``window.py`` its own small
 window, where a job is chosen the way an operator chooses one in the vendor's
@@ -17,46 +32,49 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import subprocess
 import sys
-from pathlib import Path
 
-# Under another name: importing the plug-in folder below, which is also called
-# ``zmart_controller``, puts that name on this package and would hide the controller.
-import zmart_controller as _controller
+from zmart_interface.mock_microscope import driver as _driver
 
-#: The folder the ZMART Controller is pointed at to plug the mock in.
-FOLDER = Path(__file__).resolve().parent
+# The functions the controller calls, one per command, are in
+# ``zmart_controller_plugin.py``; listed here, they make this package a driver.
+from zmart_interface.mock_microscope.zmart_controller_plugin import (
+    CONNECTION,
+    NAME,
+    acquire,
+    connect,
+    disconnect,
+    get_acquisition_settings,
+    get_actuators,
+    get_info,
+    get_procedures,
+    get_state,
+    get_xyz,
+    run_procedure,
+    set_state,
+    set_xyz,
+)
 
-#: The mock's whole name in the controller's list, as its ``zmart.json`` gives it.
-#: The page and the bridge know the mock by all three parts, never by the
-#: vendor alone: the ZMART Controller ships a pretend microscope of its own
-#: (a slide of beads) whose vendor is "mock" too, and an operator who chose
-#: "Mock" must get this one.
-IDENTITY = {
-    key: json.loads((FOLDER / "zmart_controller" / "zmart.json").read_text(encoding="utf-8"))[
-        "instruments"
-    ][0][key]
-    for key in ("vendor", "microscope", "api")
-}
-
-
-def is_the_mock(connection: dict) -> bool:
-    """Whether a connection entry is this mock, compared by its whole name."""
-    return all(connection.get(key) == value for key, value in IDENTITY.items())
-
-
-def register() -> list[dict]:
-    """Plug the mock into the controller for this session, and list what it adds.
-
-    Never remembered on the computer: the mock is offered by whoever wants
-    it -- the interface's bridge, a test -- rather than standing in every
-    later session's list of real instruments.
-    """
-    return _controller.register_driver(FOLDER, remember=False)
+__all__ = [
+    "CONNECTION",
+    "NAME",
+    "acquire",
+    "connect",
+    "disconnect",
+    "get_acquisition_settings",
+    "get_actuators",
+    "get_info",
+    "get_procedures",
+    "get_state",
+    "get_xyz",
+    "open_the_window",
+    "run_procedure",
+    "set_state",
+    "set_xyz",
+]
 
 
 def open_the_window(connection: dict) -> None:
@@ -68,15 +86,13 @@ def open_the_window(connection: dict) -> None:
     never touches the session. A window that cannot be opened is a warning,
     never a failed connect.
     """
-    from zmart_interface.mock_microscope import driver  # noqa: PLC0415
-
-    state_file = driver.where_the_instrument_stands(connection)
-    if driver.the_window_is_open(state_file):
+    state_file = _driver.where_the_instrument_stands(connection)
+    if _driver.the_window_is_open(state_file):
         return
     try:
         subprocess.Popen(
             [sys.executable, "-m", "zmart_interface.mock_microscope.window"],
-            env={**os.environ, driver.STATE_FILE_ENV: str(state_file)},
+            env={**os.environ, _driver.STATE_FILE_ENV: str(state_file)},
         )
     except OSError as why:
         logging.getLogger(__name__).warning("the mock instrument window could not be opened: %s", why)

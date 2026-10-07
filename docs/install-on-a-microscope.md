@@ -29,7 +29,7 @@ The temporary folder matters too: the analysis engine starts each workflow's env
 through a small script it writes into `%TEMP%`, and a `TEMP` outside the allowed folders is
 refused with "This program is blocked by group policy".
 
-The computer's ZMART configuration -- which drivers are plugged in, each driver's limits,
+The computer's ZMART configuration -- which drivers are registered, each driver's limits,
 origin and calibration, and the interface's saved protocols -- lives under
 `C:\ProgramData\zmart-microscopy\` (or wherever `ZMART_MICROSCOPY_ROOT` points). Saved
 protocols are in its `zmart-interface\protocols` folder; `ZMART_PROTOCOL_LIBRARY` names
@@ -74,14 +74,20 @@ the first press of a session pays the start-up of those workers once.
 ### 4. The driver
 
 Install the driver's extra (for the Leica: `pip install "zmart-drivers[leica] @ git+https://github.com/thomdehoog/ZMART-drivers"`),
-plug it into the controller once on this computer, and do the driver's own setup for this
-microscope -- its limits, origin and, for the Leica, the image orientation and objective
-calibration. Each driver's README says how. The driver loads that setup every time it
-connects, and the interface's Connect step shows what it loaded.
+and do the driver's own setup for this microscope -- its limits, origin and, for the Leica,
+the image orientation and objective calibration. Each driver's README says how. The driver
+loads that setup every time it connects, and the interface's Connect step shows what it
+loaded.
+
+Then register the driver with the controller, once on this computer, by pointing it at the
+driver's `zmart_controller_plugin.py` or the folder holding it. That file gives the driver's
+name and the connection it needs; the command prints the name:
 
 ```powershell
-python -c "import zmart_controller; print(zmart_controller.register_driver('zmart_drivers.leica.stellaris5_y42h93.navigator_expert'))"
+python -c "import zmart_drivers.leica.stellaris5_y42h93.navigator_expert as d, zmart_controller, pathlib; print(zmart_controller.register_driver(pathlib.Path(d.__file__).parent))"
 ```
+
+The Connect step then offers it under that name, beside the two pretend microscopes.
 
 ### 5. Launch
 

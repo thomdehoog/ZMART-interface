@@ -221,9 +221,9 @@ let stageWatch = null;
 
   const state = {
     session: { ...DEFAULT_SESSION },
-    /* What can be connected to, as the controller lists it (`get_instruments`),
-       grouped for the card: microscopes, each with its APIs. Loaded once the
-       backend is known; empty until then. */
+    /* What can be connected to, as the interface lists it (`/api/instruments`),
+       grouped for the card: microscopes, each with its drivers. Loaded once
+       the backend is known; empty until then. */
     instruments: [],
     overviewPreset: emptySlot("acquisition"),
     focusPreset: emptySlot("autofocus"),
@@ -386,10 +386,10 @@ let stageWatch = null;
   const tabsForStep = (i) => panelsFor(steps(), i, panelsThatStay());
 
   /* The instrument the card has chosen: a microscope from the list and one
-     of its APIs. The entry under them is what Connect sends. */
+     of its drivers. The name under them is what Connect sends. */
   const chosenMicroscope = () => state.instruments.find((m) => m.key === state.session.microscope);
   const chosenApi = () => chosenMicroscope()?.apis.find((a) => a.key === state.session.api);
-  const chosenConnection = () => chosenApi()?.connection ?? null;
+  const chosenInstrument = () => chosenApi()?.instrument ?? null;
 
   /* Ask the backend what can be connected to, and choose for the operator
      when nothing is chosen yet: the mock when it is listed, so a page opened
@@ -767,9 +767,9 @@ let stageWatch = null;
          and verifies it — and each answer lands here as it comes. */
       backend.connect({
         ...state.session,
-        /* The registry entry under the microscope and API chosen on this card
-           — what set_instrument takes. */
-        connection: chosenConnection(),
+        /* The name chosen on this card: the bridge plugs that driver in,
+           with the connection saved for it when it was installed. */
+        instrument: chosenInstrument(),
       }, {
         /* The questions, before any answer: one row per key the driver reports. */
         onChecks: (keys) => {
@@ -784,11 +784,11 @@ let stageWatch = null;
         },
       }).then(async () => {
         /* The session is open and every check has answered. The canvas is
-           the instrument's from here — laid out over the reach get_xyz
+           the instrument's from here — laid out over the canvas get_xyz
            reports, everywhere a picture can show — and the stage mark stands
-           where get_xyz says the stage is. A driver that gives no reach is
+           where get_xyz says the stage is. A driver that gives no canvas is
            told to the operator as a failed connection. */
-        takeTheReach(await backend.get_xyz());
+        takeTheCanvas(await backend.get_xyz());
         /* From here the stage mark is the instrument's: a watch of its own
            reads get_xyz every few seconds for as long as the session is open,
            and again at once after any move this page makes. */
@@ -2526,13 +2526,20 @@ let stageWatch = null;
       /* Locked by the run having moved past this step, and locked until the
          preset the plan would be taken with exists. */
       locked: locked || !hasRecording(state.overviewPreset),
-      /* How far a field may be drawn: the stage's travel, said in the
+      /* How far a field may be drawn: the instrument's canvas, said in the
          carrier's own micrometres. Not the carrier — a plate does not limit
          imaging, the instrument does, and a plate centred in a 120 x 80 mm
          travel has reachable stage all round it that the drawing was refusing
-         to enter. The instrument reports the travel at connect; where the
-         carrier sits in it is what alignment measures, so this moves when the
-         operator snaps a point. */
+         to enter. The instrument reports its canvas at connect (get_xyz); where
+         the carrier sits in it is what alignment measures, so this moves when
+         the operator snaps a point.
+
+         The canvas is everywhere a picture can show, so it is wider than the
+         travel by half the widest field. A field laid at its very edge can
+         put a picture's centre a little past the travel; the driver refuses
+         that move before anything moves, and the run stops there with the
+         driver's sentence, so nothing is taken in the wrong place. The travel
+         itself is the driver's to know, and the page does not guess it. */
       reach: (() => {
         const [fw, fh] = stage.travelUm;
         const [sx, sy] = stage.travelOriginUm;
@@ -2650,7 +2657,7 @@ let stageWatch = null;
         session: () => state.session,
         instruments: () => state.instruments,
         checks: () => state.checks,
-        chosenMicroscope, chosenConnection,
+        chosenMicroscope, chosenInstrument,
         connect: () => runStep(indexOfStep("connect")),
         /* Closing takes the run with it, for the reason resetRun gives:
            everything after this was read off this session. It works while
@@ -2698,7 +2705,7 @@ let stageWatch = null;
   async function listProtocols() {
     if (!backend.protocols) return;
     try {
-      state.protocols = await backend.protocols(state.done.has("connect") ? null : chosenConnection());
+      state.protocols = await backend.protocols(state.done.has("connect") ? null : chosenInstrument());
     } catch (why) {
       console.warn(`listing protocols: ${why.message}`);
       state.protocols = [];
@@ -3075,7 +3082,7 @@ let stageWatch = null;
   const toWorld = (...a) => stage.toWorld(...a);
   const carrierOriginUm = () => stage.carrierOriginUm();
   const whereTheStageIs = () => stage.whereTheStageIs();
-  const takeTheReach = (reading) => stage.takeTheReach(reading);
+  const takeTheCanvas = (reading) => stage.takeTheCanvas(reading);
   const takeThePosition = (at) => stage.takeThePosition(at);
   const drawScaleBar = (...a) => stage.drawScaleBar(...a);
 

@@ -226,7 +226,7 @@ export function renderSessionCard(host, ctx) {
          field starts empty and stays optional, and an instrument that wants
          one says so when the session is opened. The page once refused to
          connect without one, which only stood in the way of the mock. */
-      btn.disabled = connecting || !ctx.chosenConnection();
+      btn.disabled = connecting || !ctx.chosenInstrument();
       btn.addEventListener("click", () => ctx.connect());
       row.append(btn);
       /* The way out is there from the moment a connect begins, not once it

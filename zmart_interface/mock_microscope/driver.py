@@ -145,16 +145,9 @@ def debris_at(x_um: float, y_um: float) -> dict | None:
 
 
 #: How far the stage travels, in micrometres from its zero: every move is
-#: checked against this, and a move outside it is refused without moving.
+#: checked against this, and a move outside it is refused with ``ValueError``
+#: before anything moves.
 TRAVEL_UM = {"x": (-5_000.0, 125_000.0), "y": (-5_000.0, 85_000.0), "z": (-1_000.0, 11_000.0)}
-
-
-class Refused(Exception):
-    """A request the mock declines, safely: nothing was moved or changed.
-
-    The plug-in answers it as ``{"success": False, "content": {"reason": ...}}``,
-    the controller's way of saying "I could not, and it is safe to carry on".
-    """
 
 
 @dataclass
@@ -356,7 +349,7 @@ def _within_the_travel(position: dict[str, float]) -> None:
     for axis, value in position.items():
         low, high = TRAVEL_UM[axis]
         if not (low <= value <= high):
-            raise Refused(
+            raise ValueError(
                 f"{axis} = {value:g} um is outside the stage's travel [{low:g}, {high:g}] um"
             )
 
@@ -423,19 +416,20 @@ def _user_position(handle: MockHandle) -> dict[str, float]:
 
 
 def get_xyz(handle: MockHandle, *, with_actuators: dict | None = None) -> dict:
-    """Report the position per axis (um) with its actuator, its travel, and its reach.
+    """Report the position per axis (um) with its actuator and its canvas.
 
-    ``range`` is how far the stage travels; ``reach`` is everywhere a picture
-    can show along that axis (see :data:`REACH_UM`).
+    ``canvas`` is everywhere a picture can show along that axis (see
+    :data:`CANVAS_UM`): the travel, widened by half a field and half a stack.
+    The travel itself stays inside the driver, where every move is checked
+    against it.
     """
     _require_open(handle)
     chosen = _resolve_actuators(with_actuators)
     user = _user_position(handle)
     return {
         axis: {
-            "value": user[axis], "actuator": chosen[axis], "unit": "um",
-            "range": list(TRAVEL_UM[axis]),
-            "reach": list(REACH_UM[axis]),
+            "value": user[axis], "actuator": chosen[axis],
+            "canvas": list(CANVAS_UM[axis]),
         }
         for axis in ("x", "y", "z")
     }
@@ -448,7 +442,7 @@ def set_xyz(
 
     The chosen actuators realize this move only — the selection is never
     remembered (omitted axes always default to the reference actuator). A
-    target outside the travel is refused with :class:`Refused`, and the stage
+    target outside the travel is refused with ``ValueError``, and the stage
     stays where it was.
     """
     _require_open(handle)
@@ -576,7 +570,7 @@ def _write_a_frame(
     changes cannot be told from one that works.
 
     ``numpy`` and ``tifffile`` are imported here, not at the top, so that
-    registering this driver stays free of them — the operator page's bridge
+    plugging in this driver stays free of them — the operator page's bridge
     imports it at start-up and is standard library plus the controller, which
     is what lets it run on a microscope PC with nothing installed.
     """
@@ -858,15 +852,15 @@ def run_procedure(handle: MockHandle, procedure: dict) -> dict:
     return {"ran": dict(procedure)}
 
 
-def _the_reach() -> dict[str, list[float]]:
-    """Everywhere a capture can reach: the stage's whole travel, and half a field beyond it.
+def _the_canvas() -> dict[str, list[float]]:
+    """Everywhere a capture can show: the stage's whole travel, and half a field beyond it.
 
     A field is centred where the stage stands, so one taken at the edge of the
-    travel reaches half its width further, and a stack reaches half its depth
-    above and below. The interface lays out the viewer's area from this, and
-    the viewer refuses, whole, a capture that reaches outside that area; the
+    travel shows half its width further, and a stack half its depth above and
+    below. The interface lays out the viewer's area from this, and the viewer
+    refuses, whole, a capture that shows outside that area; the
     stage stands at its zero, at the edge of where it travels, until the
-    operator first moves it. So the reach is the widest field's half and the
+    operator first moves it. So the canvas is the widest field's half and the
     deepest stack's half beyond the travel on every side.
     """
     half_field = max(px * um for px, um in (frame_of(job, "overview") for job in JOBS)) / 2
@@ -876,9 +870,10 @@ def _the_reach() -> dict[str, list[float]]:
     return {axis: [low - beyond[axis], high + beyond[axis]] for axis, (low, high) in TRAVEL_UM.items()}
 
 
-#: How far a picture reaches per axis, in micrometres: what ``get_xyz`` reports
-#: as ``reach``, and so the area the page draws and the viewer places pictures on.
-REACH_UM = _the_reach()
+#: Everywhere a picture can show per axis, in micrometres: what ``get_xyz``
+#: reports as ``canvas``, and so the area the page draws and the viewer places
+#: pictures on.
+CANVAS_UM = _the_canvas()
 
 # The connection checks, in the order they answer, each with the delay after
 # connect (seconds) at which its answer becomes available. Until then a client
@@ -901,9 +896,7 @@ def _connection_status(handle: MockHandle) -> dict[str, str]:
     elapsed = time.monotonic() - handle.connected_at
     user = _user_position(handle)
     answers = {
-        "driver": " · ".join(
-            str(handle.connection.get(key)) for key in ("vendor", "microscope", "api")
-        ),
+        "driver": "zmart_interface.mock_microscope, the interface's pretend microscope",
         "client": str(handle.client),
         "serial": handle.serial,
         "stage": f"x {user['x']:.1f} · y {user['y']:.1f} · z {user['z']:.1f} um",
@@ -926,7 +919,7 @@ def get_info(handle: MockHandle) -> dict:
     ``connection_status`` is what a client shows under Connect: one row per
     key, its value the answer or ``"pending"`` until the check has answered
     (a value beginning ``failed`` is a failed check). The area a client
-    draws to scale is not here: it is ``get_xyz``'s ``reach``, per axis.
+    draws to scale is not here: it is ``get_xyz``'s ``canvas``, per axis.
     """
     _require_open(handle)
     root = Path(handle.connection.get("output_root") or "mock-output")

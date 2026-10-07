@@ -9,7 +9,7 @@
  *     BACKEND_BRIDGE=http://127.0.0.1:8600 npx vitest run zmart_interface/parts/microscope/backend-contract.test.js
  *
  * With the mock microscope behind that bridge it is a full round of the real path
- * — controller, registry, driver contract — and the two answers are held
+ * — controller, driver contract — and the two answers are held
  * against the same list. That is the only arrangement in which the pretend
  * backend cannot quietly drift away from the instrument it stands for.
  *
@@ -48,9 +48,9 @@ describe.skipIf(!bridgeAt)("the live backend keeps the same promises", () => {
       "./live.js"
     ));
     /* Nothing answers before a session is open, and which instrument is
-       opened is not left to the order the registry happens to list them in.
+       opened is not left to the order the list happens to give them in.
        These promises drive a stage about. The mock driver is chosen wherever
-       one is offered — on a development machine the registry lists the Leica
+       one is offered — on a development machine the list may give the Leica
        first, and a test that took the first entry would open a session on a
        real microscope and move it. Driving the real one is a deliberate act,
        so it takes a word from whoever is running this. */
@@ -60,10 +60,10 @@ describe.skipIf(!bridgeAt)("the live backend keeps the same promises", () => {
       throw new Error(
         "this bridge offers no mock driver, and these promises drive the stage."
         + " Set BACKEND_BRIDGE_MAY_MOVE_THE_MICROSCOPE=yes to run them against"
-        + ` the instrument itself (${offered.map((one) => one.vendor).join(", ")}).`,
+        + ` the instrument itself (${offered.join(", ")}).`,
       );
     }
-    await live.connect({ connection: mockDriver ?? offered[0] });
+    await live.connect({ instrument: mockDriver ?? offered[0] });
   }, 30_000);
 
   for (const promise of promises) {

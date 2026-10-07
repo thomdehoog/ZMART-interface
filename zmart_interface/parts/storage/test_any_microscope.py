@@ -25,7 +25,7 @@ zmart_controller = pytest.importorskip("zmart_controller")
 pytest.importorskip("tifffile")
 pytest.importorskip("zarr")
 
-from zmart_controller import check_acquire_answer, utils  # noqa: E402
+from zmart_controller import check_acquire_answer  # noqa: E402
 
 from zmart_interface.parts.storage.jpeg_tiles import (  # noqa: E402
     make_slice_copies,
@@ -38,29 +38,15 @@ from zmart_interface.parts.storage.output import (  # noqa: E402
 )
 from zmart_interface.parts.storage.zarr_positions import position_store_from_record  # noqa: E402
 
-#: The controller's mock driver lives beside the controller in its checkout,
-#: as a test fixture; an installed controller without its tests has none.
-MOCK_DRIVER = Path(zmart_controller.__file__).resolve().parents[1] / "tests" / "mock_zmart_driver"
-MOCK = ("mock", "mock-scope", "mock-api")
-
-pytestmark = pytest.mark.skipif(
-    not MOCK_DRIVER.is_dir(), reason="the controller's mock driver is not beside the controller"
-)
-
 
 @pytest.fixture
 def capture(tmp_path, monkeypatch):
     """Take one capture on the controller's mock, the way the bridge asks for one."""
     monkeypatch.setenv("ZMART_MICROSCOPY_ROOT", str(tmp_path / "config"))
-    if MOCK not in utils.REGISTRY:
-        zmart_controller.register_driver(str(MOCK_DRIVER), remember=False)
-    connection = {
-        "vendor": "mock", "microscope": "mock-scope", "api": "mock-api",
-        "output_root": str(tmp_path / "staging"), "mock_timing": "instant",
-    }
+    connection = {"output_root": str(tmp_path / "staging"), "mock_timing": "instant"}
 
     def take(label: str, **settings) -> dict:
-        session = zmart_controller.session.set_instrument(connection)
+        session = zmart_controller.session.set_instrument(zmart_controller.mock, connection)
         try:
             session.set_xyz(100.0, 50.0, 3.0)
             answer = session.acquire(

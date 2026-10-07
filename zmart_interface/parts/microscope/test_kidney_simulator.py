@@ -77,8 +77,8 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
 
         def get_xyz(self):
             self.reads += 1
-            content = {axis: {"value": 0.0, "unit": "um", "range": [0.0, 1000.0],
-                              "reach": [-50.0, 1050.0]} for axis in ("x", "y", "z")}
+            content = {axis: {"value": 0.0, "actuator": "motoric", "canvas": [-50.0, 1050.0]}
+                       for axis in ("x", "y", "z")}
             content["z"]["value"] = self.height
             return {"success": True, "content": content}
 
@@ -86,7 +86,7 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
             pass
 
     session = Session()
-    monkeypatch.setattr(bridge.zmart_controller.session, "set_instrument", lambda _: session)
+    monkeypatch.setattr(bridge.zmart_controller.session, "set_instrument", lambda *_: session)
     monkeypatch.setattr(bridge.viewer_service, "start", lambda *a, **k: None)
     monkeypatch.setattr(bridge.viewer_service, "stop", lambda: None)
     monkeypatch.setattr(bridge, "_simulator_pixels_enabled", enabled)
@@ -94,7 +94,7 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         monkeypatch.setattr(bridge, name, None)
     for name in ("_context", "_records", "_view_built", "_displayed_pictures", "_scan", "_focus", "_targets"):
         monkeypatch.setattr(bridge, name, {})
-    bridge._connect({"connection": {"vendor": "test"}})
+    bridge._connect({"instrument": bridge.INTERFACE_MOCK})
     first = bridge._pixel_provider
     if enabled:
         assert first.focus_z_um == 420
@@ -105,10 +105,10 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         first((64,64), np.uint8, plane={"x_um":512,"y_um":512,"z_um":435,"c":0}, pixel_um=(2,2))
         assert first.focus_z_um == 420 and session.reads == 1
     else:
-        # Connect reads the stage once, for the reach the viewer is laid out over.
+        # Connect reads the stage once, for the canvas the viewer is laid out over.
         assert first is None and session.reads == 1
         session.height = 435
-    bridge._connect({"connection": {"vendor": "test"}})
+    bridge._connect({"instrument": bridge.INTERFACE_MOCK})
     if enabled:
         assert bridge._pixel_provider.focus_z_um == 435
         assert first.focus_z_um == 420

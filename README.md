@@ -26,7 +26,7 @@ found only at the end.
 The interface turns the run into ten steps in a window, each with its own controls beside
 a picture of the sample, and keeps every result where the operator can see and correct it:
 
-1. **Connect** to a microscope chosen from the controller's list, and see what its driver
+1. **Connect** to a microscope chosen from the interface's list, and see what its driver
    reports: whether the stage answers, which limits and calibration it loaded, where images go.
 2. **Define the carrier**: a slide, a dish or a well plate, aligned to the stage.
 3. **Overview scan area**: the fields to survey, drawn on the carrier.
@@ -108,12 +108,19 @@ Its sample is a section of a mouse kidney; the first capture downloads it once.
 
 ### Run it on a microscope
 
-Install the ZMART driver for your microscope and plug it into the controller once on that
-computer (see the [ZMART drivers](https://github.com/thomdehoog/ZMART-drivers) and the
-controller's [setup guide](https://github.com/thomdehoog/ZMART-controller/blob/main/docs/setup.md)).
-Each driver also has a setup of its own, done once per microscope: its travel limits, the
-zero point of its coordinates and, for some, the image orientation and objective calibration.
-After that the microscope appears in the interface's list:
+Install the ZMART driver for your microscope (see the
+[ZMART drivers](https://github.com/thomdehoog/ZMART-drivers)). Each driver has a setup of
+its own, done once per microscope: its travel limits, the zero point of its coordinates and,
+for some, the image orientation and objective calibration. Then register the driver with the
+controller once on that computer, by pointing it at the driver's `zmart_controller_plugin.py`
+(or the folder holding it; the driver's README says where it is):
+
+```bash
+python -c "import zmart_controller; print(zmart_controller.register_driver('path/to/the/driver'))"
+```
+
+That file gives the driver's name and the connection it needs. The microscope then appears
+in the interface's list under that name, beside the two pretend ones:
 
 ```bash
 pip install "zmart-interface[drivers] @ git+https://github.com/thomdehoog/ZMART-interface"

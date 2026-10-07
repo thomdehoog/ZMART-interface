@@ -121,7 +121,7 @@ export const backend = {
     return ask("/api/targets/raise", { position_label });
   },
 
-  /** What can be connected to: `get_instruments` through the bridge. */
+  /** What can be connected to: the interface's list of microscopes, from the bridge. */
   async instruments() {
     return (await ask("/api/instruments")).instruments;
   },
@@ -175,9 +175,7 @@ export const backend = {
     /* The password travels with the connection: a gate that demanded it and
        then discarded it authenticated nothing. What a driver does with it is
        the driver's business. */
-    await ask("/api/connect", {
-      connection: { ...session?.connection, password: session?.password },
-    });
+    await ask("/api/connect", { instrument: session?.instrument, password: session?.password });
     let keys = null;
     const answered = new Set();
     for (;;) {
@@ -525,8 +523,8 @@ export const backend = {
    * each with its settings inline: the list is short and the files small,
    * so there is nothing to fetch a second time.
    */
-  async protocols(connection = null) {
-    const { protocols } = await ask("/api/protocols", connection ? { connection } : undefined);
+  async protocols(instrument = null) {
+    const { protocols } = await ask("/api/protocols", instrument ? { instrument } : undefined);
     return protocols ?? [];
   },
 

@@ -20,9 +20,9 @@ describe("the pretend stage", () => {
      tests, exactly as an instrument keeps one between sessions. */
   beforeEach(async () => { await backend.set_xyz({ x: 4800, y: 3200, z: -412 }); });
 
-  it("answers with micrometres per axis", async () => {
+  it("answers each axis with its position, its motor and its canvas, in micrometres", async () => {
     const at = await backend.get_xyz();
-    expect(at.x.unit).toBe("um");
+    expect(Object.keys(at.x).sort()).toEqual(["actuator", "canvas", "value"]);
     expect(um(at)).toEqual({ x: 4800, y: 3200, z: -412 });
   });
 
@@ -36,11 +36,12 @@ describe("the pretend stage", () => {
     expect(um(at)).toEqual({ x: 12_345, y: 6_789, z: -400 });
   });
 
-  it("stops at the ends of its travel rather than driving through them", async () => {
-    /* A real stage does, and a page that believed its own request would draw
-       the mark somewhere the stage never went. */
-    expect(um(await backend.set_xyz({ x: 999_999, y: -999_999, z: -412 })))
-      .toEqual({ x: 120_000, y: 0, z: -412 });
+  it("refuses a move past the ends of its travel, and stays where it was", async () => {
+    /* A real driver does, before anything moves, and a page that believed its
+       own request would draw the mark somewhere the stage never went. */
+    await expect(backend.set_xyz({ x: 999_999, y: -999_999, z: -412 }))
+      .rejects.toThrow(/outside the stage's travel/);
+    expect(um(await backend.get_xyz())).toEqual({ x: 4800, y: 3200, z: -412 });
   });
 
   it("leaves an axis alone when it is not asked about", async () => {

@@ -1,9 +1,8 @@
 /**
- * The Connect card's lists come from the controller's registry
- * (`get_instruments`): each entry is a connection dict identified by vendor,
- * microscope and api. `choicesFrom` groups them the way the card asks — one
- * microscope, then its APIs — and keeps the entry under each API, because
- * that entry is what `set_instrument` takes.
+ * The Connect card's lists come from the bridge (`/api/instruments`) as
+ * names: the interface's own mock, then the drivers registered on this
+ * computer. `choicesFrom` shapes them the way the card asks, and keeps the
+ * name under each, because the name is what Connect sends.
  */
 
 import { describe, expect, it } from "vitest";
@@ -13,49 +12,33 @@ import {
 import { pretendInstruments } from "../../parts/microscope/mock.js";
 
 describe("choicesFrom", () => {
-  it("groups the registry's entries into microscopes with their apis, in registry order", () => {
-    const choices = choicesFrom([
-      { ...THE_MOCK, client: "mock-client" },
-      { vendor: "leica", microscope: "stellaris5-y42h93", api: "navigator-expert", client: "PythonClient" },
-      { vendor: "leica", microscope: "stellaris5-y42h93", api: "pyapi", client: "PythonClient" },
-    ]);
-    expect(choices.map((m) => m.key)).toEqual(["mock/kidney-mock", "leica/stellaris5-y42h93"]);
-    expect(choices[1].apis.map((a) => a.key)).toEqual(["navigator-expert", "pyapi"]);
+  it("offers one microscope per listed name, in list order", () => {
+    const choices = choicesFrom([THE_MOCK, "mock", "stellaris"]);
+    expect(choices.map((m) => m.key)).toEqual([THE_MOCK, "mock", "stellaris"]);
+    expect(choices.map((m) => m.apis[0].instrument)).toEqual([THE_MOCK, "mock", "stellaris"]);
   });
 
-  it("uses the page's words for ids it knows, and the id itself otherwise", () => {
-    const [mock, leica] = choicesFrom(pretendInstruments());
+  it("uses the page's words for names it knows, and the name itself otherwise", () => {
+    const [mock, beads, leica] = choicesFrom(pretendInstruments());
     expect(mock.label).toBe("Mock");
     expect(mock.apis[0].label).toBe("Mock API");
-    expect(leica.label).toBe("Leica Stellaris 5");
-    expect(leica.apis[0].label).toBe("Navigator Expert");
-    const [unknown] = choicesFrom([{ vendor: "acme", microscope: "zx-9", api: "rest" }]);
-    expect(unknown.label).toBe("zx-9");
-    expect(unknown.detail).toBe("acme");
-    expect(unknown.apis[0].label).toBe("rest");
+    expect(beads.label).toBe("Mock beads");
+    expect(leica.label).toBe("stellaris");
+    expect(leica.apis[0].label).toBe("ZMART driver");
   });
 
-  it("keeps the whole entry under each api, untouched, for set_instrument", () => {
-    const entry = { ...THE_MOCK, client: "mock-client", extra: 1 };
-    const [mock] = choicesFrom([entry]);
-    expect(mock.apis[0].connection).toEqual(entry);
-    expect(mock.apis[0].connection).not.toBe(entry);
+  it("finds the interface's own mock, not the controller's", () => {
+    /* The ZMART Controller has a pretend microscope of its own, a slide of
+       beads, listed as "mock". The page's "Mock" must never quietly be it. */
+    expect(theMockAmong(choicesFrom(["mock", THE_MOCK]))).toEqual({ microscope: THE_MOCK, api: THE_MOCK });
+    expect(theMockAmong(choicesFrom(["mock"]))).toBeNull();
+    expect(isTheMock(THE_MOCK)).toBe(true);
+    expect(isTheMock("mock")).toBe(false);
   });
 
-  it("finds the interface's own mock by its whole name, not by its vendor", () => {
-    /* The ZMART Controller ships a pretend microscope of its own, a slide of
-       beads, whose vendor is "mock" too. Chosen by vendor, the page's "Mock"
-       could quietly be that one. */
-    const beads = { vendor: "mock", microscope: "mock-scope", api: "mock-api", client: "mock-client" };
-    const both = choicesFrom([beads, { ...THE_MOCK, client: "mock-client" }]);
-    expect(theMockAmong(both)).toEqual({ microscope: "mock/kidney-mock", api: "zmart-interface" });
-    expect(theMockAmong(choicesFrom([beads]))).toBeNull();
-    expect(isTheMock({ ...THE_MOCK, output_root: "x" })).toBe(true);
-    expect(isTheMock(beads)).toBe(false);
-  });
-
-  it("describes a session by its entry", () => {
-    expect(describeSession({ connection: pretendInstruments()[1] })).toBe("Leica Stellaris 5 · Navigator Expert");
-    expect(describeSession({ connection: null })).toBe("not chosen");
+  it("describes a session by its name", () => {
+    expect(describeSession({ instrument: THE_MOCK })).toBe("Mock");
+    expect(describeSession({ instrument: "stellaris" })).toBe("stellaris");
+    expect(describeSession({ instrument: null })).toBe("not chosen");
   });
 });
