@@ -45,7 +45,7 @@ def mock_instrument(tmp_path) -> dict:
 
 @pytest.fixture
 def mock_session(mock_instrument):
-    """A connected mock microscope, read the way the bridge reads it: answers are reports."""
+    """A connected mock microscope, read the way the bridge reads it: each answer is its content."""
     session = Instrument(zmart_controller.session.set_instrument(mock_instrument))
     try:
         yield session

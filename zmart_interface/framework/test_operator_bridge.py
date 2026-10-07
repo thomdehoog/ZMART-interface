@@ -4,7 +4,7 @@ Every fault these cover was invisible from the page: the window drew a focus
 map, the rows filled with numbers, and every number was a zero. What the page
 cannot see is which key a driver puts its answer under, so that is what is
 asserted here — against stubs shaped like the ZMART drivers, answering every
-command in the controller's two-part ``{"success", "report"}`` shape, and
+command in the controller's two-part ``{"success", "content"}`` shape, and
 against the mock microscope plugged in through the controller.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
@@ -31,8 +31,8 @@ from zmart_interface.parts.microscope.instrument import Instrument, InstrumentDe
 class _Enveloped:
     """A stub driver session, answering the way the controller does: in two parts.
 
-    The stubs below return their reports, which keeps them short to read;
-    this wraps each answer as ``{"success": True, "report": ...}``, the shape
+    The stubs below return their content, which keeps them short to read;
+    this wraps each answer as ``{"success": True, "content": ...}``, the shape
     every ZMART driver gives through the controller.
     """
 
@@ -46,9 +46,19 @@ class _Enveloped:
             return found
 
         def answered(*args, **kwargs):
-            return {"success": True, "report": found(*args, **kwargs)}
+            return {"success": True, "content": found(*args, **kwargs)}
 
         return answered
+
+
+def _kept(acquisition_type: str, *, position_label: str) -> dict:
+    """A stub capture as the bridge keeps it: asked into its folder, and filed
+    under the interface's own acquisition type, which no driver reports."""
+    record = _Driver().acquire(
+        position_label=position_label, acquisition_settings={"folder": acquisition_type},
+    )
+    record["acquisition_type"] = acquisition_type
+    return record
 
 
 def _plugged(stub) -> Instrument:
@@ -98,10 +108,15 @@ class _Driver:
         self.at = {"x": float(x), "y": float(y), "z": float(z)}
         return {"position": {"x": x, "y": y, "z": z}, "actuators": {"z": "motoric"}}
 
-    def acquire(self, *, acquisition_type, position_label, options=None) -> dict:
+    def get_acquisition_settings(self) -> dict:
+        """The ZMART drivers all offer ``folder``, to keep one acquisition's pictures together."""
+        return {"folder": {"options": "any text", "active": ""}}
+
+    def acquire(self, *, position_label, acquisition_settings=None) -> dict:
         """A focussing capture: a stack around wherever the stage is standing."""
-        self.captured.append((acquisition_type, position_label))
-        where = self.staging / acquisition_type
+        folder = (acquisition_settings or {}).get("folder", "")
+        self.captured.append((folder, position_label))
+        where = self.staging / folder
         where.mkdir(parents=True, exist_ok=True)
         planes = []
         for index in range(5):
@@ -112,7 +127,6 @@ class _Driver:
                 "x_um": self.at["x"], "y_um": self.at["y"], "z_um": self.at["z"],
             })
         return {
-            "acquisition_type": acquisition_type,
             "acquisition_hash": "aaaaaa",
             "position_label": position_label,
             "files": [plane["path"] for plane in planes],
@@ -232,7 +246,7 @@ def _measured(asked):
             "x": point["x"], "y": point["y"],
             **({"z": start} if isinstance(start, (int, float)) else {}),
         })
-        record = bridge._capture({"acquisition_type": "focussing", "position_label": begun["labels"][index]})["report"]
+        record = bridge._capture({"folder": "focussing", "position_label": begun["labels"][index]})["content"]
         bridge._score_focus({"record": record, "centre": at["z"]["value"], "point": point})
     bridge._end_focus({})
     assert bridge._focus["error"] is None, bridge._focus["error"]
@@ -420,11 +434,11 @@ def test_the_acquisition_menu_is_handed_over_untouched(monkeypatch):
     }
 
     class Offering(_Driver):
-        def get_acquisition_options(self):
+        def get_acquisition_settings(self):
             return menu
 
     monkeypatch.setattr(bridge, "_session", _plugged(Offering()))
-    assert bridge._acquisition_options() == menu
+    assert bridge._acquisition_settings() == menu
 
 
 def test_a_setting_is_applied_as_the_changeable_half_of_state(monkeypatch):
@@ -463,14 +477,13 @@ class _Capturing(_Driver):
         self.asked = []
         self.staging = Path(tempfile.mkdtemp(prefix="zmart-capture-"))
 
-    def acquire(self, *, acquisition_type, position_label, options=None):
-        self.asked.append((acquisition_type, position_label, options))
-        where = self.staging / acquisition_type
+    def acquire(self, *, position_label, acquisition_settings=None):
+        self.asked.append((position_label, acquisition_settings))
+        where = self.staging / (acquisition_settings or {}).get("folder", "")
         where.mkdir(parents=True, exist_ok=True)
         path = where / f"{position_label}.tiff"
         path.write_bytes(b"a plane")
         return {
-            "acquisition_type": acquisition_type,
             "position_label": position_label,
             "files": [str(path)],
             "planes": [{"t": 0, "z": 0, "c": 0, "path": str(path),
@@ -489,12 +502,11 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
     driver = _Capturing()
     monkeypatch.setattr(bridge, "_session", _plugged(driver))
     answer = bridge._capture({
-        "acquisition_type": "overview",
+        "folder": "overview",
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
     path = str(driver.staging / "overview" / "K00_M000001_G000000_P000007_V00.tiff")
-    assert answer == {"success": True, "report": {
-        "acquisition_type": "overview",
+    assert answer == {"success": True, "content": {
         "position_label": "K00_M000001_G000000_P000007_V00",
         "files": [path],
         "planes": [{"t": 0, "z": 0, "c": 0, "path": path,
@@ -504,20 +516,23 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
 
 def test_a_capture_the_microscope_declined_is_answered_not_raised(monkeypatch):
     """A script sees ``success`` false and the driver's reason; so does the page."""
-    declined = {"success": False, "report": {"reason": "the image never arrived", "files": [],
+    declined = {"success": False, "content": {"reason": "the image never arrived", "files": [],
                                               "planes": []}}
 
     class _Declining:
         context = {"vendor": "test", "microscope": "declining", "api": "test"}
 
+        def get_acquisition_settings(self):
+            return {"success": True, "content": {}}
+
         def acquire(self, **_asked):
             return declined
 
     monkeypatch.setattr(bridge, "_session", Instrument(_Declining()))
-    assert bridge._capture({"acquisition_type": "overview", "position_label": "A1"}) == declined
+    assert bridge._capture({"folder": "overview", "position_label": "A1"}) == declined
 
 
-def test_the_options_a_capture_is_given_reach_the_driver(monkeypatch):
+def test_the_settings_a_capture_is_given_reach_the_driver(monkeypatch):
     """Straight from the menu the page read, straight back to the driver.
 
     Omitted ones the driver fills from its own actives, which is why nothing
@@ -526,13 +541,28 @@ def test_the_options_a_capture_is_given_reach_the_driver(monkeypatch):
     driver = _Capturing()
     monkeypatch.setattr(bridge, "_session", _plugged(driver))
     bridge._capture({
-        "acquisition_type": "targets",
+        "folder": "targets",
         "position_label": "K00_M000002_G000001_P000003_V00",
-        "options": {"format": "ome-zarr"},
+        "acquisition_settings": {"format": "ome-zarr"},
     })
     assert driver.asked[-1] == (
-        "targets", "K00_M000002_G000001_P000003_V00", {"format": "ome-zarr"},
+        "K00_M000002_G000001_P000003_V00", {"format": "ome-zarr", "folder": "targets"},
     )
+
+
+def test_a_driver_without_a_folder_setting_is_not_given_one(monkeypatch):
+    """``folder`` is the interface's own grouping; a driver that does not offer
+    the setting is not sent it, and the capture still goes through."""
+
+    class NoFolder(_Capturing):
+        def get_acquisition_settings(self):
+            return {"format": {"options": ["ome-tiff"], "active": "ome-tiff"}}
+
+    driver = NoFolder()
+    monkeypatch.setattr(bridge, "_session", _plugged(driver))
+    answer = bridge._capture({"folder": "targets", "position_label": "A1"})
+    assert answer["success"] is True
+    assert driver.asked[-1] == ("A1", None)
 
 
 # --- the scan ----------------------------------------------------------------
@@ -558,7 +588,7 @@ def test_a_scan_labels_every_position_the_canonical_way(monkeypatch):
     """
     driver = _Capturing()
     scanned = _scanned(driver, [{"x": 0, "y": 0}, {"x": 10, "y": 0}], monkeypatch)
-    assert [label for _, label, _ in driver.asked] == [
+    assert [label for label, _ in driver.asked] == [
         "K00_M000000_G000000_P000000_V00",
         "K00_M000000_G000000_P000001_V00",
     ]
@@ -585,7 +615,7 @@ def test_a_position_says_where_on_the_plate_it_is(monkeypatch):
     """The page knows which well and which tileset; the label carries it."""
     driver = _Capturing()
     _scanned(driver, [{"x": 0, "y": 0, "compartment": 3, "group": 2}], monkeypatch)
-    assert driver.asked[-1][1] == "K00_M000003_G000002_P000000_V00"
+    assert driver.asked[-1][0] == "K00_M000003_G000002_P000000_V00"
 
 
 def test_a_scan_keeps_the_record_of_every_capture(monkeypatch):
@@ -618,13 +648,13 @@ def _targets_taken(positions, *, append=False, focus=None):
         found = None
         if focus:
             stack = bridge._capture({
-                "acquisition_type": "target-focussing", "position_label": begun["labels"][index],
-            })["report"]
+                "folder": "target-focussing", "position_label": begun["labels"][index],
+            })["content"]
             found = bridge._score_target_focus({"record": stack, "centre": at["z"]["value"],
                                                 "x": position["x"], "y": position["y"]})
             if found["z"] is not None:
                 at = bridge._drive_to({"x": position["x"], "y": position["y"], "z": found["z"]})
-        record = bridge._capture({"acquisition_type": "targets", "position_label": begun["labels"][index]})["report"]
+        record = bridge._capture({"folder": "targets", "position_label": begun["labels"][index]})["content"]
         bridge._target_landed({
             "record": record,
             "position": {"x": position["x"], "y": position["y"], "z": at["z"]["value"]},
@@ -717,10 +747,12 @@ def test_a_scan_cannot_start_while_targets_are_being_taken(driver):
 
 
 def test_a_scan_captures_under_the_kind_of_scan_it_is(monkeypatch):
-    """The first slot of every filename, so it is the caller's to say."""
+    """The kind of scan is the interface's own: offered to the driver as its
+    folder, and filed on the record from what was asked, not from the answer."""
     driver = _Capturing()
-    _scanned(driver, [{"x": 0, "y": 0}], monkeypatch, acquisition_type="targets")
-    assert driver.asked[-1][0] == "targets"
+    scanned = _scanned(driver, [{"x": 0, "y": 0}], monkeypatch, acquisition_type="targets")
+    assert driver.asked[-1][1] == {"folder": "targets"}
+    assert scanned["records"][-1]["acquisition_type"] == "targets"
 
 
 
@@ -960,7 +992,7 @@ class _Serial:
 def _an_overview_of_two_fields(monkeypatch):
     """A scanned overview to detect on, and a finder that answers without pixels."""
     records = [
-        _Driver().acquire(acquisition_type="overview", position_label=f"P{i}")
+        _kept("overview", position_label=f"P{i}")
         for i in range(2)
     ]
     monkeypatch.setattr(bridge, "_records", {"overview": records})
@@ -1353,7 +1385,7 @@ def test_the_view_is_built_once_per_scan_state(monkeypatch, tmp_path):
     stub = types.ModuleType("zmart_interface.parts.storage.jpeg_tiles")
     stub.make_what_is_missing = lambda into, fields: built.append(len(fields)) or Path(into)
     monkeypatch.setitem(sys.modules, "zmart_interface.parts.storage.jpeg_tiles", stub)
-    record = _Driver().acquire(acquisition_type="overview", position_label="P0")
+    record = _kept("overview", position_label="P0")
     monkeypatch.setattr(bridge, "_records", {"overview": [record]})
     monkeypatch.setattr(bridge, "_view_built", {})
 
@@ -1364,7 +1396,7 @@ def test_the_view_is_built_once_per_scan_state(monkeypatch, tmp_path):
     assert built == [1], "the second request found nothing new to build"
 
     bridge._records["overview"].append(
-        _Driver().acquire(acquisition_type="overview", position_label="P1"))
+        _kept("overview", position_label="P1"))
     bridge._the_view_of("overview")
     assert built == [1, 2], "a grown scan is built again"
 
@@ -1386,12 +1418,12 @@ def test_a_field_that_lands_during_a_build_is_not_signed_off_as_built(monkeypatc
         built.append(len(fields))
         if len(built) == 1:
             bridge._records["overview"].append(
-                _Driver().acquire(acquisition_type="overview", position_label="P1"))
+                _kept("overview", position_label="P1"))
         return Path(into)
 
     stub.make_what_is_missing = build
     monkeypatch.setitem(sys.modules, "zmart_interface.parts.storage.jpeg_tiles", stub)
-    record = _Driver().acquire(acquisition_type="overview", position_label="P0")
+    record = _kept("overview", position_label="P0")
     monkeypatch.setattr(bridge, "_records", {"overview": [record]})
     monkeypatch.setattr(bridge, "_view_built", {})
     (bridge._run / "overview" / "view").mkdir(parents=True)
@@ -1786,7 +1818,7 @@ def test_the_components_are_really_computed_over_a_detected_population(monkeypat
     twelve objects, the components landing by id."""
     _needs_the_analysis_environment("ZMART--object_analysis--umap")
     records = [
-        _Driver().acquire(acquisition_type="overview", position_label=f"P{i}") for i in range(12)
+        _kept("overview", position_label=f"P{i}") for i in range(12)
     ]
     monkeypatch.setattr(bridge, "_records", {"overview": records})
     monkeypatch.setattr(

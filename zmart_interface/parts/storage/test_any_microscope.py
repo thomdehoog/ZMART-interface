@@ -59,17 +59,17 @@ def capture(tmp_path, monkeypatch):
         "output_root": str(tmp_path / "staging"), "mock_timing": "instant",
     }
 
-    def take(label: str, **options) -> dict:
+    def take(label: str, **settings) -> dict:
         session = zmart_controller.session.set_instrument(connection)
         try:
             session.set_xyz(100.0, 50.0, 3.0)
             answer = session.acquire(
-                acquisition_type="overview", position_label=label, options=options or None
+                position_label=label, acquisition_settings={"folder": "overview", **settings}
             )
         finally:
             session.disconnect()
         assert check_acquire_answer(answer) == []
-        return answer["report"]
+        return answer["content"]
 
     return take
 

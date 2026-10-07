@@ -131,9 +131,10 @@ export const backend = {
    * meets the same shape here as it does through the bridge, and cannot come
    * to rely on a setting only one of them has.
    */
-  async get_acquisition_options() {
+  async get_acquisition_settings() {
     await wait(120);
     return {
+      folder: { options: "any text; empty saves straight into output_root", active: "" },
       job: { options: [...JOBS], active: chosenJob },
       backlash_correction: { options: [true, false], active: true },
       format: { options: ["ome-tiff", "ome-zarr"], active: "ome-tiff" },
@@ -183,27 +184,32 @@ export const backend = {
 
   /**
    * Capture once where the stage is standing, answering as the controller
-   * does: `{success, report}`, the report holding `files` and `planes`.
+   * does: `{success, content}`, the content holding `files` and `planes`.
    *
-   * The names are the convention's, flat and complete: what the capture was,
-   * which capture it was, where on the sample, and which plane of it — so
+   * `folder` is the page's name for the acquisition the capture belongs to;
+   * like the bridge, this pretend instrument takes it as its `folder`
+   * acquisition setting, which is where the files would go.
+   *
+   * The names are the convention's, flat and complete: which folder it was
+   * asked into, which capture it was, where on the sample, and which plane of it — so
    * nothing has to be opened to know what it holds. A browser writes no
    * files, so these are paths the rehearsal names and does not make; through
    * the bridge the same names are files on disk.
    */
-  async acquire({ acquisition_type, position_label, options = null }) {
+  async acquire({ position_label, acquisition_settings = null, folder = null }) {
     await wait(240);
     const hash6 = makeRng(where.x + where.y + captures++)()
       .toString(36).slice(2, 8).padEnd(6, "0");
-    const path = `${acquisition_type}/${acquisition_type}_${hash6}_`
+    const into = acquisition_settings?.folder ?? folder ?? "";
+    const path = (into ? `${into}/${into}_` : "") + `${hash6}_`
       + `${position_label}_T000000_C00_Z00000.ome.tiff`;
     return {
       success: true,
-      report: {
-        acquisition_type,
+      content: {
         acquisition_hash: hash6,
         position_label,
-        format: options?.format ?? "ome-tiff",
+        folder: into,
+        format: acquisition_settings?.format ?? "ome-tiff",
         position: { ...where },
         files: [path],
         /* Where each plane was taken travels with it, as the real record's

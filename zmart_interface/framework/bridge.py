@@ -7,10 +7,10 @@ route sits the ZMART Controller (:mod:`zmart_controller`), and behind that
 whichever driver is plugged in — a real microscope's driver on the microscope
 PC, or the interface's own mock microscope on a machine with no instrument.
 
-Every command the controller answers comes back as ``{"success", "report"}``.
+Every command the controller answers comes back as ``{"success", "content"}``.
 The bridge reads them through
 :class:`~zmart_interface.parts.microscope.instrument.Instrument`, which hands
-back the report and turns a ``success: False`` into a plain sentence the page
+back the content and turns a ``success: False`` into a plain sentence the page
 shows the operator.
 
 Standard library only, on purpose. The microscope computer has no network to
@@ -38,8 +38,8 @@ The verbs, and what they are made of
   will eventually wire to the wrong one. A driven stage is a procedure and not
   a readout, which is why it is a POST and why nothing else on this route
   moves anything.
-* ``GET  /api/acquisition_options`` — what the instrument offers for a capture
-  and what is chosen now (``get_acquisition_options``), in the driver's own
+* ``GET  /api/acquisition_settings`` — what the instrument offers for a capture
+  and what is chosen now (``get_acquisition_settings``), in the driver's own
   words. A readout: asking changes nothing.
 * ``POST /api/state`` — change settings on the instrument (``set_state``),
   answering with what the driver says it applied. The body is the settings
@@ -47,7 +47,7 @@ The verbs, and what they are made of
   contract says a client's instructions go.
 * ``POST /api/acquire`` — capture once where the stage is standing
   (``acquire``), answering with the controller's own answer, untouched:
-  ``{"success", "report"}``, the report's ``files`` naming every file saved and
+  ``{"success", "content"}``, the content's ``files`` naming every file saved and
   its ``planes`` which channel, depth and stage position each picture is. The
   one place a client learns the paths of the files a run made.
 * ``POST /api/focus/begin``, ``POST /api/focus/score`` and ``POST /api/focus/end``
@@ -549,25 +549,29 @@ def _apply_state(asked: dict) -> dict:
 def _capture(asked: dict) -> dict:
     """Capture once where the stage is standing, and answer as the controller does.
 
-    The answer is the controller's own, ``{"success": ..., "report": ...}``,
-    passed on untouched: the report's ``files`` lists every file the capture
+    The answer is the controller's own, ``{"success": ..., "content": ...}``,
+    passed on untouched: the content's ``files`` lists every file the capture
     saved and its ``planes`` say which channel, depth and stage position each
     picture is. What one capture wrote is known only to the capture, so it is
     answered whole rather than picked over, and a capture the microscope
     declined is an answer with ``success`` false, as it is to a script.
 
-    ``options`` go through as they came from ``get_acquisition_options``.
-    Whatever is left out the driver fills from its own actives, which is why
-    nothing here invents a default.
+    ``acquisition_settings`` go through as they came from
+    ``get_acquisition_settings``. Whatever is left out the driver fills from
+    its own actives, which is why nothing here invents a default. ``folder``
+    is the page's name for the acquisition this capture belongs to; it is
+    offered to the driver as its ``folder`` setting when the driver has one
+    (see :meth:`Instrument.acquire_answer`). The page files the capture under
+    that name itself afterwards, through the route it sends the record to.
     """
     return _require_session().acquire_answer(
-        acquisition_type=str(asked["acquisition_type"]),
         position_label=str(asked["position_label"]),
-        options=asked.get("options"),
+        acquisition_settings=asked.get("acquisition_settings"),
+        folder=asked.get("folder"),
     )
 
 
-def _acquisition_options() -> dict:
+def _acquisition_settings() -> dict:
     """What the instrument offers for a capture, and what is chosen now.
 
     The driver's own menu, forwarded untouched: ``{name: {options, active}}``,
@@ -575,7 +579,7 @@ def _acquisition_options() -> dict:
     renames or filters it, because the same shape goes back to ``acquire`` at
     capture time — a page that reworded it would have to word it back.
     """
-    return _require_session().get_acquisition_options()
+    return _require_session().get_acquisition_settings()
 
 
 # ---------------------------------------------------------------------------
@@ -676,6 +680,8 @@ def _score_focus(asked: dict) -> dict:
     if not _focus["running"]:
         raise RuntimeError("no focus map has begun")
     record = asked["record"]
+    # The interface's own grouping, from what it asked for (see ``_records``).
+    record["acquisition_type"] = FOCUSSING
     point = dict(asked.get("point") or {})
     index = len(_focus["points"])
     measurement = measure_one_stack(
@@ -735,7 +741,11 @@ _scan = {
 }
 
 
-#: What every scan captured, by the kind of scan. The overview's records are
+#: What every scan captured, by the kind of scan. The kind -- ``acquisition_type``
+#: throughout this file -- is the interface's own name for an acquisition
+#: (overview, focussing, targets, ...), not part of the controller's contract:
+#: the bridge stamps it on every record it keeps, from what it asked for, and
+#: never reads it back from a driver. The overview's records are
 #: what discovery reads and what its pictures are made from, and a targets
 #: scan taken afterwards must not replace them -- it did, when there was one
 #: list, and the overview's view filled with the targets' pictures.
@@ -786,9 +796,11 @@ def _scan_worker(
                 session.set_xyz(float(position["x"]), float(position["y"]), float(z))
                 _the_stage_was_sent_to(position["x"], position["y"], z)
                 record = session.acquire(
-                    acquisition_type=acquisition_type,
-                    position_label=_label_for(i, position),
+                    position_label=_label_for(i, position), folder=acquisition_type,
                 )
+                # Filed under what this scan asked for, not under anything the
+                # driver answered: the grouping is the interface's own.
+                record["acquisition_type"] = acquisition_type
                 record["requested_position_um"] = {
                     "x": float(position["x"]),
                     "y": float(position["y"]),
@@ -895,6 +907,8 @@ def _score_target_focus(asked: dict) -> dict:
     """
     if not _acquired["running"]:
         raise RuntimeError("no target run has begun")
+    # The interface's own grouping, from what it asked for (see ``_records``).
+    asked["record"]["acquisition_type"] = TARGET_FOCUSSING
     measurement = measure_one_stack(
         asked["record"], x=float(asked["x"]), y=float(asked["y"]), centre=float(asked["centre"]),
         score=_score_a_stack(), index=_acquired["done"],
@@ -917,6 +931,8 @@ def _target_landed(asked: dict) -> dict:
     if not _acquired["running"]:
         raise RuntimeError("no target run has begun")
     record = asked["record"]
+    # The interface's own grouping, from what it asked for (see ``_records``).
+    record["acquisition_type"] = "targets"
     position = asked.get("position") or {}
     record["requested_position_um"] = {
         "x": float(position.get("x", 0.0)), "y": float(position.get("y", 0.0)),
@@ -1821,9 +1837,9 @@ class _Bridge(BaseHTTPRequestHandler):
                     self._answer(_require_session().get_info())
             elif path == "/api/xyz":
                 self._answer(_where_the_stage_is())
-            elif path == "/api/acquisition_options":
+            elif path == "/api/acquisition_settings":
                 with _the_instruments_turn:
-                    self._answer(_acquisition_options())
+                    self._answer(_acquisition_settings())
             elif path == "/api/scan":
                 since = urllib.parse.parse_qs(query or "").get("since", [None])[0]
                 self._answer(_the_scan(int(since) if since is not None else None))

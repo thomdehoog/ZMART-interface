@@ -73,14 +73,14 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         reads = 0
 
         def get_info(self):
-            return {"success": True, "report": {"output_root": str(tmp_path)}}
+            return {"success": True, "content": {"output_root": str(tmp_path)}}
 
         def get_xyz(self):
             self.reads += 1
-            report = {axis: {"value": 0.0, "unit": "um", "range": [0.0, 1000.0],
-                             "reach": [-50.0, 1050.0]} for axis in ("x", "y", "z")}
-            report["z"]["value"] = self.height
-            return {"success": True, "report": report}
+            content = {axis: {"value": 0.0, "unit": "um", "range": [0.0, 1000.0],
+                              "reach": [-50.0, 1050.0]} for axis in ("x", "y", "z")}
+            content["z"]["value"] = self.height
+            return {"success": True, "content": content}
 
         def disconnect(self):
             pass

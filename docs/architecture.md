@@ -18,14 +18,19 @@ parts that plug into the interface's sides:
 
 - **The controller.** Every command the bridge sends (`get_xyz`, `set_xyz`,
   `get_state`, `set_state`, `acquire`, `get_info`, ...) answers
-  `{"success": ..., "report": ...}`. `parts/microscope/instrument.py` reads those
-  answers once for everyone: it hands back the report, and turns
+  `{"success": ..., "content": ...}`. `parts/microscope/instrument.py` reads those
+  answers once for everyone: it hands back the content, and turns
   `success: False` into `InstrumentDeclined`, a sentence the page shows where
   the operator pressed. A capture is the exception the page sees: `/api/acquire`
-  passes the controller's answer on untouched, so the page reads the report's
+  passes the controller's answer on untouched, so the page reads the content's
   `files` and `planes` (each plane's file, its channel, depth and moment `c`,
   `z`, `t`, and the stage position `x_um`, `y_um`, `z_um`) exactly as a Python
-  script would, and nothing in the interface reads a driver's file names. The
+  script would, and nothing in the interface reads a driver's file names.
+  Which acquisition a capture belongs to (overview, focussing, targets, ...) is
+  the interface's own business, not the controller's: the interface passes the
+  name to the driver as its `folder` acquisition setting when the driver offers
+  one, and files the capture under that name itself, never reading it back from
+  the driver's answer. The
   bridge offers whatever microscopes the controller
   lists (`get_instruments`: the drivers this computer has registered, and those
   installed as packages), plus the mock microscope, and `--driver` plugs one
