@@ -24,8 +24,8 @@ from __future__ import annotations
 import pytest
 
 from zmart_interface.mock_microscope import driver as mock_driver
+from zmart_interface.parts.analysis.focus_score import what_was_captured
 from zmart_interface.parts.analysis.workflows import step_module
-from zmart_interface.parts.microscope.focus_score import what_was_captured
 
 #: The focus step, loaded from the ZMART-analysis workflows the way the
 #: engine's worker loads it, and run here in this process.

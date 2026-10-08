@@ -1,7 +1,8 @@
 """Handing a captured stack to ZMART-analysis, and reading its answer back.
 
-:func:`~zmart_interface.parts.microscope.focus_run.measure_focus` drives and
-captures; this is how what it captured becomes a height. The two are separate
+:func:`~zmart_interface.parts.microscope.focus_run.measure_one_stack` files the
+stack the page captured; this is how what it captured becomes a height. The two
+are separate
 because the loop is standard library plus ``zmart_controller`` on purpose --
 that is what lets the operator page's bridge run on a microscope PC with
 nothing installed on it -- while scoring pixels needs numpy, scipy, and an

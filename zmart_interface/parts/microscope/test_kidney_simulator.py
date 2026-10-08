@@ -5,11 +5,11 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from zmart_interface.parts.microscope import focus_score
+from zmart_interface.parts.analysis import focus_score
 from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels
+from zmart_interface.parts.storage import jpeg_tiles
 from zmart_interface.parts.storage.test_zarr_positions import a_z_stack
 from zmart_interface.parts.storage.zarr_positions import position_store_from_record
-from zmart_interface.parts.storage import jpeg_tiles
 
 
 def test_kidney_overlap_and_focus_are_independent_of_capture_order():

@@ -199,7 +199,7 @@ def replace_the_acquisition(acquisition_type: str, keeping: set[str] = frozenset
 
 def the_mask_view_for(kind: str, label: str):
     """The colorized mask PNG for the *kind* field labelled *label*, or None."""
-    from zmart_interface.parts.microscope.mask_view import mask_view_of
+    from zmart_interface.parts.analysis.mask_view import mask_view_of
 
     for record in state.records.get(kind, []):
         if record.get("position_label") == label:
@@ -209,7 +209,7 @@ def the_mask_view_for(kind: str, label: str):
 
 def the_label_map_for(kind: str, label: str):
     """The raw label-mask PNG for the *kind* field labelled *label*, or None."""
-    from zmart_interface.parts.microscope.mask_view import label_map_of
+    from zmart_interface.parts.analysis.mask_view import label_map_of
 
     for record in state.records.get(kind, []):
         if record.get("position_label") == label:
