@@ -28,12 +28,18 @@ target_acquisition/
                  chooser. Open this first — it is the whole workflow in one
                  screenful.
   steps/         one folder per step, connect/ to run_protocol/. Each holds
-                 the step's declaration (step.js) and, where the step shows
-                 something of its own, a file named for what that is —
-                 overview.js, gate.js, gallery.js — rather than for the kind of
-                 thing it is.
+                 the step's declaration (step.js); what the step does when it
+                 is run (run.js); the controls it docks in the channel beside
+                 the canvas (channel.js); and, where the step shows something
+                 of its own, a file named for what that is — overview.js,
+                 gate.js, gallery.js — rather than for the kind of thing it is.
   shared/        what several steps of this workflow use: the carrier geometry,
-                 the scan-field arithmetic, and the layers the run draws.
+                 the scan-field arithmetic, the layers the run draws, and the
+                 small things they share on the page (page-helpers.js).
+  the-canvas.js  what the workflow puts on its canvas: the stage picture, the
+                 live picture of the run, the axes under them.
+  on-the-page.js how the workflow is wired to the page when it opens: the
+                 canvas, and the functions its steps lend the page.
 ```
 
 The microscope seam is a part, not the workflow's: `../parts/microscope/`
@@ -73,11 +79,44 @@ fields, all optional except the first two.
   to confirm what they have already done.
 - `ownButton` — the step's own panel builds its button, so the framework should not
   add a second one underneath.
-- `ms` — how long this rehearsal pretends the work takes, in milliseconds. The
-  page is a mock of a microscope for now; when a real instrument is wired in,
-  this is what the wait becomes.
-- `mode` — which piece of behaviour the page runs for this step: measuring
-  focus, scanning, detecting, and so on.
+- `ms` — how long the page waits before a step with no `run` of its own
+  counts as finished: the rehearsal's pace, for a step whose work is done
+  when its press is released.
+- `mode` — what kind of work the step is about: `focus`, `scan`, `detect`,
+  `targets`, and so on. The layers drawn on the picture read it to decide what
+  to draw while this step is being looked at.
+- `run(page, step, options)` — what the step does when its press is pressed:
+  it calls the backend and answers a promise. Nothing back means the run
+  finished; `{ stopped: true, note }` means the operator's hand put it down,
+  with the sentence to say beside the press; `{ failed: why }` means it failed
+  and has already said so in its own box. A run that throws is a failure the
+  page reports. `options` is what a second press hands over, such as the one
+  tile to take again.
+- `finished(page, step)` — called once a run finished: where the step files
+  what it came to, its note and whatever the next step now works with.
+- `brake(page)` — how a running step is stopped, when it can be: the press
+  becomes Interrupt while the step runs, and this is what it does.
+- `again` — the words on the press once the step has run, instead of
+  "Run again".
+- `rerunCurrent(page)` — for a step that can take one item again: answers a
+  function that gives `run` its `options`, or `null` when there is nothing
+  current. The page then offers a "Rerun current" press before the main one.
+- `pressed(page)` — what the press does for a step that does not run through
+  the page at all, because it runs the other steps: Run protocol.
+- `running(run)` — whether such a step is running, for the rail's spinner.
+- `beside(run, { done })` — the sentence beside the press once nothing blocks
+  it, instead of the step's note.
+- `noHint` — nothing stands beside the press: what the step waits for and
+  what it came to are in its own box.
+- `afterThePress(host, page)` — anything else the step puts beside its press.
+- `channel` — the step's controls in the column beside the canvas:
+  `{ id, label, mount(host, page, { locked }) }`. Mounted once per step and
+  kept, so a field being typed into is never destroyed; a channel that
+  `rebuildsOnEveryRender` says so.
+- `arrived(page)` — what the step does to the picture when the operator
+  arrives on it: which layers to show, which acquisition to hide.
+- `settledByStanding(page)` — for a step with no press: standing on it is
+  what settles it, and this says what that means.
 - `ready` — what the step still needs before it may be carried out. It is
   handed the run so far and answers either `null`, meaning go ahead, or a short
   phrase saying what is missing, which the page shows beside the greyed-out
@@ -92,6 +131,19 @@ fields, all optional except the first two.
   needs; a step that only shows the operator something produces nothing to wait
   for, and saying so here lets them walk straight past it. See
   `../framework/rules/steps.js`, which is where the rule lives.
+
+## What a step's run is handed: the page
+
+Every hook above takes `page` first. It is the one object the whole window
+shares, built in `../framework/window/main.js`, and it carries everything a
+step may need: `page.run`, the run document (`../framework/window/run-state.js`
+says what is in it); `page.backend`, the seam to the instrument; `page.stage`
+and `page.drawStage()`, the picture; `page.shown`, the handles of the boxes
+on screen; the page's render functions (`renderAll`, `renderRail`,
+`renderActionBar`); `page.stateEdited(id)`, the one call every edit goes
+through; and the functions the steps lend one another (`page.surfaceZAt`,
+`page.pictureOf`, ...). A step reaches the rest of the page only through it,
+which is what lets each step live in its own folder.
 
 ## What a flow is made of
 

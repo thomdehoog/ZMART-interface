@@ -20,13 +20,15 @@ classifiers = [
 # What the interface needs to run. The three ZMART packages are not on PyPI,
 # so they are installed from their own repositories.
 dependencies = [
-    # The one way to drive any microscope; every command goes through it.
+    # The one way to drive any microscope; every command goes through it. The
+    # interface opens a ZmartController of its own and lists the drivers the
+    # controller's registry knows.
     "zmart-controller @ git+https://github.com/thomdehoog/ZMART-controller",
     # The picture server that shows the run as it is acquired.
     "zmart-viewer @ git+https://github.com/thomdehoog/ZMART-viewer",
     # The engine that scores focus and finds objects, each step in its own
-    # environment. Its workflows stay in a checkout of the repository; see
-    # zmart_interface/parts/analysis/workflows.py.
+    # environment (the zmart_analysis package). Its workflows stay in a
+    # checkout of the repository; see zmart_interface/parts/analysis/workflows.py.
     "zmart-analysis @ git+https://github.com/thomdehoog/ZMART-analysis",
     # Reading and writing the OME-Zarr images every capture is kept as.
     "ngio==1.1.0",
@@ -75,6 +77,8 @@ namespaces = false
 # the build goes. The Python tests beside the code stay behind too; setup.py
 # says how.
 "zmart_interface.framework" = ["window/build/*"]
+# The mock's driver file: what the controller's registry reads to install it.
+"zmart_interface.mock_microscope" = ["zmart_driver.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["zmart_interface"]

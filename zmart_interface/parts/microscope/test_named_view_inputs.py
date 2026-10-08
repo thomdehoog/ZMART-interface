@@ -7,24 +7,24 @@ import numpy as np
 import pytest
 import zarr
 
-from zmart_interface.framework import bridge
-from zmart_interface.parts.microscope import detection
+from zmart_interface.framework.bridge import pictures, state
+from zmart_interface.parts.analysis import detection
+from zmart_interface.parts.analysis.workflows import step_module
 from zmart_interface.parts.microscope.simulator_guard import NonSimulatorFrameError
 from zmart_interface.parts.microscope.simulator_pixels import SimulatorPixels
 from zmart_interface.parts.storage import jpeg_tiles
 from zmart_interface.parts.storage.test_zarr_positions import a_z_stack
 from zmart_interface.parts.storage.zarr_positions import position_store_from_record
-from zmart_interface.parts.analysis.workflows import step_module
 
 detect_objects = step_module("object_analysis", "detect_objects")
 
 
 def test_simulator_refusal_propagates_out_of_ingestion(tmp_path, monkeypatch):
     record = a_z_stack(tmp_path)
-    monkeypatch.setattr(bridge, "_run", tmp_path)
-    monkeypatch.setattr(bridge, "_pixel_provider", SimulatorPixels())
+    monkeypatch.setattr(state, "run", tmp_path)
+    monkeypatch.setattr(state, "pixel_provider", SimulatorPixels())
     with pytest.raises(NonSimulatorFrameError):
-        bridge._keep_position_as_zarr(record, "overview")
+        pictures.keep_position_as_zarr(record, "overview")
     assert not record.get("zarr")
 
 
@@ -41,10 +41,10 @@ def test_preview_uses_the_same_canonical_mip_as_detection(tmp_path, monkeypatch)
     record["zarr"] = str(
         position_store_from_record(record, tmp_path / "positions", pixel_provider=SimulatorPixels())
     )
-    monkeypatch.setattr(bridge, "_records", {"overview": [record]})
-    monkeypatch.setattr(bridge, "_displayed_pictures", {})
+    monkeypatch.setattr(state, "records", {"overview": [record]})
+    monkeypatch.setattr(state, "displayed_pictures", {})
     monkeypatch.setattr(jpeg_tiles, "_as_jpeg", lambda pixels, quality: pixels)
-    shown = bridge._a_picture_as_displayed(
+    shown = pictures.a_picture_as_displayed(
         "overview",
         record["position_label"],
         [{"c": 0, "visible": True, "window": [0, 40000], "color": "#ff0000"}],
@@ -80,7 +80,9 @@ def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
         "synthetic_pixels": SimulatorPixels.recipe,
     }
     result = detect_objects.run({"input": inp}, {})
-    np.testing.assert_array_equal(result["preprocess"]["image"][..., 1], 900)
+    # The step publishes the channels it read under its own name, the extra
+    # channel last, so the feature step can measure in every colour.
+    np.testing.assert_array_equal(result["detect_objects"]["image"][..., 1], 900)
     assert result["detect_objects"]["n_objects"] > 0
     checkpoint = json.loads(
         next((tmp_path / "analysis").rglob("detection_checkpoint.json")).read_text()

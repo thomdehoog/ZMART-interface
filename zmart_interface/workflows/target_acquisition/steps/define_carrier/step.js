@@ -5,11 +5,14 @@
  * brings the picture up, and it stays for every step after this one, because
  * from here on the run is something that happens on a stage.
  *
- * The controls this step docks beside the canvas live in `widget.js`, in this
- * same folder; what a carrier *is* — where its wells sit, how wide they are —
- * lives in `../../shared/carriers.js`, because the scan-area step needs the
- * same geometry and two copies of a fact drift apart in silence.
+ * The controls this step docks beside the canvas live in `channel.js` and
+ * `carrier-panel.js`, in this same folder; what a carrier *is* — where its
+ * wells sit, how wide they are — lives in `../../shared/carriers.js`, because
+ * the scan-area step needs the same geometry and two copies of a fact drift
+ * apart in silence.
  */
+
+import { carrierChannel, carrierSettled } from "./channel.js";
 
 export const carrierConfiguration = {
   id: "carrier",
@@ -17,6 +20,9 @@ export const carrierConfiguration = {
   why: "Tell the run what the sample is mounted in — it says where within the stage the sample sits.",
   panels: ["canvas"],
   mode: "carrier",
+  /* Configuring the carrier is the work: standing on the step settles it. */
+  settledByStanding: carrierSettled,
+  channel: carrierChannel,
 };
 
 /* Registering the carrier — saying where the thing described here actually

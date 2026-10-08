@@ -8,6 +8,9 @@
  * What the fields of a step mean is written out once, in `workflows/README.md`.
  */
 
+import { connectChannel } from "./channel.js";
+import { connectFinished, runConnect } from "./run.js";
+
 export const connect = {
   id: "connect",
   title: "Connect",
@@ -18,4 +21,7 @@ export const connect = {
      every step keeps the picture on the left and its controls in the channel. */
   panels: ["canvas"],
   ms: 0,
+  run: runConnect,
+  finished: connectFinished,
+  channel: connectChannel,
 };

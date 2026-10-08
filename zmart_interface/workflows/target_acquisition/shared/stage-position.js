@@ -40,8 +40,9 @@ export const EVERY_MS = 5000;
 export const PATIENCE_MS = 2500;
 
 /**
- * Start watching. `backend.get_xyz()` answers `{x: {value}, y: {value}, z: {value}}`
- * in micrometres; `onPosition({x, y, z})` receives each reading. Returns the
+ * Start watching. `backend.get_xyz()` answers the controller's reading, one
+ * entry per axis with its `position` in micrometres; `onPosition({x, y, z})`
+ * receives each reading. Returns the
  * handle: `refresh()` reads now (after a move the page made), `stop()` ends
  * the watch — after which no more positions arrive, even from a read that was
  * still in flight.

@@ -137,7 +137,7 @@ def test_an_answer_that_takes_its_time_is_waited_for():
 
 def test_the_engine_is_built_with_no_per_call_clock(monkeypatch):
     """The engine's own default cuts a step at 300 s; ours must not exist."""
-    import engine as engine_module
+    import zmart_analysis as engine_module
 
     built = {}
 
@@ -157,7 +157,7 @@ def test_the_workers_are_kept_for_the_whole_session(monkeypatch):
     six minutes after the last one found them reaped and paid it again, six
     seconds on this PC and a silent minute on the rig.
     """
-    import engine as engine_module
+    import zmart_analysis as engine_module
 
     built = {}
 
