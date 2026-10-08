@@ -3,8 +3,11 @@
  *
  * Discovery brings no panel of its own: the targets it finds land on the
  * canvas, and its controls sit in the channel beside it, the same shape as
- * focus.
+ * focus. `run.js` runs the detection; `channel.js` holds its settings.
  */
+
+import { detectionChannel } from "./channel.js";
+import { detectionFinished, runDetection } from "./run.js";
 
 export const detectCells = {
   id: "detect",
@@ -19,4 +22,9 @@ export const detectCells = {
      press that refused until a test had been staged was a step doing the
      deciding for them. */
   ready: () => null,
+  run: runDetection,
+  finished: detectionFinished,
+  /* Discovery is the analysis run; its brake puts the workers down. */
+  brake: (page) => page.backend.stopTargets?.(),
+  channel: detectionChannel,
 };

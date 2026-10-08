@@ -6,10 +6,13 @@
  * matters.
  *
  * The geometry editor and the grid this step docks beside the canvas live in
- * `widget.js`, in this same folder; the arithmetic of the plan itself — how a
- * drawn region becomes a grid of frames — lives in `../../shared/scanfields.js`,
- * where later steps that consume the plan can read the same answer.
+ * `channel.js` and `scanfield-editor.js`, in this same folder; the arithmetic
+ * of the plan itself — how a drawn region becomes a grid of frames — lives in
+ * `../../shared/scanfields.js`, where later steps that consume the plan can
+ * read the same answer.
  */
+
+import { scanfieldsChannel, scanfieldsSettled } from "./channel.js";
 
 export const initialScanfields = {
   id: "scanfields",
@@ -17,4 +20,7 @@ export const initialScanfields = {
   why: "Record the preset the overview is taken with, then say where on the carrier it is taken.",
   panels: [],
   mode: "scanfields",
+  /* Drawing fields is the work: standing on the step settles it. */
+  settledByStanding: scanfieldsSettled,
+  channel: scanfieldsChannel,
 };

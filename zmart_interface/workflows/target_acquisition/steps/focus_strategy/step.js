@@ -4,11 +4,17 @@
  * The focus preset is recorded here for the same reason the overview preset is
  * recorded in the scan-area step: the sweeps that measure the surface are
  * taken with it, so the reading lives in the step that uses it.
+ *
+ * The map itself -- the points, their sweeps and the surface through them --
+ * is `focus-map.js`; `channel.js` puts its controls in the channel, and
+ * `run.js` measures it.
  */
 
 /* Whether a step has what it needs is asked of the slot itself: a step waits
    for a reading to have been taken, not for a particular field on a record. */
 import { hasRecording } from "../../../../parts/microscope/recordings.js";
+import { focusChannel } from "./channel.js";
+import { focusFinished, runFocus } from "./run.js";
 
 export const focusStrategy = {
   id: "focus",
@@ -40,4 +46,13 @@ export const focusStrategy = {
      — greyed while there is nothing to measure, and saying so. It used to
      disappear instead, which made clearing the points look like it had broken
      the step. */
+  run: runFocus,
+  finished: focusFinished,
+  brake: (page) => page.backend.stopFocusMeasure?.(),
+  /* The focus step says nothing beside its press. What it waits for is the
+     box it stands in — points, laid by the row above it — and what it came to
+     is the traces below; a greyed button between the two is already the whole
+     sentence. */
+  noHint: true,
+  channel: focusChannel,
 };
