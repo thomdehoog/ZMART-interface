@@ -25,7 +25,7 @@ zmart_controller = pytest.importorskip("zmart_controller")
 pytest.importorskip("tifffile")
 pytest.importorskip("zarr")
 
-from zmart_controller import check_acquire_answer  # noqa: E402
+from zmart_controller import ZmartController, check_acquire_answer  # noqa: E402
 
 from zmart_interface.parts.storage.jpeg_tiles import (  # noqa: E402
     make_slice_copies,
@@ -46,7 +46,7 @@ def capture(tmp_path, monkeypatch):
     connection = {"output_root": str(tmp_path / "staging"), "mock_timing": "instant"}
 
     def take(label: str, **settings) -> dict:
-        session = zmart_controller.session.set_instrument(zmart_controller.mock, connection)
+        session = ZmartController(zmart_controller.mock, connection)
         try:
             session.set_xyz(100.0, 50.0, 3.0)
             answer = session.acquire(

@@ -30,14 +30,16 @@ parts that plug into the interface's sides:
   the interface's own business, not the controller's: the interface passes the
   name to the driver as its `folder` acquisition setting when the driver offers
   one, and files the capture under that name itself, never reading it back from
-  the driver's answer. A driver is a Python module with one function per
-  command, registered once on a computer with `zmart_controller.register_driver`
-  (pointed at its `zmart_controller_plugin.py`, which gives its name).
-  The bridge offers the interface's own mock (as `interface-mock`, plugged in
-  by its module) and then every name `zmart_controller.get_drivers()` lists,
-  the controller's own mock `mock` first, and connects with
-  `set_instrument(name, connection)`: the driver's own connection plus the
-  password the operator typed. The area the page and the viewer lay
+  the driver's answer. A driver is a folder with a `zmart_driver.json`,
+  which gives its name and connection, and its code -- a `ZmartDriver` class
+  with one method per command, or, as the interface's mock, a module with
+  one function per command -- installed once on a computer with
+  `zmart_controller.register_driver`. The bridge offers the interface's own
+  mock (as `interface-mock`, plugged in by its module) and then every name
+  `zmart_controller.get_instruments()` lists, the controller's own mock
+  `mock` first, and connects by opening a `ZmartController(name, connection)`
+  of its own: the driver's own connection plus the password the operator
+  typed. The area the page and the viewer lay
   the stage out on is `get_xyz`'s `canvas`: everywhere a picture can show,
   which is the travel widened by half a field. The travel itself stays in the
   driver; the page lets fields be drawn over the whole canvas, and a move past
@@ -197,9 +199,11 @@ the page should carry out for it:
   why: "Choose how this run keeps every image sharp across the sample.",
   btn: "Apply strategy",            // no btn means there is nothing to press
   panels: ["focus"],                // the modules this step wants beside it
-  ms: 1400,                         // how long the rehearsal pretends it takes
-  mode: "focus",                    // which behaviour main.js runs for it
+  mode: "focus",                    // what kind of work it is, for the layers
   ready: (run) => null,             // null = go; a phrase = what is missing
+  run: runFocus,                    // what it does, in its own run.js
+  finished: focusFinished,          // what it files once it has run
+  channel: focusChannel,            // its controls beside the canvas
 }
 ```
 
@@ -303,7 +307,10 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |
 | `ta/steps/scan_the_overview/overview.js` | built, used by the app when it is given a run to watch (`?overview=`); its browser tests stayed in ZMART-microscopy with the demo run they need |
 | `parts/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
-| `framework/window/main.js` | the rest of the running app, and its own copies of the untaken modules |
+| `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares and installs the framework's parts, then the workflow's |
+| `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: the run document, the rail, the step's press, running a step, the panels, the channel |
+| `ta/the-canvas.js`, `ta/on-the-page.js` | the workflow's side of the page: what it puts on its canvas, and the functions its steps lend the page |
+| `ta/steps/*/run.js`, `ta/steps/*/channel.js` | each step's own run and controls, beside its declaration |
 
 **Widget extraction has started, from the outside in.** The carrier widget is
 the first: it is handed a configuration and a callback and knows nothing about
@@ -341,9 +348,12 @@ field being typed into — the defect this page has produced twice. `carrier.js`
 writes new values into the controls that already exist and skips the focused
 one.
 
-The rest is still inline in `main.js` on purpose. While the UI is being
-designed a single file is faster to iterate in, and boundaries drawn around a
-moving design get redrawn. Take a panel out when it stops moving.
+Every step's controls now live beside the step, in its `channel.js`, and
+its run in its `run.js`; `main.js` only composes the page. The framework
+holds the run document (`run-state.js`, the one place a fresh run is
+written down), the rail, the press, the runner, the panels and the channel,
+one file each, and knows no step by name: it asks each step's declaration
+what to do.
 
 **The hazard used to be three facts defined twice, and two of them are closed.**
 Surface fitting and the sweep-and-peak rules now have one owner each —
@@ -353,20 +363,15 @@ suite measures. The workflow declarations went the same way earlier: the folders
 under `workflows/` are the only place the workflows are written down, and
 the page assembles its list from them.
 
-**One fact is still written twice: the synthetic sample.** The page rehearses
-with a plan-driven sample (cells generated inside whatever tiles the scan fields
-ask for) that lives in `window/main.js`; `pretend-sample/sample.js` is the older
-block-shaped one, fed only to `mock.js` and its tests, and its header says so.
-The two merge when the backend seam is wired for real — the sample belongs
-behind the seam, and wiring it is the moment the page starts asking the backend
-what it imaged.
+The synthetic sample is behind the seam, in `pretend-sample/`, fed to
+`mock.js` and its tests; the page itself never reaches for it.
 
-What is left of that fix for the workflows is the runner. `main.js` still decides
-what a step *does* from its `mode` — a switch that grows by one arm per kind of
-work — where the intention is that a step carries its own `run(ctx)` and calls
-the backend. Readiness has already moved that way and is a good model for it: the
-rule now sits on the step, `framework/rules/steps.js` only asks, and adding a workflow
-needs no change to the shell.
+The runner went the same way as readiness. `framework/window/runner.js` knows
+only how a run begins and ends -- running, finished, stopped by hand, failed
+-- and each step carries its own `run(page, step)` and `finished(page,
+step)`, in its folder, which call the backend. Adding a step to a workflow
+means writing those beside its declaration, and nothing in the framework
+changes.
 
 ## The canvas: `parts/canvas/`
 

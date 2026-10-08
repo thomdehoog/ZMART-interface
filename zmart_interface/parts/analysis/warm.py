@@ -17,8 +17,8 @@ on first use, and handed to whoever asks.
 
     scored = warm.the_analysis().run("focus", {"image_paths": [...]})
 
-The engine is ZMART-analysis's (installed as the ``engine`` package); the
-pipelines it runs are found in a ZMART-analysis checkout, as
+The engine is ZMART-analysis's (installed as the ``zmart_analysis`` package);
+the pipelines it runs are found in a ZMART-analysis checkout, as
 :mod:`zmart_interface.parts.analysis.workflows` describes.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
@@ -54,7 +54,7 @@ class Analysis:
     def engine(self) -> Any:
         """The engine itself, started if it has not been."""
         if self._engine is None:
-            from engine import Engine  # noqa: PLC0415 — see module docstring
+            from zmart_analysis import Engine  # noqa: PLC0415 — see module docstring
 
             # Analysis started is analysis finished. The engine's own default
             # would cut a step at 300 s, and every such number was wrong for

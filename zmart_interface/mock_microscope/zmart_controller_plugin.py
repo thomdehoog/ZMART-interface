@@ -4,9 +4,11 @@ The controller finds a driver's functions by name, one per command, and this
 file holds them. Each calls the mock's own function in ``driver.py`` and
 answers in the controller's two-part shape, ``{"success": True, "content": ...}``.
 ``NAME`` is what the mock is listed as, and ``CONNECTION`` what it is plugged
-in with when nothing else is given.
+in with when nothing else is given; both are read from ``zmart_driver.json``
+beside this file, the file the controller's registry reads, so the two can
+never disagree.
 
-Register it once on a computer, and it is listed by the controller like any
+Install it once on a computer, and it is listed by the controller like any
 other driver::
 
     import zmart_controller
@@ -22,17 +24,21 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 import functools
+import json
+from pathlib import Path
 
 from zmart_interface.mock_microscope import driver as _driver
+
+_DRIVER_FILE = json.loads((Path(__file__).parent / "zmart_driver.json").read_text(encoding="utf-8"))
 
 #: What the mock is listed as. Not "mock": that name is the controller's own
 #: pretend microscope, a slide of beads, and an operator who chose the
 #: interface's mock must get this one.
-NAME = "interface-mock"
+NAME: str = _DRIVER_FILE["name"]
 
 #: What the mock is plugged in with when nothing else is given. Images go to
 #: ``mock-output`` in the working folder unless ``output_root`` says otherwise.
-CONNECTION = {"client": "mock-client"}
+CONNECTION: dict = dict(_DRIVER_FILE.get("connection") or {})
 
 
 def _answered(function):

@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EVERY_MS, PATIENCE_MS, watchStagePosition }
   from "../../../workflows/target_acquisition/shared/stage-position.js";
 
-const xyz = (x, y, z = 0) => ({ x: { value: x }, y: { value: y }, z: { value: z } });
+/* One get_xyz answer, in the controller's shape: each axis says its position. */
+const xyz = (x, y, z = 0) => ({ x: { position: x }, y: { position: y }, z: { position: z } });
 
 describe("watchStagePosition", () => {
   beforeEach(() => vi.useFakeTimers());

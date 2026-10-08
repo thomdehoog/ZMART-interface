@@ -40,8 +40,6 @@ from typing import Any
 from zmart_interface.parts.microscope.simulator_guard import NonSimulatorFrameError
 from zmart_interface.parts.storage.output import (
     move_record_images,
-    position_label,
-    prepare_acquisition,
 )
 
 #: The kind of acquisition a focus stack is. It is what tells the instrument to

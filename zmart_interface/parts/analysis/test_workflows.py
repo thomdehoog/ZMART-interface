@@ -50,7 +50,7 @@ def test_without_the_variable_the_workflows_beside_the_engine_are_used(monkeypat
     beside the engine at all, so there is nothing for this test to find.
     """
     monkeypatch.delenv(workflows.ENV, raising=False)
-    spec = importlib.util.find_spec("engine")
+    spec = importlib.util.find_spec("zmart_analysis")
     if spec is None or not (Path(spec.origin).resolve().parent.parent / "workflows").is_dir():
         pytest.skip("ZMART-analysis is installed as a package here, not as a checkout")
     root = workflows.workflows_root()

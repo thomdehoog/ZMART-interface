@@ -12,8 +12,9 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 #: The ZMART-analysis pipeline that finds the objects in one field, by how the
 #: page asked for them to be found. Both are the same three steps and answer

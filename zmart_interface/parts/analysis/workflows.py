@@ -1,7 +1,7 @@
 """Where ZMART-analysis keeps its workflows, and how the interface reaches them.
 
-ZMART-analysis is installed as a package (``engine``: it starts each analysis
-step in its own conda environment and keeps it warm), but its workflows --
+ZMART-analysis is installed as a package (``zmart_analysis``: it starts each
+analysis step in its own conda environment and keeps it warm), but its workflows --
 the pipelines in YAML, the step files, the shared image reader -- are not
 part of the package. They stay in a checkout of the ZMART-analysis
 repository, with the conda environments each workflow creates for itself.
@@ -13,7 +13,8 @@ It looks in two places, in order:
    either the checkout itself or its ``workflows`` folder.
 2. Beside the installed engine: when ZMART-analysis was installed from a
    checkout in editable mode (``pip install -e``), its ``workflows`` folder
-   stands next to the ``engine`` package, and is found without being named.
+   stands next to the ``zmart_analysis`` package, and is found without being
+   named.
 
 If neither holds the workflows, :func:`workflows_root` says so in a sentence
 that tells the operator what to set, rather than failing later with a missing
@@ -55,7 +56,7 @@ def workflows_root() -> Path:
             f"{ENV} points at {named}, which holds no ZMART-analysis workflows; point it at "
             "a checkout of github.com/thomdehoog/ZMART-analysis or at its workflows folder"
         )
-    spec = importlib.util.find_spec("engine")
+    spec = importlib.util.find_spec("zmart_analysis")
     if spec is not None and spec.origin:
         beside = Path(spec.origin).resolve().parent.parent / "workflows"
         if _holds_workflows(beside):

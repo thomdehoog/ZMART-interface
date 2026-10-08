@@ -5,22 +5,24 @@ one per command (``connect``, ``get_xyz``, ``acquire``, ...), are in
 ``zmart_controller_plugin.py`` with its ``NAME``, ``interface-mock``, and are
 listed here too, so the package itself can be plugged in like any driver::
 
-    import zmart_controller
+    from zmart_controller import ZmartController
     from zmart_interface import mock_microscope
 
-    zmart_controller.set_instrument(mock_microscope, {"output_root": "my_images"})
+    mic = ZmartController(mock_microscope, {"output_root": "my_images"})
 
-or registered once on a computer with ``zmart_controller.register_driver``
-(pointed at this folder) and plugged in as ``"interface-mock"``.
+or installed once on a computer with ``zmart_controller.register_driver``
+(pointed at this folder, whose ``zmart_driver.json`` names it) and connected
+to as ``"interface-mock"``.
 
 Each function answers in the controller's two-part shape,
 ``{"success": True, "content": ...}``. The mock never needs to decline
 softly: a request that is itself wrong -- a move outside the stage's travel,
 an unknown motor or job -- raises ``ValueError`` before anything moves, and
-anything else that goes wrong is raised as well, as the controller's contract
-asks. The mock writes real image files, so the whole interface -- the
-bridge, the page, the analysis and the viewer -- can be run and tested on a
-desk.
+anything else that goes wrong is raised as well. The controller turns such a
+raise into the declined answer every caller reads, ``success`` False with the
+reason as the content. The mock writes real image files, so the whole
+interface -- the bridge, the page, the analysis and the viewer -- can be run
+and tested on a desk.
 
 ``driver.py`` is the pretend instrument itself, ``window.py`` its own small
 window, where a job is chosen the way an operator chooses one in the vendor's

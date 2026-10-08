@@ -111,8 +111,8 @@ Its sample is a section of a mouse kidney; the first capture downloads it once.
 Install the ZMART driver for your microscope (see the
 [ZMART drivers](https://github.com/thomdehoog/ZMART-drivers)). Each driver has a setup of
 its own, done once per microscope: its travel limits, the zero point of its coordinates and,
-for some, the image orientation and objective calibration. Then register the driver with the
-controller once on that computer, by pointing it at the driver's `zmart_controller_plugin.py`
+for some, the image orientation and objective calibration. Then install the driver into the
+controller's registry once on that computer, by pointing it at the driver's `zmart_driver.json`
 (or the folder holding it; the driver's README says where it is):
 
 ```bash
