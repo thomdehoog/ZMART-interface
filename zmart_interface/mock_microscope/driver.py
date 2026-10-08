@@ -160,6 +160,11 @@ class MockHandle:
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
+    # How far each of the three z motors has moved from its own zero. Their
+    # sum is ``z``. A move with ``with_actuators={"z": "piezo"}`` is carried
+    # by the piezo alone, so these readings show how the motors share the
+    # height, as a real instrument's would.
+    z_motors: dict = field(default_factory=lambda: {"motoric": 0.0, "galvo": 0.0, "piezo": 0.0})
 
     # mutable instrument settings
     laser_power: float = 5.0
@@ -416,19 +421,29 @@ def _user_position(handle: MockHandle) -> dict[str, float]:
 
 
 def get_xyz(handle: MockHandle, *, with_actuators: dict | None = None) -> dict:
-    """Report the position per axis (um) with its actuator and its canvas.
+    """Where the stage is, per axis: ``position``, ``unit``, ``actuators`` and ``canvas``.
 
-    ``canvas`` is everywhere a picture can show along that axis (see
-    :data:`CANVAS_UM`): the travel, widened by half a field and half a stack.
-    The travel itself stays inside the driver, where every move is checked
-    against it.
+    ``position`` is in micrometres from the origin. ``actuators`` gives every
+    motor of the axis with its own raw reading: for z, how far the coarse
+    drive, the galvo and the piezo each stand from their own zero. ``canvas``
+    is everywhere a picture can show along that axis (see :data:`CANVAS_UM`):
+    the travel, widened by half a field and half a stack. The travel itself
+    stays inside the driver, where every move is checked against it.
+    ``with_actuators`` only checks that the motors named exist.
     """
     _require_open(handle)
-    chosen = _resolve_actuators(with_actuators)
+    _resolve_actuators(with_actuators)
     user = _user_position(handle)
+    readings = {
+        "x": {"motoric": handle.x},
+        "y": {"motoric": handle.y},
+        "z": dict(handle.z_motors),
+    }
     return {
         axis: {
-            "value": user[axis], "actuator": chosen[axis],
+            "position": user[axis],
+            "unit": "micrometer",
+            "actuators": readings[axis],
             "canvas": list(CANVAS_UM[axis]),
         }
         for axis in ("x", "y", "z")
@@ -438,19 +453,21 @@ def get_xyz(handle: MockHandle, *, with_actuators: dict | None = None) -> dict:
 def set_xyz(
     handle: MockHandle, x: float, y: float, z: float, *, with_actuators: dict | None = None
 ) -> dict:
-    """Move to an absolute target (um); return where the stage now stands.
+    """Move to an absolute target (um), then answer exactly like ``get_xyz``.
 
     The chosen actuators realize this move only — the selection is never
     remembered (omitted axes always default to the reference actuator). A
     target outside the travel is refused with ``ValueError``, and the stage
-    stays where it was.
+    stays where it was. The answer is read back after the move, so it shows
+    where the stage now stands.
     """
     _require_open(handle)
     chosen = _resolve_actuators(with_actuators)
     target = {"x": float(x), "y": float(y), "z": float(z)}
     _within_the_travel(target)
+    handle.z_motors[chosen["z"]] += target["z"] - handle.z
     handle.x, handle.y, handle.z = target["x"], target["y"], target["z"]
-    return {"position": dict(target), "actuators": chosen}
+    return get_xyz(handle, with_actuators=with_actuators)
 
 
 def acquire(
