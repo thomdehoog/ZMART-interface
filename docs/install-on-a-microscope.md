@@ -79,8 +79,8 @@ the image orientation and objective calibration. Each driver's README says how. 
 loads that setup every time it connects, and the interface's Connect step shows what it
 loaded.
 
-Then register the driver with the controller, once on this computer, by pointing it at the
-driver's `zmart_controller_plugin.py` or the folder holding it. That file gives the driver's
+Then install the driver into the controller's registry, once on this computer, by pointing
+it at the driver's `zmart_driver.json` or the folder holding it. That file gives the driver's
 name and the connection it needs; the command prints the name:
 
 ```powershell

@@ -49,6 +49,14 @@ export function openTheFocusMap(ctx) {
 
 const carrierSpan = () => carrierWidget.extentUm(run.carrier);
 
+/* The surfaces a run could reuse from an earlier one, for the parked "reuse"
+   strategy (see `newFocus` in the run document): nothing reaches it today,
+   and the two entries are what the choice would look like when it does. */
+const PREVIOUS_SURFACES = {
+  run_0714_a: { label: "2026-07-14 · slide A", plane: { a: 96, b: 61, c: -412 }, residual: 1.8, ageDays: 14 },
+  run_0709_c: { label: "2026-07-09 · slide C", plane: { a: 71, b: 88, c: -389 }, residual: 3.1, ageDays: 19 },
+};
+
 function focusSurface() {
   const f = run.focus;
   const [w, h] = carrierSpan();

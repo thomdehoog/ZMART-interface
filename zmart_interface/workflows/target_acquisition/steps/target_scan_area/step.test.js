@@ -4,7 +4,7 @@
    target" centres a tile on every target. Exactly one side is chosen. */
 
 import { describe, it, expect } from "vitest";
-import { selectionPanel } from "./step.js";
+import { selectionPanel } from "./selection-panel.js";
 
 const mounted = (rules = {}) => {
   const set = [];

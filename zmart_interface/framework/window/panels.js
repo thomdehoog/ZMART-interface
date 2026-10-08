@@ -48,3 +48,34 @@ export function sideGroup(title, extra) {
   group.append(heading, body);
   return { group, body };
 }
+
+/**
+ * Build the panels every workflow declares, one element apiece inside the
+ * stage, and hand them back by key.
+ *
+ * The framework builds the box and knows what a panel is called, whether it
+ * stays once asked for, and whether it has a channel down its side; what
+ * goes in it, and what any of it means, is the workflow's, which fills it
+ * through the panel's own `build(host)`.
+ *
+ * Every workflow's panels are built once and kept: switching workflows
+ * shows a different set of them rather than rebuilding, so the canvas and
+ * what draws on it are wired once. Two workflows naming the same key share
+ * the panel, which is what sharing a key means.
+ */
+export function buildThePanels(WORKFLOWS) {
+  const thePanels = {};
+  const everyPanel = new Map();
+  for (const wf of Object.values(WORKFLOWS)) {
+    for (const declared of wf.panels) if (!everyPanel.has(declared.key)) everyPanel.set(declared.key, declared);
+  }
+  for (const declared of everyPanel.values()) {
+    const host = document.createElement("div");
+    host.className = "panel";
+    host.id = `panel-${declared.key}`;
+    host.setAttribute("role", "tabpanel");
+    document.querySelector(".stage").append(host);
+    thePanels[declared.key] = { ...declared, host, ...(declared.build?.(host) ?? {}) };
+  }
+  return thePanels;
+}
