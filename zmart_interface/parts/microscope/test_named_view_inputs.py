@@ -8,8 +8,8 @@ import pytest
 import zarr
 
 from zmart_interface.framework.bridge import pictures, state
+from zmart_interface.parts.analysis import detection
 from zmart_interface.parts.analysis.workflows import step_module
-from zmart_interface.parts.microscope import detection
 from zmart_interface.parts.microscope.simulator_guard import NonSimulatorFrameError
 from zmart_interface.parts.microscope.simulator_pixels import SimulatorPixels
 from zmart_interface.parts.storage import jpeg_tiles

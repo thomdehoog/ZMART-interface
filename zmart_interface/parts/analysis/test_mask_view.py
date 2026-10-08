@@ -4,7 +4,7 @@ import numpy as np
 import tifffile
 from PIL import Image
 
-from zmart_interface.parts.microscope.mask_view import label_map_of, mask_view_of
+from zmart_interface.parts.analysis.mask_view import label_map_of, mask_view_of
 
 LABEL = "K00_M000000_G000000_P000004_V00"
 

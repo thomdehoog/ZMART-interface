@@ -38,8 +38,7 @@ from zmart_interface.framework.bridge import (
     state,
     targets,
 )
-from zmart_interface.parts.analysis import warm
-from zmart_interface.parts.microscope import detection, focus_score
+from zmart_interface.parts.analysis import detection, focus_score, warm
 from zmart_interface.parts.microscope.instrument import Instrument
 from zmart_interface.parts.storage import output, viewer_service
 from zmart_interface.parts.storage.output import prepare_experiment

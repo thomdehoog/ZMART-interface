@@ -15,8 +15,7 @@ from __future__ import annotations
 import json
 import threading
 
-from zmart_interface.parts.analysis import warm
-from zmart_interface.parts.microscope import detection
+from zmart_interface.parts.analysis import detection, warm
 
 from . import plots, state
 

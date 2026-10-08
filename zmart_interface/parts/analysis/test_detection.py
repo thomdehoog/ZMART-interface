@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from zmart_interface.parts.microscope import detection
+from zmart_interface.parts.analysis import detection
 
 
 def _record(**planes_extra):
@@ -147,7 +147,7 @@ def test_through_runs_the_object_pipeline_once_per_field():
 def test_a_stack_is_one_channels_planes_in_depth_order():
     """A Leica focus job can carry several channels; interleaving them scored
     a curve of nothing real. The stack is the first channel's planes."""
-    from zmart_interface.parts.microscope import focus_score
+    from zmart_interface.parts.analysis import focus_score
 
     record = {"planes": [
         {"t": 0, "c": c, "z": z, "path": f"p_c{c}_z{z}", "z_um": float(z)}

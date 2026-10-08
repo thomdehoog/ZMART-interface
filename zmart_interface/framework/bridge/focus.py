@@ -11,8 +11,7 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-from zmart_interface.parts.analysis import warm
-from zmart_interface.parts.microscope import focus_score
+from zmart_interface.parts.analysis import focus_score, warm
 from zmart_interface.parts.microscope.focus_run import FOCUSSING, measure_one_stack
 from zmart_interface.parts.storage.output import position_label, prepare_acquisition
 
