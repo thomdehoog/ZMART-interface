@@ -42,7 +42,12 @@ parts that plug into the interface's sides:
   which is the travel widened by half a field. The travel itself stays in the
   driver; the page lets fields be drawn over the whole canvas, and a move past
   the travel is refused by the driver with a sentence the operator sees,
-  rather than the page guessing where the travel ends.
+  rather than the page guessing where the travel ends. `get_xyz` and
+  `set_xyz` answer the same thing: for each axis its `position` in
+  micrometres from the origin, the `unit`, the raw reading of every motor
+  under `actuators`, and the `canvas`. A drive therefore keeps the answer
+  `set_xyz` gives, read back after the stage arrived, instead of asking the
+  stage a second time.
 - **ZMART-viewer.** Every capture is converted the moment it lands into one
   OME-Zarr image per position (`parts/storage/zarr_positions.py`, declared by
   the small writer in `zmart_interface/zmart_storage/`). The viewer's server,

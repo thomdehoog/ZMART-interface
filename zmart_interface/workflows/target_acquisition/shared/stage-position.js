@@ -65,7 +65,7 @@ export function watchStagePosition(backend, onPosition, {
     return Promise.race([backend.get_xyz(), tooLong])
       .then((xyz) => {
         if (stopped || !xyz?.x || !xyz?.y) return null;
-        const at = { x: Number(xyz.x.value), y: Number(xyz.y.value), z: Number(xyz.z?.value ?? 0) };
+        const at = { x: Number(xyz.x.position), y: Number(xyz.y.position), z: Number(xyz.z?.position ?? 0) };
         onPosition(at);
         return at;
       })
