@@ -102,10 +102,8 @@ def test_the_canvas_holds_a_picture_taken_anywhere_the_stage_can_go(mock_instrum
         raw.disconnect()
     for axis, half in (("x", widest / 2), ("y", widest / 2), ("z", deepest / 2)):
         low, high = mock_driver.TRAVEL_UM[axis]
-        assert report[axis] == {
-            "value": report[axis]["value"], "actuator": report[axis]["actuator"],
-            "canvas": [low - half, high + half],
-        }, axis
+        assert list(report[axis]) == ["position", "unit", "actuators", "canvas"], axis
+        assert report[axis]["canvas"] == [low - half, high + half], axis
     assert deepest > 0, "the mock takes stacks, so z's canvas goes past the travel"
 
 
@@ -140,7 +138,7 @@ def test_every_answer_comes_in_two_parts(mock_instrument):
         info = raw.get_info()
         assert info["success"] is True
         assert {"output_root", "description", "connection_status"} <= set(info["content"])
-        assert set(raw.get_xyz()["content"]["x"]) == {"value", "actuator", "canvas"}
+        assert list(raw.get_xyz()["content"]["x"]) == ["position", "unit", "actuators", "canvas"]
     finally:
         raw.disconnect()
 
@@ -151,7 +149,7 @@ def test_a_move_outside_the_travel_is_refused_and_nothing_moves(mock_instrument)
     try:
         with pytest.raises(ValueError, match=r"x = 1e\+07 um is outside the stage's travel"):
             raw.set_xyz(10_000_000.0, 0.0, 0.0)
-        assert raw.get_xyz()["content"]["x"]["value"] == 0.0
+        assert raw.get_xyz()["content"]["x"]["position"] == 0.0
     finally:
         raw.disconnect()
 

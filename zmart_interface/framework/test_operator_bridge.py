@@ -96,8 +96,8 @@ class _Driver:
         self.height_key = height_key
         self.staging = Path(tempfile.mkdtemp(prefix="zmart-driver-"))
 
-    def get_xyz(self) -> dict:
-        return {axis: {"value": v} for axis, v in self.at.items()}
+    def get_xyz(self, **_kw) -> dict:
+        return {axis: {"position": v} for axis, v in self.at.items()}
 
     def set_state(self, state: dict) -> dict:
         self.applied.append(dict(state))
@@ -106,7 +106,7 @@ class _Driver:
     def set_xyz(self, x, y, z, **_kw) -> dict:
         self.drove_to.append((x, y, z))
         self.at = {"x": float(x), "y": float(y), "z": float(z)}
-        return {"position": {"x": x, "y": y, "z": z}, "actuators": {"z": "motoric"}}
+        return self.get_xyz()  # read back, the same answer as get_xyz
 
     def get_acquisition_settings(self) -> dict:
         """The ZMART drivers all offer ``folder``, to keep one acquisition's pictures together."""
@@ -163,7 +163,7 @@ def test_a_drive_answers_with_the_position_the_move_reported(driver):
     """No second read: set_xyz is confirmed and says where it went."""
     went = bridge._drive_to({"x": 61_000, "y": 42_000, "z": -380})
     assert driver.drove_to[-1] == (61_000.0, 42_000.0, -380.0)
-    assert {axis: reading["value"] for axis, reading in went.items()} == {
+    assert {axis: reading["position"] for axis, reading in went.items()} == {
         "x": 61_000.0,
         "y": 42_000.0,
         "z": -380.0,
@@ -183,7 +183,7 @@ def test_the_stage_is_read_when_the_instrument_is_free(driver, monkeypatch):
     bridge._drive_to({"x": 1_000, "y": 2_000, "z": -3})
     where = bridge._where_the_stage_is()
     assert "busy" not in where
-    assert {axis: where[axis]["value"] for axis in ("x", "y", "z")} == {
+    assert {axis: where[axis]["position"] for axis in ("x", "y", "z")} == {
         "x": 1_000.0,
         "y": 2_000.0,
         "z": -3.0,
@@ -198,7 +198,7 @@ def test_a_busy_instrument_answers_the_last_position_marked_busy(driver, monkeyp
     with bridge._the_instruments_turn:
         where = bridge._where_the_stage_is()
     assert where["busy"] is True
-    assert {axis: where[axis]["value"] for axis in ("x", "y", "z")} == {
+    assert {axis: where[axis]["position"] for axis in ("x", "y", "z")} == {
         "x": 5_000.0,
         "y": 6_000.0,
         "z": -7.0,
@@ -221,7 +221,7 @@ def test_a_driver_that_names_no_position_is_asked_where_it_ended_up(monkeypatch)
 
     monkeypatch.setattr(bridge, "_session", _plugged(Quiet()))
     went = bridge._drive_to({"x": 7, "y": 8, "z": 9})
-    assert {axis: reading["value"] for axis, reading in went.items()} == {
+    assert {axis: reading["position"] for axis, reading in went.items()} == {
         "x": 7.0,
         "y": 8.0,
         "z": 9.0,
@@ -246,7 +246,7 @@ def _measured(asked):
             **({"z": start} if isinstance(start, (int, float)) else {}),
         })
         record = bridge._capture({"folder": "focussing", "position_label": begun["labels"][index]})["content"]
-        bridge._score_focus({"record": record, "centre": at["z"]["value"], "point": point})
+        bridge._score_focus({"record": record, "centre": at["z"]["position"], "point": point})
     bridge._end_focus({})
     assert bridge._focus["error"] is None, bridge._focus["error"]
     return dict(bridge._focus)
@@ -649,14 +649,14 @@ def _targets_taken(positions, *, append=False, focus=None):
             stack = bridge._capture({
                 "folder": "target-focussing", "position_label": begun["labels"][index],
             })["content"]
-            found = bridge._score_target_focus({"record": stack, "centre": at["z"]["value"],
+            found = bridge._score_target_focus({"record": stack, "centre": at["z"]["position"],
                                                 "x": position["x"], "y": position["y"]})
             if found["z"] is not None:
                 at = bridge._drive_to({"x": position["x"], "y": position["y"], "z": found["z"]})
         record = bridge._capture({"folder": "targets", "position_label": begun["labels"][index]})["content"]
         bridge._target_landed({
             "record": record,
-            "position": {"x": position["x"], "y": position["y"], "z": at["z"]["value"]},
+            "position": {"x": position["x"], "y": position["y"], "z": at["z"]["position"]},
             "focus": found and {"z_peak_um": found["z"], "found": found["z"] is not None},
         })
     bridge._end_target_run({})
@@ -1335,9 +1335,9 @@ def test_a_driver_that_gives_no_canvas_is_said_so_plainly():
     than drawing an area somebody guessed.
     """
     reading = {
-        "x": {"value": 0.0, "actuator": "motoric", "canvas": [-1.0, 11.0]},
-        "y": {"value": 0.0, "actuator": "motoric"},
-        "z": {"value": 0.0, "actuator": "motoric", "canvas": [-1.0, 11.0]},
+        "x": {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0}, "canvas": [-1.0, 11.0]},
+        "y": {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0}},
+        "z": {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0}, "canvas": [-1.0, 11.0]},
     }
     with pytest.raises(RuntimeError, match=r"does not say where its pictures can show along y"):
         bridge._the_viewers_area(reading)
