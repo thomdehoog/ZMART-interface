@@ -36,11 +36,13 @@ import argparse
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
+
+from zmart_interface.framework.bridge import THE_PAGE
 
 #: What ``npm run build`` leaves, and the package carries: the page and
-#: neuroglancer's two background programs beside it. The bridge hands them out.
-BUILT = Path(__file__).resolve().parent / "framework" / "window" / "build" / "index.html"
+#: neuroglancer's two background programs beside it. The bridge hands them out,
+#: so where they are is the bridge's to say.
+BUILT = THE_PAGE / "index.html"
 
 #: Where ``npm run dev`` serves the page while it is being worked on.
 DEV_URL = "http://127.0.0.1:5174/"

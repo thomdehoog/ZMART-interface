@@ -25,7 +25,8 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 #: Which sharpness metric's peak is reported as the height. Both are always
 #: scored -- the page charts one against the other -- so this only chooses

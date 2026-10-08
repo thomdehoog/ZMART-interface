@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -23,8 +24,25 @@ import pytest
 from zmart_controller import ZmartController, register_driver
 
 from zmart_interface import mock_microscope
-from zmart_interface.framework import bridge
-from zmart_interface.parts.microscope.instrument import Instrument, InstrumentDeclined
+from zmart_interface.framework.bridge import (
+    connecting,
+    discovery,
+    focus,
+    pictures,
+    plots,
+    protocols,
+    readings,
+    scan,
+    server,
+    stage,
+    state,
+    targets,
+)
+from zmart_interface.parts.analysis import warm
+from zmart_interface.parts.microscope import detection, focus_score
+from zmart_interface.parts.microscope.instrument import Instrument
+from zmart_interface.parts.storage import output, viewer_service
+from zmart_interface.parts.storage.output import prepare_experiment
 
 
 class _Enveloped:
@@ -151,7 +169,7 @@ class _Driver:
 @pytest.fixture()
 def driver(monkeypatch):
     stub = _Driver()
-    monkeypatch.setattr(bridge, "_session", _plugged(stub))
+    monkeypatch.setattr(state, "session", _plugged(stub))
     return stub
 
 
@@ -160,7 +178,7 @@ def driver(monkeypatch):
 
 def test_a_drive_answers_with_the_position_the_move_reported(driver):
     """No second read: set_xyz is confirmed and says where it went."""
-    went = bridge._drive_to({"x": 61_000, "y": 42_000, "z": -380})
+    went = stage.drive_to({"x": 61_000, "y": 42_000, "z": -380})
     assert driver.drove_to[-1] == (61_000.0, 42_000.0, -380.0)
     assert {axis: reading["position"] for axis, reading in went.items()} == {
         "x": 61_000.0,
@@ -171,31 +189,31 @@ def test_a_drive_answers_with_the_position_the_move_reported(driver):
 
 def test_an_axis_not_asked_about_is_left_where_it_stands(driver):
     """Driving across the plate is not a request to move the objective."""
-    bridge._drive_to({"x": 20_000, "y": 30_000, "z": -390})
-    bridge._drive_to({"x": 25_000})
+    stage.drive_to({"x": 20_000, "y": 30_000, "z": -390})
+    stage.drive_to({"x": 25_000})
     assert driver.drove_to[-1] == (25_000.0, 30_000.0, -390.0)
 
 
 def test_the_stage_is_read_when_the_instrument_is_free(driver, monkeypatch):
     """A free instrument is asked, and what it says is remembered."""
-    monkeypatch.setattr(bridge, "_last_xyz", None)
-    bridge._drive_to({"x": 1_000, "y": 2_000, "z": -3})
-    where = bridge._where_the_stage_is()
+    monkeypatch.setattr(state, "last_xyz", None)
+    stage.drive_to({"x": 1_000, "y": 2_000, "z": -3})
+    where = stage.where_the_stage_is()
     assert "busy" not in where
     assert {axis: where[axis]["position"] for axis in ("x", "y", "z")} == {
         "x": 1_000.0,
         "y": 2_000.0,
         "z": -3.0,
     }
-    assert bridge._last_xyz is where
+    assert state.last_xyz is where
 
 
 def test_a_busy_instrument_answers_the_last_position_marked_busy(driver, monkeypatch):
     """The page's clock never queues behind a site being captured."""
-    monkeypatch.setattr(bridge, "_last_xyz", None)
-    bridge._the_stage_was_sent_to(5_000, 6_000, -7)
-    with bridge._the_instruments_turn:
-        where = bridge._where_the_stage_is()
+    monkeypatch.setattr(state, "last_xyz", None)
+    stage.the_stage_was_sent_to(5_000, 6_000, -7)
+    with state.the_instruments_turn:
+        where = stage.where_the_stage_is()
     assert where["busy"] is True
     assert {axis: where[axis]["position"] for axis in ("x", "y", "z")} == {
         "x": 5_000.0,
@@ -205,9 +223,9 @@ def test_a_busy_instrument_answers_the_last_position_marked_busy(driver, monkeyp
 
 
 def test_a_busy_instrument_with_nothing_remembered_refuses(driver, monkeypatch):
-    monkeypatch.setattr(bridge, "_last_xyz", None)
-    with bridge._the_instruments_turn, pytest.raises(RuntimeError, match="busy"):
-        bridge._where_the_stage_is()
+    monkeypatch.setattr(state, "last_xyz", None)
+    with state.the_instruments_turn, pytest.raises(RuntimeError, match="busy"):
+        stage.where_the_stage_is()
 
 
 def test_a_driver_that_names_no_position_is_asked_where_it_ended_up(monkeypatch):
@@ -218,8 +236,8 @@ def test_a_driver_that_names_no_position_is_asked_where_it_ended_up(monkeypatch)
             self.at = {"x": float(x), "y": float(y), "z": float(z)}
             return {"ok": True}
 
-    monkeypatch.setattr(bridge, "_session", _plugged(Quiet()))
-    went = bridge._drive_to({"x": 7, "y": 8, "z": 9})
+    monkeypatch.setattr(state, "session", _plugged(Quiet()))
+    went = stage.drive_to({"x": 7, "y": 8, "z": 9})
     assert {axis: reading["position"] for axis, reading in went.items()} == {
         "x": 7.0,
         "y": 8.0,
@@ -236,29 +254,29 @@ def _measured(asked):
     points = asked.get("points", [])
     # The page applies the focussing recording once, before it begins.
     if asked.get("state"):
-        bridge._apply_state(asked["state"])
-    begun = bridge._begin_focus({"of": len(points)})
+        readings.apply_state(asked["state"])
+    begun = focus.begin_focus({"of": len(points)})
     for index, point in enumerate(points):
         start = point.get("startZ")
-        at = bridge._drive_to({
+        at = stage.drive_to({
             "x": point["x"], "y": point["y"],
             **({"z": start} if isinstance(start, (int, float)) else {}),
         })
-        record = bridge._capture({"folder": "focussing", "position_label": begun["labels"][index]})["content"]
-        bridge._score_focus({"record": record, "centre": at["z"]["position"], "point": point})
-    bridge._end_focus({})
-    assert bridge._focus["error"] is None, bridge._focus["error"]
-    return dict(bridge._focus)
+        record = readings.capture({"folder": "focussing", "position_label": begun["labels"][index]})["content"]
+        focus.score_focus({"record": record, "centre": at["z"]["position"], "point": point})
+    focus.end_focus({})
+    assert state.focus["error"] is None, state.focus["error"]
+    return dict(state.focus)
 
 
 def test_a_scan_cannot_start_while_the_page_is_measuring_a_map(driver):
     """The stage is the map's until the page ends it."""
-    bridge._begin_focus({"of": 1})
+    focus.begin_focus({"of": 1})
     try:
         with pytest.raises(RuntimeError, match="focus map"):
-            bridge._start_scan({"positions": [{"x": 0, "y": 0}]})
+            scan.start_scan({"positions": [{"x": 0, "y": 0}]})
     finally:
-        bridge._end_focus({})
+        focus.end_focus({})
 
 
 def test_the_ledger_answers_what_the_page_had_scored(driver):
@@ -292,7 +310,7 @@ def test_a_measured_point_carries_the_curve_it_was_chosen_from(driver):
 @pytest.fixture(autouse=True)
 def _nothing_scanned_yet(monkeypatch):
     """What one test's scan captured is not the next test's overview."""
-    monkeypatch.setattr(bridge, "_records", {})
+    monkeypatch.setattr(state, "records", {})
 
 
 @pytest.fixture(autouse=True)
@@ -305,7 +323,7 @@ def _a_run_to_write_into(tmp_path, monkeypatch):
     """
     run = tmp_path / "target-acquisition_000001"
     run.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(bridge, "_run", run)
+    monkeypatch.setattr(state, "run", run)
     return run
 
 
@@ -319,8 +337,8 @@ def _score_without_an_engine(monkeypatch):
     scoring lives.
     """
     monkeypatch.setattr(
-        bridge,
-        "_score_a_stack",
+        focus,
+        "score_a_stack",
         lambda: (lambda record: {"z_um": record["found_at"], "traces": {"brenner": {}}}),
     )
 
@@ -342,7 +360,7 @@ def test_a_search_begins_where_the_page_asked_it_to(driver):
 
 def test_a_search_with_no_start_asked_for_keeps_the_height_it_has(driver):
     """It used to be driven to frame zero, which threw the map's answer away."""
-    bridge._drive_to({"x": 0, "y": 0, "z": -300.0})
+    stage.drive_to({"x": 0, "y": 0, "z": -300.0})
     _measured({"points": [{"x": 5, "y": 6}]})
     assert driver.drove_to[-1] == (5.0, 6.0, -300.0)
 
@@ -353,7 +371,7 @@ def test_a_point_nothing_could_be_chosen_from_reports_no_height(monkeypatch):
     The page fits a surface through what it is given, so one invented zero
     drags the whole map towards a place nobody measured.
     """
-    monkeypatch.setattr(bridge, "_session", _plugged(_Driver(height_key=None)))
+    monkeypatch.setattr(state, "session", _plugged(_Driver(height_key=None)))
     got = _measured({"points": [{"x": 1, "y": 2}]})
     point = got["points"][0]
     assert point["zAuto"] is None
@@ -376,8 +394,8 @@ class _Optics(_Driver):
 
 
 def _frame(observed, monkeypatch):
-    monkeypatch.setattr(bridge, "_session", _plugged(_Optics(observed)))
-    return bridge._reading("acquisition")["frameUm"]
+    monkeypatch.setattr(state, "session", _plugged(_Optics(observed)))
+    return readings.reading("acquisition")["frameUm"]
 
 
 def test_a_frame_size_is_read_the_way_a_pixel_size_is(monkeypatch):
@@ -411,7 +429,7 @@ def test_a_format_said_as_numbers_counts_the_same(monkeypatch):
 def test_an_instrument_that_says_neither_gets_a_guess(monkeypatch):
     """And it is a guess, not a measurement: 512 px is a stand-in for a format
     nobody reported, kept only so the page has a frame to draw at all."""
-    assert _frame({"pixel_size": {"x": 1.0}}, monkeypatch) == bridge._A_GUESSED_FORMAT_PX
+    assert _frame({"pixel_size": {"x": 1.0}}, monkeypatch) == readings.A_GUESSED_FORMAT_PX
 
 
 # --- what the instrument offers ----------------------------------------------
@@ -435,8 +453,8 @@ def test_the_acquisition_menu_is_handed_over_untouched(monkeypatch):
         def get_acquisition_settings(self):
             return menu
 
-    monkeypatch.setattr(bridge, "_session", _plugged(Offering()))
-    assert bridge._acquisition_settings() == menu
+    monkeypatch.setattr(state, "session", _plugged(Offering()))
+    assert readings.acquisition_settings() == menu
 
 
 def test_a_setting_is_applied_as_the_changeable_half_of_state(monkeypatch):
@@ -453,8 +471,8 @@ def test_a_setting_is_applied_as_the_changeable_half_of_state(monkeypatch):
             sent.update(state)
             return {"applied": dict(state.get("changeable", {}))}
 
-    monkeypatch.setattr(bridge, "_session", _plugged(Settable()))
-    answered = bridge._apply_state({"job": "HiRes"})
+    monkeypatch.setattr(state, "session", _plugged(Settable()))
+    answered = readings.apply_state({"job": "HiRes"})
     assert sent == {"changeable": {"job": "HiRes"}}
     assert answered == {"applied": {"job": "HiRes"}}
 
@@ -498,8 +516,8 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
     and all, so the page reads what a Python script would.
     """
     driver = _Capturing()
-    monkeypatch.setattr(bridge, "_session", _plugged(driver))
-    answer = bridge._capture({
+    monkeypatch.setattr(state, "session", _plugged(driver))
+    answer = readings.capture({
         "folder": "overview",
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
@@ -526,8 +544,8 @@ def test_a_capture_the_microscope_declined_is_answered_not_raised(monkeypatch):
         def acquire(self, **_asked):
             return declined
 
-    monkeypatch.setattr(bridge, "_session", Instrument(_Declining()))
-    assert bridge._capture({"folder": "overview", "position_label": "A1"}) == declined
+    monkeypatch.setattr(state, "session", Instrument(_Declining()))
+    assert readings.capture({"folder": "overview", "position_label": "A1"}) == declined
 
 
 def test_the_settings_a_capture_is_given_reach_the_driver(monkeypatch):
@@ -537,8 +555,8 @@ def test_the_settings_a_capture_is_given_reach_the_driver(monkeypatch):
     here invents a default.
     """
     driver = _Capturing()
-    monkeypatch.setattr(bridge, "_session", _plugged(driver))
-    bridge._capture({
+    monkeypatch.setattr(state, "session", _plugged(driver))
+    readings.capture({
         "folder": "targets",
         "position_label": "K00_M000002_G000001_P000003_V00",
         "acquisition_settings": {"format": "ome-zarr"},
@@ -557,8 +575,8 @@ def test_a_driver_without_a_folder_setting_is_not_given_one(monkeypatch):
             return {"format": {"options": ["ome-tiff"], "active": "ome-tiff"}}
 
     driver = NoFolder()
-    monkeypatch.setattr(bridge, "_session", _plugged(driver))
-    answer = bridge._capture({"folder": "targets", "position_label": "A1"})
+    monkeypatch.setattr(state, "session", _plugged(driver))
+    answer = readings.capture({"folder": "targets", "position_label": "A1"})
     assert answer["success"] is True
     assert driver.asked[-1] == ("A1", None)
 
@@ -568,13 +586,13 @@ def test_a_driver_without_a_folder_setting_is_not_given_one(monkeypatch):
 
 def _scanned(driver, positions, monkeypatch, **asked):
     """Run a scan to completion on this driver and hand back what it kept."""
-    monkeypatch.setattr(bridge, "_session", _plugged(driver))
+    monkeypatch.setattr(state, "session", _plugged(driver))
     kind = asked.get("acquisition_type", "overview")
-    bridge._records[kind] = []
-    bridge._scan.update(running=True, done=0, of=len(positions), error=None, acquisition_type=kind)
-    bridge._scan_worker(positions, **asked)
-    assert bridge._scan["error"] is None, bridge._scan["error"]
-    return bridge._the_scan()
+    state.records[kind] = []
+    state.scan.update(running=True, done=0, of=len(positions), error=None, acquisition_type=kind)
+    scan.scan_worker(positions, **asked)
+    assert state.scan["error"] is None, state.scan["error"]
+    return scan.the_scan()
 
 
 def test_a_scan_labels_every_position_the_canonical_way(monkeypatch):
@@ -602,11 +620,11 @@ def test_the_scan_answers_only_the_records_since_the_ones_a_page_holds(monkeypat
     driver = _Capturing()
     scanned = _scanned(driver, [{"x": 0, "y": 0}, {"x": 10, "y": 0}, {"x": 20, "y": 0}], monkeypatch)
     assert len(scanned["records"]) == 3
-    later = bridge._the_scan(since=2)
+    later = scan.the_scan(since=2)
     assert later["done"] == 3
     assert [r["position_label"] for r in later["records"]] == [scanned["records"][2]["position_label"]]
-    assert bridge._the_scan(since=3)["records"] == []
-    assert len(bridge._the_scan(since=0)["records"]) == 3
+    assert scan.the_scan(since=3)["records"] == []
+    assert len(scan.the_scan(since=0)["records"]) == 3
 
 
 def test_a_position_says_where_on_the_plate_it_is(monkeypatch):
@@ -639,28 +657,28 @@ def _targets_taken(positions, *, append=False, focus=None):
     """Acquire the targets the way the page drives it: begin, then per tile
     drive, capture and land (with a focussing stack scored first when
     *focus* says so), then end. Hands back the bridge's ledger."""
-    begun = bridge._begin_target_run({"positions": positions, "append": append})
+    begun = targets.begin_target_run({"positions": positions, "append": append})
     for index, position in enumerate(positions):
-        at = bridge._drive_to({"x": position["x"], "y": position["y"],
+        at = stage.drive_to({"x": position["x"], "y": position["y"],
                                **({"z": position["z"]} if "z" in position else {})})
         found = None
         if focus:
-            stack = bridge._capture({
+            stack = readings.capture({
                 "folder": "target-focussing", "position_label": begun["labels"][index],
             })["content"]
-            found = bridge._score_target_focus({"record": stack, "centre": at["z"]["position"],
+            found = targets.score_target_focus({"record": stack, "centre": at["z"]["position"],
                                                 "x": position["x"], "y": position["y"]})
             if found["z"] is not None:
-                at = bridge._drive_to({"x": position["x"], "y": position["y"], "z": found["z"]})
-        record = bridge._capture({"folder": "targets", "position_label": begun["labels"][index]})["content"]
-        bridge._target_landed({
+                at = stage.drive_to({"x": position["x"], "y": position["y"], "z": found["z"]})
+        record = readings.capture({"folder": "targets", "position_label": begun["labels"][index]})["content"]
+        targets.target_landed({
             "record": record,
             "position": {"x": position["x"], "y": position["y"], "z": at["z"]["position"]},
             "focus": found and {"z_peak_um": found["z"], "found": found["z"] is not None},
         })
-    bridge._end_target_run({})
-    assert bridge._acquired["error"] is None, bridge._acquired["error"]
-    return dict(bridge._acquired)
+    targets.end_target_run({})
+    assert state.acquired["error"] is None, state.acquired["error"]
+    return dict(state.acquired)
 
 
 def test_the_targets_are_taken_one_by_one_as_the_page_drives_them(driver, monkeypatch):
@@ -669,40 +687,40 @@ def test_the_targets_are_taken_one_by_one_as_the_page_drives_them(driver, monkey
     it was asked for, when it was taken, its OME-Zarr position -- and a
     ledger a reopened page can read, since the number it holds."""
     kept = []
-    monkeypatch.setattr(bridge, "move_record_images", lambda record, where: None)
-    monkeypatch.setattr(bridge, "_keep_position_as_zarr", lambda record, kind: kept.append((record["position_label"], kind)))
+    monkeypatch.setattr(output, "move_record_images", lambda record, where: None)
+    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: kept.append((record["position_label"], kind)))
     got = _targets_taken([
         {"x": 10, "y": 20, "z": 5, "position_index": 0},
         {"x": 30, "y": 40, "z": 6, "position_index": 1},
     ])
-    labels = [record["position_label"] for record in bridge._records["targets"]]
+    labels = [record["position_label"] for record in state.records["targets"]]
     assert labels == ["K00_M000000_G000000_P000000_V00", "K00_M000000_G000000_P000001_V00"]
     assert kept == [(labels[0], "targets"), (labels[1], "targets")]
     assert driver.captured == [("targets", labels[0]), ("targets", labels[1])]
     assert driver.drove_to == [(10.0, 20.0, 5.0), (30.0, 40.0, 6.0)]
-    first = bridge._records["targets"][0]
+    first = state.records["targets"][0]
     assert first["requested_position_um"] == {"x": 10.0, "y": 20.0, "z": 5.0}
     assert first["taken"] > 0 and first["focus"] is None
     assert got["done"] == got["of"] == 2 and got["running"] is False
-    later = bridge._the_target_run(since=1)
+    later = targets.the_target_run(since=1)
     assert [record["position_label"] for record in later["records"]] == [labels[1]]
-    assert bridge._the_target_run(since=2)["records"] == []
+    assert targets.the_target_run(since=2)["records"] == []
 
 
 def test_rerunning_one_target_keeps_the_other_pairs(driver, monkeypatch):
     """A selected target is reacquired without throwing the others away."""
-    monkeypatch.setattr(bridge, "move_record_images", lambda record, where: None)
-    monkeypatch.setattr(bridge, "_keep_position_as_zarr", lambda record, kind: None)
+    monkeypatch.setattr(output, "move_record_images", lambda record, where: None)
+    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: None)
     _targets_taken([
         {"x": 10, "y": 20, "position_index": 0}, {"x": 30, "y": 40, "position_index": 1},
     ])
-    first = list(bridge._records["targets"])
+    first = list(state.records["targets"])
     got = _targets_taken([{"x": 31, "y": 41, "position_index": 1}], append=True)
-    assert [record["position_label"] for record in bridge._records["targets"]] == [
+    assert [record["position_label"] for record in state.records["targets"]] == [
         "K00_M000000_G000000_P000000_V00", "K00_M000000_G000000_P000001_V00",
     ]
-    assert bridge._records["targets"][0] is first[0]
-    assert bridge._records["targets"][1]["requested_position_um"]["x"] == 31.0
+    assert state.records["targets"][0] is first[0]
+    assert state.records["targets"][1]["requested_position_um"]["x"] == 31.0
     assert len(got["records"]) == 1
 
 
@@ -710,9 +728,9 @@ def test_a_target_is_focussed_first_when_the_page_asks(driver, monkeypatch):
     """With focussing on, the page takes a stack with the target focussing
     job, the bridge scores it under its own acquisition, and the target is
     captured at the peak; the record says which height and why."""
-    monkeypatch.setattr(bridge, "move_record_images", lambda record, where: None)
+    monkeypatch.setattr(output, "move_record_images", lambda record, where: None)
     kept = []
-    monkeypatch.setattr(bridge, "_keep_position_as_zarr", lambda record, kind: kept.append(kind))
+    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: kept.append(kind))
     driver.at["z"] = 12.0
     _targets_taken([{"x": 10, "y": 20, "z": 12, "position_index": 0}], focus=True)
     assert driver.captured == [
@@ -720,7 +738,7 @@ def test_a_target_is_focussed_first_when_the_page_asks(driver, monkeypatch):
         ("targets", "K00_M000000_G000000_P000000_V00"),
     ]
     assert "target-focussing" in kept and kept[-1] == "targets"
-    record = bridge._records["targets"][0]
+    record = state.records["targets"][0]
     assert record["focus"]["found"] is True
     assert record["focus"]["z_peak_um"] == record["requested_position_um"]["z"]
 
@@ -728,20 +746,20 @@ def test_a_target_is_focussed_first_when_the_page_asks(driver, monkeypatch):
 def test_a_scan_cannot_start_while_targets_are_being_taken(driver):
     """The stage is the target run's until the page ends it, and the other
     way round."""
-    bridge._begin_target_run({"positions": [{"x": 0, "y": 0}]})
+    targets.begin_target_run({"positions": [{"x": 0, "y": 0}]})
     try:
         with pytest.raises(RuntimeError, match="target"):
-            bridge._start_scan({"positions": [{"x": 0, "y": 0}]})
+            scan.start_scan({"positions": [{"x": 0, "y": 0}]})
         with pytest.raises(RuntimeError, match="run"):
-            bridge._begin_focus({"of": 1})
+            focus.begin_focus({"of": 1})
     finally:
-        bridge._end_target_run({})
-    bridge._scan["running"] = True
+        targets.end_target_run({})
+    state.scan["running"] = True
     try:
         with pytest.raises(RuntimeError, match="run"):
-            bridge._begin_target_run({"positions": [{"x": 0, "y": 0}]})
+            targets.begin_target_run({"positions": [{"x": 0, "y": 0}]})
     finally:
-        bridge._scan["running"] = False
+        state.scan["running"] = False
 
 
 def test_a_scan_captures_under_the_kind_of_scan_it_is(monkeypatch):
@@ -767,39 +785,39 @@ def test_a_scan_really_captures_at_every_position(mock_instrument, monkeypatch, 
     files are there, one per position, named for where they were taken.
     """
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
-    monkeypatch.setattr(bridge, "_session", session)
+    monkeypatch.setattr(state, "session", session)
     try:
         positions = [
             {"x": 0.0, "y": 0.0, "z": 5_000.0, "compartment": 1, "group": 1},
             {"x": 900.0, "y": 0.0, "z": 5_000.0, "compartment": 1, "group": 1},
             {"x": 0.0, "y": 700.0, "z": 5_000.0, "compartment": 2, "group": 2},
         ]
-        bridge._scan.update(
+        state.scan.update(
         running=True, done=0, of=len(positions), error=None, acquisition_type="overview"
     )
-        bridge._records["overview"] = []
-        bridge._scan_worker(positions)
-        assert bridge._scan["error"] is None, bridge._scan["error"]
+        state.records["overview"] = []
+        scan.scan_worker(positions)
+        assert state.scan["error"] is None, state.scan["error"]
     finally:
         session.disconnect()
 
-    assert bridge._scan["done"] == 3
-    records = bridge._records["overview"]
+    assert state.scan["done"] == 3
+    records = state.records["overview"]
     assert [record["position_label"] for record in records] == [
         "K00_M000001_G000001_P000000_V00",
         "K00_M000001_G000001_P000001_V00",
         "K00_M000002_G000002_P000002_V00",
     ]
     # Every capture wrote what it says it wrote, where a driver writes it.
-    written = sorted((bridge._run / "overview" / "data").glob("*.ome.tiff"))
+    written = sorted((state.run / "overview" / "data").glob("*.ome.tiff"))
     assert len(written) == 3 * 3  # three positions, one file per channel
     for record in records:
         for path in (plane["path"] for plane in record["planes"]):
             assert Path(path).is_file()
-            assert Path(path).parent == bridge._run / "overview" / "data"
+            assert Path(path).parent == state.run / "overview" / "data"
     # And the state it was captured under is printed beside them, once each.
     printed = sorted(
-        (bridge._run / "overview" / "data" / "metadata" / "ZMART_state").iterdir()
+        (state.run / "overview" / "data" / "metadata" / "ZMART_state").iterdir()
     )
     assert len(printed) == 3
 
@@ -829,18 +847,18 @@ def test_a_scan_stops_and_says_so_when_a_capture_fails(mock_instrument, monkeypa
                 raise RuntimeError("the shutter did not open")
             return self._real.acquire(**asked)
 
-    monkeypatch.setattr(bridge, "_session", _FailsOnTheSecond(session))
+    monkeypatch.setattr(state, "session", _FailsOnTheSecond(session))
     try:
         positions = [{"x": 0.0, "y": 0.0}, {"x": 900.0, "y": 0.0}, {"x": 1_800.0, "y": 0.0}]
-        bridge._scan.update(running=True, done=0, of=3, error=None, acquisition_type="overview")
-        bridge._scan_worker(positions)
+        state.scan.update(running=True, done=0, of=3, error=None, acquisition_type="overview")
+        scan.scan_worker(positions)
     finally:
         session.disconnect()
 
-    assert bridge._scan["error"] == "the shutter did not open"
-    assert bridge._scan["done"] == 1  # the one that finished, not the one that failed
-    assert bridge._scan["running"] is False
-    assert len(bridge._records["overview"]) == 1
+    assert state.scan["error"] == "the shutter did not open"
+    assert state.scan["done"] == 1  # the one that finished, not the one that failed
+    assert state.scan["running"] is False
+    assert len(state.records["overview"]) == 1
 
 
 # --- what the canvas is given to draw ----------------------------------------
@@ -856,21 +874,21 @@ def test_the_viewer_makes_a_picture_of_every_field_that_was_imaged(mock_instrume
     would be back to reading large files.
     """
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
-    monkeypatch.setattr(bridge, "_session", session)
+    monkeypatch.setattr(state, "session", session)
     try:
         positions = [
             {"x": 0.0, "y": 0.0, "z": 5_000.0},
             {"x": 900.0, "y": 0.0, "z": 5_000.0},
         ]
-        bridge._scan.update(running=True, done=0, of=2, error=None, acquisition_type="overview")
-        bridge._scan_worker(positions)
-        assert bridge._scan["error"] is None, bridge._scan["error"]
+        state.scan.update(running=True, done=0, of=2, error=None, acquisition_type="overview")
+        scan.scan_worker(positions)
+        assert state.scan["error"] is None, state.scan["error"]
 
-        view = bridge.view_of("overview")
+        view = pictures.view_of("overview")
         # Nothing is made while the run goes: the run only acquires.
         assert not view.exists()
 
-        assert bridge._the_view_of("overview") is not None
+        assert pictures.the_view_of("overview") is not None
         note = json.loads((view / "tiles.json").read_text(encoding="utf-8"))
     finally:
         session.disconnect()
@@ -885,17 +903,17 @@ def test_the_viewer_makes_a_picture_of_every_field_that_was_imaged(mock_instrume
     assert here["x0"] + here["w"] / 2 == pytest.approx(0.0)
     assert there["x0"] + there["w"] / 2 == pytest.approx(900.0)
     # And the acquisition itself is untouched, kept under this run.
-    assert list((bridge._run / "overview" / "data").glob("*.ome.tiff"))
+    assert list((state.run / "overview" / "data").glob("*.ome.tiff"))
     assert not list(view.glob("*.tiff"))
 
 
 def test_nothing_is_drawn_for_a_scan_that_has_imaged_nothing(mock_instrument, monkeypatch, tmp_path):
     """A place the run has not reached has no picture, which is not an error."""
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
-    monkeypatch.setattr(bridge, "_session", session)
+    monkeypatch.setattr(state, "session", session)
     try:
-        bridge._scan.update(running=False, done=0, of=0, error=None, acquisition_type="overview")
-        assert bridge._the_view_of("overview") is None
+        state.scan.update(running=False, done=0, of=0, error=None, acquisition_type="overview")
+        assert pictures.the_view_of("overview") is None
     finally:
         session.disconnect()
 
@@ -915,8 +933,8 @@ def test_the_bridge_hands_out_the_page_it_was_built_with(tmp_path, monkeypatch):
     (built / "index.html").write_text("<!doctype html>the page", encoding="utf-8")
     (built / "worker.js").write_text("// a background program", encoding="utf-8")
     (built / "notes.txt").write_text("not part of a page", encoding="utf-8")
-    monkeypatch.setattr(bridge._Bridge, "PAGE", dict(bridge._Bridge.PAGE))
-    monkeypatch.setattr(bridge, "THE_PAGE", built)
+    monkeypatch.setattr(server.Bridge, "PAGE", dict(server.Bridge.PAGE))
+    monkeypatch.setattr(server, "THE_PAGE", built)
 
     handed = _asked_for(["/", "/worker.js"])
     assert handed["/"] == (200, "text/html")
@@ -932,7 +950,7 @@ def _asked_for(paths):
     """Ask the page-serving route for each path, without a socket."""
     said = {}
 
-    class _Probe(bridge._Bridge):
+    class _Probe(server.Bridge):
         def __init__(self):
             self.sent = None
 
@@ -993,10 +1011,10 @@ def _an_overview_of_two_fields(monkeypatch):
         _kept("overview", position_label=f"P{i}")
         for i in range(2)
     ]
-    monkeypatch.setattr(bridge, "_records", {"overview": records})
+    monkeypatch.setattr(state, "records", {"overview": records})
     monkeypatch.setattr(
-        bridge,
-        "_find_targets",
+        discovery,
+        "find_targets",
         lambda: _Serial(lambda record, field, settings: {"cells": [{
             "id": f"{record['position_label']}_obj1", "field": field,
             "x": 100.0 * field, "y": 2.0, "area": 50.0, "intensity": 3.0, "r": 4.0,
@@ -1012,13 +1030,13 @@ def _discovered(asked):
     """Start discovery and wait for it, handing back what the page would poll."""
     import time
 
-    bridge._discover_targets(asked)
+    discovery.discover_targets(asked)
     for _ in range(200):
-        if not bridge._targets["running"]:
+        if not state.targets["running"]:
             break
         time.sleep(0.01)
-    assert bridge._targets["error"] is None, bridge._targets["error"]
-    return dict(bridge._targets)
+    assert state.targets["error"] is None, state.targets["error"]
+    return dict(state.targets)
 
 
 def test_targets_are_found_field_by_field_over_the_overview(monkeypatch):
@@ -1054,7 +1072,7 @@ def test_object_detection_ends_with_its_last_field(monkeypatch):
     for cell in (cell for field in got["fields"] for cell in field["cells"]):
         assert not any(name.startswith("umap") for name in (cell.get("features") or {}))
     for record in records:
-        kept = next((bridge._run / "overview" / "analysis").glob(
+        kept = next((state.run / "overview" / "analysis").glob(
             f"*_{record['position_label']}_T000000_targets.json"
         ))
         assert "umap" not in kept.read_text(encoding="utf-8")
@@ -1068,7 +1086,7 @@ def test_the_whole_population_is_one_table_on_disk(monkeypatch):
 
     records = _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    table = bridge._the_run() / "overview" / "analysis" / (
+    table = state.the_run() / "overview" / "analysis" / (
         f"overview_{records[0]['acquisition_hash']}_objects.csv"
     )
     rows = list(csv.DictReader(table.open(encoding="utf-8", newline="")))
@@ -1086,7 +1104,7 @@ def test_one_field_tried_on_its_own_leaves_the_population_table_alone(monkeypatc
     the last whole run stays."""
     records = _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    table = bridge._the_run() / "overview" / "analysis" / (
+    table = state.the_run() / "overview" / "analysis" / (
         f"overview_{records[0]['acquisition_hash']}_objects.csv"
     )
     before = table.read_text(encoding="utf-8")
@@ -1099,20 +1117,20 @@ def test_fast_fields_are_found_several_at_once_and_kept_in_the_samples_order(mon
     whatever order they land, and says so while they are in flight; what the
     page reads at the end is in the order the sample was scanned."""
     _an_overview_of_two_fields(monkeypatch)
-    plain = bridge._find_targets
+    plain = discovery.find_targets
     seen = {}
 
     class _Wide(_Serial):
         def each(self, records, settings, *, at_once, until=None):
             self.widths.append(at_once)
-            seen["doing"] = bridge._targets["doing"]
+            seen["doing"] = state.targets["doing"]
             for field in sorted(records, reverse=True):
                 yield field, self.one(records[field], field, settings)
 
     finder = _Wide(plain().one)
-    monkeypatch.setattr(bridge, "_find_targets", lambda: finder)
+    monkeypatch.setattr(discovery, "find_targets", lambda: finder)
     got = _discovered({"settings": {"method": "fast"}})
-    assert finder.widths == [bridge.detection.width_of({"method": "fast"})]
+    assert finder.widths == [detection.width_of({"method": "fast"})]
     assert finder.widths[0] >= 2
     assert "positions at once" in seen["doing"]
     # The list stays in landing order, so a page's cursor into it holds;
@@ -1120,7 +1138,7 @@ def test_fast_fields_are_found_several_at_once_and_kept_in_the_samples_order(mon
     assert [field["field"] for field in got["fields"]] == [1, 0]
     assert got["done"] == 2 and got["objects"] == 2
     assert got["phase"] == "complete"
-    table = next((bridge._run / "overview" / "analysis").glob("overview_*_objects.csv"))
+    table = next((state.run / "overview" / "analysis").glob("overview_*_objects.csv"))
     assert [line.split(",")[0] for line in table.read_text(encoding="utf-8").splitlines()[1:]] == ["0", "1"]
 
 
@@ -1132,20 +1150,20 @@ def test_discovery_answers_only_the_fields_since_the_ones_a_page_holds(monkeypat
     changes."""
     _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    whole = bridge._the_targets()
+    whole = discovery.the_targets()
     assert [field["field"] for field in whole["fields"]] == [0, 1]
-    later = bridge._the_targets(since=1)
+    later = discovery.the_targets(since=1)
     assert [field["field"] for field in later["fields"]] == [1]
     assert later["done"] == 2 and later["phase"] == "complete"
-    assert bridge._the_targets(since=2)["fields"] == []
-    assert len(bridge._the_targets(since=0)["fields"]) == 2
+    assert discovery.the_targets(since=2)["fields"] == []
+    assert len(discovery.the_targets(since=0)["fields"]) == 2
 
 
 def test_the_robust_way_finds_one_field_at_a_time(monkeypatch):
     """Every Cellpose worker holds a model on the card; one at a time."""
     _an_overview_of_two_fields(monkeypatch)
-    finder = bridge._find_targets()
-    monkeypatch.setattr(bridge, "_find_targets", lambda: finder)
+    finder = discovery.find_targets()
+    monkeypatch.setattr(discovery, "find_targets", lambda: finder)
     _discovered({"settings": {"method": "robust"}})
     assert finder.widths == [1]
 
@@ -1154,7 +1172,7 @@ def test_what_was_found_is_kept_beside_the_overview(monkeypatch):
     """The targets live with the pixels they were found in, not only on screen."""
     _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    kept = sorted((bridge._run / "overview" / "analysis").glob("*_targets.json"))
+    kept = sorted((state.run / "overview" / "analysis").glob("*_targets.json"))
     assert [path.name for path in kept] == [
         "overview_aaaaaa_P0_T000000_targets.json",
         "overview_aaaaaa_P1_T000000_targets.json",
@@ -1163,27 +1181,27 @@ def test_what_was_found_is_kept_beside_the_overview(monkeypatch):
 
 
 def test_nothing_to_discover_on_before_an_overview(monkeypatch):
-    monkeypatch.setattr(bridge, "_records", {})
+    monkeypatch.setattr(state, "records", {})
     with pytest.raises(RuntimeError, match="overview"):
-        bridge._discover_targets({"settings": {}})
+        discovery.discover_targets({"settings": {}})
 
 
 def test_the_operators_hand_stops_discovery_between_fields(monkeypatch):
     """Interrupt ends the run after the field in hand; what was found stands."""
     _an_overview_of_two_fields(monkeypatch)
-    unbraked = bridge._find_targets
+    unbraked = discovery.find_targets
 
     def finder():
         find = unbraked()
 
         def find_and_press(record, field, settings):
             cells = find(record, field, settings)
-            bridge._stop_targets()
+            discovery.stop_targets()
             return cells
 
         return _Serial(find_and_press)
 
-    monkeypatch.setattr(bridge, "_find_targets", finder)
+    monkeypatch.setattr(discovery, "find_targets", finder)
     got = _discovered({"settings": {}})
     assert got["stopped"] is True
     assert got["done"] == 1
@@ -1198,7 +1216,7 @@ def test_a_field_that_fails_does_not_take_the_run_down(monkeypatch):
     files the failure beside the fields that worked, the way the focus map
     files a lost point."""
     _an_overview_of_two_fields(monkeypatch)
-    good = bridge._find_targets
+    good = discovery.find_targets
 
     def finder():
         find = good()
@@ -1210,7 +1228,7 @@ def test_a_field_that_fails_does_not_take_the_run_down(monkeypatch):
 
         return _Serial(find_or_die)
 
-    monkeypatch.setattr(bridge, "_find_targets", finder)
+    monkeypatch.setattr(discovery, "find_targets", finder)
     got = _discovered({"settings": {}})
     assert [field["field"] for field in got["fields"]] == [1]
     assert got["done"] == 2
@@ -1232,19 +1250,19 @@ def test_a_worker_put_down_by_the_hand_is_a_stop_not_a_failure(monkeypatch):
 
     def finder():
         def find_and_die(record, field, settings):
-            bridge._stop_targets()
+            discovery.stop_targets()
             raise RuntimeError("worker crashed: put down by the operator")
 
         return _Serial(find_and_die)
 
-    monkeypatch.setattr(bridge, "_find_targets", finder)
-    bridge._discover_targets({"settings": {}})
+    monkeypatch.setattr(discovery, "find_targets", finder)
+    discovery.discover_targets({"settings": {}})
     for _ in range(200):
-        if not bridge._targets["running"]:
+        if not state.targets["running"]:
             break
         time.sleep(0.01)
-    assert bridge._targets["stopped"] is True
-    assert bridge._targets["error"] is None
+    assert state.targets["stopped"] is True
+    assert state.targets["error"] is None
 
 
 def test_a_position_without_a_height_is_scanned_where_the_objective_stands(monkeypatch):
@@ -1274,34 +1292,34 @@ def test_the_reading_survives_a_leica_shaped_state(monkeypatch):
     """The adapter reports `serial_number` and `active_objective`, and its
     `pixel_size` is None when job geometry fails to parse. The reading read
     the mock's keys and crashed on the None."""
-    monkeypatch.setattr(bridge, "_session", _plugged(_Optics({
+    monkeypatch.setattr(state, "session", _plugged(_Optics({
         "serial_number": "STELLARIS-1", "active_objective": {"magnification": 20.0},
         "pixel_size": None, "frame_size": None,
     })))
-    reading = bridge._reading("acquisition")
+    reading = readings.reading("acquisition")
     assert "20x" in reading["summary"]
 
-    monkeypatch.setattr(bridge, "_session", _plugged(_Optics({
+    monkeypatch.setattr(state, "session", _plugged(_Optics({
         "serial_number": "STELLARIS-1", "pixel_size": None, "frame_size": None,
     })))
-    assert "STELLARIS-1" in bridge._reading("acquisition")["summary"]
+    assert "STELLARIS-1" in readings.reading("acquisition")["summary"]
 
 
 def test_a_fresh_connect_forgets_the_last_sessions_runs(monkeypatch, tmp_path):
     """The bridge outlives the page. A new session opened over old records
     rebuilt the previous scan's pictures into the fresh run's view, so a
     just-connected canvas showed a scan nobody had taken."""
-    monkeypatch.setattr(bridge, "_output_root", str(tmp_path))
-    bridge._records["overview"] = [{"stale": True}]
-    bridge._scan.update(running=False, done=5, of=5, error=None, acquisition_type="overview")
-    bridge._focus.update(running=False, done=3, of=3, error=None, points=[{"x": 1}])
+    monkeypatch.setattr(state, "output_root", str(tmp_path))
+    state.records["overview"] = [{"stale": True}]
+    state.scan.update(running=False, done=5, of=5, error=None, acquisition_type="overview")
+    state.focus.update(running=False, done=3, of=3, error=None, points=[{"x": 1}])
     try:
-        bridge._connect({"instrument": bridge.INTERFACE_MOCK})
-        assert bridge._records == {}
-        assert bridge._the_scan()["done"] == 0 and bridge._the_scan()["records"] == []
-        assert bridge._focus["points"] == []
+        connecting.connect({"instrument": connecting.INTERFACE_MOCK})
+        assert state.records == {}
+        assert scan.the_scan()["done"] == 0 and scan.the_scan()["records"] == []
+        assert state.focus["points"] == []
     finally:
-        bridge._disconnect()
+        connecting.disconnect()
 
 
 def test_the_viewer_is_laid_out_over_the_canvas_get_xyz_reports(monkeypatch, tmp_path):
@@ -1313,14 +1331,14 @@ def test_the_viewer_is_laid_out_over_the_canvas_get_xyz_reports(monkeypatch, tmp
     """
     started = {}
     monkeypatch.setattr(
-        bridge.viewer_service, "start", lambda run, **kw: started.update(kw, run=run)
+        viewer_service, "start", lambda run, **kw: started.update(kw, run=run)
     )
-    monkeypatch.setattr(bridge, "_output_root", str(tmp_path))
+    monkeypatch.setattr(state, "output_root", str(tmp_path))
     try:
-        bridge._connect({"instrument": bridge.INTERFACE_MOCK})
-        reading = bridge._session.get_xyz()
+        connecting.connect({"instrument": connecting.INTERFACE_MOCK})
+        reading = state.session.get_xyz()
     finally:
-        bridge._disconnect()
+        connecting.disconnect()
     assert started["canvas"] == {
         f"{axis}_um": reading[axis]["canvas"] for axis in ("x", "y", "z")
     }
@@ -1339,18 +1357,18 @@ def test_a_driver_that_gives_no_canvas_is_said_so_plainly():
         "z": {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0}, "canvas": [-1.0, 11.0]},
     }
     with pytest.raises(RuntimeError, match=r"does not say where its pictures can show along y"):
-        bridge._the_viewers_area(reading)
+        connecting.the_viewers_area(reading)
 
 
 def test_the_optics_line_names_the_leica_lens(monkeypatch):
     """The Leica's objective is {name, magnification, slotIndex} -- no
     aperture, no immersion. The name is what identifies the lens on the
     shelf, and the line read only the mock's sub-keys."""
-    monkeypatch.setattr(bridge, "_session", _plugged(_Optics({
+    monkeypatch.setattr(state, "session", _plugged(_Optics({
         "active_objective": {"name": "HC PL APO 63x/1.40 OIL CS2", "magnification": 63.0},
         "pixel_size": None, "frame_size": None,
     })))
-    assert "HC PL APO 63x/1.40 OIL CS2" in bridge._reading("acquisition")["summary"]
+    assert "HC PL APO 63x/1.40 OIL CS2" in readings.reading("acquisition")["summary"]
 
 
 def test_the_recorded_settings_reach_the_instrument_before_a_focus_map(driver):
@@ -1367,7 +1385,7 @@ def test_the_recorded_settings_reach_the_instrument_before_a_focus_map(driver):
 def test_the_recorded_settings_reach_the_instrument_before_a_scan(monkeypatch):
     driver = _Driver()
     scanned = _scanned(driver, [{"x": 1.0, "y": 2.0, "z": 0.0}], monkeypatch,
-                       state={"job": "Overview"})
+                       recorded={"job": "Overview"})
     assert driver.applied == [{"changeable": {"job": "Overview"}}]
     assert scanned["done"] == 1
 
@@ -1384,18 +1402,18 @@ def test_the_view_is_built_once_per_scan_state(monkeypatch, tmp_path):
     stub.make_what_is_missing = lambda into, fields: built.append(len(fields)) or Path(into)
     monkeypatch.setitem(sys.modules, "zmart_interface.parts.storage.jpeg_tiles", stub)
     record = _kept("overview", position_label="P0")
-    monkeypatch.setattr(bridge, "_records", {"overview": [record]})
-    monkeypatch.setattr(bridge, "_view_built", {})
+    monkeypatch.setattr(state, "records", {"overview": [record]})
+    monkeypatch.setattr(state, "view_built", {})
 
-    (bridge._run / "overview" / "view").mkdir(parents=True)
-    (bridge._run / "overview" / "view" / "tiles.json").write_text("{}", encoding="utf-8")
-    bridge._the_view_of("overview")
-    bridge._the_view_of("overview")
+    (state.run / "overview" / "view").mkdir(parents=True)
+    (state.run / "overview" / "view" / "tiles.json").write_text("{}", encoding="utf-8")
+    pictures.the_view_of("overview")
+    pictures.the_view_of("overview")
     assert built == [1], "the second request found nothing new to build"
 
-    bridge._records["overview"].append(
+    state.records["overview"].append(
         _kept("overview", position_label="P1"))
-    bridge._the_view_of("overview")
+    pictures.the_view_of("overview")
     assert built == [1, 2], "a grown scan is built again"
 
 
@@ -1415,20 +1433,20 @@ def test_a_field_that_lands_during_a_build_is_not_signed_off_as_built(monkeypatc
     def build(into, fields):
         built.append(len(fields))
         if len(built) == 1:
-            bridge._records["overview"].append(
+            state.records["overview"].append(
                 _kept("overview", position_label="P1"))
         return Path(into)
 
     stub.make_what_is_missing = build
     monkeypatch.setitem(sys.modules, "zmart_interface.parts.storage.jpeg_tiles", stub)
     record = _kept("overview", position_label="P0")
-    monkeypatch.setattr(bridge, "_records", {"overview": [record]})
-    monkeypatch.setattr(bridge, "_view_built", {})
-    (bridge._run / "overview" / "view").mkdir(parents=True)
-    (bridge._run / "overview" / "view" / "tiles.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(state, "records", {"overview": [record]})
+    monkeypatch.setattr(state, "view_built", {})
+    (state.run / "overview" / "view").mkdir(parents=True)
+    (state.run / "overview" / "view" / "tiles.json").write_text("{}", encoding="utf-8")
 
-    bridge._the_view_of("overview")
-    bridge._the_view_of("overview")
+    pictures.the_view_of("overview")
+    pictures.the_view_of("overview")
     assert built == [1, 2], "the field that landed mid-build was signed off unbuilt"
 
 
@@ -1448,7 +1466,7 @@ def test_a_measured_point_names_the_slices_of_the_stack_it_kept(monkeypatch):
     stub.make_slice_copies = lambda into, planes: (
         handed.append(planes) or [{"z_um": 1.0, "name": "s_Z00000.jpg"}])
     monkeypatch.setitem(sys.modules, "zmart_interface.parts.storage.jpeg_tiles", stub)
-    monkeypatch.setattr(bridge, "_session", _plugged(_Driver()))
+    monkeypatch.setattr(state, "session", _plugged(_Driver()))
 
     point = _measured({"points": [{"x": 1.0, "y": 2.0}]})["points"][0]
     assert point["slices"] == [{"z_um": 1.0, "name": "s_Z00000.jpg"}]
@@ -1467,10 +1485,10 @@ def test_a_scan_started_again_removes_the_stores_it_will_not_rewrite(monkeypatch
     the page finds out at once."""
     told = []
     monkeypatch.setattr(
-        bridge.viewer_service, "stores_were_retired",
+        viewer_service, "stores_were_retired",
         lambda kind, folder: told.append((kind, Path(folder))),
     )
-    positions = bridge._run / "positions" / "overview"
+    positions = state.run / "positions" / "overview"
     kept = positions / "overview_K00_M000000_G000000_P000000_V00.ome.zarr"
     stale = positions / "overview_K00_M000000_G000000_P000002_V00.ome.zarr"
     for store in (kept, stale):
@@ -1481,14 +1499,14 @@ def test_a_scan_started_again_removes_the_stores_it_will_not_rewrite(monkeypatch
     (aggregate / "publication.json").write_text("published", encoding="utf-8")
     note = positions / "notes.txt"
     note.write_text("keep", encoding="utf-8")
-    half_written = bridge._run / "positions" / ".writing" / "x"
+    half_written = state.run / "positions" / ".writing" / "x"
     half_written.mkdir(parents=True)
-    copies = bridge.view_of("overview")
+    copies = pictures.view_of("overview")
     copies.mkdir(parents=True)
     (copies / "tiles.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(bridge, "_view_built", {"overview": 3})
+    monkeypatch.setattr(state, "view_built", {"overview": 3})
 
-    bridge._replace_the_acquisition("overview", keeping={kept.name})
+    pictures.replace_the_acquisition("overview", keeping={kept.name})
 
     assert told == [("overview", positions)]
     assert kept.is_dir(), "a store the new plan writes again stays for in-place replacement"
@@ -1497,7 +1515,7 @@ def test_a_scan_started_again_removes_the_stores_it_will_not_rewrite(monkeypatch
     assert note.read_text(encoding="utf-8") == "keep"
     assert not half_written.parent.exists()
     assert not copies.exists()
-    assert "overview" not in bridge._view_built
+    assert "overview" not in state.view_built
 
 
 def test_a_scan_that_only_grows_keeps_the_viewer_open(monkeypatch):
@@ -1506,14 +1524,14 @@ def test_a_scan_that_only_grows_keeps_the_viewer_open(monkeypatch):
     the picture is not reopened."""
     told = []
     monkeypatch.setattr(
-        bridge.viewer_service, "stores_were_retired",
+        viewer_service, "stores_were_retired",
         lambda kind, folder: told.append(kind),
     )
-    positions = bridge._run / "positions" / "overview"
+    positions = state.run / "positions" / "overview"
     kept = positions / "overview_K00_M000000_G000000_P000000_V00.ome.zarr"
     kept.mkdir(parents=True)
     (positions / ".zmart-viewer").mkdir()
-    bridge._replace_the_acquisition("overview", keeping={kept.name, "overview_next.ome.zarr"})
+    pictures.replace_the_acquisition("overview", keeping={kept.name, "overview_next.ome.zarr"})
     assert told == []
     assert kept.is_dir()
 
@@ -1525,7 +1543,7 @@ def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(mon
     from zmart_interface.parts.storage.zarr_positions import _describe_mean_pyramid
     from zmart_interface.zmart_storage import declare_image
 
-    positions = bridge._run / "positions" / "overview"
+    positions = state.run / "positions" / "overview"
     names = ["overview_kept.ome.zarr", "overview_retired.ome.zarr"]
     for index, name in enumerate(names):
         store = positions / name
@@ -1555,8 +1573,8 @@ def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(mon
         derived = {path: path.read_bytes() for path in (positions / ".zmart-viewer").rglob("*") if path.is_file()}
         original = {path: path.read_bytes() for path in (positions / names[0]).rglob("*") if path.is_file()}
         told = []
-        monkeypatch.setattr(bridge.viewer_service, "stores_were_retired", lambda *args: told.append(args))
-        bridge._replace_the_acquisition("overview", keeping={names[0]})
+        monkeypatch.setattr(viewer_service, "stores_were_retired", lambda *args: told.append(args))
+        pictures.replace_the_acquisition("overview", keeping={names[0]})
         assert told == [("overview", positions)]
         assert all(path.read_bytes() == content for path, content in derived.items())
         publish(names[:1])
@@ -1575,9 +1593,9 @@ def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(mon
 
 def test_starting_a_scan_names_the_stores_it_keeps_by_the_new_plan(monkeypatch):
     asked = []
-    monkeypatch.setattr(bridge, "_replace_the_acquisition", lambda kind, keeping: asked.append((kind, keeping)))
-    monkeypatch.setattr(bridge.threading, "Thread", lambda **kw: type("T", (), {"start": lambda self: None})())
-    bridge._start_scan({"positions": [{"x": 0, "y": 0}, {"x": 1, "y": 0}], "acquisition_type": "overview"})
+    monkeypatch.setattr(pictures, "replace_the_acquisition", lambda kind, keeping: asked.append((kind, keeping)))
+    monkeypatch.setattr(threading, "Thread", lambda **kw: type("T", (), {"start": lambda self: None})())
+    scan.start_scan({"positions": [{"x": 0, "y": 0}, {"x": 1, "y": 0}], "acquisition_type": "overview"})
     assert asked == [("overview", {
         "overview_K00_M000000_G000000_P000000_V00.ome.zarr",
         "overview_K00_M000000_G000000_P000001_V00.ome.zarr",
@@ -1599,14 +1617,14 @@ def test_a_copy_is_drawn_with_the_display_the_page_asks_with(mock_instrument, mo
     from PIL import Image
 
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
-    monkeypatch.setattr(bridge, "_session", session)
+    monkeypatch.setattr(state, "session", session)
     try:
-        bridge._scan.update(running=True, done=0, of=1, error=None, acquisition_type="overview")
-        bridge._scan_worker([{"x": 0.0, "y": 0.0, "z": 5_000.0}])
-        assert bridge._scan["error"] is None, bridge._scan["error"]
-        label = bridge._records["overview"][0]["position_label"]
+        state.scan.update(running=True, done=0, of=1, error=None, acquisition_type="overview")
+        scan.scan_worker([{"x": 0.0, "y": 0.0, "z": 5_000.0}])
+        assert state.scan["error"] is None, state.scan["error"]
+        label = state.records["overview"][0]["position_label"]
 
-        class _Probe(bridge._Bridge):
+        class _Probe(server.Bridge):
             def __init__(self):
                 self.sent = []
                 self.out = io.BytesIO()
@@ -1652,30 +1670,30 @@ def test_a_copy_is_drawn_with_the_display_the_page_asks_with(mock_instrument, mo
 def test_a_targets_scan_publishes_separate_originals_and_raises_by_order(mock_instrument, monkeypatch, tmp_path):
     """The viewer owns composition; the bridge only publishes originals and order."""
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
-    monkeypatch.setattr(bridge, "_session", session)
-    monkeypatch.setattr(bridge, "_run", bridge.prepare_experiment(str(tmp_path), bridge.EXPERIMENT))
+    monkeypatch.setattr(state, "session", session)
+    monkeypatch.setattr(state, "run", prepare_experiment(str(tmp_path), connecting.EXPERIMENT))
     try:
         positions = [{"x": 1000.0, "y": 1000.0, "z": 0.0}, {"x": 1060.0, "y": 1000.0, "z": 0.0}]
-        bridge._start_scan({"positions": positions, "acquisition_type": "targets"})
+        scan.start_scan({"positions": positions, "acquisition_type": "targets"})
         for _ in range(200):
-            if not bridge._scan["running"]:
+            if not state.scan["running"]:
                 break
             time.sleep(0.1)
-        assert bridge._scan["error"] is None, bridge._scan["error"]
-        assert bridge._scan["done"] == 2
-        assert not [r.get("zarr_error") for r in bridge._scan["records"] if r.get("zarr_error")]
-        watched = sorted(p.name for p in (bridge._the_run() / "positions" / "targets").iterdir())
+        assert state.scan["error"] is None, state.scan["error"]
+        assert state.scan["done"] == 2
+        assert not [r.get("zarr_error") for r in state.scan["records"] if r.get("zarr_error")]
+        watched = sorted(p.name for p in (state.the_run() / "positions" / "targets").iterdir())
         assert len(watched) == 2 and all(name.startswith("targets_") for name in watched)
-        originals = {p: p.read_bytes() for p in (bridge._the_run() / "positions" / "targets").rglob("*") if p.is_file()}
+        originals = {p: p.read_bytes() for p in (state.the_run() / "positions" / "targets").rglob("*") if p.is_file()}
         raised = []
-        monkeypatch.setattr(bridge.viewer_service, "raise_position", lambda *args: raised.append(args))
-        label = bridge._records["targets"][0]["position_label"]
-        assert bridge._raise_target({"position_label": label}) == {"raised": label}
-        assert raised == [("targets", bridge._the_run() / "positions" / "targets",
-                           Path(bridge._records["targets"][0]["zarr"]))]
+        monkeypatch.setattr(viewer_service, "raise_position", lambda *args: raised.append(args))
+        label = state.records["targets"][0]["position_label"]
+        assert targets.raise_target({"position_label": label}) == {"raised": label}
+        assert raised == [("targets", state.the_run() / "positions" / "targets",
+                           Path(state.records["targets"][0]["zarr"]))]
         assert all(p.read_bytes() == data for p, data in originals.items())
         with pytest.raises(ValueError):
-            bridge._raise_target({"position_label": "nobody"})
+            targets.raise_target({"position_label": "nobody"})
     finally:
         session.disconnect()
 
@@ -1686,18 +1704,18 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     own acquisition and scored, the target taken at the peak."""
     _needs_the_analysis_environment("ZMART--focus--main")
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
-    monkeypatch.setattr(bridge, "_session", session)
+    monkeypatch.setattr(state, "session", session)
     # A short run folder: under pytest's own, named after this test, the
     # store's chunk files ran past Windows' 260 characters and the
     # conversion failed on the path alone.
-    monkeypatch.setattr(bridge, "_run", Path(tempfile.mkdtemp(prefix="zmt-")) / "run")
-    bridge._run.mkdir()
+    monkeypatch.setattr(state, "run", Path(tempfile.mkdtemp(prefix="zmt-")) / "run")
+    state.run.mkdir()
     # The real scorer, through the warm analysis: this test is about the
     # whole route, and the fake one reads a height the mock does not write.
-    monkeypatch.setattr(bridge, "_score_a_stack", lambda: bridge.focus_score.through(bridge.warm.the_analysis()))
+    monkeypatch.setattr(focus, "score_a_stack", lambda: focus_score.through(warm.the_analysis()))
     kept = []
-    real_keep = bridge._keep_position_as_zarr
-    monkeypatch.setattr(bridge, "_keep_position_as_zarr", lambda record, kind: (real_keep(record, kind), kept.append((kind, record))))
+    real_keep = pictures.keep_position_as_zarr
+    monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: (real_keep(record, kind), kept.append((kind, record))))
     try:
         # The map first, as a run has it: the coarse job finds the tissue
         # from wherever the objective stands, and the target is driven to
@@ -1705,21 +1723,21 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
         # which only reaches the tissue from near it.
         coarse = _measured({"points": [{"x": 0.0, "y": 0.0}], "state": {"job": "Focussing"}})["points"][0]
         assert coarse["z"] is not None, "the coarse job found no tissue"
-        bridge._apply_state({"job": "Target focussing"})
+        readings.apply_state({"job": "Target focussing"})
         got = _targets_taken(
             [{"x": 0.0, "y": 0.0, "z": coarse["z"], "compartment": 1, "group": 1}], focus=True,
         )
     finally:
         session.disconnect()
     assert got["done"] == 1
-    record = bridge._records["targets"][0]
+    record = state.records["targets"][0]
     stack = next(one for kind, one in kept if kind == "target-focussing")
     assert stack.get("zarr_error") is None, stack["zarr_error"]
     assert len(stack["planes"]) > 1, "the Focussing job takes a stack"
     assert record["focus"]["found"] is True
-    assert (bridge._run / "target-focussing" / "data").is_dir()
-    assert list((bridge._run / "positions" / "target-focussing").glob("*.ome.zarr"))
-    assert list((bridge._run / "positions" / "targets").glob("*.ome.zarr"))
+    assert (state.run / "target-focussing" / "data").is_dir()
+    assert list((state.run / "positions" / "target-focussing").glob("*.ome.zarr"))
+    assert list((state.run / "positions" / "targets").glob("*.ome.zarr"))
 
 
 # --- the multidimensional plots ---------------------------------------------
@@ -1729,19 +1747,19 @@ def _plotted(asked):
     """Start a plot and wait for it, handing back what the page would poll."""
     import time
 
-    bridge._compute_plot(asked)
+    plots.compute_plot(asked)
     for _ in range(600):
-        if not bridge._plots["running"]:
+        if not state.plots["running"]:
             break
         time.sleep(0.05)
-    return dict(bridge._plots)
+    return dict(state.plots)
 
 
 def test_a_plot_needs_the_population_table(monkeypatch):
     """Nothing to plot before the whole overview has been detected."""
     _an_overview_of_two_fields(monkeypatch)
     with pytest.raises(RuntimeError, match="whole overview"):
-        bridge._compute_plot({"kind": "pca"})
+        plots.compute_plot({"kind": "pca"})
 
 
 def test_the_components_are_computed_apart_and_handed_back_as_columns(monkeypatch):
@@ -1758,13 +1776,13 @@ def test_the_components_are_computed_apart_and_handed_back_as_columns(monkeypatc
         out.write_text("id,pca_1,pca_2\nP0_obj1,1.5,-2.0\nP1_obj1,0.5,3.0\n", encoding="utf-8")
         return {"written": {"pca": str(out)}, "objects": 2, "features": ["area"]}
 
-    monkeypatch.setattr(bridge, "_plot_through_the_analysis", pretend)
+    monkeypatch.setattr(plots, "plot_through_the_analysis", pretend)
     got = _plotted({"kind": "pca", "ids": ["P1_obj1", "P0_obj1"]})
     assert got["error"] is None and got["kinds"] == ["pca"] and got["running"] is False
     assert got["objects"] == 2
     assert asked["kind"] == "pca" and asked["ids"] == ["P1_obj1", "P0_obj1"]
     assert asked["table"].name == f"overview_{records[0]['acquisition_hash']}_objects.csv"
-    columns = bridge._plot_columns("pca")
+    columns = plots.plot_columns("pca")
     assert columns == {"columns": ["pca_1", "pca_2"], "ids": ["P0_obj1", "P1_obj1"],
                        "values": [[1.5, 0.5], [-2.0, 3.0]]}
 
@@ -1772,18 +1790,18 @@ def test_the_components_are_computed_apart_and_handed_back_as_columns(monkeypatc
 def test_a_plot_is_refused_while_one_runs_or_detection_runs(monkeypatch):
     _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    bridge._plots["running"] = True
+    state.plots["running"] = True
     try:
         with pytest.raises(RuntimeError, match="already"):
-            bridge._compute_plot({"kind": "pca"})
+            plots.compute_plot({"kind": "pca"})
     finally:
-        bridge._plots["running"] = False
-    bridge._targets["running"] = True
+        state.plots["running"] = False
+    state.targets["running"] = True
     try:
         with pytest.raises(RuntimeError, match="detect"):
-            bridge._compute_plot({"kind": "pca"})
+            plots.compute_plot({"kind": "pca"})
     finally:
-        bridge._targets["running"] = False
+        state.targets["running"] = False
 
 
 def test_a_stopped_plot_says_so_and_a_failed_one_says_why(monkeypatch):
@@ -1791,22 +1809,22 @@ def test_a_stopped_plot_says_so_and_a_failed_one_says_why(monkeypatch):
     _discovered({"settings": {}})
 
     put_down = []
-    monkeypatch.setattr(bridge.warm, "close", lambda: put_down.append(True))
+    monkeypatch.setattr(warm, "close", lambda: put_down.append(True))
 
     def until_stopped(kind, table, ids):
         # The hand's Interrupt puts the analysis worker down, and the job
         # in it dies of that: the death is the stop, not a failure.
-        bridge._stop_plot()
+        plots.stop_plot()
         raise RuntimeError("the worker went away")
 
-    monkeypatch.setattr(bridge, "_plot_through_the_analysis", until_stopped)
+    monkeypatch.setattr(plots, "plot_through_the_analysis", until_stopped)
     got = _plotted({"kind": "umap"})
     assert got["stopped"] is True and got["error"] is None and put_down == [True]
 
     def failing(kind, table, ids):
         raise RuntimeError("only 2 objects; a plot needs at least 10")
 
-    monkeypatch.setattr(bridge, "_plot_through_the_analysis", failing)
+    monkeypatch.setattr(plots, "plot_through_the_analysis", failing)
     got = _plotted({"kind": "umap"})
     assert got["error"] == "only 2 objects; a plot needs at least 10"
 
@@ -1818,9 +1836,9 @@ def test_the_components_are_really_computed_over_a_detected_population(monkeypat
     records = [
         _kept("overview", position_label=f"P{i}") for i in range(12)
     ]
-    monkeypatch.setattr(bridge, "_records", {"overview": records})
+    monkeypatch.setattr(state, "records", {"overview": records})
     monkeypatch.setattr(
-        bridge, "_find_targets",
+        discovery, "find_targets",
         lambda: _Serial(lambda record, field, settings: {"cells": [{
             "id": f"{record['position_label']}_obj1", "field": field, "x": 1.0 * field, "y": 0.0,
             "area": 10.0 + field, "intensity": 3.0, "r": 4.0,
@@ -1830,7 +1848,7 @@ def test_the_components_are_really_computed_over_a_detected_population(monkeypat
     _discovered({"settings": {}})
     got = _plotted({"kind": "pca"})
     assert got["error"] is None, got["error"]
-    columns = bridge._plot_columns("pca")
+    columns = plots.plot_columns("pca")
     assert columns["columns"] == ["pca_1", "pca_2"]
     assert sorted(columns["ids"]) == sorted(f"P{i}_obj1" for i in range(12))
 
@@ -1841,8 +1859,8 @@ def test_a_finished_run_writes_its_protocol_where_the_next_session_lists_it(monk
     with tempfile.TemporaryDirectory() as root:
         run = Path(root) / "target-acquisition_a1b2c3"
         run.mkdir()
-        monkeypatch.setattr(bridge, "_run", run)
-        written = bridge._save_protocol({"protocol": {"version": 1, "carrier": {"rows": 2}}})
+        monkeypatch.setattr(state, "run", run)
+        written = protocols.save_protocol({"protocol": {"version": 1, "carrier": {"rows": 2}}})
         assert Path(written["written"]) == run / "protocol.json"
         assert json.loads((run / "protocol.json").read_text(encoding="utf-8")) == {
             "version": 1, "carrier": {"rows": 2}}
@@ -1858,32 +1876,32 @@ def test_a_finished_run_writes_its_protocol_where_the_next_session_lists_it(monk
         broken.mkdir()
         (broken / "protocol.json").write_text("{not json", encoding="utf-8")
 
-        listed = bridge._protocols()["protocols"]
+        listed = protocols.protocols()["protocols"]
         assert [one["id"] for one in listed] == ["target-acquisition_a1b2c3", "target-acquisition_000000"]
         assert listed[1]["protocol"] == {"version": 1, "carrier": {"rows": 1}}
 
 
 def test_a_saved_protocol_lives_in_the_library_and_is_listed_with_the_runs(monkeypatch):
     with tempfile.TemporaryDirectory() as root:
-        monkeypatch.setattr(bridge, "PROTOCOL_LIBRARY", Path(root) / "protocols")
-        monkeypatch.setattr(bridge, "_run", None)
-        monkeypatch.setattr(bridge, "_output_root", None)
-        written = bridge._save_protocol_to_library({"protocol": {"version": 1}, "name": "kidney / 20x"})
+        monkeypatch.setattr(protocols, "PROTOCOL_LIBRARY", Path(root) / "protocols")
+        monkeypatch.setattr(state, "run", None)
+        monkeypatch.setattr(state, "output_root", None)
+        written = protocols.save_protocol_to_library({"protocol": {"version": 1}, "name": "kidney / 20x"})
         assert Path(written["written"]).name == "kidney _ 20x.json"
-        listed = bridge._protocols()["protocols"]
+        listed = protocols.protocols()["protocols"]
         assert [one["id"] for one in listed] == ["kidney _ 20x"]
         assert listed[0]["saved"] is True
-        unnamed = bridge._save_protocol_to_library({"protocol": {"version": 1}})
+        unnamed = protocols.save_protocol_to_library({"protocol": {"version": 1}})
         assert Path(unnamed["written"]).suffix == ".json"
-        assert len(bridge._protocols()["protocols"]) == 2
+        assert len(protocols.protocols()["protocols"]) == 2
 
 
 def test_without_a_session_there_is_no_protocol_to_list_or_write(monkeypatch):
-    monkeypatch.setattr(bridge, "_run", None)
-    monkeypatch.setattr(bridge, "_output_root", None)
-    assert bridge._protocols() == {"protocols": []}
+    monkeypatch.setattr(state, "run", None)
+    monkeypatch.setattr(state, "output_root", None)
+    assert protocols.protocols() == {"protocols": []}
     with pytest.raises(RuntimeError, match="no session"):
-        bridge._save_protocol({"protocol": {}})
+        protocols.save_protocol({"protocol": {}})
 
 
 def test_before_a_session_the_list_comes_from_the_root_the_entry_names(monkeypatch):
@@ -1892,15 +1910,15 @@ def test_before_a_session_the_list_comes_from_the_root_the_entry_names(monkeypat
         run = Path(root) / "target-acquisition_a1b2c3"
         run.mkdir()
         (run / "protocol.json").write_text('{"version": 1}', encoding="utf-8")
-        monkeypatch.setattr(bridge, "_run", None)
-        monkeypatch.setattr(bridge, "_output_root", None)
-        monkeypatch.setattr(bridge, "PROTOCOL_LIBRARY", Path(root) / "library")
+        monkeypatch.setattr(state, "run", None)
+        monkeypatch.setattr(state, "output_root", None)
+        monkeypatch.setattr(protocols, "PROTOCOL_LIBRARY", Path(root) / "library")
         connection = {"client": "mock-client", "output_root": root}
-        listed = bridge._protocols(connection)["protocols"]
+        listed = protocols.protocols(connection)["protocols"]
         assert [one["id"] for one in listed] == ["target-acquisition_a1b2c3"]
         assert listed[0]["protocol"] == {"version": 1}
         # An entry that names no folder lists only the saved ones, until connected.
-        assert bridge._protocols({**connection, "output_root": None})["protocols"] == []
+        assert protocols.protocols({**connection, "output_root": None})["protocols"] == []
 
 
 def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_drivers(tmp_path):
@@ -1921,8 +1939,8 @@ def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_dri
     register_driver(beads)
     register_driver(Path(mock_microscope.__file__).parent)
 
-    assert bridge._instruments() == ["interface-mock", "mock", "beads"]
-    assert bridge._saved_connection("beads") == {"mock_timing": "instant"}
-    assert bridge._saved_connection("interface-mock") == {"client": "mock-client"}
+    assert connecting.instruments() == ["interface-mock", "mock", "beads"]
+    assert connecting.saved_connection("beads") == {"mock_timing": "instant"}
+    assert connecting.saved_connection("interface-mock") == {"client": "mock-client"}
     with pytest.raises(ValueError, match="no microscope is listed as 'os'"):
-        bridge._connect({"instrument": "os"})
+        connecting.connect({"instrument": "os"})

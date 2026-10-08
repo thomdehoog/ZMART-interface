@@ -63,7 +63,9 @@ def test_failed_canonical_ingestion_never_scores_vendor_pixels():
 @pytest.mark.parametrize("enabled", [False, True])
 def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypatch, enabled):
     import json
-    from zmart_interface.framework import bridge
+
+    from zmart_interface.framework.bridge import connecting, state
+    from zmart_interface.parts.storage import viewer_service
 
     class Session:
         """A controller session answering in its two-part shape."""
@@ -87,19 +89,19 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
             pass
 
     session = Session()
-    monkeypatch.setattr(bridge, "ZmartController", lambda *_: session)
-    monkeypatch.setattr(bridge.viewer_service, "start", lambda *a, **k: None)
-    monkeypatch.setattr(bridge.viewer_service, "stop", lambda: None)
-    monkeypatch.setattr(bridge, "_simulator_pixels_enabled", enabled)
-    for name in ("_session", "_run", "_pixel_provider"):
-        monkeypatch.setattr(bridge, name, None)
-    for name in ("_context", "_records", "_view_built", "_displayed_pictures", "_scan", "_focus", "_targets"):
-        monkeypatch.setattr(bridge, name, {})
-    bridge._connect({"instrument": bridge.INTERFACE_MOCK})
-    first = bridge._pixel_provider
+    monkeypatch.setattr(connecting, "ZmartController", lambda *_: session)
+    monkeypatch.setattr(viewer_service, "start", lambda *a, **k: None)
+    monkeypatch.setattr(viewer_service, "stop", lambda: None)
+    monkeypatch.setattr(state, "simulator_pixels_enabled", enabled)
+    for name in ("session", "run", "pixel_provider"):
+        monkeypatch.setattr(state, name, None)
+    for name in ("context", "records", "view_built", "displayed_pictures", "scan", "focus", "targets"):
+        monkeypatch.setattr(state, name, {})
+    connecting.connect({"instrument": connecting.INTERFACE_MOCK})
+    first = state.pixel_provider
     if enabled:
         assert first.focus_z_um == 420
-        assert json.loads((bridge._run / "synthetic-specimen.json").read_text())["focus_z_um"] == 420
+        assert json.loads((state.run / "synthetic-specimen.json").read_text())["focus_z_um"] == 420
         near = first((64,64), np.uint8, plane={"x_um":512,"y_um":512,"z_um":420,"c":0}, pixel_um=(2,2))
         assert len(np.unique(near)) > 2  # user's failed case had only values 3 and 4
         session.height = 435
@@ -109,9 +111,9 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         # Connect reads the stage once, for the canvas the viewer is laid out over.
         assert first is None and session.reads == 1
         session.height = 435
-    bridge._connect({"instrument": bridge.INTERFACE_MOCK})
+    connecting.connect({"instrument": connecting.INTERFACE_MOCK})
     if enabled:
-        assert bridge._pixel_provider.focus_z_um == 435
+        assert state.pixel_provider.focus_z_um == 435
         assert first.focus_z_um == 420
         assert session.reads == 2
     else:
