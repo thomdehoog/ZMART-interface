@@ -8,9 +8,9 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 from zmart_interface.parts.microscope import detection
 

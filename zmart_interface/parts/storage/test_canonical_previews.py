@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from zmart_interface.framework import bridge
+from zmart_interface.framework.bridge import pictures, server, state
 from zmart_interface.parts.storage.jpeg_tiles import make_slice_copies
 from zmart_interface.zmart_storage import declare_image
 
@@ -48,17 +48,17 @@ def preview_server(monkeypatch, tmp_path, canonical_store):
         # Deliberately nonexistent vendor paths: previews must use the store.
         "planes": [{"t": 0, "c": c, "path": "missing-vendor.tif"} for c in range(2)],
     }
-    monkeypatch.setattr(bridge, "_run", tmp_path)
-    monkeypatch.setattr(bridge, "_records", {k: [record] for k in ("overview", "targets")})
-    monkeypatch.setattr(bridge, "_displayed_pictures", {})
-    server = ThreadingHTTPServer(("127.0.0.1", 0), bridge._Bridge)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    monkeypatch.setattr(state, "run", tmp_path)
+    monkeypatch.setattr(state, "records", {k: [record] for k in ("overview", "targets")})
+    monkeypatch.setattr(state, "displayed_pictures", {})
+    bridge_server = ThreadingHTTPServer(("127.0.0.1", 0), server.Bridge)
+    thread = threading.Thread(target=bridge_server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_port}"
+        yield f"http://127.0.0.1:{bridge_server.server_port}"
     finally:
-        server.shutdown()
-        server.server_close()
+        bridge_server.shutdown()
+        bridge_server.server_close()
         thread.join(timeout=5)
 
 
@@ -89,7 +89,7 @@ def test_focus_slices_are_generated_and_served_at_physical_heights(
     canonical_store, preview_server,
 ):
     slices = make_slice_copies(
-        bridge.view_of("focussing"), [], store=canonical_store, z_shift_um=3,
+        pictures.view_of("focussing"), [], store=canonical_store, z_shift_um=3,
     )
     assert [entry["z_um"] for entry in slices] == [13, 15, 17]
     pixels = [
