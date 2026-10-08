@@ -48,8 +48,11 @@ def test_real_detector_sees_objects_outside_middle_plane(tmp_path, depth):
     assert old["n_objects"] == 0
     assert result["masks"][20, 20] > 0
     assert result["masks"][44, 44] > 0
-    assert result["image_2d"][20, 20] == 10000
-    assert result["image_2d"][44, 44] == 20000
+    # The image the detector read: the one channel asked for, as a plane.
+    read = np.asarray(result["image"])
+    read = read if read.ndim == 2 else read[..., 0]
+    assert read[20, 20] == 10000
+    assert read[44, 44] == 20000
     # Rerunning the same position path must consume its rewritten stack.
     for i, plane in enumerate(record["planes"]):
         image = np.zeros((64, 64), np.uint16)

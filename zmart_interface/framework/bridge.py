@@ -89,11 +89,11 @@ during a scan waits briefly rather than failing.
 
 Which microscope answers is the operator's choice, made on the Connect step
 from ``GET /api/instruments``: the interface's own mock microscope, listed as
-``interface-mock``, then the drivers registered on this computer, by their
-names (``zmart_controller.get_drivers()``: the controller's own mock,
-``mock``, first). A driver is registered once on a computer with
-``zmart_controller.register_driver(<its zmart_controller_plugin.py>)``, and
-the bridge plugs it in by its name.
+``interface-mock``, then the drivers installed on this computer, by their
+names (``zmart_controller.get_instruments()``: the controller's own mock,
+``mock``, first). A driver is installed once on a computer with
+``zmart_controller.register_driver(<its zmart_driver.json>)``, and the bridge
+plugs it in by its name, as one ``ZmartController`` of its own.
 
 Run it on its own, for a browser instead of the window::
 
@@ -113,9 +113,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import zmart_controller
-import zmart_controller.session
-from zmart_controller.utils import config_root, find_driver
+from zmart_controller import ZmartController
+from zmart_controller.registry import config_root, find_driver, get_instruments
 
 from zmart_interface import mock_microscope
 from zmart_interface.parts.analysis import warm
@@ -216,19 +215,19 @@ def _instruments() -> list[str]:
     """The microscopes the Connect step offers, by name, in the order it shows them.
 
     The interface's own mock first, so a page opened by accident drives
-    nothing real, then every driver registered on this computer, as the
+    nothing real, then every driver installed on this computer, as the
     controller lists them.
     """
-    return [INTERFACE_MOCK, *(name for name in zmart_controller.get_drivers() if name != INTERFACE_MOCK)]
+    return [INTERFACE_MOCK, *(name for name in get_instruments() if name != INTERFACE_MOCK)]
 
 
 def _saved_connection(name: str) -> dict:
     """The connection a listed microscope is plugged in with, before anything is added to it.
 
-    For a registered driver, its own ``CONNECTION``, or the one saved when it
-    was registered. Finding it
-    imports the driver, which is why a name that is not listed is refused
-    first: the page can only ever name a microscope this computer offers.
+    For an installed driver, the connection its ``zmart_driver.json`` gives.
+    Finding it imports the driver, which is why a name that is not listed is
+    refused first: the page can only ever name a microscope this computer
+    offers.
     """
     if name == INTERFACE_MOCK:
         return dict(mock_microscope.CONNECTION)
@@ -274,10 +273,10 @@ def _connect(asked: dict) -> dict:
     if _output_root is not None:
         connection["output_root"] = _output_root
     global _run
-    # A session of the bridge's own, not the controller's one "active"
-    # microscope: the bridge opens and closes it, and nothing else may.
+    # A controller of the bridge's own, not the module-level ``mic`` that
+    # scripts share: the bridge opens and closes it, and nothing else may.
     driver = mock_microscope if name == INTERFACE_MOCK else name
-    _session = Instrument(zmart_controller.session.set_instrument(driver, connection))
+    _session = Instrument(ZmartController(driver, connection))
     _context = {**_session.context, "name": name}
     if driver is mock_microscope:
         mock_microscope.open_the_window(connection)

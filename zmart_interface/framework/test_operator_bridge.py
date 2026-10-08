@@ -20,8 +20,7 @@ import time
 from pathlib import Path
 
 import pytest
-import zmart_controller
-import zmart_controller.session
+from zmart_controller import ZmartController, register_driver
 
 from zmart_interface import mock_microscope
 from zmart_interface.framework import bridge
@@ -75,7 +74,7 @@ def _needs_the_analysis_environment(name: str) -> None:
 
 def _a_mock_session(instrument) -> Instrument:
     """The mock microscope through the controller, as the bridge connects it."""
-    return Instrument(zmart_controller.session.set_instrument(mock_microscope, instrument))
+    return Instrument(ZmartController(mock_microscope, instrument))
 
 
 class _Driver:
@@ -1907,17 +1906,20 @@ def test_before_a_session_the_list_comes_from_the_root_the_entry_names(monkeypat
 def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_drivers(tmp_path):
     """The Connect step offers the interface's mock, then the controller's list of drivers.
 
-    A driver registered once on the computer appears by its name, and connect
-    plugs it in by that name with its own connection. The interface's mock is
-    offered once, registered or not. A name that is not listed is refused
-    before anything is imported.
+    A driver installed once on the computer (its ``zmart_driver.json``
+    registered) appears by its name, and connect plugs it in by that name with
+    the connection the file gives. The interface's mock is offered once,
+    installed or not. A name that is not listed is refused before anything is
+    imported.
     """
-    beads = tmp_path / "beads" / "zmart_controller_plugin.py"
-    beads.parent.mkdir()
-    beads.write_text('from zmart_controller.mock import *  # noqa\n'
-                     'NAME = "beads"\nCONNECTION = {"mock_timing": "instant"}\n')
-    zmart_controller.register_driver(beads)
-    zmart_controller.register_driver(Path(mock_microscope.__file__).parent)
+    beads = tmp_path / "beads"
+    beads.mkdir()
+    (beads / "zmart_driver.py").write_text("from zmart_controller.mock import *  # noqa\n")
+    (beads / "zmart_driver.json").write_text(json.dumps({
+        "name": "beads", "driver": "zmart_driver.py", "connection": {"mock_timing": "instant"},
+    }))
+    register_driver(beads)
+    register_driver(Path(mock_microscope.__file__).parent)
 
     assert bridge._instruments() == ["interface-mock", "mock", "beads"]
     assert bridge._saved_connection("beads") == {"mock_timing": "instant"}
