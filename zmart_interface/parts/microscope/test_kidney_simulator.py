@@ -77,16 +77,17 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
 
         def get_xyz(self):
             self.reads += 1
-            content = {axis: {"value": 0.0, "actuator": "motoric", "canvas": [-50.0, 1050.0]}
+            content = {axis: {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0},
+                              "canvas": [-50.0, 1050.0]}
                        for axis in ("x", "y", "z")}
-            content["z"]["value"] = self.height
+            content["z"]["position"] = self.height
             return {"success": True, "content": content}
 
         def disconnect(self):
             pass
 
     session = Session()
-    monkeypatch.setattr(bridge.zmart_controller.session, "set_instrument", lambda *_: session)
+    monkeypatch.setattr(bridge, "ZmartController", lambda *_: session)
     monkeypatch.setattr(bridge.viewer_service, "start", lambda *a, **k: None)
     monkeypatch.setattr(bridge.viewer_service, "stop", lambda: None)
     monkeypatch.setattr(bridge, "_simulator_pixels_enabled", enabled)

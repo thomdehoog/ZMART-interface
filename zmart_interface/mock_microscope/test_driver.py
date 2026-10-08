@@ -20,9 +20,7 @@ from __future__ import annotations
 import os
 
 import pytest
-import zmart_controller
-import zmart_controller.session
-from zmart_controller.utils import check_acquire_answer, validate_driver
+from zmart_controller import ZmartController, check_acquire_answer, validate_driver
 
 from zmart_interface import mock_microscope
 from zmart_interface.mock_microscope import driver as mock_driver
@@ -42,7 +40,7 @@ def test_the_mock_fits_the_controllers_contract(mock_instrument):
 
 def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
     """``files`` names the images and the state printed beside them, as the controller's contract asks."""
-    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
+    raw = ZmartController(mock_microscope, mock_instrument)
     try:
         answer = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})
     finally:
@@ -55,7 +53,7 @@ def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
 
 def test_the_folder_setting_says_where_the_files_go(mock_instrument):
     """``folder`` groups a capture's files; left empty, they go straight into the output folder."""
-    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
+    raw = ZmartController(mock_microscope, mock_instrument)
     try:
         assert raw.get_acquisition_settings()["content"]["folder"]["active"] == ""
         grouped = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})
@@ -71,7 +69,7 @@ def test_the_folder_setting_says_where_the_files_go(mock_instrument):
 
 def test_a_stack_says_which_depth_and_height_each_picture_is(mock_instrument):
     """Every plane of a focus stack fits the controller's ``planes`` contract, one depth each."""
-    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
+    raw = ZmartController(mock_microscope, mock_instrument)
     try:
         answer = raw.acquire(position_label="F0", acquisition_settings={"folder": "focussing"})
     finally:
@@ -95,7 +93,7 @@ def test_the_canvas_holds_a_picture_taken_anywhere_the_stage_can_go(mock_instrum
     widest = max(px * um for px, um in (mock_driver.frame_of(job, "overview") for job in mock_driver.JOBS))
     stacks = [{"z_planes": 1, "z_step_um": 0.0}, *mock_driver.JOB_STACKS.values()]
     deepest = max((one["z_planes"] - 1) * one["z_step_um"] for one in stacks)
-    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
+    raw = ZmartController(mock_microscope, mock_instrument)
     try:
         report = raw.get_xyz()["content"]
     finally:
@@ -109,7 +107,7 @@ def test_the_canvas_holds_a_picture_taken_anywhere_the_stage_can_go(mock_instrum
 
 def test_the_mock_says_nothing_of_a_canvas_in_get_info(mock_instrument):
     """The area pictures can cover is get_xyz's, per axis; get_info no longer carries a copy."""
-    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
+    raw = ZmartController(mock_microscope, mock_instrument)
     try:
         assert "canvas" not in raw.get_info()["content"]
     finally:
@@ -118,7 +116,7 @@ def test_the_mock_says_nothing_of_a_canvas_in_get_info(mock_instrument):
 
 def test_a_field_taken_before_the_stage_has_moved_lies_within_the_canvas(mock_instrument):
     """Right after Connect, where an operator may first press Acquire, the field is on the canvas."""
-    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
+    raw = ZmartController(mock_microscope, mock_instrument)
     try:
         canvas = raw.get_xyz()["content"]
         report = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})["content"]
@@ -133,7 +131,7 @@ def test_a_field_taken_before_the_stage_has_moved_lies_within_the_canvas(mock_in
 
 
 def test_every_answer_comes_in_two_parts(mock_instrument):
-    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
+    raw = ZmartController(mock_microscope, mock_instrument)
     try:
         info = raw.get_info()
         assert info["success"] is True
@@ -144,11 +142,17 @@ def test_every_answer_comes_in_two_parts(mock_instrument):
 
 
 def test_a_move_outside_the_travel_is_refused_and_nothing_moves(mock_instrument):
-    """The canvas is wider than the travel; a move past the travel is a mistake, refused before moving."""
-    raw = zmart_controller.session.set_instrument(mock_microscope, mock_instrument)
+    """The canvas is wider than the travel; a move past the travel is a mistake, refused before moving.
+
+    The mock raises before anything moves, and the controller turns that into
+    the declined answer every caller reads: ``success`` False, with the
+    reason as the content.
+    """
+    raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        with pytest.raises(ValueError, match=r"x = 1e\+07 um is outside the stage's travel"):
-            raw.set_xyz(10_000_000.0, 0.0, 0.0)
+        refused = raw.set_xyz(10_000_000.0, 0.0, 0.0)
+        assert refused["success"] is False
+        assert "x = 1e+07 um is outside the stage's travel" in refused["content"]
         assert raw.get_xyz()["content"]["x"]["position"] == 0.0
     finally:
         raw.disconnect()

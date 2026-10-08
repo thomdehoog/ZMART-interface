@@ -80,7 +80,9 @@ def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
         "synthetic_pixels": SimulatorPixels.recipe,
     }
     result = detect_objects.run({"input": inp}, {})
-    np.testing.assert_array_equal(result["preprocess"]["image"][..., 1], 900)
+    # The step publishes the channels it read under its own name, the extra
+    # channel last, so the feature step can measure in every colour.
+    np.testing.assert_array_equal(result["detect_objects"]["image"][..., 1], 900)
     assert result["detect_objects"]["n_objects"] > 0
     checkpoint = json.loads(
         next((tmp_path / "analysis").rglob("detection_checkpoint.json")).read_text()

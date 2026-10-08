@@ -78,9 +78,9 @@ def unwrap(answer: Any, doing: str) -> Any:
 class Instrument:
     """A controller session whose methods return the content rather than the reply.
 
-    Wraps the :class:`zmart_controller.Session` the bridge opened. ``context``
-    names the driver module that was plugged in (``{"driver": ...}``), as the
-    session does. Every other method calls the session's command of the same
+    Wraps the :class:`zmart_controller.ZmartController` the bridge opened.
+    ``context`` names the driver that was plugged in (``{"driver": ...}``),
+    as the controller does. Every other method calls the session's command of the same
     name and returns its content, or raises :class:`InstrumentDeclined`.
     """
 
