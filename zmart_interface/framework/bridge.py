@@ -192,7 +192,9 @@ def _a_run_has_the_stage() -> bool:
 def _the_stage_was_sent_to(x: float, y: float, z: float) -> None:
     """A run's own record of where it drove the stage, for the clock above."""
     global _last_xyz
-    _last_xyz = {"x": {"value": float(x)}, "y": {"value": float(y)}, "z": {"value": float(z)}}
+    _last_xyz = {
+        "x": {"position": float(x)}, "y": {"position": float(y)}, "z": {"position": float(z)},
+    }
 
 # How the driver was chosen; filled by connect, shown by /api/connect replies.
 _context: dict = {}
@@ -296,7 +298,7 @@ def _connect(asked: dict) -> dict:
         from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels
 
         try:
-            _pixel_provider = KidneyPixels(focus_z_um=float(standing["z"]["value"]))
+            _pixel_provider = KidneyPixels(focus_z_um=float(standing["z"]["position"]))
             _pixel_provider.recipe["focus_reference"] = "session-connect"
         except Exception:
             _session.disconnect()
@@ -621,18 +623,20 @@ def _drive_to(asked: dict) -> dict:
     """
     session = _require_session()
     standing = session.get_xyz()
-    here = lambda axis: float(standing.get(axis, {}).get("value", 0.0))  # noqa: E731
+    here = lambda axis: float(standing.get(axis, {}).get("position", 0.0))  # noqa: E731
     went = session.set_xyz(
         float(asked.get("x", here("x"))),
         float(asked.get("y", here("y"))),
         float(asked["z"]) if asked.get("z") is not None else here("z"),
     )
-    arrived = (went or {}).get("position")
     global _last_xyz
-    if not arrived:
+    # The controller's set_xyz answers exactly like get_xyz, read back after
+    # the stage has arrived, so that answer is the reading. A driver that
+    # answers something else is asked once more.
+    if isinstance(went, dict) and all(axis in went for axis in ("x", "y", "z")):
+        _last_xyz = went
+    else:
         _last_xyz = session.get_xyz()
-        return _last_xyz
-    _last_xyz = {axis: {"value": float(arrived[axis])} for axis in ("x", "y", "z") if axis in arrived}
     return _last_xyz
 
 
@@ -797,7 +801,7 @@ def _scan_worker(
                     # every scan, while the panel above reported a measured
                     # focus map.
                     if standing is None:
-                        standing = float(session.get_xyz()["z"]["value"])
+                        standing = float(session.get_xyz()["z"]["position"])
                     z = standing
                 session.set_xyz(float(position["x"]), float(position["y"]), float(z))
                 _the_stage_was_sent_to(position["x"], position["y"], z)

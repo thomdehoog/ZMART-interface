@@ -3048,8 +3048,8 @@ let stageWatch = null;
       try {
         const at = await backend.set_xyz({ x, y });
         return {
-          x: Number(at.x.value), y: Number(at.y.value),
-          z: Number(at.z?.value ?? 0),
+          x: Number(at.x.position), y: Number(at.y.position),
+          z: Number(at.z?.position ?? 0),
         };
       } catch (why) {
         console.warn(`the stage would not go there: ${why.message}`);
