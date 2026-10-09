@@ -116,11 +116,20 @@ Object.assign(page, installRunner(page));
 Object.assign(page, installTabs(page));
 Object.assign(page, installSide(page));
 
-/* The workflows: each wires itself to the page once, whether or not it is
-   the one open -- its panels are built and kept, so what draws on them is
-   wired once too, and switching workflows shows a different set rather than
-   rebuilding. A flow with no `install` has nothing to wire. */
-for (const flow of Object.values(WORKFLOWS)) flow.install?.(page);
+/* The workflows: each wires itself to the page once, the first time a run of
+   it begins -- as the page opens on it, or when the operator chooses it --
+   so that `page.run` is a run of its own when it does. Its panels are built
+   and kept from the start, so what it draws on them is wired once too, and
+   switching workflows shows a different set rather than rebuilding. A flow
+   with no `install` has nothing to wire. The flow is told the folder it is
+   installed under, so its hooks can ask whether it is the workflow open. */
+const installed = new Set();
+page.installWorkflow = (folder) => {
+  if (installed.has(folder) || !WORKFLOWS[folder]) return;
+  installed.add(folder);
+  WORKFLOWS[folder].install?.(page, { folder });
+};
+page.installWorkflow(OPENS_ON);
 
 /* Left where a test can reach it: the framework's fields, and whatever the
    workflow of the moment exposes of its own. */
@@ -137,8 +146,10 @@ mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data
  * A workflow arriving after the page opened -- loaded from a package
  * installed on this machine, or handing itself over through
  * `globalThis.zmart.register` -- joins the ones built in: assembled the same
- * way, its panels built beside the others, its `install` run, the chooser
- * drawn again. The run that is open is left as it is.
+ * way, its panels built beside the others, the chooser drawn again; its
+ * `install` runs when it is first chosen. The run that is open is left as it
+ * is, unless the page's address asked for this very workflow, which the page
+ * then opens on, as it would have had the workflow been built in.
  */
 page.registerWorkflow = (folder, flow) => {
   const { WORKFLOWS: assembled } = assembleWorkflows({ [`${folder}/flow.js`]: flow });
@@ -146,9 +157,9 @@ page.registerWorkflow = (folder, flow) => {
   if (!arrived || WORKFLOWS[folder]) return null;
   WORKFLOWS[folder] = arrived;
   buildThePanels({ [folder]: arrived }, page.panels);
-  arrived.install?.(page);
   page.renderChooser();
-  page.renderAll();
+  if (WORKFLOW_ASKED_FOR === folder) page.switchWorkflow(folder);
+  else page.renderAll();
   return arrived;
 };
 

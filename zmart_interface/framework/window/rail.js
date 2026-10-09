@@ -93,6 +93,9 @@ export function installRail(page) {
       if (panel.foot) panel.foot.textContent = "";
     }
     startOver(state, backendFor(), WORKFLOWS[state.wf]);
+    /* A workflow chosen for the first time wires itself to the page now,
+       with a run of its own in place. */
+    page.installWorkflow(state.wf);
     page.focusPanelsFor(0);
     for (const reset of page.onReset) reset();
     page.renderAll();
