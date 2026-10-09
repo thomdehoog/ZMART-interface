@@ -10,10 +10,17 @@ folder with a `flow.js` in it; nothing else in the interface has to change,
 because the framework finds these folders by looking
 (`../framework/rules/finding-workflows.js` says how).
 
-There is one today:
+There is one built into the page today:
 
 - **`target_acquisition/`** — a run on a microscope that has already been set
   up: find the targets on an overview and acquire them.
+
+A workflow does not have to live in this folder, or in this repository. One
+written elsewhere is built into a small package and installed on a computer
+with `zmart_interface.register_workflow`; the page there offers it without
+being rebuilt. `../../docs/writing-a-workflow.md` says how, and the
+framework's own fixture, `../framework/fixtures/three_steps/`, is one written
+that way.
 
 Setting a microscope up -- its travel limits, which way the picture is turned,
 how the objectives line up, and where its coordinates count from -- is done
@@ -187,11 +194,17 @@ drives nothing and keeps nothing of its own needs only the first two.
   when the panel comes on screen or its room changes, since a hidden box has
   no size to draw into.
 - `opensFirst` — the workflow a fresh page opens on.
-- `install(page)` — how the workflow wires itself to the page, once, when the
-  page opens. Target acquisition opens its canvas here and lends its steps'
-  functions to the page. This is also where a workflow pushes to the page's
-  hook lists (below). Every workflow's `install` runs at start, whether or
-  not it is the one open, because its panels are built and kept.
+- `install(page, { folder })` — how the workflow wires itself to the page,
+  once, the first time a run of it begins: as the page opens on it, or when
+  the operator chooses it. `page.run` is then a run of this workflow, with
+  its own `freshState` keys in place. Target acquisition opens its canvas
+  here and lends its steps' functions to the page. This is also where a
+  workflow pushes to the page's hook lists (below). `folder` is the name the
+  workflow is installed under; since the hooks are called for every
+  workflow's run, a hook that reads this workflow's own keys or asks its
+  backend first checks that it is the one open, `page.run.wf === folder`.
+  The panels, by contrast, are built for every workflow when the page opens,
+  so what a workflow draws on them is wired once and kept.
 - `backendFor(search)` — which backend the steps speak to, given the page's
   own address (a `URLSearchParams`): target acquisition answers the bridge, or
   the in-browser rehearsal for `?backend=pretend`. A workflow that drives
