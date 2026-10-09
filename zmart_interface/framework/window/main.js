@@ -81,10 +81,10 @@ const backendFor = () =>
 const WORKFLOW_ASKED_FOR = new URLSearchParams(location.search).get("workflow");
 
 const backend = backendFor();
-const state = freshRun({
-  workflow: WORKFLOWS[WORKFLOW_ASKED_FOR] ? WORKFLOW_ASKED_FOR : DEFAULT_WORKFLOW,
-  backend,
-});
+const OPENS_ON = WORKFLOWS[WORKFLOW_ASKED_FOR] ? WORKFLOW_ASKED_FOR : DEFAULT_WORKFLOW;
+/* The framework's keys of the run, and beside them whatever the workflow
+   says a run of it holds; the framework reads none of the latter. */
+const state = freshRun({ workflow: OPENS_ON, backend, flow: WORKFLOWS[OPENS_ON] });
 
 /* The keys that stay for the rest of the run once a step has asked for one.
    `panelsFor` is handed these rather than knowing any of them. */
@@ -119,8 +119,9 @@ Object.assign(page, installSide(page));
 /* The workflow: its canvas, and what its steps lend the page. */
 installTargetAcquisition(page);
 
-/* Left where a test can reach it. */
-exposeTheRunForTests(state);
+/* Left where a test can reach it: the framework's fields, and whatever the
+   workflow of the moment exposes of its own. */
+exposeTheRunForTests(state, () => WORKFLOWS[state.wf]);
 
 /* A change of theme repaints everything that chose its colours itself. */
 const mo = new MutationObserver(() => {
