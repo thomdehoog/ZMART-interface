@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { theCanvasOf } from "./canvas.js";
 
 const reading = (canvas = {}) => Object.fromEntries(["x", "y", "z"].map((axis) => [axis, {
-  value: 0, actuator: "motoric",
+  position: 0, unit: "micrometer", actuators: { motoric: 0 },
   ...(canvas[axis] === undefined ? { canvas: [-5, 105] } : canvas[axis] ? { canvas: canvas[axis] } : {}),
 }]));
 

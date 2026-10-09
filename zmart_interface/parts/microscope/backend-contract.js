@@ -30,9 +30,9 @@
 
 /** Micrometres per axis, out of the reading either backend answers with. */
 export const um = (reading) => ({
-  x: reading.x.value,
-  y: reading.y.value,
-  z: reading.z.value,
+  x: reading.x.position,
+  y: reading.y.position,
+  z: reading.z.position,
 });
 
 /**
@@ -88,8 +88,8 @@ export function promisesOfABackend(expect) {
       async keep(backend) {
         const at = await backend.get_xyz();
         for (const axis of ["x", "y", "z"]) {
-          expect(typeof at[axis].value, `${axis} is a number`).toBe("number");
-          expect(Number.isFinite(at[axis].value), `${axis} is finite`).toBe(true);
+          expect(typeof at[axis].position, `${axis} is a number`).toBe("number");
+          expect(Number.isFinite(at[axis].position), `${axis} is finite`).toBe(true);
         }
       },
     },
@@ -270,12 +270,12 @@ export function promisesOfABackend(expect) {
         /* The page lays the stage out from `get_xyz`'s canvas and lists the
            checks under Connect. The mock always reported both; the Leica once
            reported neither, so a real connect drew a stage of no size with
-           nothing to say. Each axis says exactly its position, its motor and
-           its canvas; the travel stays inside the driver. */
+           nothing to say. Each axis says exactly its position, its unit, its
+           motors and its canvas; the travel stays inside the driver. */
         const at = await backend.get_xyz();
         for (const axis of ["x", "y", "z"]) {
-          expect(Object.keys(at[axis]).sort(), `${axis} reads value, actuator and canvas`)
-            .toEqual(["actuator", "canvas", "value"]);
+          expect(Object.keys(at[axis]).sort(), `${axis} reads position, unit, actuators and canvas`)
+            .toEqual(["actuators", "canvas", "position", "unit"]);
           const { canvas } = at[axis];
           expect(Array.isArray(canvas) && canvas.length === 2, `${axis} has a canvas`).toBe(true);
           expect(canvas[0], `${axis}'s canvas runs low to high`).toBeLessThanOrEqual(canvas[1]);
