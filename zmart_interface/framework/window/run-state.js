@@ -102,7 +102,17 @@ export function startOver(state, backend, flow) {
   const fresh = freshRun({ workflow: state.wf, backend, flow });
   const kept = new Set([...KEPT_ACROSS_SESSIONS, ...(flow?.keptAcrossSessions ?? [])]);
   for (const key of Object.keys(fresh)) {
-    if (!kept.has(key)) state[key] = fresh[key];
+    /* A kept key stays as it is -- unless it is not there at all, because
+       another workflow was open in between and took it off the document;
+       then it starts fresh like the rest. */
+    if (!kept.has(key) || !(key in state)) state[key] = fresh[key];
+  }
+  /* What the previous workflow kept on the document and this one does not
+     name goes too: a workflow chosen after a microscope run must not find
+     that run's carrier and cells where it expected nothing. Functions the
+     page attached to the document stay, since they are the page's. */
+  for (const key of Object.keys(state)) {
+    if (!(key in fresh) && !kept.has(key) && typeof state[key] !== "function") delete state[key];
   }
 }
 

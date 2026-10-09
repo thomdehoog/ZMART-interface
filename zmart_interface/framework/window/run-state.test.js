@@ -75,6 +75,32 @@ describe("starting over", () => {
     expect(run.counted).toBe(0);
   });
 
+  it("takes the previous workflow's keys off the document when another is chosen", () => {
+    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
+    run.carrier.kind = "slide"; run.cells.set(1, {});
+    run.staleSteps = () => [];
+    run.wf = "three_steps";
+    startOver(run, NO_BACKEND, threeSteps);
+    for (const key of A_MICROSCOPES_KEYS) expect(run, key).not.toHaveProperty(key);
+    expect(run.counted).toBe(0);
+    /* What the page attached stays: it is the page's, not a workflow's. */
+    expect(typeof run.staleSteps).toBe("function");
+    expect(run.wf).toBe("three_steps");
+  });
+
+  it("lays a kept key afresh when another workflow took it off the document in between", () => {
+    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
+    run.session.password = "hunter2";
+    run.wf = "three_steps";
+    startOver(run, NO_BACKEND, threeSteps);
+    expect(run).not.toHaveProperty("session");
+    run.wf = "target_acquisition";
+    startOver(run, NO_BACKEND, targetAcquisition);
+    expect(run.session).toBeDefined();
+    expect(run.session.password).not.toBe("hunter2");
+    expect(run.instruments).toEqual([]);
+  });
+
   it("keeps target acquisition's session and instruments, as before", () => {
     const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
     run.session.password = "hunter2"; run.instruments = [{ key: "mock" }]; run.carrier.kind = "slide";
