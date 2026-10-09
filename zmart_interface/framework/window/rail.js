@@ -17,24 +17,52 @@ import { startOver } from "./run-state.js";
 
 /**
  * Put the rail on the page. Answers the functions the rest of the page calls:
- * `renderRail`, `readiness`, `stateEdited`, `resetRun` and `switchWorkflow`.
+ * `renderRail`, `renderChooser`, `refuseWorkflow`, `readiness`,
+ * `stateEdited`, `resetRun` and `switchWorkflow`.
  */
 export function installRail(page) {
   const { run: state, panels: thePanels, steps, step, WORKFLOWS, backendFor } = page;
 
   const selectEl = el("wf-select");
-  for (const [key, wf] of Object.entries(WORKFLOWS)) {
-    const opt = document.createElement("option");
-    opt.value = key; opt.textContent = wf.name;
-    /* Each workflow's own sentence about itself, shown when the pointer rests on
-       it. A name has to be short enough for the rail, which is not always long
-       enough to say what a workflow is for — and it matters most for the one
-       that is a demonstration rather than a run, because somebody choosing it by
-       mistake should be able to find that out before they choose it. */
-    opt.title = wf.blurb;
-    selectEl.append(opt);
+
+  /* The workflows installed on the machine that the page would not load,
+     each with the sentence saying why: listed in the chooser, greyed, so the
+     operator who installed one learns what happened where they would look. */
+  const refused = [];
+
+  /**
+   * Fill the chooser: one entry per workflow the page offers, built in or
+   * loaded from a package, and a greyed entry per package refused. Drawn
+   * again whenever a workflow arrives after the page opened.
+   */
+  function renderChooser() {
+    selectEl.textContent = "";
+    for (const [key, wf] of Object.entries(WORKFLOWS)) {
+      const opt = document.createElement("option");
+      opt.value = key; opt.textContent = wf.name;
+      /* Each workflow's own sentence about itself, shown when the pointer rests on
+         it. A name has to be short enough for the rail, which is not always long
+         enough to say what a workflow is for — and it matters most for the one
+         that is a demonstration rather than a run, because somebody choosing it by
+         mistake should be able to find that out before they choose it. */
+      opt.title = wf.blurb;
+      selectEl.append(opt);
+    }
+    for (const { folder, name, why } of refused) {
+      const opt = document.createElement("option");
+      opt.value = `refused:${folder}`; opt.textContent = `${name} (not loaded)`;
+      opt.title = why; opt.disabled = true;
+      selectEl.append(opt);
+    }
+    selectEl.value = state.wf;
   }
-  selectEl.value = state.wf;
+  renderChooser();
+
+  /** A package the page would not load, said in the chooser with its reason. */
+  function refuseWorkflow(folder, name, why) {
+    refused.push({ folder, name, why });
+    renderChooser();
+  }
 
   /* Choosing a workflow is choosing to begin it: the switch restarts the run.
      There is no Restart button — the session card's Disconnect ends a run,
@@ -44,14 +72,18 @@ export function installRail(page) {
     selectEl.value = key;
     page.backend = backendFor();
     resetRun();
-    page.listInstruments();
   }
   selectEl.addEventListener("change", () => switchWorkflow(selectEl.value));
 
-  /** Put the run back to its first step, keeping only what outlives a session. */
+  /**
+   * Put the run back to its first step, keeping only what outlives a session.
+   *
+   * What a workflow has to put down when the run starts over -- a clock
+   * reading the stage, a picture's fit, a list to ask for again -- is the
+   * workflow's own, so each says it in `page.onReset`, and this calls every
+   * one of them once the run document is fresh.
+   */
   function resetRun() {
-    page.stageWatch?.stop();
-    page.stageWatch = null;
     /* Every panel's channel is emptied, not only the one about to be shown:
        switching workflows leaves the other workflow's panel hidden with its
        last step's controls still in it, and a hidden form is still a form
@@ -60,11 +92,12 @@ export function installRail(page) {
       if (panel.channel) panel.channel.textContent = "";
       if (panel.foot) panel.foot.textContent = "";
     }
-    startOver(state, backendFor());
-    page.view.fitted = false;
+    startOver(state, backendFor(), WORKFLOWS[state.wf]);
+    /* A workflow chosen for the first time wires itself to the page now,
+       with a run of its own in place. */
+    page.installWorkflow(state.wf);
     page.focusPanelsFor(0);
-    page.shown.gating?.redraw();
-    page.renderPointList();
+    for (const reset of page.onReset) reset();
     page.renderAll();
   }
 
@@ -139,12 +172,16 @@ export function installRail(page) {
   function stateEdited(id) {
     if (state.protocol.running) return;
     state.stale = editedAt(steps(), state.done, state.stale, id);
-    /* Step 10 has no settings to confirm: an edit above it means it has
-       not run on what stands now, which is what its press is for. */
-    state.stale.delete("protocol");
-    state.done.delete("protocol");
+    /* A step that runs the others has no settings to confirm: an edit
+       above it means it has not run on what stands now, which is what its
+       press is for. So it is neither orange nor done, whichever step it is;
+       the step says it is such a step with `runsTheOthers`. */
+    for (const s of steps().filter((one) => one.runsTheOthers)) {
+      state.stale.delete(s.id);
+      state.done.delete(s.id);
+    }
     renderRail(); page.renderActionBar();
   }
 
-  return { renderRail, readiness, stateEdited, resetRun, switchWorkflow };
+  return { renderRail, renderChooser, refuseWorkflow, readiness, stateEdited, resetRun, switchWorkflow };
 }

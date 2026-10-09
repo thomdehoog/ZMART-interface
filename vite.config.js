@@ -18,6 +18,18 @@ const WHERE_NEUROGLANCER_KEEPS_ITS_INSIDES = {
   replacement: `${path.join(here, "node_modules", "neuroglancer", "lib")}/`,
 };
 
+/* A workflow written in another repository imports the framework and the
+   parts by one bare name, `zmart-interface/<path under zmart_interface/>`,
+   which the page answers at run time from its own modules (see
+   `framework/window/runtime.js`). The same name resolves here too, so the
+   framework's own fixture workflow -- written exactly as a foreign one would
+   be -- builds and tests inside this repository. The real workflows under
+   `workflows/` keep their relative imports. */
+const THE_FRAMEWORKS_BARE_NAME = {
+  find: /^zmart-interface\//,
+  replacement: `${path.join(here, "zmart_interface")}/`,
+};
+
 /**
  * Neuroglancer's two background programs, and what the build has to do about
  * them.
@@ -148,7 +160,7 @@ export default defineConfig({
     exclude: ["neuroglancer"],
   },
   resolve: {
-    alias: [WHERE_NEUROGLANCER_KEEPS_ITS_INSIDES],
+    alias: [WHERE_NEUROGLANCER_KEEPS_ITS_INSIDES, THE_FRAMEWORKS_BARE_NAME],
   },
   server: {
     host: "127.0.0.1",

@@ -9,7 +9,7 @@ import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { protocolFrom, applyProtocol, protocolFits } from "./protocol.js";
-import { emptySlot, withRecording } from "../../parts/microscope/recordings.js";
+import { emptySlot, withRecording } from "../../../parts/microscope/recordings.js";
 
 const reading = (frame) => ({
   summary: "10x · 2 ch", detail: {}, frameUm: frame, kind: null,

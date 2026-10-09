@@ -62,12 +62,19 @@ export function sideGroup(title, extra) {
  * shows a different set of them rather than rebuilding, so the canvas and
  * what draws on it are wired once. Two workflows naming the same key share
  * the panel, which is what sharing a key means.
+ *
+ * Called again for a workflow that arrives after the page opened -- one
+ * installed on the machine and loaded from its package -- with the panels
+ * built so far as `into`: only the keys not yet built are added, into the
+ * same object every module already holds.
  */
-export function buildThePanels(WORKFLOWS) {
-  const thePanels = {};
+export function buildThePanels(WORKFLOWS, into = {}) {
+  const thePanels = into;
   const everyPanel = new Map();
   for (const wf of Object.values(WORKFLOWS)) {
-    for (const declared of wf.panels) if (!everyPanel.has(declared.key)) everyPanel.set(declared.key, declared);
+    for (const declared of wf.panels) {
+      if (!everyPanel.has(declared.key) && !thePanels[declared.key]) everyPanel.set(declared.key, declared);
+    }
   }
   for (const declared of everyPanel.values()) {
     const host = document.createElement("div");

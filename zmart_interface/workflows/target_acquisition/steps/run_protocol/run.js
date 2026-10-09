@@ -10,7 +10,7 @@
  * `run.protocol` says whether it is running.
  */
 
-import { protocolFrom } from "../../../../framework/window/protocol.js";
+import { protocolFrom } from "../../shared/protocol.js";
 import { hasRecording } from "../../../../parts/microscope/recordings.js";
 
 /* The steps the protocol walks, in order. */
