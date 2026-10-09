@@ -21,19 +21,13 @@
  * The live path deliberately stops at the overview scan, as the bridge does.
  */
 
-/* Where the bridge answers. Empty means the page's own origin — the way it is
-   on the microscope, where one Python process serves the page and the bridge
-   together. `?bridge=http://127.0.0.1:8600` points elsewhere during
-   development, when the vite server holds the page instead. */
-const WHERE =
-  new URLSearchParams(globalThis.location?.search ?? "").get("bridge") ?? "";
-
-/** A bridge route as an address the page can fetch or put in an `img`: the
-    route itself on the microscope, prefixed with the bridge's origin when
-    the dev server holds the page. Pictures the bridge serves need this as
-    much as the JSON calls do -- an `img` asks the page's own origin
-    otherwise, and the dev server answers with the page. */
-export const atBridge = (route) => `${WHERE}${route}`;
+/* Where the bridge answers is the page's one fact about its own address
+   (`framework/window/bridge-address.js`): the page's own origin on the
+   microscope, or `?bridge=http://127.0.0.1:8600` during development, when
+   the vite server holds the page instead. Re-exported here, since every
+   picture address this seam hands out is built with it. */
+import { atBridge } from "../../framework/window/bridge-address.js";
+export { atBridge };
 
 import { findCandidates, pickPeak } from "./focus-peaks.js";
 import { PENDING, isFailed } from "./connection-status.js";
