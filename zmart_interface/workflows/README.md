@@ -142,18 +142,70 @@ fields, all optional except the first two.
 
 Every hook above takes `page` first. It is the one object the whole window
 shares, built in `../framework/window/main.js`, and it carries everything a
-step may need: `page.run`, the run document (`../framework/window/run-state.js`
-says what is in it); `page.backend`, the seam to the instrument; `page.stage`
-and `page.drawStage()`, the picture; `page.shown`, the handles of the boxes
-on screen; the page's render functions (`renderAll`, `renderRail`,
+step may need: `page.run`, the run document (the framework's keys from
+`../framework/window/run-state.js`, the workflow's from its own
+`freshState`); `page.backend`, the seam to whatever the workflow drives;
+`page.flow()`, the open workflow as assembled, and `page.steps()`;
+`page.panels`, one entry per panel built, with what its `build` handed back
+(for target acquisition `page.stage` and `page.drawStage()` come from there
+through its `install`); `page.shown`, the handles of the boxes a workflow's
+steps put on screen; the page's render functions (`renderAll`, `renderRail`,
 `renderActionBar`); `page.stateEdited(id)`, the one call every edit goes
 through; and the functions the steps lend one another (`page.surfaceZAt`,
 `page.pictureOf`, ...). A step reaches the rest of the page only through it,
 which is what lets each step live in its own folder.
 
+The page also carries five hook lists, each an array a workflow's `install`
+pushes a function to, which is how the framework calls back into a workflow
+it knows nothing about:
+
+- `page.onRender` — called after every full render.
+- `page.onPanelShown` — called with the step and the panel's key whenever a
+  panel is drawn.
+- `page.onReset` — called when the run starts over: on Disconnect, or when
+  another workflow is chosen. Target acquisition stops its stage clock here
+  and asks for the instruments again.
+- `page.onChannelMounted` — called with the channel's host and the step's
+  channel after the step's controls were mounted. Target acquisition puts
+  the protocol's progress over them.
+- `page.onThemeChanged` — called when the page's theme switches, for
+  whatever chose its colours itself.
+
 ## What a flow is made of
 
 `flow.js` exports `steps` (the list) and `blurb` (the sentence), and may also
-export `name` (when the folder rule would misname it), `panels` (what it puts on
-screen — the canvas, or a panel of its own), and `opensFirst` (the workflow a
-fresh page opens on).
+export any of these. Every one is optional: a workflow of plain steps that
+drives nothing and keeps nothing of its own needs only the first two.
+
+- `name` — the chooser's entry, when the folder rule would misname it (an
+  acronym, mostly).
+- `panels` — what the workflow puts on screen: the canvas, or a panel of its
+  own. A panel is `{ key, label, stays, build(host) }`; the framework builds
+  one element per key and the panel fills it through `build`, handing back
+  whatever the steps need of it (`channel`, `foot`, ...). A panel that draws
+  something of its own may also answer `shown()`, which the framework calls
+  when the panel comes on screen or its room changes, since a hidden box has
+  no size to draw into.
+- `opensFirst` — the workflow a fresh page opens on.
+- `install(page)` — how the workflow wires itself to the page, once, when the
+  page opens. Target acquisition opens its canvas here and lends its steps'
+  functions to the page. This is also where a workflow pushes to the page's
+  hook lists (below). Every workflow's `install` runs at start, whether or
+  not it is the one open, because its panels are built and kept.
+- `backendFor(search)` — which backend the steps speak to, given the page's
+  own address (a `URLSearchParams`): target acquisition answers the bridge, or
+  the in-browser rehearsal for `?backend=pretend`. A workflow that drives
+  nothing leaves this out and is handed an empty object.
+- `freshState({ backend })` — the workflow's half of the run document: every
+  key its steps read, with the value it has before anything was done. The
+  framework lays these beside its own keys (which step is active, what is
+  done, what is running — `../framework/window/run-state.js`), so a step
+  finds both on `page.run`. The framework's keys cannot be overwritten.
+- `keptAcrossSessions` — which of those keys survive a disconnect or a change
+  of workflow. Target acquisition keeps the session and the list of
+  instruments, since editing them is the reason to disconnect.
+- `forTests(state)` — what a browser test may read of the workflow's state,
+  through `window.__theRunState()`, beside the framework's own fields.
+
+The framework's own fixture, `../framework/fixtures/three_steps/flow.js`,
+is the smallest flow that exercises all of these; read it next to this list.

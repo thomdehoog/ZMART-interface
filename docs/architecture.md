@@ -71,10 +71,18 @@ change belongs to, you know which file to open.
 
 ```
 zmart_interface/
-  framework/        the engine. It knows how to run any workflow and none in particular.
-    window/     what the operator sees: the rail, the chooser, the panels, run state.
+  framework/        the engine. It knows how to run any workflow and none in particular:
+                    nothing under it names a step, a workflow or an instrument, and a
+                    unit test (`framework/knows-no-workflow.test.js`) keeps it so.
+    window/     what the operator sees: the rail, the chooser, the panels, the
+                channel, the press, the runner, and the framework's half of the
+                run document.
     rules/      what the engine enforces: step ordering and readiness, and how
-                workflow folders are found and named for the chooser.
+                workflow folders are found and assembled for the chooser.
+    bridge/     the Python half: the HTTP door the page reaches the controller through.
+    fixtures/   the framework's own test workflow, `three_steps/`, which knows
+                nothing about a microscope. Not under `workflows/`, so the
+                chooser never offers it.
   parts/        what a workflow is built from. A part knows nothing about any
                 workflow: hand it what to do and it does it.
     canvas/     the picture the operator pans, zooms and draws on.
@@ -83,22 +91,75 @@ zmart_interface/
                 synthetic specimen the rehearsal images in `pretend-sample/`,
                 and — in Python, on the other side of the same seam — the
                 procedures that drive the instrument through the controller.
+    analysis/, storage/   the analysis seam and the storage of what a run captures.
   workflows/    what plugs into the engine. One folder per workflow, and the
                 folder's name is the chooser's entry: `target_acquisition`
                 appears as "Target acquisition".
-    <name>/flow.js   the workflow's front door: its steps, in order, plus a
-                     sentence for the chooser.
+    <name>/flow.js   the workflow's front door: its steps, in order, a sentence
+                     for the chooser, its panels, and how it wires itself to
+                     the page (`install`), which backend it speaks to
+                     (`backendFor`) and what a run of it holds (`freshState`).
     <name>/steps/    one numbered folder per step — `connect/` to
-                     `acquire_targets/` — each holding the step's
-                     declaration, the controls that belong to it alone, and
-                     `layers.js`: what it draws on the picture and what a press
-                     on that means.
+                     `run_protocol/` — each holding the step's declaration,
+                     its run, its controls, and what it draws on the picture.
     <name>/shared/   what several steps of that ONE workflow use: the carrier
                      geometry, the scan-field arithmetic, the layers the run
-                     draws.
+                     draws, the workflow's half of the run document
+                     (`run-document.js`) and the protocol file's settings
+                     (`protocol.js`).
 ```
 
+The rule between the three: what several workflows share belongs in `parts/`
+or the framework; what several steps of one workflow share belongs in that
+workflow's `shared/`. The framework and the parts could as well run an
+e-learning course or an image-analysis pipeline as a microscope: nothing in
+them says "stage" or "focus". That is what lets a workflow be written in
+another repository and installed on a machine that has the framework and the
+parts, without the page being rebuilt; `docs/writing-a-workflow.md` says how.
+
 `zmart_interface/workflows/README.md` walks through the arrangement in more detail.
+
+## How the page is composed
+
+`framework/window/main.js` builds one object, `page`, and composes the page
+from it, naming no workflow. In order:
+
+1. The workflows are assembled from the folders under `workflows/`
+   (`framework/rules/finding-workflows.js`), and later from the packages
+   installed on the machine (`framework/window/installed-workflows.js`).
+2. The run document is made: the framework's keys, and beside them whatever
+   the open workflow's `freshState` answers (`run-state.js`). The backend is
+   whatever the open workflow's `backendFor` answers for the page's own
+   address, or an empty object for a workflow that drives nothing.
+3. One panel element is built per panel any workflow declared
+   (`panels.js`); the workflow fills it through the panel's own `build`.
+4. The framework's modules are installed on the page: the rail, the press,
+   the runner, the tabs, the channel.
+5. Every workflow's `install(page)` runs once. This is where a workflow
+   wires what it needs wired once -- target acquisition opens its canvas and
+   lends its steps' functions to the page -- and where it pushes to the
+   page's hook lists.
+6. The page renders on the first step.
+
+The hook lists are how the framework calls back into a workflow without
+knowing it. Each is an array on `page` that a workflow's `install` pushes a
+function to:
+
+| list | called | what target acquisition puts there |
+| --- | --- | --- |
+| `onRender` | after every full render | the canvas's framing presses, the fixture's card line |
+| `onPanelShown(step, key)` | whenever a panel is drawn | which picture the live overview shows |
+| `onReset` | when the run starts over (Disconnect, or another workflow chosen) | stop the stage clock, ask for the instruments again, refit the picture |
+| `onChannelMounted(host, channel)` | after a step's controls were mounted in the channel | the protocol's progress bar over them |
+| `onThemeChanged` | when the page's theme switches | redraw the stage, the trace, the detection card, the gating plot |
+
+Two more things a workflow declares take the place of names the framework
+used to know. A step that walks the other steps in turn says `runsTheOthers`,
+and the framework finds it by that word: an edit above it leaves it neither
+done nor orange, and its `brake` is what the walk's Interrupt presses. And a
+panel that draws something of its own answers `shown()` when it comes on
+screen or changes size, which is how the canvas re-measures itself when the
+channel beside it is dragged or folded.
 
 ## The rule that keeps it honest
 
@@ -129,9 +190,12 @@ export const backend = {
 };
 ```
 
-Swapping the mock for a real driver should be a one-line change in
-`window/main.js` and nothing else. If wiring the microscope means editing a
-widget, the seam leaked and wants fixing first.
+Which backend a run speaks to is the workflow's to say: its `flow.js` exports
+`backendFor(search)`, which answers the backend for the page's own address
+(`live.js`, or `mock.js` when the address asks for `?backend=pretend`). The
+framework asks and never imports either. Swapping the mock for a real driver
+is therefore a change in that one function and nothing else. If wiring the
+microscope means editing a widget, the seam leaked and wants fixing first.
 
 ## Widgets
 
@@ -307,8 +371,9 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |
 | `ta/steps/scan_the_overview/overview.js` | built, used by the app when it is given a run to watch (`?overview=`); its browser tests stayed in ZMART-microscopy with the demo run they need |
 | `parts/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
-| `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares and installs the framework's parts, then the workflow's |
-| `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: the run document, the rail, the step's press, running a step, the panels, the channel |
+| `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares, installs the framework's parts, then calls every workflow's own `install`; it names no workflow, backend or panel |
+| `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: its half of the run document, the rail, the step's press, running a step, the panels, the channel |
+| `framework/fixtures/three_steps/flow.js` | the framework's own test workflow, with no microscope, no Python and no canvas; assembled by the unit tests and installed from a built package by the installed-workflow test |
 | `ta/the-canvas.js`, `ta/on-the-page.js` | the workflow's side of the page: what it puts on its canvas, and the functions its steps lend the page |
 | `ta/steps/*/run.js`, `ta/steps/*/channel.js` | each step's own run and controls, beside its declaration |
 
@@ -350,10 +415,14 @@ one.
 
 Every step's controls now live beside the step, in its `channel.js`, and
 its run in its `run.js`; `main.js` only composes the page. The framework
-holds the run document (`run-state.js`, the one place a fresh run is
-written down), the rail, the press, the runner, the panels and the channel,
-one file each, and knows no step by name: it asks each step's declaration
-what to do.
+holds its half of the run document (`run-state.js`: which workflow is open,
+which step is active, what is done, what is running, how the page is
+arranged), the rail, the press, the runner, the panels and the channel, one
+file each, and knows no step by name: it asks each step's declaration what
+to do. The other half of the run document -- for target acquisition the
+session, the carrier, the focus map, the targets -- is the workflow's, in its
+`shared/run-document.js`, and the framework lays it beside its own keys
+without reading it.
 
 **The hazard used to be three facts defined twice, and two of them are closed.**
 Surface fitting and the sweep-and-peak rules now have one owner each —
