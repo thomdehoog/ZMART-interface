@@ -135,15 +135,20 @@ from it, naming no workflow. In order:
    (`panels.js`); the workflow fills it through the panel's own `build`.
 4. The framework's modules are installed on the page: the rail, the press,
    the runner, the tabs, the channel.
-5. Every workflow's `install(page)` runs once. This is where a workflow
-   wires what it needs wired once -- target acquisition opens its canvas and
-   lends its steps' functions to the page -- and where it pushes to the
-   page's hook lists.
+5. The open workflow's `install(page, { folder })` runs. This is where a
+   workflow wires what it needs wired once -- target acquisition opens its
+   canvas and lends its steps' functions to the page -- and where it pushes
+   to the page's hook lists. Another workflow's `install` runs the first
+   time the operator chooses it, once a run of it is in place.
 6. The page renders on the first step.
+7. The workflows installed on the machine as packages are asked for and
+   loaded, and each joins the chooser.
 
 The hook lists are how the framework calls back into a workflow without
 knowing it. Each is an array on `page` that a workflow's `install` pushes a
-function to:
+function to. They are called for every workflow's run, so a hook that reads
+its own workflow's keys of the run document first checks that its workflow
+is the one open (`page.run.wf === folder`):
 
 | list | called | what target acquisition puts there |
 | --- | --- | --- |
@@ -548,6 +553,10 @@ Every test stands beside what it tests.
   specification: the page is nearly all canvas, and driving it has repeatedly
   caught what reading the source did not. `workflows/target_acquisition/walk.spec.js`
   walks all ten steps on the built page through the real bridge.
+  `framework/installed-workflow.spec.js` builds the framework's fixture
+  workflow into a package, installs it on a ZMART folder of its own, and
+  drives the built page served by a bridge on that folder: the workflow is
+  offered, walked and left, and target acquisition is still there.
 
 The Playwright tests need a Chromium and will not run without one;
 `playwright.config.js` honours `PLAYWRIGHT_CHROMIUM` and `PLAYWRIGHT_BROWSERS_PATH`.
