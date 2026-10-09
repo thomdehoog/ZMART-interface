@@ -9,7 +9,7 @@
  * render, so nothing in it goes stale.
  */
 
-import { applyProtocol, protocolFits } from "../../../../framework/window/protocol.js";
+import { applyProtocol, protocolFits } from "../../shared/protocol.js";
 import { freshSettings } from "../../shared/run-document.js";
 import { choicesFrom, theMockAmong } from "../../../../parts/microscope/instruments.js";
 import { activeRecording } from "../../../../parts/microscope/recordings.js";
