@@ -34,10 +34,12 @@ import "./style.css";
 import { assembleWorkflows } from "../rules/finding-workflows.js";
 import { panelsFor } from "../rules/steps.js";
 import { installActionBar } from "./action-bar.js";
+import { loadInstalledWorkflows } from "./installed-workflows.js";
 import { buildThePanels } from "./panels.js";
 import { installRail } from "./rail.js";
 import { installRunner } from "./runner.js";
 import { exposeTheRunForTests, freshRun } from "./run-state.js";
+import { installRuntime } from "./runtime.js";
 import { installSide } from "./side.js";
 import { installTabs } from "./tabs.js";
 
@@ -131,6 +133,33 @@ const mo = new MutationObserver(() => {
 });
 mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
+/**
+ * A workflow arriving after the page opened -- loaded from a package
+ * installed on this machine, or handing itself over through
+ * `globalThis.zmart.register` -- joins the ones built in: assembled the same
+ * way, its panels built beside the others, its `install` run, the chooser
+ * drawn again. The run that is open is left as it is.
+ */
+page.registerWorkflow = (folder, flow) => {
+  const { WORKFLOWS: assembled } = assembleWorkflows({ [`${folder}/flow.js`]: flow });
+  const arrived = assembled[folder];
+  if (!arrived || WORKFLOWS[folder]) return null;
+  WORKFLOWS[folder] = arrived;
+  buildThePanels({ [folder]: arrived }, page.panels);
+  arrived.install?.(page);
+  page.renderChooser();
+  page.renderAll();
+  return arrived;
+};
+
+/* The runtime a loaded bundle imports the framework from, on the window. */
+installRuntime({ onRegister: page.registerWorkflow });
+
 /* The page as it opens: on the first step. */
 page.focusPanelsFor(0);
 page.renderAll();
+
+/* Then whatever is installed on this machine, once the page stands; a page
+   held by the development server, with no bridge beside it, finds nothing
+   and says nothing. */
+loadInstalledWorkflows({ register: page.registerWorkflow, refuse: page.refuseWorkflow });
