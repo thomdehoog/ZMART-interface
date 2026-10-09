@@ -4,9 +4,10 @@
  * The focus preset is recorded here, where the sweeps that will be measured
  * with it are chosen — in the same box the acquisition preset is recorded
  * in on the scan-fields step, since it is the same kind of thing being
- * done. The map's controls are markup that was built once (`#focus-controls`
- * in `index.html`) and is moved into the channel while this step is
- * standing, not rebuilt from a declaration.
+ * done. The map's controls are markup that was built once (`#focus-controls`,
+ * from `focus-controls.html` beside this file, put into the page by
+ * `focus-map.js` as it loads) and is moved into the channel while this step
+ * is standing, not rebuilt from a declaration.
  *
  * The map itself — the points, their sweeps, the surface through them, and
  * what a press on the picture means — is `focus-map.js`. It is opened on the
@@ -16,7 +17,7 @@
 
 import { css, el, sizeCanvas } from "../../../../framework/window/dom.js";
 import { editedAt } from "../../../../framework/rules/steps.js";
-import { newFocus } from "../../../../framework/window/run-state.js";
+import { newFocus } from "../../shared/run-document.js";
 import { activeRecording } from "../../../../parts/microscope/recordings.js";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
 import { openTheFocusMap } from "./focus-map.js";

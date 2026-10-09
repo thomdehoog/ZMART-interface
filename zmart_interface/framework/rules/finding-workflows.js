@@ -57,6 +57,18 @@ export function assembleWorkflows(flowFiles) {
       /* What the workflow offers to put on the right-hand side. A workflow
          that declares none runs on its steps' own panels alone. */
       panels: flow.panels ?? [],
+      /* The workflow's half of the run document: what a fresh run of it
+         holds, what of that survives a disconnect, and what a browser test
+         may read of it. All optional; a workflow with no state of its own
+         runs on the framework's keys alone. */
+      freshState: flow.freshState,
+      keptAcrossSessions: flow.keptAcrossSessions ?? [],
+      forTests: flow.forTests,
+      /* How the workflow wires itself to the page once it opens, and which
+         backend its steps speak to, read off the page's own address. Both
+         optional: a workflow of plain steps needs neither. */
+      install: flow.install,
+      backendFor: flow.backendFor,
     };
   }
 

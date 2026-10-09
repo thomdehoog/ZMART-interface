@@ -11,7 +11,8 @@
  * on.
  */
 
-/** Put the channel on the page: `sideWidget()` and `renderSide(show)`. */
+/** Put the channel on the page: `sideWidget()`, `renderSide(show)` and
+    `wireTheEdge(panel)`, for a panel that arrives after the page opened. */
 export function installSide(page) {
   const { run: state, panels: thePanels, step } = page;
 
@@ -34,8 +35,11 @@ export function installSide(page) {
     const somethingToShow = Boolean(widget);
     const folded = state.sideFolded && somethingToShow;
     host.hidden = !widget || folded;
-    // the divider is the column's edge, so it is only there when the column is
-    thePanels[show].divider.hidden = !somethingToShow || folded;
+    /* The divider is the column's edge, so it is only there when the column
+       is. A panel may have a channel without a draggable edge, so the
+       divider is optional. */
+    const divider = thePanels[show].divider;
+    if (divider) divider.hidden = !somethingToShow || folded;
     const fold = thePanels[show].fold;
     if (fold) {
       fold.hidden = !somethingToShow;
@@ -60,7 +64,10 @@ export function installSide(page) {
     host.textContent = "";
     if (!widget) return;
     widget.mount(host, page, { locked });
-    page.renderProtocolProgress();
+    /* What a workflow puts over every step's controls -- the progress of a
+       walk through its steps, say -- it adds here, once the step's own
+       controls are in. */
+    for (const mounted of page.onChannelMounted) mounted(host, widget);
   }
 
   /* The channel's width is the operator's to set. The divider drags, the
@@ -69,8 +76,17 @@ export function installSide(page) {
      walking between steps; the canvas is the bigger half by default and
      keeps whatever the channel does not take. Clamped so neither the picture
      nor the controls can be crushed. */
-  for (const withAnEdge of Object.values(thePanels).filter((p) => p.divider)) {
+  /**
+   * Wire one panel's edge: its divider drags the column's width, its fold
+   * puts the column away. Called for every panel built when the page opens,
+   * and again by the page for a panel a workflow brings later, so an
+   * installed workflow's channel drags and folds like the built-in one's.
+   * A panel without a divider has nothing to wire.
+   */
+  function wireTheEdge(withAnEdge) {
     const divider = withAnEdge.divider;
+    if (!divider || divider.dataset.wired) return;
+    divider.dataset.wired = "yes";
     const body = divider.parentElement;
     let resizing = false;
     divider.addEventListener("pointerdown", (e) => {
@@ -86,9 +102,11 @@ export function installSide(page) {
          half. */
       const width = Math.max(440, Math.min(box.width - 360, Math.round(box.right - e.clientX)));
       document.documentElement.style.setProperty("--side-w", `${width}px`);
-      /* The channel's own observers redraw what lives in it; the stage is
-         resized here, since its panel — the thing observed — has not moved. */
-      page.stage.resize();
+      /* The channel's own observers redraw what lives in it; the panel
+         beside it is told it is on screen again, since its box — the thing
+         observed — has not moved, and a panel that draws re-measures on
+         that word. */
+      withAnEdge.shown?.();
     });
     const settle = (e) => {
       if (!resizing) return;
@@ -99,15 +117,16 @@ export function installSide(page) {
     divider.addEventListener("pointerup", settle);
     divider.addEventListener("pointercancel", settle);
     /* The fold on the same edge: the column goes away to the right and the
-       canvas takes the room, or comes back the same width it had. The stage
-       is resized here for the same reason as above. */
+       panel takes the room, or comes back the same width it had. The panel
+       is told for the same reason as above. */
     withAnEdge.fold?.addEventListener("click", () => {
       state.sideFolded = !state.sideFolded;
       renderSide(page.shownPanel());
       page.renderTabs();
-      page.stage.resize();
+      withAnEdge.shown?.();
     });
   }
+  for (const panel of Object.values(thePanels)) wireTheEdge(panel);
 
-  return { sideWidget, renderSide };
+  return { sideWidget, renderSide, wireTheEdge };
 }

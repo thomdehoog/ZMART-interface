@@ -30,10 +30,11 @@ through a small script it writes into `%TEMP%`, and a `TEMP` outside the allowed
 refused with "This program is blocked by group policy".
 
 The computer's ZMART configuration -- which drivers are registered, each driver's limits,
-origin and calibration, and the interface's saved protocols -- lives under
-`C:\ProgramData\zmart-microscopy\` (or wherever `ZMART_MICROSCOPY_ROOT` points). Saved
-protocols are in its `zmart-interface\protocols` folder; `ZMART_PROTOCOL_LIBRARY` names
-another folder.
+origin and calibration, the interface's saved protocols and the workflows installed as
+packages -- lives under `C:\ProgramData\zmart-microscopy\` (or wherever
+`ZMART_MICROSCOPY_ROOT` points). Saved protocols are in its `zmart-interface\protocols`
+folder (`ZMART_PROTOCOL_LIBRARY` names another), installed workflows in
+`zmart-interface\workflows` (`ZMART_WORKFLOW_LIBRARY` names another).
 
 ## Order of work
 
@@ -104,6 +105,26 @@ real instrument. For a browser instead of the window:
 One controlling process at a time.
 
 For a dry run without the instrument, choose **Mock** on the Connect step.
+
+### 6. Workflows from other repositories (optional)
+
+The page comes with target acquisition built in. A workflow written in another repository
+-- yours, or a colleague's -- arrives as a package: a folder holding a `workflow.json` and a
+built `flow.bundle.js` (`docs/writing-a-workflow.md` says how one is written and built).
+Install it once on this computer, in the interface's environment, and list what is installed:
+
+```powershell
+python -c "import zmart_interface; print(zmart_interface.register_workflow(r'C:\path\to\the\package'))"
+python -m zmart_interface.framework.bridge --workflows
+```
+
+The package is copied into the computer's workflow library (above), and the chooser at the
+top left of the window offers the workflow the next time the window opens. Nothing is
+rebuilt. A package written for another version of the interface is listed greyed in the
+chooser, with the reason when the pointer rests on it, and the reason is also in the
+window's console. If the package names a Python module, that module must be importable from
+this environment too (`pip install` it); a module that cannot be imported leaves the
+workflow greyed with the import error.
 
 ## First checks on a new instrument
 

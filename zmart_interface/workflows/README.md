@@ -10,10 +10,17 @@ folder with a `flow.js` in it; nothing else in the interface has to change,
 because the framework finds these folders by looking
 (`../framework/rules/finding-workflows.js` says how).
 
-There is one today:
+There is one built into the page today:
 
 - **`target_acquisition/`** — a run on a microscope that has already been set
   up: find the targets on an overview and acquire them.
+
+A workflow does not have to live in this folder, or in this repository. One
+written elsewhere is built into a small package and installed on a computer
+with `zmart_interface.register_workflow`; the page there offers it without
+being rebuilt. `../../docs/writing-a-workflow.md` says how, and the
+framework's own fixture, `../framework/fixtures/three_steps/`, is one written
+that way.
 
 Setting a microscope up -- its travel limits, which way the picture is turned,
 how the objectives line up, and where its coordinates count from -- is done
@@ -61,6 +68,14 @@ A workflow that wants a borrowed step to say something different wraps it in
 nothing else. That keeps what a step *does* written down once, so a fix
 reaches every workflow at the same moment.
 
+One limit, today: a borrowed step brings its declaration, not the wiring its
+owner does in `install`. Target acquisition's steps reach the page's `stage`,
+`listInstruments`, `renderPointList` and the rest, which exist only once
+target acquisition's own `install` has run, so a workflow written in another
+repository can borrow one of them only if it uses nothing its owner lends.
+Letting a step declare its own wiring is the next cut; until then, borrow
+steps within this repository, or write the step afresh.
+
 ## What a step is made of
 
 A step is data, not code: a short description the framework reads. These are its
@@ -104,6 +119,13 @@ fields, all optional except the first two.
 - `pressed(page)` — what the press does for a step that does not run through
   the page at all, because it runs the other steps: Run protocol.
 - `running(run)` — whether such a step is running, for the rail's spinner.
+- `runsTheOthers` — this step walks the other steps in turn (Run protocol is
+  the one today). The framework keeps the walk's own state in
+  `page.run.protocol` and reads whether it is running; a step that says this
+  is never left orange or done by an edit above it, since it has no settings
+  of its own to confirm, and its `brake` is what the walk's Interrupt
+  presses. `whileWalking` is the sentence beside that Interrupt ("running the
+  protocol"); without it the page says "running" and the step's title.
 - `beside(run, { done })` — the sentence beside the press once nothing blocks
   it, instead of the step's note.
 - `noHint` — nothing stands beside the press: what the step waits for and
@@ -136,18 +158,81 @@ fields, all optional except the first two.
 
 Every hook above takes `page` first. It is the one object the whole window
 shares, built in `../framework/window/main.js`, and it carries everything a
-step may need: `page.run`, the run document (`../framework/window/run-state.js`
-says what is in it); `page.backend`, the seam to the instrument; `page.stage`
-and `page.drawStage()`, the picture; `page.shown`, the handles of the boxes
-on screen; the page's render functions (`renderAll`, `renderRail`,
+step may need: `page.run`, the run document (the framework's keys from
+`../framework/window/run-state.js`, the workflow's from its own
+`freshState`); `page.backend`, the seam to whatever the workflow drives;
+`page.flow()`, the open workflow as assembled, and `page.steps()`;
+`page.panels`, one entry per panel built, with what its `build` handed back
+(for target acquisition `page.stage` and `page.drawStage()` come from there
+through its `install`); `page.shown`, the handles of the boxes a workflow's
+steps put on screen; the page's render functions (`renderAll`, `renderRail`,
 `renderActionBar`); `page.stateEdited(id)`, the one call every edit goes
 through; and the functions the steps lend one another (`page.surfaceZAt`,
 `page.pictureOf`, ...). A step reaches the rest of the page only through it,
 which is what lets each step live in its own folder.
 
+The page also carries five hook lists, each an array a workflow's `install`
+pushes a function to, which is how the framework calls back into a workflow
+it knows nothing about:
+
+- `page.onRender` — called after every full render.
+- `page.onPanelShown` — called with the step and the panel's key whenever a
+  panel is drawn.
+- `page.onReset` — called when the run starts over: on Disconnect, or when
+  another workflow is chosen. Target acquisition stops its stage clock here
+  and asks for the instruments again.
+- `page.onChannelMounted` — called with the channel's host and the step's
+  channel after the step's controls were mounted. Target acquisition puts
+  the protocol's progress over them.
+- `page.onThemeChanged` — called when the page's theme switches, for
+  whatever chose its colours itself.
+
 ## What a flow is made of
 
 `flow.js` exports `steps` (the list) and `blurb` (the sentence), and may also
-export `name` (when the folder rule would misname it), `panels` (what it puts on
-screen — the canvas, or a panel of its own), and `opensFirst` (the workflow a
-fresh page opens on).
+export any of these. Every one is optional: a workflow of plain steps that
+drives nothing and keeps nothing of its own needs only the first two.
+
+- `name` — the chooser's entry, when the folder rule would misname it (an
+  acronym, mostly).
+- `panels` — what the workflow puts on screen: the canvas, or a panel of its
+  own. A panel is `{ key, label, stays, build(host) }`; the framework builds
+  one element per key and the panel fills it through `build`, handing back
+  whatever the steps need of it. Of what `build` hands back, the framework
+  reads these, every one optional: `channel`, the column a step's controls
+  are mounted in; `divider`, the draggable edge of that column, and `fold`,
+  the press that puts the column away; `display`, a box the framework keeps
+  hidden beside the column; `foot`, where a step's press goes when the step
+  has no slot of its own (give it the id `foot-<key>`); and `shown()`, which
+  the framework calls when the panel comes on screen or its room changes,
+  since a hidden box has no size to draw into. A panel with a channel but no
+  divider simply has a column of fixed width.
+- `opensFirst` — the workflow a fresh page opens on.
+- `install(page, { folder })` — how the workflow wires itself to the page,
+  once, the first time a run of it begins: as the page opens on it, or when
+  the operator chooses it. `page.run` is then a run of this workflow, with
+  its own `freshState` keys in place. Target acquisition opens its canvas
+  here and lends its steps' functions to the page. This is also where a
+  workflow pushes to the page's hook lists (below). `folder` is the name the
+  workflow is installed under; since the hooks are called for every
+  workflow's run, a hook that reads this workflow's own keys or asks its
+  backend first checks that it is the one open, `page.run.wf === folder`.
+  The panels, by contrast, are built for every workflow when the page opens,
+  so what a workflow draws on them is wired once and kept.
+- `backendFor(search)` — which backend the steps speak to, given the page's
+  own address (a `URLSearchParams`): target acquisition answers the bridge, or
+  the in-browser rehearsal for `?backend=pretend`. A workflow that drives
+  nothing leaves this out and is handed an empty object.
+- `freshState({ backend })` — the workflow's half of the run document: every
+  key its steps read, with the value it has before anything was done. The
+  framework lays these beside its own keys (which step is active, what is
+  done, what is running — `../framework/window/run-state.js`), so a step
+  finds both on `page.run`. The framework's keys cannot be overwritten.
+- `keptAcrossSessions` — which of those keys survive a disconnect or a change
+  of workflow. Target acquisition keeps the session and the list of
+  instruments, since editing them is the reason to disconnect.
+- `forTests(state)` — what a browser test may read of the workflow's state,
+  through `window.__theRunState()`, beside the framework's own fields.
+
+The framework's own fixture, `../framework/fixtures/three_steps/flow.js`,
+is the smallest flow that exercises all of these; read it next to this list.

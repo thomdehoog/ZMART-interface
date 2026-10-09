@@ -318,6 +318,65 @@ describe("workflows compose the catalogue rather than restating it", () => {
   });
 });
 
+/* The framework runs a workflow that knows nothing about a microscope. The
+   fixture under `framework/fixtures/three_steps/` is assembled the way the
+   page assembles the folders under `workflows/`, and comes out as a
+   workflow the page could offer: numbered steps, its own panel, its own
+   declarations carried through. It is not under `workflows/`, so the
+   chooser never offers it; the installed-workflow test installs it from a
+   built package instead. */
+describe("a workflow that knows nothing about a microscope", () => {
+  const { WORKFLOWS: FIXTURES, DEFAULT_WORKFLOW } = assembleWorkflows(
+    import.meta.glob("../fixtures/*/flow.js", { eager: true }),
+  );
+  const three = FIXTURES.three_steps;
+
+  it("is assembled from its folder like any other, and named from it", () => {
+    expect(Object.keys(FIXTURES)).toEqual(["three_steps"]);
+    expect(DEFAULT_WORKFLOW).toBe("three_steps");
+    expect(three.name).toBe("Three steps");
+    expect(three.blurb).toBeTruthy();
+  });
+
+  it("has its three steps numbered one to three", () => {
+    expect(three.steps.map((s) => [s.n, s.id])).toEqual([["1", "begin"], ["2", "count"], ["3", "finish"]]);
+  });
+
+  it("brings its own panel, and every step stands on it", () => {
+    expect(three.panels.map((p) => p.key)).toEqual(["card"]);
+    const staying = three.panels.filter((p) => p.stays).map((p) => p.key);
+    expect(three.steps.map((_, i) => panelsFor(three.steps, i, staying))).toEqual([["card"], ["card"], ["card"]]);
+  });
+
+  it("carries the declarations the page reads: state, install, no backend", () => {
+    expect(typeof three.freshState).toBe("function");
+    expect(three.keptAcrossSessions).toEqual([]);
+    expect(typeof three.forTests).toBe("function");
+    expect(typeof three.install).toBe("function");
+    expect(three.backendFor).toBeUndefined();
+  });
+
+  it("is the shape the rail expects: begin settles by standing, count has a brake, finish a press", () => {
+    const [begin, count, finish] = three.steps;
+    expect(typeof begin.settledByStanding).toBe("function");
+    expect(begin.btn).toBeUndefined();
+    expect(count.btn).toBe("Count");
+    expect(typeof count.run).toBe("function");
+    expect(typeof count.brake).toBe("function");
+    expect(finish.btn).toBe("Finish");
+    expect(finish.runsTheOthers).toBeUndefined();
+    /* Walked in order: nothing in it may be skipped. */
+    expect(firstIncomplete(three.steps, new Set())).toBe(0);
+    expect(firstIncomplete(three.steps, new Set(["begin"]))).toBe(1);
+    expect(isReachable(three.steps, new Set(["begin"]), 2)).toBe(false);
+  });
+
+  it("names the step that runs the others only where there is one", () => {
+    expect(three.steps.filter((s) => s.runsTheOthers)).toEqual([]);
+    expect(WORKFLOWS.target_acquisition.steps.filter((s) => s.runsTheOthers).map((s) => s.id)).toEqual(["protocol"]);
+  });
+});
+
 /* What the real run must never carry: the bench (the canvas demonstration,
    since removed) had steps that produced nothing and could be walked past;
    a run is the opposite, every step feeding the next. */
