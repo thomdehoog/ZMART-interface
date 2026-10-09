@@ -3,28 +3,31 @@
  *
  * This file composes the page and nothing else. It builds the one object
  * every module shares -- `page` -- and then lets each module put its part on
- * it: the framework's rail, action bar, runner, tabs and channel; the
- * workflow's canvas; and each step's own run and controls, which the steps
- * declare for themselves in their `step.js`.
+ * it: the framework's rail, action bar, runner, tabs and channel; and then
+ * each workflow's own wiring, through the `install(page)` its flow exports.
+ * Nothing here names a workflow, a backend or a panel: the page would compose
+ * the same way for a workflow about e-learning or about image analysis.
  *
  * `page` is the page's whole surface, and every module reaches the others
  * through it at call time (`page.renderAll()`, `page.stage`, ...), which is
  * what lets each live in its own file without caring which was wired first.
  * What it carries:
  *
- * - `run`: the run document (`run-state.js`); `WORKFLOWS`, `steps()`,
- *   `step(i)`, `indexOfStep(id)`, `tabsForStep(i)`; `panels`, one element
- *   per panel a workflow declared.
- * - `backend`: the seam to the instrument, `live.js` to the bridge or
- *   `mock.js` for the page's own browser tests (`?backend=pretend`).
- * - `shown`: the handles of the boxes on screen -- the session card, the
- *   scan's progress, the detection card, the gating plot, the selection box,
- *   the gallery -- set by each step's channel when it mounts, null before.
- * - `stageWatch`: the clock reading where the stage is, while a session is
- *   open; `redrawAnchors`, how the carrier's list of marks is redrawn.
- * - `onRender` and `onPanelShown`: what else to do after every render, and
- *   whenever a panel is shown, for the parts that draw on their own.
- * - and the functions the modules lend it, named below as they are installed.
+ * - `run`: the run document (`run-state.js`); `WORKFLOWS`, `flow()`,
+ *   `steps()`, `step(i)`, `indexOfStep(id)`, `tabsForStep(i)`; `panels`,
+ *   one element per panel a workflow declared.
+ * - `backend`: the seam to whatever the workflow drives, chosen by the
+ *   workflow's own `backendFor` (target acquisition answers the bridge, or
+ *   the in-browser rehearsal for `?backend=pretend`); an empty object for a
+ *   workflow that drives nothing.
+ * - `shown`: the handles of the boxes a workflow's steps put on screen, set
+ *   by each step's channel when it mounts; empty until a workflow fills it.
+ * - the hook lists, each an array a workflow's `install` pushes to:
+ *   `onRender` after every render, `onPanelShown` whenever a panel is drawn,
+ *   `onReset` when the run starts over, `onChannelMounted` after a step's
+ *   controls were mounted in the channel, and `onThemeChanged` when the
+ *   page's theme switches, for the parts that chose their colours themselves.
+ * - and the functions the modules lend it, named as they are installed.
  */
 
 import "./style.css";
@@ -37,19 +40,6 @@ import { installRunner } from "./runner.js";
 import { exposeTheRunForTests, freshRun } from "./run-state.js";
 import { installSide } from "./side.js";
 import { installTabs } from "./tabs.js";
-/* The seam. Connecting, reading a preset off the instrument, measuring the
-   focus map and driving the overview scan all go through the backend and are
-   awaited; this window never knows whether a real stage moved. The page
-   speaks to the controller through the bridge; which driver the controller
-   runs — the mock or a real microscope — is chosen on the Connect step. The
-   in-browser rehearsal (timers and a synthetic sample) is reachable only by
-   `?backend=pretend`, for this page's own browser tests. */
-import { backend as liveBackend } from "../../parts/microscope/live.js";
-import { backend as pretendBackend } from "../../parts/microscope/mock.js";
-/* The one workflow's own wiring: what it puts on the canvas, and the
-   functions its steps lend the page. A second workflow would plug in here
-   the same way. */
-import { installTargetAcquisition } from "../../workflows/target_acquisition/on-the-page.js";
 
 /* The workflows this page offers: every folder in `workflows/` with a
    `flow.js` inside it, found by the build tool's folder scan and assembled by
@@ -61,8 +51,10 @@ const { WORKFLOWS, DEFAULT_WORKFLOW } = assembleWorkflows(
   import.meta.glob("../../workflows/*/flow.js", { eager: true }),
 );
 
-const backendFor = () =>
-  (new URLSearchParams(location.search).get("backend") === "pretend" ? pretendBackend : liveBackend);
+/* What a workflow that drives nothing is handed as its backend: nothing to
+   call, and nothing that answers. A workflow's steps that never speak to an
+   instrument never reach for it. */
+const NO_BACKEND = Object.freeze({});
 
 /* Which workflow to open on — `?workflow=target_acquisition`.
  *
@@ -79,35 +71,41 @@ const backendFor = () =>
  * you want to start is a workflow that has its steps in the wrong order.
  */
 const WORKFLOW_ASKED_FOR = new URLSearchParams(location.search).get("workflow");
-
-const backend = backendFor();
 const OPENS_ON = WORKFLOWS[WORKFLOW_ASKED_FOR] ? WORKFLOW_ASKED_FOR : DEFAULT_WORKFLOW;
-/* The framework's keys of the run, and beside them whatever the workflow
-   says a run of it holds; the framework reads none of the latter. */
-const state = freshRun({ workflow: OPENS_ON, backend, flow: WORKFLOWS[OPENS_ON] });
 
-/* The keys that stay for the rest of the run once a step has asked for one.
-   `panelsFor` is handed these rather than knowing any of them. */
-const panelsThatStay = () => WORKFLOWS[state.wf].panels.filter((p) => p.stays).map((p) => p.key);
+/* The seam, chosen by the workflow: what its steps speak to, and whether a
+   rehearsal of it exists. Asked again whenever the workflow changes, with
+   the page's own address so a workflow can read `?backend=` off it. */
+const backendFor = () =>
+  page.flow().backendFor?.(new URLSearchParams(location.search)) ?? NO_BACKEND;
 
 const page = {
-  WORKFLOWS, DEFAULT_WORKFLOW, backendFor, backend,
-  run: state,
-  panels: buildThePanels(WORKFLOWS),
-  steps: () => WORKFLOWS[state.wf].steps,
+  WORKFLOWS, DEFAULT_WORKFLOW, backendFor,
+  /* The workflow open now, as assembled: its steps, panels and the rest. */
+  flow: () => WORKFLOWS[page.run.wf],
+  steps: () => page.flow().steps,
   step: (i) => page.steps()[i],
   indexOfStep: (id) => page.steps().findIndex((s) => s.id === id),
   /* The rule, with the workflow's own staying panels already in it. Bound
      once because it is asked in two places — when a step is walked to, and
      again on every render — and two callers passing the list separately is
      one caller forgetting to. */
-  tabsForStep: (i) => panelsFor(page.steps(), i, panelsThatStay()),
-  stageWatch: null,
-  redrawAnchors: () => {},
-  shown: { session: null, scanProgress: null, detection: null, gating: null, selection: null, gallery: null },
+  tabsForStep: (i) => panelsFor(page.steps(), i, page.flow().panels.filter((p) => p.stays).map((p) => p.key)),
+  shown: {},
   onRender: [],
   onPanelShown: [],
+  onReset: [],
+  onChannelMounted: [],
+  onThemeChanged: [],
 };
+
+/* The backend is asked of the workflow being opened, before there is a run to
+   read the workflow off, so the first answer is made by hand. */
+page.backend = WORKFLOWS[OPENS_ON].backendFor?.(new URLSearchParams(location.search)) ?? NO_BACKEND;
+/* The framework's keys of the run, and beside them whatever the workflow
+   says a run of it holds; the framework reads none of the latter. */
+page.run = freshRun({ workflow: OPENS_ON, backend: page.backend, flow: WORKFLOWS[OPENS_ON] });
+page.panels = buildThePanels(WORKFLOWS);
 
 /* The framework: what runs any workflow. */
 Object.assign(page, installRail(page));
@@ -116,24 +114,23 @@ Object.assign(page, installRunner(page));
 Object.assign(page, installTabs(page));
 Object.assign(page, installSide(page));
 
-/* The workflow: its canvas, and what its steps lend the page. */
-installTargetAcquisition(page);
+/* The workflows: each wires itself to the page once, whether or not it is
+   the one open -- its panels are built and kept, so what draws on them is
+   wired once too, and switching workflows shows a different set rather than
+   rebuilding. A flow with no `install` has nothing to wire. */
+for (const flow of Object.values(WORKFLOWS)) flow.install?.(page);
 
 /* Left where a test can reach it: the framework's fields, and whatever the
    workflow of the moment exposes of its own. */
-exposeTheRunForTests(state, () => WORKFLOWS[state.wf]);
+exposeTheRunForTests(page.run, page.flow);
 
-/* A change of theme repaints everything that chose its colours itself. */
+/* A change of theme repaints everything that chose its colours itself; the
+   workflows say what that is. */
 const mo = new MutationObserver(() => {
-  page.drawStage(); page.drawTrace();
-  page.shown.detection?.redraw(); page.shown.gating?.redraw();
+  for (const repaint of page.onThemeChanged) repaint();
 });
 mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
-/* The instruments, asked for once the backend is known; the card fills in
-   when the answer lands. Then the page as it opens: on the first step. */
-page.listInstruments();
-page.renderPointList();
-page.rebuildPlan();
+/* The page as it opens: on the first step. */
 page.focusPanelsFor(0);
 page.renderAll();

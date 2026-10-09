@@ -9,6 +9,16 @@
  */
 
 import { canvasPanel } from "../../parts/canvas/panel.js";
+/* The seam. Connecting, reading a preset off the instrument, measuring the
+   focus map and driving the overview scan all go through the backend and are
+   awaited; the page never knows whether a real stage moved. The page speaks
+   to the controller through the bridge; which driver the controller runs —
+   the mock or a real microscope — is chosen on the Connect step. The
+   in-browser rehearsal (timers and a synthetic sample) is reachable only by
+   `?backend=pretend`, for this page's own browser tests. */
+import { backend as liveBackend } from "../../parts/microscope/live.js";
+import { backend as pretendBackend } from "../../parts/microscope/mock.js";
+import { installTargetAcquisition } from "./on-the-page.js";
 import { steps as theRun } from "./the-run.js";
 
 /* What a run of this workflow holds beside the framework's own keys, what
@@ -16,6 +26,16 @@ import { steps as theRun } from "./the-run.js";
    framework asks the flow for these rather than knowing any microscope key
    (`framework/window/run-state.js`). */
 export { freshState, keptAcrossSessions, forTests } from "./shared/run-document.js";
+
+/** How this workflow is wired to the page when the page opens: its canvas,
+    and the functions its steps lend the page. */
+export const install = installTargetAcquisition;
+
+/** Which backend this workflow's steps speak to, given the page's own
+    address: the rehearsal when it asks for `?backend=pretend`, the bridge
+    otherwise. */
+export const backendFor = (search) =>
+  (search.get("backend") === "pretend" ? pretendBackend : liveBackend);
 
 export const blurb =
   "Find the targets on an overview and acquire them, on the microscope chosen "

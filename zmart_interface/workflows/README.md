@@ -104,6 +104,12 @@ fields, all optional except the first two.
 - `pressed(page)` — what the press does for a step that does not run through
   the page at all, because it runs the other steps: Run protocol.
 - `running(run)` — whether such a step is running, for the rail's spinner.
+- `runsTheOthers` — this step walks the other steps in turn (Run protocol is
+  the one today). The framework keeps the walk's own state in
+  `page.run.protocol` and reads whether it is running; a step that says this
+  is never left orange or done by an edit above it, since it has no settings
+  of its own to confirm, and its `brake` is what the walk's Interrupt
+  presses.
 - `beside(run, { done })` — the sentence beside the press once nothing blocks
   it, instead of the step's note.
 - `noHint` — nothing stands beside the press: what the step waits for and

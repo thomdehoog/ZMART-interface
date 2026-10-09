@@ -60,7 +60,10 @@ export function installSide(page) {
     host.textContent = "";
     if (!widget) return;
     widget.mount(host, page, { locked });
-    page.renderProtocolProgress();
+    /* What a workflow puts over every step's controls -- the progress of a
+       walk through its steps, say -- it adds here, once the step's own
+       controls are in. */
+    for (const mounted of page.onChannelMounted) mounted(host, widget);
   }
 
   /* The channel's width is the operator's to set. The divider drags, the
@@ -86,9 +89,11 @@ export function installSide(page) {
          half. */
       const width = Math.max(440, Math.min(box.width - 360, Math.round(box.right - e.clientX)));
       document.documentElement.style.setProperty("--side-w", `${width}px`);
-      /* The channel's own observers redraw what lives in it; the stage is
-         resized here, since its panel — the thing observed — has not moved. */
-      page.stage.resize();
+      /* The channel's own observers redraw what lives in it; the panel
+         beside it is told it is on screen again, since its box — the thing
+         observed — has not moved, and a panel that draws re-measures on
+         that word. */
+      withAnEdge.shown?.();
     });
     const settle = (e) => {
       if (!resizing) return;
@@ -99,13 +104,13 @@ export function installSide(page) {
     divider.addEventListener("pointerup", settle);
     divider.addEventListener("pointercancel", settle);
     /* The fold on the same edge: the column goes away to the right and the
-       canvas takes the room, or comes back the same width it had. The stage
-       is resized here for the same reason as above. */
+       panel takes the room, or comes back the same width it had. The panel
+       is told for the same reason as above. */
     withAnEdge.fold?.addEventListener("click", () => {
       state.sideFolded = !state.sideFolded;
       renderSide(page.shownPanel());
       page.renderTabs();
-      page.stage.resize();
+      withAnEdge.shown?.();
     });
   }
 
