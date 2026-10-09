@@ -521,7 +521,7 @@ export async function mountViewerPanel(near, {
   gammaRow.slider.min = "0.1"; gammaRow.slider.max = "4"; gammaRow.slider.step = "0.01";
   gammaRow.slider.value = "1";
   settings.append(
-    chosenHead, plotWrap, histogramValue, axisRow,
+    chosenHead, plotWrap, measurementNotice, histogramValue, axisRow,
     minRow.line, maxRow.line, opacityRow.line, gammaRow.line,
   );
 

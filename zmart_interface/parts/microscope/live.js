@@ -324,7 +324,7 @@ export const backend = {
             folder: "focussing", position_label: labels[index],
           }));
           say("scoring");
-          landed = await ask("/api/focus/score", { record, centre: at.z.value, point });
+          landed = await ask("/api/focus/score", { record, centre: at.z.position, point });
         } catch (why) {
           console.warn(`focus point ${index + 1} is lost: ${why.message}`);
           landed = { ...asked, z: null, zAuto: null, lost: true, traces: null, cost_s: {}, slices: [] };
@@ -481,7 +481,7 @@ export const backend = {
           say("focussing on");
           if (focus.state) await ask("/api/state", focus.state);
           const stood = await ask("/api/xyz", { ...at, x: focusXY.x, y: focusXY.y });
-          standing = stood.z.value;
+          standing = stood.z.position;
           const stack = capturedBy(await ask("/api/acquire", {
             folder: "target-focussing", position_label: labels[index], acquisition_settings: null,
           }));
@@ -501,15 +501,15 @@ export const backend = {
         say("imaging");
         /* Already standing there after a stack with no peak: no second drive. */
         const stood = focus && !found.found && !focusMoves && !zOffsetUm
-          ? { z: { value: standing } } : await ask("/api/xyz", at);
+          ? { z: { position: standing } } : await ask("/api/xyz", at);
         const record = capturedBy(await ask("/api/acquire", {
           folder: "targets", position_label: labels[index], acquisition_settings: null,
         }));
         const landed = await ask("/api/targets/acquire/landed", {
-          record, position: { x, y, z: stood.z.value }, focus: found,
+          record, position: { x, y, z: stood.z.position }, focus: found,
         });
         records.push(landed);
-        onProgress?.(records.length, positions.length, { x, y, z: stood.z.value }, records);
+        onProgress?.(records.length, positions.length, { x, y, z: stood.z.position }, records);
       }
     } finally {
       onDoing?.(null);
