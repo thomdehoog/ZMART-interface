@@ -116,12 +116,12 @@ export const keptAcrossSessions = [];
 export const forTests = (state) => ({ counted: state.counted });
 
 /** The card's line follows the run, on every render, while this workflow is open. */
-export function install(page) {
+export function install(page, { folder }) {
   page.onRender.push(() => {
     const line = page.panels.card?.line;
     /* Only while this workflow is the open one: another workflow's render
-       is not this card's business. */
-    if (!line || !page.steps().some((s) => s.id === "count")) return;
+       is not this card's business, and its run has no count. */
+    if (!line || page.run.wf !== folder) return;
     const state = page.run;
     line.textContent = state.done.has("finish") ? "Finished."
       : state.running === "count" ? `Counting: ${state.counted} so far.`

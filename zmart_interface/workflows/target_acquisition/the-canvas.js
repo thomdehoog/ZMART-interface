@@ -29,7 +29,7 @@ import { openTheStage } from "./shared/stage.js";
  * (`whereTheStageIs`, `carrierOriginUm`, `takeTheCanvas`, `takeThePosition`,
  * `drawScaleBar`) and `renderFramingPresses`.
  */
-export function installTheCanvas(page) {
+export function installTheCanvas(page, { isOpen = () => true } = {}) {
   const { run: state, panels: thePanels, step, indexOfStep } = page;
 
   /* The canvas panel this workflow declared, and everything that draws in it. */
@@ -216,10 +216,13 @@ export function installTheCanvas(page) {
       if (press) press.hidden = !connected;
     }
   }
-  page.onRender.push(renderFramingPresses);
+  /* Both only while this workflow is the one open: the page calls these
+     for every workflow's render, and another workflow's steps are not this
+     picture's business. */
+  page.onRender.push(() => { if (isOpen()) renderFramingPresses(); });
   /* The acquired overview lies over the plan while the scan is what is being
      looked at, so which of the two is on screen follows the step. */
-  page.onPanelShown.push((s, show) => liveOverview.showFor(s, show));
+  page.onPanelShown.push((s, show) => { if (isOpen()) liveOverview.showFor(s, show); });
 
   /* A picture cannot be laid out while it is hidden: a hidden box has no
      size. So the panel re-measures when it comes up. */
