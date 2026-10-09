@@ -590,7 +590,11 @@ const pretendPositionUm = () => ({ x: TRAVEL_UM.x * 0.04, y: TRAVEL_UM.y * 0.04,
    stays where it was put. */
 let where = pretendPositionUm();
 
-/** A position, shaped the way the controller reports one. */
+/** A position, shaped the way the controller reports one: each axis gives
+    its position in micrometres from the origin, the unit, every motor of the
+    axis with its own raw reading, and the canvas. The pretend stage has one
+    motor per axis, and it reads what the axis reads. */
 const standingAt = (at) => Object.fromEntries(["x", "y", "z"].map((axis) => [axis, {
-  value: at[axis], actuator: "motoric", canvas: [...TRAVEL_RANGE_UM[axis]],
+  position: at[axis], unit: "micrometer", actuators: { motoric: at[axis] },
+  canvas: [...TRAVEL_RANGE_UM[axis]],
 }]));

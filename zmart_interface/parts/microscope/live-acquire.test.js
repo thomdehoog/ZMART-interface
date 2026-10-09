@@ -24,7 +24,7 @@ function bridgeTakingTargets({ peak = 12, curve = true, declining = false } = {}
     if (route === "/api/targets/acquire/begin") {
       return answer({ running: true, labels: body.positions.map((_, i) => `L${i}`) });
     }
-    if (route === "/api/xyz") return answer({ x: { value: body.x }, y: { value: body.y }, z: { value: body.z ?? 0 } });
+    if (route === "/api/xyz") return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
     if (route === "/api/state") return answer({ applied: body });
     if (route === "/api/acquire") {
       if (declining) return answer({ success: false, content: { reason: "the laser is off", files: [], planes: [] } });
@@ -141,7 +141,7 @@ describe("the live target run", () => {
       if (url.endsWith("/api/xyz")) {
         const body = JSON.parse(init.body);
         calls.push(["/api/xyz", body]);
-        return { ok: true, json: async () => ({ x: { value: body.x }, y: { value: body.y }, z: { value: 33 } }) };
+        return { ok: true, json: async () => ({ x: { position: body.x }, y: { position: body.y }, z: { position: 33 } }) };
       }
       return inner(url, init);
     })(globalThis.fetch);

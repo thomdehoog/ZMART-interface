@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { backend } from "../../parts/microscope/mock.js";
 
 const um = (reading) => ({
-  x: reading.x.value, y: reading.y.value, z: reading.z.value,
+  x: reading.x.position, y: reading.y.position, z: reading.z.position,
 });
 
 describe("the pretend stage", () => {
@@ -20,9 +20,9 @@ describe("the pretend stage", () => {
      tests, exactly as an instrument keeps one between sessions. */
   beforeEach(async () => { await backend.set_xyz({ x: 4800, y: 3200, z: -412 }); });
 
-  it("answers each axis with its position, its motor and its canvas, in micrometres", async () => {
+  it("answers each axis with its position, its unit, its motors and its canvas, in micrometres", async () => {
     const at = await backend.get_xyz();
-    expect(Object.keys(at.x).sort()).toEqual(["actuator", "canvas", "value"]);
+    expect(Object.keys(at.x).sort()).toEqual(["actuators", "canvas", "position", "unit"]);
     expect(um(at)).toEqual({ x: 4800, y: 3200, z: -412 });
   });
 
