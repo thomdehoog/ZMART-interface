@@ -19,7 +19,7 @@ function bridgeMeasuringFocus() {
     }
     if (route === "/api/xyz") {
       drives.push(body);
-      return answer({ x: { value: body.x }, y: { value: body.y }, z: { value: body.z ?? 0 } });
+      return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
     }
     if (route === "/api/acquire") return answer({ success: true, content: { position_label: body.position_label } });
     if (route === "/api/focus/score") {

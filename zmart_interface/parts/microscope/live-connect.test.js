@@ -72,10 +72,10 @@ describe("the live connect", () => {
     const calls = bridgeAnswering([{ driver: "mock" }]);
     globalThis.fetch.mockImplementationOnce(async (url) => {
       calls.push(url);
-      return { ok: true, json: async () => ({ x: { value: 1 }, y: { value: 2 }, z: { value: 3 } }) };
+      return { ok: true, json: async () => ({ x: { position: 1 }, y: { position: 2 }, z: { position: 3 } }) };
     });
     const xyz = await backend.get_xyz();
-    expect(xyz.x.value).toBe(1);
+    expect(xyz.x.position).toBe(1);
     expect(calls.at(-1)).toMatch(/\/api\/xyz$/);
   });
 
@@ -85,7 +85,7 @@ describe("the live connect", () => {
     globalThis.fetch.mockImplementationOnce(async (url, how) => {
       calls.push(url);
       sent = { method: how?.method, body: JSON.parse(how?.body ?? "null") };
-      return { ok: true, json: async () => ({ x: { value: 900 }, y: { value: 800 }, z: { value: 7 } }) };
+      return { ok: true, json: async () => ({ x: { position: 900 }, y: { position: 800 }, z: { position: 7 } }) };
     });
     /* The controller's two verbs on one noun: `get_xyz` reads it, `set_xyz`
        drives it, and the method is what says which. */
@@ -94,6 +94,6 @@ describe("the live connect", () => {
     expect(sent.method).toBe("POST");
     expect(sent.body).toEqual({ x: 900, y: 800, z: 7 });
     /* Answered with where the stage ended up, not with what was asked for. */
-    expect(at.x.value).toBe(900);
+    expect(at.x.position).toBe(900);
   });
 });
