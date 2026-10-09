@@ -16,7 +16,7 @@
 
 import { css, el, sizeCanvas } from "../../../../framework/window/dom.js";
 import { editedAt } from "../../../../framework/rules/steps.js";
-import { newFocus } from "../../../../framework/window/run-state.js";
+import { newFocus } from "../../shared/run-document.js";
 import { activeRecording } from "../../../../parts/microscope/recordings.js";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
 import { openTheFocusMap } from "./focus-map.js";

@@ -60,7 +60,7 @@ export function installRail(page) {
       if (panel.channel) panel.channel.textContent = "";
       if (panel.foot) panel.foot.textContent = "";
     }
-    startOver(state, backendFor());
+    startOver(state, backendFor(), WORKFLOWS[state.wf]);
     page.view.fitted = false;
     page.focusPanelsFor(0);
     page.shown.gating?.redraw();
