@@ -104,7 +104,7 @@ export const backend = {
    * instrument's end and nothing the page could know.
    */
   viewOf(acquisitionType) {
-    return `${WHERE}/view/${acquisitionType}`;
+    return atBridge(`/view/${acquisitionType}`);
   },
 
   /**
