@@ -4,7 +4,8 @@
  * This file composes the page and nothing else. It builds the one object
  * every module shares -- `page` -- and then lets each module put its part on
  * it: the framework's rail, action bar, runner, tabs and channel; and then
- * each workflow's own wiring, through the `install(page)` its flow exports.
+ * each workflow's own wiring, through the `install(page, { folder })` its
+ * flow exports, the first time a run of that workflow begins.
  * Nothing here names a workflow, a backend or a panel: the page would compose
  * the same way for a workflow about e-learning or about image analysis.
  *
@@ -152,11 +153,20 @@ mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data
  * then opens on, as it would have had the workflow been built in.
  */
 page.registerWorkflow = (folder, flow) => {
+  /* Refused in words, not in silence: whoever installed the package learns
+     why it is not in the chooser. */
+  if (WORKFLOWS[folder]) throw new Error(`a workflow is already on this page under the folder ${folder}`);
   const { WORKFLOWS: assembled } = assembleWorkflows({ [`${folder}/flow.js`]: flow });
   const arrived = assembled[folder];
-  if (!arrived || WORKFLOWS[folder]) return null;
-  WORKFLOWS[folder] = arrived;
+  if (!arrived) throw new Error(`the flow could not be assembled under the folder ${folder}`);
+  const builtBefore = new Set(Object.keys(page.panels));
   buildThePanels({ [folder]: arrived }, page.panels);
+  /* A late panel's edge is wired like a built-in one's, so its channel
+     drags and folds. */
+  for (const [key, panel] of Object.entries(page.panels)) {
+    if (!builtBefore.has(key)) page.wireTheEdge(panel);
+  }
+  WORKFLOWS[folder] = arrived;
   page.renderChooser();
   if (WORKFLOW_ASKED_FOR === folder) page.switchWorkflow(folder);
   else page.renderAll();

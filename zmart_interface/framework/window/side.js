@@ -11,7 +11,8 @@
  * on.
  */
 
-/** Put the channel on the page: `sideWidget()` and `renderSide(show)`. */
+/** Put the channel on the page: `sideWidget()`, `renderSide(show)` and
+    `wireTheEdge(panel)`, for a panel that arrives after the page opened. */
 export function installSide(page) {
   const { run: state, panels: thePanels, step } = page;
 
@@ -34,8 +35,11 @@ export function installSide(page) {
     const somethingToShow = Boolean(widget);
     const folded = state.sideFolded && somethingToShow;
     host.hidden = !widget || folded;
-    // the divider is the column's edge, so it is only there when the column is
-    thePanels[show].divider.hidden = !somethingToShow || folded;
+    /* The divider is the column's edge, so it is only there when the column
+       is. A panel may have a channel without a draggable edge, so the
+       divider is optional. */
+    const divider = thePanels[show].divider;
+    if (divider) divider.hidden = !somethingToShow || folded;
     const fold = thePanels[show].fold;
     if (fold) {
       fold.hidden = !somethingToShow;
@@ -72,8 +76,17 @@ export function installSide(page) {
      walking between steps; the canvas is the bigger half by default and
      keeps whatever the channel does not take. Clamped so neither the picture
      nor the controls can be crushed. */
-  for (const withAnEdge of Object.values(thePanels).filter((p) => p.divider)) {
+  /**
+   * Wire one panel's edge: its divider drags the column's width, its fold
+   * puts the column away. Called for every panel built when the page opens,
+   * and again by the page for a panel a workflow brings later, so an
+   * installed workflow's channel drags and folds like the built-in one's.
+   * A panel without a divider has nothing to wire.
+   */
+  function wireTheEdge(withAnEdge) {
     const divider = withAnEdge.divider;
+    if (!divider || divider.dataset.wired) return;
+    divider.dataset.wired = "yes";
     const body = divider.parentElement;
     let resizing = false;
     divider.addEventListener("pointerdown", (e) => {
@@ -113,6 +126,7 @@ export function installSide(page) {
       withAnEdge.shown?.();
     });
   }
+  for (const panel of Object.values(thePanels)) wireTheEdge(panel);
 
-  return { sideWidget, renderSide };
+  return { sideWidget, renderSide, wireTheEdge };
 }
