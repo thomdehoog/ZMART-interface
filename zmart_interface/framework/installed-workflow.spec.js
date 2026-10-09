@@ -165,23 +165,38 @@ test("a workflow installed from a package plugs in, and the page was never rebui
   expect(said, "the console said something").toEqual([]);
 });
 
-test("a package written for another framework is refused with a sentence, and the rest still load", async ({ page }) => {
+test("a package the page cannot use is refused with a sentence, and the rest still load", async ({ page }) => {
   test.setTimeout(180_000);
-  /* Installed while the bridge runs: the library is read when the page asks. */
+  /* Installed while the bridge runs: the library is read when the page asks.
+     One package written for a framework this page is not; one whose bundle
+     loads but is no workflow, since it declares no steps. */
   const tooNew = await aPackageOf(FIXTURE, {
     folder: "three_steps_too_new", name: "Three steps, too new", version: "2.0.0",
     framework: "^9.0.0", bundle: "flow.bundle.js",
   });
   expect(registerOnTheMachine(tooNew)).toBe("three_steps_too_new");
+  const noSteps = fs.mkdtempSync(path.join(os.tmpdir(), "zmart-workflow-package-"));
+  fs.writeFileSync(path.join(noSteps, "flow.bundle.js"), 'export const blurb = "a flow with nothing in it";\n');
+  fs.writeFileSync(path.join(noSteps, "workflow.json"), JSON.stringify({
+    folder: "no_steps", name: "No steps", version: "1.0.0", framework: "*", bundle: "flow.bundle.js",
+  }));
+  expect(registerOnTheMachine(noSteps)).toBe("no_steps");
 
   const said = keepTheConsole(page);
   await page.goto(thePage(bridge));
   const chooser = page.locator("#wf-select");
   await expect(chooser.locator('option[value="three_steps"]')).toHaveText("Three steps", { timeout: 20_000 });
-  const refused = chooser.locator('option[value="refused:three_steps_too_new"]');
-  await expect(refused).toHaveText("Three steps, too new (not loaded)");
-  await expect(refused).toBeDisabled();
-  await expect(refused).toHaveAttribute("title", /written for framework \^9\.0\.0, and this page is 0\.1\.0/);
-  expect(said).toHaveLength(1);
-  expect(said[0]).toMatch(/warning: the installed workflow Three steps, too new was not loaded: written for framework \^9\.0\.0/);
+  const tooNewEntry = chooser.locator('option[value="refused:three_steps_too_new"]');
+  await expect(tooNewEntry).toHaveText("Three steps, too new (not loaded)");
+  await expect(tooNewEntry).toBeDisabled();
+  await expect(tooNewEntry).toHaveAttribute("title", /written for framework \^9\.0\.0, and this page is 0\.1\.0/);
+  const noStepsEntry = chooser.locator('option[value="refused:no_steps"]');
+  await expect(noStepsEntry).toHaveText("No steps (not loaded)");
+  await expect(noStepsEntry).toHaveAttribute("title", /its flow could not be put on the page/);
+  /* And the good package is still there and still works. */
+  await chooser.selectOption("three_steps");
+  await expect(page.locator("#steps .step")).toHaveCount(3);
+  expect(said).toHaveLength(2);
+  expect(said.join("\n")).toMatch(/warning: the installed workflow Three steps, too new was not loaded: written for framework \^9\.0\.0/);
+  expect(said.join("\n")).toMatch(/warning: the installed workflow No steps was not loaded: its flow could not be put on the page/);
 });

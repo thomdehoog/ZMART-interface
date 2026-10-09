@@ -36,9 +36,11 @@ import { atBridge } from "./bridge-address.js";
 import { satisfies } from "../rules/versions.js";
 
 /* An import of the framework in a bundle's text: `from "zmart-interface/..."`
-   after an import or a re-export, or a bare `import "zmart-interface/..."`.
-   The quote is kept so the replacement reads as the original did. */
-const AN_IMPORT_OF_THE_FRAMEWORK = /(\bfrom\s*|\bimport\s*)(["'])zmart-interface\/([^"']+)\2/g;
+   after an import or a re-export, a bare `import "zmart-interface/..."`, or
+   a dynamic `import("zmart-interface/...")`, which is how a workflow reaches
+   a heavy part only when it needs it. The quote is kept so the replacement
+   reads as the original did. */
+const AN_IMPORT_OF_THE_FRAMEWORK = /(\bfrom\s*|\bimport\s*\(?\s*)(["'])zmart-interface\/([^"']+)\2/g;
 
 /** The names a bundle imports from the framework, each once, in order. */
 export function importedFrameworkModules(text) {
@@ -126,12 +128,21 @@ export async function loadInstalledWorkflows({ register, refuse }) {
   const outcomes = [];
   for (const listed of listing.workflows) {
     if (!listed?.folder || !listed.bundle) continue;
-    const outcome = await loadOneWorkflow(listed);
+    let outcome = await loadOneWorkflow(listed);
+    if (!outcome.refused) {
+      /* A bundle that loaded but cannot be made into a workflow -- no steps,
+         a panel that fails to build, a folder already taken -- is refused
+         like the others, so the packages after it still load and the
+         chooser says why this one did not. */
+      try {
+        register(outcome.folder, outcome.flow);
+      } catch (why) {
+        outcome = { ...outcome, flow: undefined, refused: `its flow could not be put on the page: ${why.message}` };
+      }
+    }
     if (outcome.refused) {
       console.warn(`the installed workflow ${outcome.name} was not loaded: ${outcome.refused}`);
       refuse(outcome.folder, outcome.name, outcome.refused);
-    } else {
-      register(outcome.folder, outcome.flow);
     }
     outcomes.push(outcome);
   }

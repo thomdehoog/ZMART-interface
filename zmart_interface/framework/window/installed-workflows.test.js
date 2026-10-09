@@ -14,6 +14,8 @@ import "zmart-interface/parts/canvas/panel.js";
 export { connect } from "zmart-interface/workflows/target_acquisition/steps/connect/step.js";
 import { sideGroup as again } from "zmart-interface/framework/window/panels.js";
 import somethingElse from "./not-the-framework.js";
+const engine = () => import("zmart-interface/parts/canvas/engines.js");
+const later = await import( 'zmart-interface/parts/canvas/viewer.js' );
 `;
 
 describe("what a bundle imports from the framework", () => {
@@ -23,7 +25,18 @@ describe("what a bundle imports from the framework", () => {
       "framework/window/dom.js",
       "parts/canvas/panel.js",
       "workflows/target_acquisition/steps/connect/step.js",
+      "parts/canvas/engines.js",
+      "parts/canvas/viewer.js",
     ]);
+  });
+
+  it("includes a dynamic import, which is how a heavy part is reached late", () => {
+    const pointed = withImportsPointedAt(A_BUNDLE, {
+      "parts/canvas/engines.js": "blob:engines",
+      "parts/canvas/viewer.js": "blob:viewer",
+    });
+    expect(pointed).toContain('import("blob:engines")');
+    expect(pointed).toContain("import( 'blob:viewer' )");
   });
 
   it("leaves the bundle's own relative imports alone", () => {
