@@ -64,6 +64,11 @@ export function assembleWorkflows(flowFiles) {
       freshState: flow.freshState,
       keptAcrossSessions: flow.keptAcrossSessions ?? [],
       forTests: flow.forTests,
+      /* How the workflow wires itself to the page once it opens, and which
+         backend its steps speak to, read off the page's own address. Both
+         optional: a workflow of plain steps needs neither. */
+      install: flow.install,
+      backendFor: flow.backendFor,
     };
   }
 

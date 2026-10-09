@@ -46,16 +46,18 @@ export function installActionBar(page) {
     const done = state.done.has(s.id);
     const running = state.running === s.id;
     const blocked = page.readiness(s);
-    /* The protocol run's own Interrupt: shown in whichever step's box the
-       walk is standing in, latching the walk to end after the step in
-       hand, and stopping that step where it has a brake. */
+    /* The walk's own Interrupt, while a step that runs the others is
+       walking them: shown in whichever step's box the walk is standing in,
+       latching the walk to end after the step in hand, and stopping that
+       step where it has a brake. How the walk is stopped is the walking
+       step's own `brake`; the framework only finds that step. */
     if (state.protocol.running) {
       const stop = document.createElement("button");
       stop.className = "run step-run running";
       stop.type = "button";
       stop.textContent = state.protocol.interrupted ? "stopping…" : "Interrupt";
       stop.disabled = state.protocol.interrupted;
-      stop.addEventListener("click", () => page.interruptProtocol());
+      stop.addEventListener("click", () => page.steps().find((one) => one.runsTheOthers)?.brake?.(page));
       host.append(stop);
       const hint = document.createElement("span");
       hint.className = "action-hint";

@@ -49,9 +49,41 @@ export function installTargetAcquisition(page) {
     protocolWithin, interruptProtocol, renderProtocolProgress,
   });
   page.focusFitWord = focusFitWord;
+  /* The clock reading where the stage is while a session is open, set by
+     Connect and stopped when the run starts over. */
+  page.stageWatch = null;
   /* The canvas first: the focus map draws on it. */
   Object.assign(page, installTheCanvas(page));
   Object.assign(page, installFocus(page));
   Object.assign(page, installCarrier(page));
   Object.assign(page, installProtocol(page));
+
+  /* What this workflow does when the run starts over -- on Disconnect, or
+     when another workflow is chosen: the stage's clock is stopped, the
+     instruments are asked for again (the fresh run has none), the picture
+     will fit itself to the next session's travel, and the boxes that draw
+     their own picture are drawn empty. */
+  page.onReset.push(() => {
+    page.stageWatch?.stop();
+    page.stageWatch = null;
+    page.view.fitted = false;
+    page.shown.gating?.redraw();
+    page.renderPointList();
+    page.listInstruments();
+  });
+  /* The protocol's progress stands over whichever step's controls the walk
+     is standing in, so it is put there whenever a step's controls go in. */
+  page.onChannelMounted.push(() => page.renderProtocolProgress());
+  /* A change of theme repaints everything here that chose its colours
+     itself: the stage, the trace, the detection card and the gating plot. */
+  page.onThemeChanged.push(() => {
+    page.drawStage(); page.drawTrace();
+    page.shown.detection?.redraw(); page.shown.gating?.redraw();
+  });
+
+  /* The instruments, asked for once the backend is known; the card fills in
+     when the answer lands. The focus list and the plan drawn once, empty. */
+  page.listInstruments();
+  page.renderPointList();
+  page.rebuildPlan();
 }

@@ -44,14 +44,18 @@ export function installRail(page) {
     selectEl.value = key;
     page.backend = backendFor();
     resetRun();
-    page.listInstruments();
   }
   selectEl.addEventListener("change", () => switchWorkflow(selectEl.value));
 
-  /** Put the run back to its first step, keeping only what outlives a session. */
+  /**
+   * Put the run back to its first step, keeping only what outlives a session.
+   *
+   * What a workflow has to put down when the run starts over -- a clock
+   * reading the stage, a picture's fit, a list to ask for again -- is the
+   * workflow's own, so each says it in `page.onReset`, and this calls every
+   * one of them once the run document is fresh.
+   */
   function resetRun() {
-    page.stageWatch?.stop();
-    page.stageWatch = null;
     /* Every panel's channel is emptied, not only the one about to be shown:
        switching workflows leaves the other workflow's panel hidden with its
        last step's controls still in it, and a hidden form is still a form
@@ -61,10 +65,8 @@ export function installRail(page) {
       if (panel.foot) panel.foot.textContent = "";
     }
     startOver(state, backendFor(), WORKFLOWS[state.wf]);
-    page.view.fitted = false;
     page.focusPanelsFor(0);
-    page.shown.gating?.redraw();
-    page.renderPointList();
+    for (const reset of page.onReset) reset();
     page.renderAll();
   }
 
@@ -139,10 +141,14 @@ export function installRail(page) {
   function stateEdited(id) {
     if (state.protocol.running) return;
     state.stale = editedAt(steps(), state.done, state.stale, id);
-    /* Step 10 has no settings to confirm: an edit above it means it has
-       not run on what stands now, which is what its press is for. */
-    state.stale.delete("protocol");
-    state.done.delete("protocol");
+    /* A step that runs the others has no settings to confirm: an edit
+       above it means it has not run on what stands now, which is what its
+       press is for. So it is neither orange nor done, whichever step it is;
+       the step says it is such a step with `runsTheOthers`. */
+    for (const s of steps().filter((one) => one.runsTheOthers)) {
+      state.stale.delete(s.id);
+      state.done.delete(s.id);
+    }
     renderRail(); page.renderActionBar();
   }
 
