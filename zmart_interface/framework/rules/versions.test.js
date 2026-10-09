@@ -40,6 +40,8 @@ describe("whether a framework satisfies a workflow's range", () => {
 
   it("reads bounds, alone and together", () => {
     expect(satisfies("0.2.0", ">=0.1.0")).toBe(true);
+    expect(satisfies("0.2.0", ">= 0.1.0")).toBe(true);
+    expect(satisfies("0.3.0", ">= 0.1.0 < 0.3.0")).toBe(false);
     expect(satisfies("0.0.9", ">=0.1.0")).toBe(false);
     expect(satisfies("0.2.0", ">=0.1.0 <0.3.0")).toBe(true);
     expect(satisfies("0.3.0", ">=0.1.0 <0.3.0")).toBe(false);

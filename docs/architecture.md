@@ -112,8 +112,10 @@ zmart_interface/
 The rule between the three: what several workflows share belongs in `parts/`
 or the framework; what several steps of one workflow share belongs in that
 workflow's `shared/`. The framework and the parts could as well run an
-e-learning course or an image-analysis pipeline as a microscope: nothing in
-them says "stage" or "focus". That is what lets a workflow be written in
+e-learning course or an image-analysis pipeline as a microscope: no code in
+the framework names a workflow's step or reads a key of its run, and a test
+keeps it so (its comments still use the microscope as the example, since it
+is the one workflow there is to point at). That is what lets a workflow be written in
 another repository and installed on a machine that has the framework and the
 parts, without the page being rebuilt; `docs/writing-a-workflow.md` says how.
 

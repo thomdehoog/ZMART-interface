@@ -45,6 +45,8 @@ export const runProtocolStep = {
   pressed: runProtocol,
   running: (run) => run.protocol.running,
   brake: interruptProtocol,
+  /* Said beside the walk's Interrupt, in whichever step's box the walk stands. */
+  whileWalking: "running the protocol",
   again: "Rerun protocol",
   afterThePress: afterTheProtocolPress,
   /* The protocol's box says what the run came to in its own line. */

@@ -1,5 +1,5 @@
 /**
- * Target acquisition — the one workflow this page runs.
+ * Target acquisition — the workflow built into this page.
  *
  * The steps are the list in `./the-run.js`. What the run drives is chosen on
  * the Connect step, not here: the operator picks the microscope — the
