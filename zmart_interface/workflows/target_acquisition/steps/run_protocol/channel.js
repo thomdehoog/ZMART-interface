@@ -10,7 +10,7 @@
 import { burst } from "../../../../framework/window/confetti.js";
 import { css } from "../../../../framework/window/dom.js";
 import { sideGroup } from "../../../../framework/window/panels.js";
-import { protocolFrom } from "../../../../framework/window/protocol.js";
+import { protocolFrom } from "../../shared/protocol.js";
 
 /** The operator looked at every orange step and agrees with them as they
     stand: one press, in Step 10's box, there only while something is

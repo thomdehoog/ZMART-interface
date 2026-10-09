@@ -10,8 +10,12 @@
  * mount's. Every one of those is made again on the next sample, from these
  * settings, which is the point of having them.
  *
- * Pure: every function is a function of the state it is handed. The shell
- * owns the state and the file; this knows which fields are settings.
+ * Pure: every function is a function of the state it is handed. The page
+ * owns the state and the bridge the file; this knows which fields are
+ * settings. It is this workflow's: which keys of the run are settings is a
+ * question about a microscope run, so the file lives beside the run document
+ * that names them (`run-document.js`) and not in the framework, which keeps
+ * only the walk of the steps in turn (`page.run.protocol`).
  */
 
 export const PROTOCOL_VERSION = 1;
