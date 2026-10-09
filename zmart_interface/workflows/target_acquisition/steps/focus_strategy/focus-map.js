@@ -33,6 +33,18 @@ import { zColourScale } from "./z-domain.js";
 import { status } from "../../../../framework/window/status.js";
 import { progressBox } from "../../shared/progress.js";
 import { activeRecording } from "../../../../parts/microscope/recordings.js";
+/* The step's controls, as markup: read in as text by the build tool. */
+import focusControlsMarkup from "./focus-controls.html?raw";
+
+/* The controls go into the page the moment this module loads, hidden, so
+   that `openTheFocusMap` below finds every element by its id when the page
+   starts and the step's channel can move them into the column later. The
+   page's template knows no step, which is why the markup arrives from here
+   rather than being written in it. Guarded, because the unit tests load
+   this module in Node, where there is no document to put anything into. */
+if (typeof document !== "undefined" && !document.getElementById("focus-controls")) {
+  document.body.insertAdjacentHTML("beforeend", focusControlsMarkup);
+}
 
 
 /**
