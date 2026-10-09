@@ -52,16 +52,18 @@ export function installActionBar(page) {
        step where it has a brake. How the walk is stopped is the walking
        step's own `brake`; the framework only finds that step. */
     if (state.protocol.running) {
+      const walker = page.steps().find((one) => one.runsTheOthers);
       const stop = document.createElement("button");
       stop.className = "run step-run running";
       stop.type = "button";
       stop.textContent = state.protocol.interrupted ? "stopping…" : "Interrupt";
       stop.disabled = state.protocol.interrupted;
-      stop.addEventListener("click", () => page.steps().find((one) => one.runsTheOthers)?.brake?.(page));
+      stop.addEventListener("click", () => walker?.brake?.(page));
       host.append(stop);
       const hint = document.createElement("span");
       hint.className = "action-hint";
-      hint.textContent = "running the protocol";
+      /* In the walking step's own words (`whileWalking`), or its title. */
+      hint.textContent = walker?.whileWalking ?? (walker ? `running ${walker.title}` : "running the steps");
       host.append(hint);
       return;
     }

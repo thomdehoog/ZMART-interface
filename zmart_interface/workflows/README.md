@@ -68,6 +68,14 @@ A workflow that wants a borrowed step to say something different wraps it in
 nothing else. That keeps what a step *does* written down once, so a fix
 reaches every workflow at the same moment.
 
+One limit, today: a borrowed step brings its declaration, not the wiring its
+owner does in `install`. Target acquisition's steps reach the page's `stage`,
+`listInstruments`, `renderPointList` and the rest, which exist only once
+target acquisition's own `install` has run, so a workflow written in another
+repository can borrow one of them only if it uses nothing its owner lends.
+Letting a step declare its own wiring is the next cut; until then, borrow
+steps within this repository, or write the step afresh.
+
 ## What a step is made of
 
 A step is data, not code: a short description the framework reads. These are its
@@ -116,7 +124,8 @@ fields, all optional except the first two.
   `page.run.protocol` and reads whether it is running; a step that says this
   is never left orange or done by an edit above it, since it has no settings
   of its own to confirm, and its `brake` is what the walk's Interrupt
-  presses.
+  presses. `whileWalking` is the sentence beside that Interrupt ("running the
+  protocol"); without it the page says "running" and the step's title.
 - `beside(run, { done })` — the sentence beside the press once nothing blocks
   it, instead of the step's note.
 - `noHint` — nothing stands beside the press: what the step waits for and
@@ -189,10 +198,15 @@ drives nothing and keeps nothing of its own needs only the first two.
 - `panels` — what the workflow puts on screen: the canvas, or a panel of its
   own. A panel is `{ key, label, stays, build(host) }`; the framework builds
   one element per key and the panel fills it through `build`, handing back
-  whatever the steps need of it (`channel`, `foot`, ...). A panel that draws
-  something of its own may also answer `shown()`, which the framework calls
-  when the panel comes on screen or its room changes, since a hidden box has
-  no size to draw into.
+  whatever the steps need of it. Of what `build` hands back, the framework
+  reads these, every one optional: `channel`, the column a step's controls
+  are mounted in; `divider`, the draggable edge of that column, and `fold`,
+  the press that puts the column away; `display`, a box the framework keeps
+  hidden beside the column; `foot`, where a step's press goes when the step
+  has no slot of its own (give it the id `foot-<key>`); and `shown()`, which
+  the framework calls when the panel comes on screen or its room changes,
+  since a hidden box has no size to draw into. A panel with a channel but no
+  divider simply has a column of fixed width.
 - `opensFirst` — the workflow a fresh page opens on.
 - `install(page, { folder })` — how the workflow wires itself to the page,
   once, the first time a run of it begins: as the page opens on it, or when

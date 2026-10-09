@@ -63,31 +63,58 @@ into a checkout of the interface:
 import { sideGroup } from "zmart-interface/framework/window/panels.js";
 import { el, css } from "zmart-interface/framework/window/dom.js";
 import { status } from "zmart-interface/framework/window/status.js";
+import { atBridge } from "zmart-interface/framework/window/bridge-address.js";
 import { reworded } from "zmart-interface/framework/rules/steps.js";
 import { canvasPanel } from "zmart-interface/parts/canvas/panel.js";
-import { connect } from "zmart-interface/workflows/target_acquisition/steps/connect/step.js";
 ```
+
+A dynamic `import("zmart-interface/parts/canvas/engines.js")`, for a heavy
+part you only want when a step needs it, is answered the same way.
 
 The page answers these at run time from its own modules, so your workflow
 uses the very same framework and parts as the workflows built into the page,
 whichever version of the interface the computer has. What is on offer:
 
 - the framework's helpers a step reaches for: `framework/window/dom.js`,
-  `framework/window/panels.js`, `framework/window/status.js` and
-  `framework/rules/steps.js`;
+  `framework/window/panels.js`, `framework/window/status.js`,
+  `framework/window/bridge-address.js` and `framework/rules/steps.js`;
 - every part under `parts/`: the canvas and its drawing engines, the
   microscope seam (`parts/microscope/live.js` speaks to the bridge), the
   recordings and instruments helpers, and so on;
 - every built-in workflow's shared code and step declarations,
-  `workflows/<name>/shared/*.js` and `workflows/<name>/steps/<step>/step.js`,
-  so you can borrow a step rather than retype it (see "Borrowing steps
-  instead of retyping them" in the workflows README).
+  `workflows/<name>/shared/*.js` and `workflows/<name>/steps/<step>/step.js`.
 
-Anything else -- a library of your own, a file beside your flow -- is
-imported by a relative path as usual and is folded into your bundle by the
-build. Your own CSS can be added through a `<style>` element your `install`
-puts on the page, or kept in a `.css` file in the package and fetched from
-`/workflows/<folder>/<file>`; the build does not fold stylesheets in.
+About that last group, a limit you should know before you lean on it. A
+built-in step brings its declaration, not the wiring its own workflow does in
+`install`: target acquisition's steps reach the page's `stage`,
+`listInstruments` and the rest, which exist only once target acquisition has
+been opened on the page. So a step can be borrowed into a workflow written
+elsewhere only if it uses nothing its owner lends -- none of target
+acquisition's ten does today. Letting a step declare its own wiring is the
+next cut; until then, use the shared helpers and write your steps afresh.
+
+Anything else -- a library of your own, a file beside your flow, a piece of
+markup read in as text with `?raw` -- is imported by a relative path as usual
+and is folded into your bundle by the build. Two things are not folded in.
+A stylesheet your code imports comes out of the build as `style.css` beside
+the bundle; fetch it from the package's folder and put it on the page from
+your `install`:
+
+```js
+const style = document.createElement("link");
+style.rel = "stylesheet";
+style.href = atBridge("/workflows/my_workflow/style.css");
+document.head.append(style);
+```
+
+And a picture larger than Vite folds inline becomes a file address the
+loaded bundle cannot follow; keep pictures small, or fetch them from the
+package's folder the same way.
+
+One more detail of how the loading works: the page hands your bundle each
+framework module's exports as they stand when the bundle loads. Nothing in
+the framework reassigns an export after that, so this never shows, but a
+future module that did would not be seen changing.
 
 The framework's own fixture, `zmart_interface/framework/fixtures/three_steps/flow.js`,
 is a complete workflow written this way: three steps, a card panel, no
@@ -125,9 +152,10 @@ The first copies the package into the computer's workflow library,
 `ZMART_MICROSCOPY_ROOT` points; `ZMART_WORKFLOW_LIBRARY` names another folder
 outright), beside the saved protocols, and prints the folder it is installed
 as. A package missing something is refused with a sentence saying what, and
-nothing is copied. The second lists what is installed. Installing a package
-again replaces the earlier one; to remove one, delete its folder from the
-library.
+nothing is copied. The whole folder you point at is copied, so point at the
+built package, not at your repository's root. The second lists what is
+installed. Installing a package again replaces the earlier one; to remove
+one, delete its folder from the library.
 
 The next time the operator page opens, its chooser offers the workflow. The
 page itself was not rebuilt and not changed: the bridge lists the library
@@ -166,8 +194,23 @@ and `POST /api/my_workflow/count`. A handler is written the way the bridge's
 own are: it takes the request's JSON body as a dictionary (empty for a GET)
 and the raw query string, and answers a dictionary; an exception it raises
 reaches the page as a sentence, with status 400 for a `ValueError`. From the
-page, your steps call these with `ask` from
-`zmart-interface/parts/microscope/live.js`, which knows where the bridge is.
+page, your steps reach them at the bridge's address, which
+`zmart-interface/framework/window/bridge-address.js` knows:
+
+```js
+import { atBridge } from "zmart-interface/framework/window/bridge-address.js";
+
+const answer = await fetch(atBridge("/api/my_workflow/count"), {
+  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: 3 }),
+});
+const { counted } = await answer.json();
+```
+
+A handler runs on the bridge's request thread with no lock held. If your
+half drives the instrument through the controller, take the bridge's lock
+around that work yourself, `with zmart_interface.framework.bridge.state.the_instruments_turn:`,
+so two requests never move the stage at once; the bridge's own routes do the
+same.
 
 A module that fails to import, or has no `routes`, leaves the workflow listed
 with the error, and the page says so and does not offer it: a workflow whose

@@ -17,10 +17,13 @@
  * - `*` or an empty range: any version at all.
  * - `1.2.3`: exactly that version.
  * - `^1.2.3`: that version or newer, below the next major (below 2.0.0);
- *   while the major is 0, below the next minor (`^0.1.0` means 0.1.x), the
- *   way npm reads it, since a 0.x framework changes between minors.
+ *   while the major is 0, below the next minor (`^0.1.0` means 0.1.x), since
+ *   a 0.x framework changes between minors. This is npm's reading for every
+ *   caret but `^0.0.x`, which npm pins to one patch and this file reads as
+ *   0.0.x; a framework at 0.0 is not something a package would be written for.
  * - `~1.2.3`: that version or newer, below the next minor (below 1.3.0).
- * - `>=1.2.3`, `>1.2.3`, `<=1.2.3`, `<1.2.3`: one bound.
+ * - `>=1.2.3`, `>1.2.3`, `<=1.2.3`, `<1.2.3`: one bound. A space between the
+ *   sign and the version (`>= 1.2.3`) is allowed.
  * - Several of the above separated by spaces: all must hold (`>=0.1.0 <0.3.0`).
  */
 
@@ -63,7 +66,15 @@ function clause(text) {
  * but `*`.
  */
 export function satisfies(version, range) {
-  const words = String(range ?? "").trim().split(/\s+/).filter(Boolean);
+  /* A sign standing alone is joined to the version after it, so `>= 1.2.3`
+     reads as `>=1.2.3`. */
+  const words = String(range ?? "").trim().split(/\s+/).filter(Boolean)
+    .reduce((joined, word) => {
+      const last = joined[joined.length - 1];
+      if (last !== undefined && /^(\^|~|>=|<=|>|<|=)$/.test(last)) joined[joined.length - 1] = last + word;
+      else joined.push(word);
+      return joined;
+    }, []);
   if (words.length === 0 || (words.length === 1 && words[0] === "*")) return true;
   const v = parseVersion(version);
   if (!v) return false;

@@ -17,7 +17,8 @@
  *
  * - the framework's helpers a step reaches for: `framework/window/dom.js`,
  *   `framework/window/panels.js`, `framework/window/status.js`,
- *   `framework/rules/steps.js`;
+ *   `framework/window/bridge-address.js` (where the bridge answers, for a
+ *   workflow with a Python half of its own) and `framework/rules/steps.js`;
  * - every part, `parts/**`, which is what any workflow is built from;
  * - the shared files and the step declarations of every workflow in this
  *   repository, `workflows/<name>/shared/*.js` and
@@ -41,7 +42,7 @@ import { version } from "../../../package.json";
    path relative to `zmart_interface/`, which `named` works out below. Tests
    and browser specs are not for importing. */
 const found = {
-  ...import.meta.glob(["./dom.js", "./panels.js", "./status.js"]),
+  ...import.meta.glob(["./dom.js", "./panels.js", "./status.js", "./bridge-address.js"]),
   ...import.meta.glob("../rules/steps.js"),
   ...import.meta.glob(["../../parts/**/*.js", "!../../parts/**/*.test.js", "!../../parts/**/*.spec.js"]),
   ...import.meta.glob(["../../workflows/*/shared/*.js", "!../../workflows/*/shared/*.test.js", "!../../workflows/*/shared/*.spec.js"]),
