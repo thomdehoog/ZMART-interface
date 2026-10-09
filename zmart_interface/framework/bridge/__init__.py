@@ -27,7 +27,10 @@ One module per concern, and one that holds what they share:
 * ``targets`` — the target run, one tile at a time.
 * ``pictures`` — each capture's OME-Zarr position, and the pictures served.
 * ``protocols`` — the settings a run ran with, written beside it or saved by name.
-* ``server`` — the HTTP routes, the built page, and ``serve``/``main``.
+* ``workflows`` — the workflows installed on this computer as packages, listed
+  for the page, and each one's Python half wired in at start-up.
+* ``server`` — the HTTP routes as a table, the built page, the installed
+  workflows' files, and ``serve``/``main``.
 
 The verbs, and what they are made of
 ------------------------------------
@@ -102,7 +105,17 @@ The verbs, and what they are made of
   machine's library by name.
 * ``GET /api/viewer`` — whether the picture server beside the run is up, and
   what it serves. ``GET /view/<acquisition>/<name>`` hands out one of a run's
-  pictures; anything else that is not ``/api/`` is the built page.
+  pictures.
+* ``GET /api/workflows`` — the workflows installed on this computer as
+  packages (``zmart_interface.register_workflow``), each with where its
+  bundle is served, ``GET /workflows/<folder>/<file>``; the page loads them
+  as it opens, beside the workflows built into it. A package's Python half
+  adds its own routes under ``/api/<folder>/``. Anything else that is not
+  ``/api/`` is the built page.
+
+The routes are a table in ``server`` (``ROUTES``, filled by the ``@route``
+decorator): one function per route, taking the request's body and query and
+answering a dictionary.
 
 One thread owns the instrument. Every route that touches the session takes
 ``state.the_instruments_turn`` first, so two requests can never move the
