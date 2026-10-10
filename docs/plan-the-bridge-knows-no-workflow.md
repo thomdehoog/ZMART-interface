@@ -1,6 +1,6 @@
 # Plan: the background program knows no workflow
 
-*Status: a plan to be read and reviewed. Nothing has moved yet.*
+*Status: done on 11 October 2026, with Thom's answers to the three decisions as recommended (the addresses change, the mock and the simulator are included, the page names the run folder). Steps 1 to 4 are commit `cede1b8`, step 5 is `33576b7`. What follows is the plan as it was reviewed.*
 
 ## In short
 
