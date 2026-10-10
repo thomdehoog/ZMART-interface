@@ -425,10 +425,11 @@ def test_a_format_said_as_numbers_counts_the_same(monkeypatch):
         {"pixel_size": {"x": 0.5}, "pixels_x": 1024, "pixels_y": 1024}, monkeypatch) == 512
 
 
-def test_an_instrument_that_says_neither_gets_a_guess(monkeypatch):
-    """And it is a guess, not a measurement: 512 px is a stand-in for a format
-    nobody reported, kept only so the page has a frame to draw at all."""
-    assert _frame({"pixel_size": {"x": 1.0}}, monkeypatch) == readings.A_GUESSED_FORMAT_PX
+def test_an_instrument_that_says_neither_is_refused_rather_than_guessed(monkeypatch):
+    """A frame nobody measured is not drawn: 512 px was a stand-in for a format
+    nobody reported, and a plan laid on it had gaps or overlaps."""
+    with pytest.raises(RuntimeError, match="how many pixels"):
+        _frame({"pixel_size": {"x": 1.0}}, monkeypatch)
 
 
 # --- what the instrument offers ----------------------------------------------
@@ -1291,16 +1292,24 @@ def test_a_start_height_is_an_instruction_not_an_answer(driver):
 def test_the_reading_survives_a_leica_shaped_state(monkeypatch):
     """The adapter reports `serial_number` and `active_objective`, and its
     `pixel_size` is None when job geometry fails to parse. The reading read
-    the mock's keys and crashed on the None."""
+    the mock's keys and crashed on the None; then it guessed 1 µm. Now the
+    None is refused in a sentence, and a measured state reads by the Leica's
+    own keys."""
     monkeypatch.setattr(state, "session", _plugged(_Optics({
         "serial_number": "STELLARIS-1", "active_objective": {"magnification": 20.0},
         "pixel_size": None, "frame_size": None,
     })))
-    reading = readings.reading("acquisition")
-    assert "20x" in reading["summary"]
+    with pytest.raises(RuntimeError, match="did not report its pixel size"):
+        readings.reading("acquisition")
+
+    measured = {"pixel_size": {"x": 0.5}, "frame_size": {"x": 256.0}}
+    monkeypatch.setattr(state, "session", _plugged(_Optics({
+        "serial_number": "STELLARIS-1", "active_objective": {"magnification": 20.0}, **measured,
+    })))
+    assert "20x" in readings.reading("acquisition")["summary"]
 
     monkeypatch.setattr(state, "session", _plugged(_Optics({
-        "serial_number": "STELLARIS-1", "pixel_size": None, "frame_size": None,
+        "serial_number": "STELLARIS-1", **measured,
     })))
     assert "STELLARIS-1" in readings.reading("acquisition")["summary"]
 
@@ -1366,7 +1375,7 @@ def test_the_optics_line_names_the_leica_lens(monkeypatch):
     shelf, and the line read only the mock's sub-keys."""
     monkeypatch.setattr(state, "session", _plugged(_Optics({
         "active_objective": {"name": "HC PL APO 63x/1.40 OIL CS2", "magnification": 63.0},
-        "pixel_size": None, "frame_size": None,
+        "pixel_size": {"x": 0.1}, "frame_size": {"x": 102.4},
     })))
     assert "HC PL APO 63x/1.40 OIL CS2" in readings.reading("acquisition")["summary"]
 
