@@ -12,10 +12,16 @@ npm run dev       # http://127.0.0.1:5174, reloads on save; open it with `zmart-
 ```
 
 The build also needs ZMART-viewer installed in the Python it runs with
-(`PYTHON=` names that Python when it is not the one on the path): neuroglancer
-is patched for pictures that grow while they are on screen, and those patches
-belong to the viewer (`zmart_viewer/drawing/neuroglancer-growth.mjs`), so the
-page and the viewer draw with the same neuroglancer.
+(`PYTHON=` names that Python when it is not the one on the path). This page
+draws exactly as the viewer's own window does, and the rules for that belong
+to the viewer, in its package's `drawing` folder: the shader programs that turn
+a stored value into a colour (`programs.js`, imported as
+`zmart-viewer/drawing/programs.js`), and the edits that let neuroglancer keep
+an image's transparency and let a picture grow while it is on screen
+(`neuroglancer-patches.mjs`, `neuroglancer-growth.mjs`). The build takes them
+from the installed viewer (`the-installed-viewer.mjs` finds them), so the page
+and the viewer cannot drift apart. The one neuroglancer edit only this page
+needs stays in `patches/neuroglancer+2.41.2.patch`.
 
 On the ZMB workstations AppLocker runs programs only from
 `C:\ProgramData\MinicondaZMB`, so the checkout, `node_modules` and the
