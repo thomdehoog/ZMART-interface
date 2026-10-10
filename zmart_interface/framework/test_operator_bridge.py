@@ -1590,7 +1590,9 @@ def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(mon
         view.close()
 
 
-def test_starting_a_scan_names_the_stores_it_keeps_by_the_new_plan(monkeypatch):
+def test_starting_a_scan_names_the_stores_it_keeps_by_the_new_plan(driver, monkeypatch):
+    # The scan's thread is never started here, so its "running" is put back after.
+    monkeypatch.setitem(state.scan, "running", False)
     asked = []
     monkeypatch.setattr(pictures, "replace_the_acquisition", lambda kind, keeping: asked.append((kind, keeping)))
     monkeypatch.setattr(threading, "Thread", lambda **kw: type("T", (), {"start": lambda self: None})())

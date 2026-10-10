@@ -95,6 +95,8 @@ def _instruments(asked, query):
 
 @route("POST", "/api/connect")
 def _connect(asked, query):
+    # Outside the instrument's turn: a running scan needs it to finish its field.
+    connecting.let_the_last_session_go()
     with state.the_instruments_turn:
         return connecting.connect(asked)
 
@@ -285,6 +287,47 @@ def _installed_workflows(asked, query):
     return workflows.listing()
 
 
+#: The names this computer answers to. A request that arrives under any other
+#: name was sent to a web address that someone pointed at 127.0.0.1, which is
+#: how a page from elsewhere would try to look like one served here.
+THIS_COMPUTER = {"127.0.0.1", "localhost", "::1"}
+
+
+def on_this_computer(address: str) -> bool:
+    """Whether ``address`` (``host:port`` or a page's origin) names this computer."""
+    if "//" not in address:
+        address = f"//{address}"
+    try:
+        return urllib.parse.urlsplit(address).hostname in THIS_COMPUTER
+    except ValueError:
+        return False
+
+
+def refusal_for(headers) -> str | None:
+    """Why a request must not be answered, or None when it comes from this computer.
+
+    The bridge listens on 127.0.0.1, so other computers cannot reach it. A web
+    page open in a browser on the microscope computer can, though, and a
+    browser sends such a page's request without asking first when it is
+    dressed as plain text. Three things the browser always says tell such a
+    request apart: the name it was sent to (``Host``), the page it came from
+    (``Origin``), and, for a plain read such as a picture, whether it crossed
+    from another site (``Sec-Fetch-Site``). The operator page, served by the
+    bridge or by the development server on another port, is on this computer
+    by all three. A script run here (the tests, curl) sends no ``Origin`` and
+    is let through.
+    """
+    host = headers.get("Host") or ""
+    if not on_this_computer(host):
+        return f"the bridge only answers requests addressed to this computer, not to {host!r}"
+    origin = headers.get("Origin")
+    if origin is not None and not on_this_computer(origin):
+        return f"the bridge only answers pages served on this computer, not one from {origin!r}"
+    if origin is None and headers.get("Sec-Fetch-Site") == "cross-site":
+        return "the bridge only answers pages served on this computer, not one from another site"
+    return None
+
+
 class Bridge(BaseHTTPRequestHandler):
     # Keep the connection: HTTP/1.0 opened a fresh TCP connection per
     # picture, which is 34 measured milliseconds a tile and seventy seconds
@@ -292,15 +335,34 @@ class Bridge(BaseHTTPRequestHandler):
     # which is what keep-alive requires.
     protocol_version = "HTTP/1.1"
 
+    def allow_the_page(self) -> None:
+        """Let the page that asked read the answer, when it is on this computer.
+
+        The development server holds the page on another port, and a browser
+        hides an answer from a page on another port unless it is named here.
+        Only the page that asked is named, never everyone (``*``): a page
+        from elsewhere has been refused before anything is answered.
+        """
+        origin = self.headers.get("Origin")
+        if origin is not None and on_this_computer(origin):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+
+    def refused(self) -> bool:
+        """Answer 403 to a request that does not come from this computer, and say so."""
+        why = refusal_for(self.headers)
+        if why is None:
+            return False
+        self.close_connection = True
+        self._answer({"error": why}, status=403)
+        return True
+
     def _answer(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload, default=str).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        # The page may be served by the dev server on another port while this
-        # is being developed; on the microscope one server serves both and
-        # this header is redundant but harmless.
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.allow_the_page()
         self.end_headers()
         self.wfile.write(body)
 
@@ -430,7 +492,7 @@ class Bridge(BaseHTTPRequestHandler):
         # A scan's note and its pictures change as it runs, so nothing here is
         # worth keeping: a cached note is a canvas that stops growing.
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.allow_the_page()
         self.end_headers()
         self.wfile.write(body)
 
@@ -439,8 +501,11 @@ class Bridge(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length) or b"{}")
 
     def do_OPTIONS(self) -> None:  # noqa: N802 — http.server's naming
+        if self.refused():
+            return
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", "0")
+        self.allow_the_page()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
@@ -455,6 +520,8 @@ class Bridge(BaseHTTPRequestHandler):
             self._answer({"error": f"no route {path}"}, status=404)
 
     def do_GET(self) -> None:  # noqa: N802 — http.server's naming
+        if self.refused():
+            return
         path, _, query = self.path.partition("?")
         try:
             if path.startswith("/view/"):
@@ -469,6 +536,8 @@ class Bridge(BaseHTTPRequestHandler):
             self._fail(why)
 
     def do_POST(self) -> None:  # noqa: N802 — http.server's naming
+        if self.refused():
+            return
         try:
             self._dispatch("POST", self._body())
         except Exception as why:  # noqa: BLE001
