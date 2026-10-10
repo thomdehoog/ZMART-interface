@@ -26,15 +26,9 @@ def find_targets():
     at import, so the bridge loads with no analysis installed."""
     with state.the_instruments_turn:
         observed = state.require_session().get_state().get("observed", {})
-    pixel_um = readings.pixel_size_um(observed)
-    if pixel_um is None:
-        # Detection turns the diameter the operator set, in micrometres, into
-        # pixels: at a guessed 1 µm per pixel every object would be measured
-        # at the wrong size, and nothing would say so.
-        raise RuntimeError(
-            "the microscope does not report its pixel size, so objects cannot be measured "
-            "in micrometres; check that the job's image geometry is readable in its software"
-        )
+    # Detection turns the diameter the operator set, in micrometres, into
+    # pixels: at a guessed size every object would be measured wrong.
+    pixel_um = readings.required_pixel_size_um(observed)
     return detection.through(warm.the_analysis(), pixel_um=pixel_um)
 
 
