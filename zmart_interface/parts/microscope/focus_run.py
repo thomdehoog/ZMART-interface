@@ -73,63 +73,6 @@ def log_focus_scoring_failed(index: int, why: Exception) -> None:
     )
 
 
-def _the_drive_frames_shift(record: dict | None, centre_um) -> float:
-    """How far the stack's own z axis sits from the frame the stage drives in.
-
-    The analysis answers in the axis the planes carry, and on the Leica that
-    is the sweep's own: a stack taken with the stage standing at 5781.8 µm
-    files its planes as −6…+6, and the peak comes back as "+3.6". Kept that
-    way, a surface was fitted through offsets and the overview drove every
-    field to 3.6 micrometres above z-zero — five and three quarter
-    millimetres from the sample it had just measured.
-
-    The shift is what centres the sweep on the height the stage was driven
-    to: the midpoint of the planes' own axis subtracted, the stack's centre
-    added. A driver whose planes are already absolute has its midpoint at
-    the centre, and the shift is zero.
-    """
-    planes = (record or {}).get("planes") or []
-    zs = [p.get("z_um") for p in planes if isinstance(p.get("z_um"), (int, float))]
-    if not zs or not isinstance(centre_um, (int, float)):
-        return 0.0
-    return float(centre_um) - (min(zs) + max(zs)) / 2.0
-
-
-def _shifted_into_the_drive_frame(found: dict, shift: float) -> dict:
-    """The score's answer, moved by *shift*: the height, and every z its
-    curves carry.
-
-    The curves too, not just the number: the plot is dragged to choose a
-    height, and an axis left in the sweep's frame would hand back the very
-    offsets the shift exists to retire.
-    """
-    if not shift:
-        return found
-    moved = dict(found)
-    if isinstance(found.get("z_um"), (int, float)):
-        moved["z_um"] = float(found["z_um"]) + shift
-    traces = found.get("traces")
-    if isinstance(traces, dict):
-        moved["traces"] = {name: _a_curve_shifted(curve, shift) for name, curve in traces.items()}
-    return moved
-
-
-def _a_curve_shifted(curve, shift: float):
-    if not isinstance(curve, dict):
-        return curve
-    moved = dict(curve)
-    if isinstance(curve.get("samples"), list):
-        moved["samples"] = [
-            {**sample, "z": float(sample["z"]) + shift}
-            if isinstance(sample, dict) and isinstance(sample.get("z"), (int, float))
-            else sample
-            for sample in curve["samples"]
-        ]
-    if isinstance(curve.get("peak_z_um"), (int, float)):
-        moved["peak_z_um"] = float(curve["peak_z_um"]) + shift
-    return moved
-
-
 def _keep(measured: dict, acquisition: Any, record: dict) -> None:
     """Write what the analysis said, beside the stack it read.
 
@@ -163,11 +106,17 @@ def measure_one_stack(
     """The half of a point that begins once its stack is in hand.
 
     File the stack under the run (``output`` given), hand it to the caller's
-    own keeping, score it and put the answer into the frame the stage drives
-    in, and keep the measurement beside the stack. What comes back is the
-    measurement the page draws as one point of the map. A stack that cannot
-    be scored is a LOST point, with the stack it came from still filed; only
-    a simulator frame where none was allowed is let through.
+    own keeping, score it, and keep the measurement beside the stack. What
+    comes back is the measurement the page draws as one point of the map. A
+    stack that cannot be scored is a LOST point, with the stack it came from
+    still filed; only a simulator frame where none was allowed is let through.
+
+    The heights are used exactly as reported. Each plane's ``z_um`` is a stage
+    position in the frame ``set_xyz`` takes -- that is the controller's
+    contract, and placing the planes is the driver's business. The interface
+    once re-centred them on the height the stage was driven to, which was
+    right only for a stack centred there and moved any other stack by half
+    its range. ``centre`` is kept for the caller's record and moves nothing.
     """
     cost = dict(cost or {})
     if output is not None:
@@ -180,17 +129,15 @@ def measure_one_stack(
     if on_doing is not None:
         on_doing(index, "scoring")
     began = time.perf_counter()
-    shift = 0.0
     found = {"z_um": None, "traces": None}
     try:
-        shift = _the_drive_frames_shift(record, centre)
-        found = _shifted_into_the_drive_frame(score(record), shift)
+        found = score(record)
         cost["score"] = time.perf_counter() - began
     except NonSimulatorFrameError:
         raise
     except Exception as why:  # noqa: BLE001 -- one bad point must not end the map
         log_focus_scoring_failed(index, why)
-    measurement = _the_measurement(x, y, found, cost, record, shift)
+    measurement = _the_measurement(x, y, found, cost, record)
     if output is not None:
         # The whole measurement, not just the score: a kept height that
         # does not say where it was measured cannot be accounted for.
@@ -198,7 +145,7 @@ def measure_one_stack(
     return measurement
 
 
-def _the_measurement(x, y, found: dict, cost: dict, record: dict | None, shift: float) -> dict:
+def _the_measurement(x, y, found: dict, cost: dict, record: dict | None) -> dict:
     """One point's record: where, what height, the curves, the cost, the stack."""
     return {
         "x_um": x,
@@ -207,17 +154,10 @@ def _the_measurement(x, y, found: dict, cost: dict, record: dict | None, shift: 
         "traces": found.get("traces"),
         "cost_s": {key: round(value, 3) for key, value in cost.items()},
         "zarr": (record or {}).get("zarr"),
-        "z_shift_um": shift,
         # The stack's own files ride with the measurement, height by
-        # height, so the chosen number can be looked at as well as read --
-        # each height in the drive frame, like the number it argues for.
+        # height, so the chosen number can be looked at as well as read.
         "planes": [
-            {
-                "path": str(plane.get("path")),
-                "z_um": float(plane["z_um"]) + shift
-                if isinstance(plane.get("z_um"), (int, float))
-                else plane.get("z_um"),
-            }
+            {"path": str(plane.get("path")), "z_um": plane.get("z_um")}
             for plane in (record or {}).get("planes", [])
         ],
     }

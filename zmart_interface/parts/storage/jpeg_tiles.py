@@ -485,7 +485,6 @@ def make_slice_copies(
     budget_px: int = SMALL_ENOUGH,
     quality: int = GOOD_ENOUGH,
     store: Path | str | None = None,
-    z_shift_um: float = 0.0,
 ) -> list[dict]:
     """One small JPEG per height of one field's stack, brightened together.
 
@@ -527,7 +526,7 @@ def make_slice_copies(
         # change whenever the pictures do, as the per-acquisition hash does for
         # copies made from the vendor's files below.
         stamp = _fingerprint(pictures)
-        slices = [{"z_um": origin + z * spacing + z_shift_um,
+        slices = [{"z_um": origin + z * spacing,
                    "name": f"{Path(store).name}_{stamp}_Z{z:05d}.jpg"}
                   for z in range(depth)]
         low, high = _one_brightening_for_the_whole_scan(pictures)

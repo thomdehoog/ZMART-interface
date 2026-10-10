@@ -127,7 +127,7 @@ def view_of(acquisition_type: str) -> Path:
     return state.the_run() / output.checked_name(acquisition_type, field="acquisition_type") / VIEW
 
 
-def the_slice_copies_of(planes: list, *, store=None, z_shift_um=0.0) -> list:
+def the_slice_copies_of(planes: list, *, store=None) -> list:
     """Small copies of one focus stack, one per height, for the panel's eye.
 
     Made as the point lands -- on the worker's time, never a request's -- and
@@ -139,8 +139,7 @@ def the_slice_copies_of(planes: list, *, store=None, z_shift_um=0.0) -> list:
 
     try:
         if store is not None:
-            return make_slice_copies(view_of(FOCUSSING), planes, store=store,
-                                     z_shift_um=z_shift_um, budget_px=1024 * 1024)
+            return make_slice_copies(view_of(FOCUSSING), planes, store=store, budget_px=1024 * 1024)
         return make_slice_copies(view_of(FOCUSSING), planes)
     except Exception as why:  # noqa: BLE001 -- the preview is optional, the height is not
         import logging

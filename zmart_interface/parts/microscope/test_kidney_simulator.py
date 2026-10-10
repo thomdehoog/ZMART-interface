@@ -51,8 +51,8 @@ def test_focus_and_preview_use_canonical_kidney_not_vendor_tiffs(tmp_path, monke
     import tifffile
     monkeypatch.setattr(tifffile, "imread", lambda *a, **k: pytest.fail("preview read vendor TIFF"))
     previews = jpeg_tiles.make_slice_copies(tmp_path / "preview", record["planes"],
-                                            store=record["zarr"], z_shift_um=3)
-    assert [p["z_um"] for p in previews] == pytest.approx([z+3 for z in heights])
+                                            store=record["zarr"])
+    assert [p["z_um"] for p in previews] == pytest.approx(heights)
     with Image.open(tmp_path / "preview" / previews[8]["name"]) as image:
         assert np.asarray(image).std() > 1
     assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest() == h for p,h in hashes.items())

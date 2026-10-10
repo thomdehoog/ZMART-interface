@@ -22,6 +22,25 @@ that correction.
 needs a careful test on a real plate first. Raised as finding 7 in
 `REVIEW_2026-10-10.md`.
 
+## Where the slices of a stack are, said by the controller
+
+**Today.** When the microscope takes a stack (for the focus map, or before
+each target), the driver reports for every slice the stage height it was
+taken at, in the same coordinates the stage is driven in. That is the
+controller's rule, the Leica driver follows it, and since 10 October 2026
+the interface uses those heights exactly as reported, with no correction of
+its own.
+
+**What would change.** The controller would also carry where the slices are
+in the image files' own metadata, and give it back as information a client
+can ask for, so that every program that reads the files (the interface, the
+viewer, an analysis script) places them the same way without each working
+it out.
+
+**Why it waits.** How the controller should do this still has to be thought
+through; it is the controller's design, and the interface and the viewer
+then simply place things where the controller says.
+
 ## The same software on every microscope computer
 
 **Today.** Installing the interface fetches the newest version of the other
