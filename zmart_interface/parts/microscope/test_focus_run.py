@@ -39,26 +39,28 @@ def test_a_stack_comes_back_as_a_point_of_the_map(tmp_path):
     assert [plane["z_um"] for plane in measured["planes"]] == [-2.0, -1.0, 0.0, 1.0, 2.0]
 
 
-def test_a_sweep_answered_in_its_own_frame_comes_back_in_the_drives(tmp_path):
-    """The Leica files a stack's planes as -2..+2 around the height it was
-    driven to, and the analysis answers on that axis. What comes back is
-    stage z -- the surface and the scan drive with it -- so the peak, the
-    curves and the planes all move together."""
-    record = a_stack(tmp_path, heights=[-2.0, -1.0, 0.0, 1.0, 2.0])
+def test_the_heights_are_used_as_the_driver_reports_them(tmp_path):
+    """Each plane's ``z_um`` is a stage position, by the controller's contract,
+    in the frame ``set_xyz`` takes. The interface used to re-centre the planes
+    on the height the stage was driven to, which was right only for a stack
+    centred there: a stack that starts at the stage and goes up came back
+    shifted by half its range, and the overview was imaged that far out of
+    focus. Nothing is moved now -- the height, the curves and the planes are
+    exactly what the driver and the analysis said."""
+    record = a_stack(tmp_path, heights=[5781.8, 5782.8, 5783.8, 5784.8, 5785.8])
 
-    def relative(_record):
-        return {"z_um": 1.4, "traces": {"brenner": {
-            "samples": [{"z": -2.0, "s": 1.0}, {"z": 2.0, "s": 9.0}], "peak_z_um": 1.4,
+    def scored(_record):
+        return {"z_um": 5784.2, "traces": {"brenner": {
+            "samples": [{"z": 5781.8, "s": 1.0}, {"z": 5785.8, "s": 9.0}], "peak_z_um": 5784.2,
         }}}
 
-    measured = measure_one_stack(record, x=0.0, y=0.0, centre=5781.8, score=relative)
-    assert measured["z_um"] == pytest.approx(5781.8 + 1.4)
-    assert measured["z_shift_um"] == pytest.approx(5781.8)
+    measured = measure_one_stack(record, x=0.0, y=0.0, centre=5781.8, score=scored)
+    assert measured["z_um"] == pytest.approx(5784.2)
     curve = measured["traces"]["brenner"]
-    assert [s["z"] for s in curve["samples"]] == [pytest.approx(5779.8), pytest.approx(5783.8)]
-    assert curve["peak_z_um"] == pytest.approx(5781.8 + 1.4)
-    assert [p["z_um"] for p in measured["planes"]] == [
-        pytest.approx(5781.8 + d) for d in (-2.0, -1.0, 0.0, 1.0, 2.0)]
+    assert [s["z"] for s in curve["samples"]] == [pytest.approx(5781.8), pytest.approx(5785.8)]
+    assert curve["peak_z_um"] == pytest.approx(5784.2)
+    assert [p["z_um"] for p in measured["planes"]] == [5781.8, 5782.8, 5783.8, 5784.8, 5785.8]
+    assert "z_shift_um" not in measured
 
 
 def test_a_stack_nothing_could_be_chosen_from_reports_no_height(tmp_path):

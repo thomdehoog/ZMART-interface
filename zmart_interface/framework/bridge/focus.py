@@ -86,8 +86,7 @@ def score_focus(asked: dict) -> dict:
         "lost": measurement["z_um"] is None, "traces": measurement["traces"],
         "cost_s": measurement.get("cost_s"),
         "slices": pictures.the_slice_copies_of(measurement.get("planes") or [],
-                                      store=measurement.get("zarr"),
-                                      z_shift_um=measurement.get("z_shift_um", 0.0)),
+                                      store=measurement.get("zarr")),
     }
     state.focus["points"].append(landed)
     state.focus["done"] = len(state.focus["points"])

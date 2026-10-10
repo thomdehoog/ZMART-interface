@@ -89,9 +89,9 @@ def test_focus_slices_are_generated_and_served_at_physical_heights(
     canonical_store, preview_server,
 ):
     slices = make_slice_copies(
-        pictures.view_of("focussing"), [], store=canonical_store, z_shift_um=3,
+        pictures.view_of("focussing"), [], store=canonical_store,
     )
-    assert [entry["z_um"] for entry in slices] == [13, 15, 17]
+    assert [entry["z_um"] for entry in slices] == [10, 12, 14]
     pixels = [
         _get_jpeg(f"{preview_server}/view/focussing/{entry['name']}")
         for entry in slices
