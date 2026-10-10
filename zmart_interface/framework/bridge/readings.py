@@ -123,6 +123,38 @@ def frame_across(observed: dict, pixel_um: float) -> int:
     return round((across if across is not None else A_GUESSED_FORMAT_PX) * pixel_um)
 
 
+#: The pixel size used when the microscope reports none. A guess, kept only so
+#: a frame can still be drawn; :func:`what_was_guessed` says so wherever it is used.
+A_GUESSED_PIXEL_UM = 1.0
+
+
+def pixel_size_um(observed: dict) -> float | None:
+    """How much sample one pixel covers, in micrometres, or None when not reported.
+
+    ``or {}``, not a default: the Leica reports ``pixel_size`` as None when
+    the job's geometry fails to parse, and a default never fires on None.
+    """
+    return a_number((observed.get("pixel_size") or {}).get("x"))
+
+
+def what_was_guessed(observed: dict) -> list[str]:
+    """Which of the pixel size and the frame size the microscope did not report.
+
+    Empty when both are measured. The frame counts as measured when the
+    microscope reports its field of view (``frame_size``), or both its format
+    and its pixel size; anything else is :func:`frame_across`'s last resort.
+    """
+    guessed = []
+    pixel_known = pixel_size_um(observed) is not None
+    if not pixel_known:
+        guessed.append("pixel size")
+    reported = observed.get("frame_size")
+    frame_measured = isinstance(reported, dict) and a_number(reported.get("x")) is not None
+    if not frame_measured and (format_across(observed) is None or not pixel_known):
+        guessed.append("frame size")
+    return guessed
+
+
 def reading(kind: str) -> dict:
     """The instrument's state, now, as the reading the window records.
 
@@ -136,11 +168,10 @@ def reading(kind: str) -> dict:
     session = state.require_session()
     settings = session.get_state()
     observed = settings.get("observed", {})
-    # `or {}`, not a default: the Leica reports pixel_size as None when the
-    # job's geometry fails to parse, and the default never fires on None.
-    pixel = observed.get("pixel_size") or {}
-    pixel_um = float(pixel.get("x", 1.0))
+    measured = pixel_size_um(observed)
+    pixel_um = measured if measured is not None else A_GUESSED_PIXEL_UM
     frame_um = frame_across(observed, pixel_um)
+    guessed = what_was_guessed(observed)
 
     rows: list = []
     flatten("", settings.get("changeable", {}), rows)
@@ -153,8 +184,13 @@ def reading(kind: str) -> dict:
     # answer "how much ground does one press get me", and a pixel size answers
     # that only once multiplied by a format the line does not carry.
     summary = f"{summary} · {frame_um} × {frame_um} µm"
+    if guessed:
+        # Said on the line itself: the summary is what a recording keeps and
+        # what the operator reads, and a guessed frame plans a scan with gaps
+        # or overlaps that nothing else would explain.
+        summary = f"{summary} · guessed: the microscope did not report its {' and '.join(guessed)}"
     reading = {
-        "summary": summary, "detail": rows, "frameUm": frame_um,
+        "summary": summary, "detail": rows, "frameUm": frame_um, "guessed": guessed,
         # The reapplicable half, kept with the reading: a recording is the
         # instrument's changeable state, and the step that recorded it hands
         # it back when it runs. Without this the recordings were readouts
