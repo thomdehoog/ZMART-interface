@@ -29,8 +29,8 @@ Which viewer is accepted
 ------------------------
 
 The ZMART-viewer package, installed on its own (``pip install zmart-viewer``
-from its repository), in a version this interface was tested with: 0.5.0
-release candidates and releases up to, not including, 0.6. Only the viewer's
+from its repository), in a version this interface was tested with: 0.5.0rc2
+and later releases up to, not including, 0.6. Only the viewer's
 public names are used (``zmart_viewer.make_server`` and
 ``zmart_viewer.views.publishing``), which its own package promises to keep
 stable between versions.
@@ -55,11 +55,12 @@ from urllib.parse import unquote
 VIEWER_REQUEST_TIMEOUT_S = 30.0
 _metadata_reads = threading.Lock()
 
-#: The viewer versions this interface is tested with: 0.5.0 release
-#: candidates and releases, up to but not including 0.6. The 0.5.0
-#: development builds came before the viewer's public names settled, and are
-#: refused.
-VIEWER_VERSIONS = ">=0.5.0rc1,<0.6"
+#: The viewer versions this interface is tested with: 0.5.0rc2 and later,
+#: up to but not including 0.6. From 0.5.0rc2 the viewer itself names the
+#: operator's page as allowed to read it, and refuses pages from elsewhere;
+#: an older viewer leaves the page unable to read it, so it is refused, as
+#: are the 0.5.0 development builds that came before its public names settled.
+VIEWER_VERSIONS = ">=0.5.0rc2,<0.6"
 
 #: The service's whole state: one viewer per bridge process, like the run.
 _viewer: dict = {
@@ -116,7 +117,6 @@ def start(run_folder: Path | str, *, bake: bool = False, canvas: dict | None = N
                 panel_side="left",
                 canvas=canvas, transparent_background=True,
             )
-            _allow_the_page_to_read(made)
             thread = threading.Thread(target=made.serve_forever, daemon=True)
             thread.start()
             wake = threading.Event()
@@ -652,38 +652,3 @@ def _read(port: int, route: str) -> dict:
         f"http://127.0.0.1:{port}{route}", timeout=VIEWER_REQUEST_TIMEOUT_S
     ) as answer:
         return json.loads(answer.read() or b"{}")
-
-
-def _allow_the_page_to_read(server) -> None:
-    """Add the one CORS header to every answer the viewer gives.
-
-    Done by wrapping the handler class's ``end_headers`` rather than by
-    changing the viewer, so the installed viewer stays exactly what was
-    tested. A candidate to offer the viewer as an ``allow_origin=`` argument.
-    """
-    import functools
-
-    handler = server.RequestHandlerClass
-    while isinstance(handler, functools.partial):
-        handler = handler.func
-    if getattr(handler, "_zmart_cors_added", False):
-        return
-    plain = handler.end_headers
-
-    def end_headers(self):  # noqa: ANN001 -- http.server's own shape
-        if self.path != "/embedding.js":  # The public module owns its CORS header.
-            self.send_header("Access-Control-Allow-Origin", "*")
-        plain(self)
-
-    def do_OPTIONS(self):  # noqa: N802, ANN001 -- http.server's own naming
-        # The browser's preflight for a cross-origin POST (the page asking
-        # /api/measure for a histogram). Answered here because the viewer
-        # never needed to hear one: its own page lives on its own origin.
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
-
-    handler.end_headers = end_headers
-    handler.do_OPTIONS = do_OPTIONS
-    handler._zmart_cors_added = True
