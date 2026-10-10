@@ -8,7 +8,6 @@ import numpy as np
 import zarr
 from zmart_viewer import make_server
 
-from zmart_interface.parts.storage.viewer_service import _allow_the_page_to_read
 from zmart_interface.zmart_storage import declare_image
 
 folder = Path(sys.argv[1])
@@ -45,6 +44,5 @@ for name, depth, x, z, reference in (() if "--existing" in sys.argv else (
 
 server = make_server(port=0, data_dir=folder, live=True, allow_open=True,
                      transparent_background=True, window=(0, 255))
-_allow_the_page_to_read(server)
 print(json.dumps({"url": f"http://127.0.0.1:{server.server_address[1]}"}), flush=True)
 server.serve_forever()

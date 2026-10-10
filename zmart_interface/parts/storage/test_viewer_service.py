@@ -173,12 +173,12 @@ def test_the_installed_viewer_is_a_version_this_interface_accepts():
     assert Path(found["path"]).name == "__init__.py"
 
 
-@pytest.mark.parametrize("installed_version", ["0.5.0rc1", "0.5.0rc2", "0.5.0", "0.5.3"])
+@pytest.mark.parametrize("installed_version", ["0.5.0rc2", "0.5.0rc3", "0.5.0", "0.5.3"])
 def test_the_tested_viewer_line_is_accepted(installed_version):
     service._accept_the_version(installed_version)
 
 
-@pytest.mark.parametrize("installed_version", ["0.4.0", "0.5.0.dev0", "0.6.0", "1.0.0"])
+@pytest.mark.parametrize("installed_version", ["0.4.0", "0.5.0.dev0", "0.5.0rc1", "0.6.0", "1.0.0"])
 def test_a_viewer_outside_the_tested_line_is_refused(installed_version):
     with pytest.raises(RuntimeError, match=f"the ZMART viewer {installed_version} is installed"):
         service._accept_the_version(installed_version)
@@ -950,3 +950,35 @@ def test_real_viewer_publishes_100_positions_without_holding_up_notifications(
     finally:
         service.stop()
         server.server_close()
+
+
+def test_the_page_may_read_the_viewer_and_a_foreign_site_may_not(tmp_path):
+    """The operator's page sits on its own local port and reads the viewer across origins.
+
+    The viewer itself names the asking page in one ``Access-Control-Allow-Origin``
+    header when the page is on this computer, and refuses a page from anywhere
+    else. A second header added on top (the old ``*``) makes a browser reject
+    the answer, and would let any web site read the run's images.
+    """
+    service.start(tmp_path)
+    try:
+        port = service._viewer["port"]
+        page = "http://127.0.0.1:5174"
+
+        def ask(origin, method="GET", route="/api/config"):
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{port}{route}", method=method, headers={"Origin": origin}
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=service.VIEWER_REQUEST_TIMEOUT_S) as answer:
+                    return answer.status, answer.headers.get_all("Access-Control-Allow-Origin") or []
+            except urllib.error.HTTPError as refused:
+                return refused.code, refused.headers.get_all("Access-Control-Allow-Origin") or []
+
+        assert ask(page) == (200, [page])
+        assert ask("https://somewhere.example") == (403, [])
+        preflight_status, preflight_origins = ask(page, method="OPTIONS", route="/api/measure")
+        assert preflight_status in (200, 204)
+        assert preflight_origins == [page]
+    finally:
+        service.stop()
