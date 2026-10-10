@@ -162,6 +162,11 @@ def _score_focus(asked, query):
     return focus.score_focus(asked)
 
 
+@route("POST", "/api/focus/stop")
+def _stop_focus(asked, query):
+    return focus.stop_focus()
+
+
 @route("POST", "/api/focus/end")
 def _end_focus(asked, query):
     return focus.end_focus(asked)

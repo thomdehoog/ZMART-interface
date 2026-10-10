@@ -71,7 +71,9 @@ The verbs, and what they are made of
   — the focus map, driven by the page one stack at a time: begin clears the
   focussing acquisition and names the stacks; the page drives (``/api/xyz``)
   and captures (``/api/acquire``) each; score files the stack, scores it and
-  answers the point; end closes the map. ``GET /api/focus/measure`` is the
+  answers the point; end closes the map. ``POST /api/focus/stop`` is the
+  operator's Interrupt reaching a scoring that has hung: it puts the analysis
+  workers down, so that scoring answers. ``GET /api/focus/measure`` is the
   bridge's ledger of the points scored so far.
 * ``POST /api/targets/acquire/begin``, ``POST /api/targets/acquire/focus``,
   ``POST /api/targets/acquire/landed`` and ``POST /api/targets/acquire/end``
