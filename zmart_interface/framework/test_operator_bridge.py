@@ -1326,7 +1326,7 @@ def test_a_fresh_connect_forgets_the_last_sessions_runs(monkeypatch, tmp_path):
     ledgers.scan.update(running=False, done=5, of=5, error=None, acquisition_type="overview")
     ledgers.focus.update(running=False, done=3, of=3, error=None, points=[{"x": 1}])
     try:
-        connecting.connect({"instrument": connecting.INTERFACE_MOCK})
+        connecting.connect({"instrument": mock_microscope.NAME})
         assert state.records == {}
         assert scan.the_scan()["done"] == 0 and scan.the_scan()["records"] == []
         assert ledgers.focus["points"] == []
@@ -1347,7 +1347,7 @@ def test_the_viewer_is_laid_out_over_the_canvas_get_xyz_reports(monkeypatch, tmp
     )
     monkeypatch.setattr(state, "output_root", str(tmp_path))
     try:
-        connecting.connect({"instrument": connecting.INTERFACE_MOCK})
+        connecting.connect({"instrument": mock_microscope.NAME})
         reading = state.session.get_xyz()
     finally:
         connecting.disconnect()
@@ -1956,6 +1956,7 @@ def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_dri
 
     assert connecting.instruments() == ["interface-mock", "mock", "beads"]
     assert connecting.saved_connection("beads") == {"mock_timing": "instant"}
-    assert connecting.saved_connection("interface-mock") == {"client": "mock-client"}
+    # As the interface offers it: with its own window opened beside the session.
+    assert connecting.saved_connection("interface-mock") == {"client": "mock-client", "open_window": True}
     with pytest.raises(ValueError, match="no microscope is listed as 'os'"):
         connecting.connect({"instrument": "os"})

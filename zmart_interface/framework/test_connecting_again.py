@@ -23,6 +23,7 @@ import time
 
 import pytest
 
+from zmart_interface import mock_microscope
 from zmart_interface.framework.bridge import connecting, pictures, server, state
 from zmart_interface.parts.microscope.instrument import Instrument
 from zmart_interface.workflows.target_acquisition.bridge import ledgers, scan
@@ -110,7 +111,7 @@ def test_connecting_again_stops_the_running_scan_before_the_new_session_opens(mo
 
     connect = server.ROUTES[("POST", "/api/connect")]
     try:
-        connect({"instrument": connecting.INTERFACE_MOCK}, "")
+        connect({"instrument": mock_microscope.NAME}, "")
         moved_by_then = len(older.moves)
         time.sleep(0.2)
         assert len(older.moves) == moved_by_then, "the old scan kept moving the stage"
@@ -118,7 +119,7 @@ def test_connecting_again_stops_the_running_scan_before_the_new_session_opens(mo
         assert older.closed is True
         assert ledgers.scan["running"] is False
         assert state.session is not None
-        assert state.context["name"] == connecting.INTERFACE_MOCK
+        assert state.context["name"] == mock_microscope.NAME
     finally:
         connecting.disconnect()
 
@@ -127,7 +128,7 @@ def test_the_last_session_is_closed_when_another_is_opened(monkeypatch):
     older = Stage("older")
     monkeypatch.setattr(state, "session", Instrument(older))
     try:
-        server.ROUTES[("POST", "/api/connect")]({"instrument": connecting.INTERFACE_MOCK}, "")
+        server.ROUTES[("POST", "/api/connect")]({"instrument": mock_microscope.NAME}, "")
         assert older.closed is True
     finally:
         connecting.disconnect()
@@ -145,7 +146,7 @@ def test_a_run_folder_that_cannot_be_made_leaves_no_session_open(monkeypatch):
     closed = []
     monkeypatch.setattr(Instrument, "disconnect", lambda self: closed.append(self))
     with pytest.raises(PermissionError):
-        connecting.connect({"instrument": connecting.INTERFACE_MOCK})
+        connecting.connect({"instrument": mock_microscope.NAME})
     assert state.session is None
     assert state.run is None
     assert len(closed) == 1

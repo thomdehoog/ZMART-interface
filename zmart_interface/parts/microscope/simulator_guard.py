@@ -35,6 +35,9 @@ class NonSimulatorFrameError(RuntimeError):
     on.
     """
 
+    #: Read by the bridge, which files other conversion errors and goes on.
+    stops_the_run = True
+
 
 def system_type_of(paths) -> str | None:
     """The one ``SystemTypeName`` the vendor files name, or ``None``.

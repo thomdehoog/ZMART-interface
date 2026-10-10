@@ -1,8 +1,8 @@
 """Opening and closing the session: which microscopes are offered, and connecting to one.
 
 The Connect step lists what this computer can drive (``/api/instruments``):
-the interface's own mock microscope first, then every driver the controller's
-registry knows. Connecting opens a ``ZmartController`` of the bridge's own
+what whoever started the bridge offered first (the interface offers its own
+mock microscope there), then every driver the controller's registry knows. Connecting opens a ``ZmartController`` of the bridge's own
 for the chosen one, makes the run folder every capture goes under, and
 starts the picture server beside it. Disconnecting closes all of that.
 
@@ -18,7 +18,6 @@ import sys
 from zmart_controller import ZmartController
 from zmart_controller.registry import find_driver, get_instruments
 
-from zmart_interface import mock_microscope
 from zmart_interface.parts.analysis import warm
 from zmart_interface.parts.microscope.instrument import Instrument
 from zmart_interface.parts.storage import viewer_service
@@ -26,20 +25,23 @@ from zmart_interface.parts.storage.output import checked_name, prepare_experimen
 
 from . import hooks, state
 
-#: The name the interface's own mock microscope is offered under, from its
-#: plug-in. It is always offered, registered or not, and the bridge plugs the
-#: package in directly.
-INTERFACE_MOCK = mock_microscope.NAME
+#: The microscopes whoever started the bridge offers beside the controller's
+#: list, by name: ``{name: (driver, connection)}``, where ``driver`` is what
+#: ``ZmartController`` is handed (a driver package, plugged in directly) and
+#: ``connection`` what it is connected with. The interface offers its own
+#: mock here (``zmart_interface/serving.py``); the bridge itself offers
+#: nothing and knows no instrument.
+offered: dict[str, tuple[object, dict]] = {}
 
 
 def instruments() -> list[str]:
     """The microscopes the Connect step offers, by name, in the order it shows them.
 
-    The interface's own mock first, so a page opened by accident drives
-    nothing real, then every driver installed on this computer, as the
-    controller lists them.
+    What the starter offered first -- the interface puts its mock there, so a
+    page opened by accident drives nothing real -- then every driver
+    installed on this computer, as the controller lists them.
     """
-    return [INTERFACE_MOCK, *(name for name in get_instruments() if name != INTERFACE_MOCK)]
+    return [*offered, *(name for name in get_instruments() if name not in offered)]
 
 
 def saved_connection(name: str) -> dict:
@@ -50,8 +52,8 @@ def saved_connection(name: str) -> dict:
     refused first: the page can only ever name a microscope this computer
     offers.
     """
-    if name == INTERFACE_MOCK:
-        return dict(mock_microscope.CONNECTION)
+    if name in offered:
+        return dict(offered[name][1])
     if name not in instruments():
         raise ValueError(f"no microscope is listed as {name!r}; listed: {instruments()}")
     return find_driver(name)[1]
@@ -91,23 +93,20 @@ def connect(asked: dict) -> dict:
     close_the_last_session()
     # A controller of the bridge's own, not the module-level ``mic`` that
     # scripts share: the bridge opens and closes it, and nothing else may.
-    driver = mock_microscope if name == INTERFACE_MOCK else name
+    driver = offered[name][0] if name in offered else name
     session = Instrument(ZmartController(driver, connection))
-    if driver is mock_microscope:
-        mock_microscope.open_the_window(connection)
     try:
         info = session.get_info()
         standing = session.get_xyz()
         area = the_viewers_area(standing)
-        # One synthetic specimen per session, anchored in the same specimen
-        # frame as the captured planes. Never recenter it for a new job,
-        # tile or stack.
-        provider = None
-        if state.simulator_pixels_enabled:
-            from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels
-
-            provider = KidneyPixels(focus_z_um=float(standing["z"]["position"]))
-            provider.recipe["focus_reference"] = "session-connect"
+        # Pixels that stand in for the captured ones, when the starter asked
+        # for them (the LAS X simulator's synthetic specimen): one set per
+        # session, anchored at the height the stage stands at now, and never
+        # re-anchored for a new job, tile or stack.
+        provider = (
+            state.pixels_for(float(standing["z"]["position"]))
+            if state.pixels_for is not None else None
+        )
         if not info.get("output_root"):
             raise RuntimeError(
                 f"the microscope {name!r} does not say where its pictures are to be saved "

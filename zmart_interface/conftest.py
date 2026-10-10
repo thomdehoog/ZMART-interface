@@ -31,7 +31,13 @@ def _a_machine_of_its_own(tmp_path, monkeypatch):
     # folder, so a test gets a machine folder of its own.
     monkeypatch.setenv("ZMART_MICROSCOPY_ROOT", str(tmp_path / "machine"))
     monkeypatch.setenv("ZMART_MOCK_STATE", str(tmp_path / "mock" / "instrument.json"))
-    monkeypatch.setattr(mock_microscope, "open_the_window", lambda connection: None)
+    monkeypatch.setattr(mock_microscope.driver, "open_the_window", lambda connection: None)
+    # The bridge as the interface starts it: its own mock offered first
+    # (``serving.py``). A test of the general bridge alone sets this itself.
+    from zmart_interface import serving
+    from zmart_interface.framework.bridge import connecting
+
+    monkeypatch.setattr(connecting, "offered", serving.offered())
 
 
 @pytest.fixture

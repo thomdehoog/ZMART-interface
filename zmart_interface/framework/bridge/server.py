@@ -429,16 +429,22 @@ class Bridge(BaseHTTPRequestHandler):
 
 
 def a_bridge_on(
-    port: int, output_root: str | None = None, *, simulator_pixels=False,
+    port: int, output_root: str | None = None, *, offered: dict | None = None, pixels_for=None,
 ) -> ThreadingHTTPServer:
     """A bridge ready to answer, with every driver this machine has.
 
-    Both ways in -- run on its own, or started by the window -- build it
-    here, so both offer the same list of microscopes, and both have the
-    routes of every installed workflow's Python half.
+    Every way in builds it here, so all offer the same list of microscopes
+    and have the routes of every workflow's Python half. ``offered`` are the
+    microscopes the starter offers before the controller's list
+    (``{name: (driver, connection)}``, see :data:`connecting.offered`), and
+    ``pixels_for`` how to make pixels that stand in for the captured ones
+    (see :data:`state.pixels_for`); the bridge itself offers nothing and
+    keeps the captured pixels. The interface's own way in is
+    ``zmart_interface/serving.py``.
     """
 
-    state.simulator_pixels_enabled = bool(simulator_pixels)
+    connecting.offered = dict(offered or {})
+    state.pixels_for = pixels_for
     state.pixel_provider = None
     state.output_root = output_root
     workflows.load_python_halves(add_route, reserved=THE_BRIDGES_OWN)
@@ -446,10 +452,10 @@ def a_bridge_on(
 
 
 def serve(
-    port: int = 8600, output_root: str | None = None, *, simulator_pixels=False,
+    port: int = 8600, output_root: str | None = None, *, offered: dict | None = None, pixels_for=None,
 ) -> ThreadingHTTPServer:
-    """Start a bridge in a background thread and hand back its server."""
-    server = a_bridge_on(port, output_root, simulator_pixels=simulator_pixels)
+    """Start a bridge in a background thread and hand back its server; see :func:`a_bridge_on`."""
+    server = a_bridge_on(port, output_root, offered=offered, pixels_for=pixels_for)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
@@ -480,9 +486,7 @@ def shut_down(server: ThreadingHTTPServer) -> None:
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
-    """The choices the bridge takes, shared with the window's launcher."""
-    parser.add_argument("--simulator-pixels", action="store_true",
-                        help="synthetic pixels, only for captures identified as LAS X SIMULATOR")
+    """The choices the bridge takes, shared with whoever starts it."""
     parser.add_argument("--output-root",
                         help="where runs go, for a driver that cannot discover its own")
 
@@ -503,7 +507,12 @@ def installed_workflows_report() -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the bridge on its own, serving the built page and the instrument."""
+    """Run the bridge on its own, serving the built page and the instruments the controller lists.
+
+    The general bridge only: no microscope of the interface's own is offered.
+    The interface's way in, with its mock first, is
+    ``python -m zmart_interface.serving``.
+    """
     parser = argparse.ArgumentParser(
         description="The bridge: the operator page's backend, serving the page and the instrument",
     )
@@ -515,7 +524,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.workflows:
         print(installed_workflows_report())
         return 0
-    server = a_bridge_on(args.port, args.output_root, simulator_pixels=args.simulator_pixels)
+    server = a_bridge_on(args.port, args.output_root)
     print(f"bridge listening on 127.0.0.1:{args.port}")
     server.serve_forever()
     return 0

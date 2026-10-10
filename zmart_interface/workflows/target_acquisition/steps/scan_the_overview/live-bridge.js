@@ -119,7 +119,7 @@ export async function startTheBridge({ port, connect = true } = {}) {
      the page, which reloads the browser mid-test. */
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), "zmart-bridge-"));
   const python = bridgePython(
-    "-m", "zmart_interface.framework.bridge", "--port", String(port), "--output-root", folder,
+    "-m", "zmart_interface.serving", "--port", String(port), "--output-root", folder,
   );
   const bridge = spawn(python.command, python.args, { stdio: "inherit", cwd: python.cwd });
 

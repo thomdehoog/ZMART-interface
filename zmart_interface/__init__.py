@@ -48,7 +48,7 @@ def register_workflow(where) -> str:
         python -c "import zmart_interface; print(zmart_interface.register_workflow(r'C:\\\\path\\\\to\\\\package'))"
 
     The page offers the workflow the next time it opens;
-    ``python -m zmart_interface.framework.bridge --workflows`` lists what is
+    ``python -m zmart_interface.serving --workflows`` lists what is
     installed.
     """
     from zmart_interface.framework.workflow_library import register_workflow as install

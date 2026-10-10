@@ -34,12 +34,7 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-import logging
-import os
-import subprocess
-import sys
-
-from zmart_interface.mock_microscope import driver as _driver
+from zmart_interface.mock_microscope.driver import open_the_window
 
 # The functions the controller calls, one per command, are in
 # ``zmart_controller_plugin.py``; listed here, they make this package a driver.
@@ -78,23 +73,3 @@ __all__ = [
     "set_xyz",
 ]
 
-
-def open_the_window(connection: dict) -> None:
-    """Open the mock's own window beside a session, unless one is open already.
-
-    On a real microscope the vendor's software is simply there; the mock has
-    only its window, and an operator connecting to the mock wants it in front
-    of them without remembering to start it. Its own process, so closing it
-    never touches the session. A window that cannot be opened is a warning,
-    never a failed connect.
-    """
-    state_file = _driver.where_the_instrument_stands(connection)
-    if _driver.the_window_is_open(state_file):
-        return
-    try:
-        subprocess.Popen(
-            [sys.executable, "-m", "zmart_interface.mock_microscope.window"],
-            env={**os.environ, _driver.STATE_FILE_ENV: str(state_file)},
-        )
-    except OSError as why:
-        logging.getLogger(__name__).warning("the mock instrument window could not be opened: %s", why)

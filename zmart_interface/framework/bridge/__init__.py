@@ -89,9 +89,15 @@ One thread owns the instrument. Every route that touches the session takes
 stage at once — the scan holds it per position, not for the whole run, so a
 readout during a scan waits briefly rather than failing.
 
-Run it on its own, for a browser instead of the window::
+Run on its own, for a browser instead of the window, it offers the
+microscopes the controller lists and nothing else::
 
     python -m zmart_interface.framework.bridge --port 8600
+
+The interface starts it with its own mock microscope offered first, and the
+LAS X simulator's stand-in pixels when asked (``zmart_interface/serving.py``)::
+
+    python -m zmart_interface.serving --port 8600
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
