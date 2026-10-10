@@ -132,8 +132,9 @@ plots_stop = {"asked": False}
 #: list, and the overview's view filled with the targets' pictures.
 records: dict[str, list] = {}
 
-#: Copies drawn with a display, by (kind, label, the display as asked); a
-#: scan start empties it, since the pixels behind a label may change.
+#: Copies drawn with a display, by (kind, label, the display as asked), in
+#: the order they were last used and no more than ``pictures.DISPLAYED_KEPT``
+#: of them; a scan start empties it, since the pixels behind a label may change.
 displayed_pictures: dict[tuple, bytes] = {}
 
 #: One view-builder at a time, and only when the scan has grown: every file

@@ -76,10 +76,22 @@ def the_display_asked_for(query: str) -> list | None:
     return display if isinstance(display, list) else None
 
 
+#: How many display copies are kept at once. Each is up to a megapixel
+#: JPEG, and the operator trying brightness settings on a large overview
+#: makes a new one per setting per field: without a limit the bridge grew for
+#: as long as the scan stood. Enough for the fields on screen and a few
+#: settings each; one asked again past the limit is drawn again.
+DISPLAYED_KEPT = 64
+
+
 def a_picture_as_displayed(acquisition_type: str, label: str, display: list) -> bytes | None:
     """One field's copy drawn with the canvas's own settings, or None when the
-    field was never captured. See :func:`jpeg_tiles.picture_as_displayed`."""
-    from zmart_interface.parts.storage.jpeg_tiles import picture_as_displayed
+    field was never captured. See :func:`jpeg_tiles.picture_as_displayed`.
+
+    Copies are remembered up to :data:`DISPLAYED_KEPT`; past it, the one used
+    longest ago is let go.
+    """
+    from zmart_interface.parts.storage import jpeg_tiles
 
     record = next(
         (one for one in state.records.get(acquisition_type, []) if one.get("position_label") == label),
@@ -88,16 +100,22 @@ def a_picture_as_displayed(acquisition_type: str, label: str, display: list) -> 
     if record is None:
         return None
     key = (acquisition_type, label, json.dumps(display, sort_keys=True))
-    if key not in state.displayed_pictures:
+    kept = state.displayed_pictures
+    picture = kept.pop(key, None)
+    if picture is None:
         captured = record.get("planes") or []
         first_time = min((int(p.get("t", 0)) for p in captured), default=0)
         planes = [(int(p.get("c", 0)), p["path"]) for p in captured
                   if p.get("path") and int(p.get("t", 0)) == first_time]
         # The whole frame: the operator judges a diameter against this
         # picture, and a thumbnail blown up to the panel's width is blocks.
-        state.displayed_pictures[key] = picture_as_displayed(
+        picture = jpeg_tiles.picture_as_displayed(
             planes, display, budget_px=1024 * 1024, store=record.get("zarr"))
-    return state.displayed_pictures[key]
+    # Put back last, so the order of the dictionary is the order of use.
+    kept[key] = picture
+    while len(kept) > DISPLAYED_KEPT:
+        kept.pop(next(iter(kept)), None)
+    return picture
 
 
 def view_of(acquisition_type: str) -> Path:
