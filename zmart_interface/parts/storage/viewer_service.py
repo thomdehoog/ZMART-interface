@@ -29,7 +29,7 @@ Which viewer is accepted
 ------------------------
 
 The ZMART-viewer package, installed on its own (``pip install zmart-viewer``
-from its repository), in a version this interface was tested with: 0.5.0rc2
+from its repository), in a version this interface was tested with: 0.5.0rc3
 and later releases up to, not including, 0.6. Only the viewer's
 public names are used (``zmart_viewer.make_server`` and
 ``zmart_viewer.views.publishing``), which its own package promises to keep
@@ -55,12 +55,15 @@ from urllib.parse import unquote
 VIEWER_REQUEST_TIMEOUT_S = 30.0
 _metadata_reads = threading.Lock()
 
-#: The viewer versions this interface is tested with: 0.5.0rc2 and later,
+#: The viewer versions this interface is tested with: 0.5.0rc3 and later,
 #: up to but not including 0.6. From 0.5.0rc2 the viewer itself names the
 #: operator's page as allowed to read it, and refuses pages from elsewhere;
-#: an older viewer leaves the page unable to read it, so it is refused, as
-#: are the 0.5.0 development builds that came before its public names settled.
-VIEWER_VERSIONS = ">=0.5.0rc2,<0.6"
+#: from 0.5.0rc3 its engine no longer takes the viewer window's own settings,
+#: and it ships the shader programs and neuroglancer edits this page is built
+#: with. An older viewer would leave the page unable to read it or to be
+#: built, so it is refused, as are the 0.5.0 development builds that came
+#: before its public names settled.
+VIEWER_VERSIONS = ">=0.5.0rc3,<0.6"
 
 #: The service's whole state: one viewer per bridge process, like the run.
 _viewer: dict = {
@@ -114,7 +117,6 @@ def start(run_folder: Path | str, *, bake: bool = False, canvas: dict | None = N
                 data_dir=str(run_folder),
                 live=True,
                 allow_open=True,
-                panel_side="left",
                 canvas=canvas, transparent_background=True,
             )
             thread = threading.Thread(target=made.serve_forever, daemon=True)
