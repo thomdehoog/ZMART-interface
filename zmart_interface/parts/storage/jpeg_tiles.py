@@ -511,7 +511,7 @@ def make_slice_copies(
         load_plane = shared_module("image_io").load_plane
 
         first, metadata = load_plane(store, t=0, c=0, z=0)
-        sizes = dict(zip(metadata["axes"], metadata["shape"]))
+        sizes = dict(zip(metadata["axes"], metadata["shape"], strict=True))
         depth, count = sizes["z"], sizes.get("c", 1)
         origin = float(metadata["origin"]["z"])
         spacing = float(metadata["pixel_size"]["z"])
@@ -531,7 +531,7 @@ def make_slice_copies(
                    "name": f"{Path(store).name}_{stamp}_Z{z:05d}.jpg"}
                   for z in range(depth)]
         low, high = _one_brightening_for_the_whole_scan(pictures)
-        for entry, picture in zip(slices, pictures):
+        for entry, picture in zip(slices, pictures, strict=True):
             (into / entry["name"]).write_bytes(_as_jpeg(_stretch(picture, low, high), quality))
         return slices
     height_of = {int(plane["z"]): plane.get("z_um") for plane in planes}
@@ -549,7 +549,7 @@ def make_slice_copies(
               for z in sorted(by_height)]
 
     low, high = _one_brightening_for_the_whole_scan(pictures)
-    for entry, picture in zip(slices, pictures):
+    for entry, picture in zip(slices, pictures, strict=True):
         (into / entry["name"]).write_bytes(_as_jpeg(_stretch(picture, low, high), quality))
     return slices
 

@@ -24,6 +24,19 @@ defaults:
     shell: bash
 
 jobs:
+  lint:
+    name: the Python reads as ruff is configured (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The version the dev extra pins, so this job and a developer's
+      # `ruff check .` agree.
+      - run: python -m pip install "ruff==0.12.12"
+      - run: ruff check .
+
   page-unit:
     name: page unit tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

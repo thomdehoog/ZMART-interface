@@ -30,7 +30,8 @@ class KidneyPixels:
 
         return the_kidney_plane().astype(np.float32) / 65535.0
 
-    @lru_cache(maxsize=12)
+    # Holding the instance is intended: one specimen per session, twelve planes at most.
+    @lru_cache(maxsize=12)  # noqa: B019
     def _blurred(self, channel, z):
         from scipy.ndimage import gaussian_filter
 

@@ -18,9 +18,12 @@ def test_kidney_overlap_and_focus_are_independent_of_capture_order():
     sharp = pixels((256, 256), np.uint16, plane=plane, pixel_um=(2, 2))
     right = pixels((256, 256), np.uint16, plane={**plane, "x_um": 768}, pixel_um=(2, 2))
     np.testing.assert_array_equal(sharp[:, 128:], right[:, :128])
+
+    def gradient(a):
+        return np.square(np.diff(a.astype(float), axis=1)).mean()
+
     for z in (0, 16):
         blurred = pixels((256, 256), np.uint16, plane={**plane, "z_um": z}, pixel_um=(2, 2))
-        gradient = lambda a: np.square(np.diff(a.astype(float), axis=1)).mean()
         assert gradient(sharp) > gradient(blurred) * 2
         overlap = pixels((256, 256), np.uint16, plane={**plane, "x_um":768, "z_um":z}, pixel_um=(2, 2))
         np.testing.assert_array_equal(blurred[:, 128:], overlap[:, :128])

@@ -21,7 +21,6 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 import json
-import shutil
 import textwrap
 from pathlib import Path
 

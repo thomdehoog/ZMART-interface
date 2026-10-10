@@ -146,7 +146,7 @@ def test_the_engine_is_built_with_no_per_call_clock(monkeypatch):
             built.update(kwargs)
 
     monkeypatch.setattr(engine_module, "Engine", _Caught)
-    warm.Analysis().engine
+    _ = warm.Analysis().engine
     assert built.get("execution_timeout", "unset") is None
 
 
@@ -166,7 +166,7 @@ def test_the_workers_are_kept_for_the_whole_session(monkeypatch):
             built.update(kwargs)
 
     monkeypatch.setattr(engine_module, "Engine", _Caught)
-    warm.Analysis().engine
+    _ = warm.Analysis().engine
     assert built.get("idle_timeout", "unset") is None
 
 

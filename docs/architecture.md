@@ -99,7 +99,7 @@ zmart_interface/
                      for the chooser, its panels, and how it wires itself to
                      the page (`install`), which backend it speaks to
                      (`backendFor`) and what a run of it holds (`freshState`).
-    <name>/steps/    one numbered folder per step — `connect/` to
+    <name>/steps/    one folder per step, named for it — `connect/` to
                      `run_protocol/` — each holding the step's declaration,
                      its run, its controls, and what it draws on the picture.
     <name>/shared/   what several steps of that ONE workflow use: the carrier
@@ -176,55 +176,73 @@ else decides what
 counts as too narrow. If a constant or a rule has to appear in two files, the
 split was wrong — merge them back rather than keeping both in step.
 
-## The seam: the `microscope/` folder
+## The seam: `parts/microscope/`
 
-This is a mock now and gets a real microscope later, so nothing above this line
-knows which it is talking to. A step never calls `setTimeout`, never reaches
-for the synthetic sample, and never touches hardware — it calls the backend and
-awaits. Every API call the page will ever make to an instrument lives behind
-this seam; a workflow only imports it and calls.
+Nothing above this line knows which microscope it is talking to. A step never
+calls `setTimeout`, never reaches for a synthetic sample, and never touches
+hardware: it calls the backend and awaits. Every call the page makes to an
+instrument lives behind this seam.
+
+There are two backends with the same shape. `live.js` is what the page uses:
+each call is an HTTP request to the bridge (the package
+`zmart_interface/framework/bridge/`), which speaks to the ZMART Controller,
+which speaks to whichever driver was chosen at Connect, the interface's own
+mock microscope included. `mock.js` pretends in the browser alone, for
+working on the page without a bridge. Their shape, as `live.js` has it today:
 
 ```js
-// microscope/mock.js today, microscope/live.js later — same shape
 export const backend = {
-  async connect(),
-  async setOrigin(),
-  async captureJob(kind),        // "overview" | "target"
-  async measureFocus(points, { metric }),
-  async scanOverview({ onTile }),
-  async detect(settings),
-  async acquire(cellIds, { onPair }),
+  // the session
+  async instruments(), async connect(session, …), async disconnect(), async info(),
+  // the stage and the instrument's settings, in the controller's own words
+  async get_xyz(), async set_xyz({ x, y, z }),
+  async get_acquisition_settings(), async set_state(settings), async readSetting(type),
+  async acquire(…),
+  // the runs, each followed by polling and stopped by the operator's Interrupt
+  async measureFocus(points, { metric, onPoint, … }), async stopFocusMeasure(),
+  async scanOverview({ positions, onProgress, … }), async stopScan(),
+  async discoverTargets({ fields, settings, onField, … }), async stopTargets(),
+  async acquireTargets({ positions, focus, zOffsetUm, … }), async stopAcquireTargets(),
+  async computePlot(…), async stopPlot(),
+  // protocols and pictures
+  async protocols(), async saveProtocol(protocol), async saveProtocolAs(protocol, name),
+  viewOf(acquisitionType), async viewerSources(onStatus), async raiseTarget(label),
 };
 ```
+
+`backend-contract.js` lists the promises both keep, and
+`backend-contract.test.js` holds `mock.js` to them on every change and a
+running bridge to them when asked.
 
 Which backend a run speaks to is the workflow's to say: its `flow.js` exports
-`backendFor(search)`, which answers the backend for the page's own address
-(`live.js`, or `mock.js` when the address asks for `?backend=pretend`). The
-framework asks and never imports either. Swapping the mock for a real driver
-is therefore a change in that one function and nothing else. If wiring the
-microscope means editing a widget, the seam leaked and wants fixing first.
+`backendFor(search)`, which answers `live.js`, or `mock.js` when the page's
+address asks for `?backend=pretend`. The framework asks and never imports
+either. If wiring a microscope means editing a step's controls, the seam
+leaked and wants fixing first.
 
-## Widgets
+## Channels
 
-A widget owns one panel on the right and nothing else. It never imports another
-widget, never reaches into the framework, and never advances the flow.
+A step's controls are its channel: the column beside the canvas. A channel
+owns that column and nothing else. It never imports another step's channel
+and never advances the flow; it lives beside its step, in `channel.js`.
 
 ```js
-export default {
+export const focusChannel = {
   id: "focus",
   label: "Focus strategy",
-  mount(host, ctx) {
-    // build DOM inside host, once
-    return {
-      update(ctx) {},   // called whenever run state changes
-      resize() {},      // called when the panel is shown or the window moves
-    };
+  mount(host, page, { locked }) {
+    // build the controls inside host
   },
+  // rebuildsOnEveryRender: true,   // only for a channel that cannot keep its state
 };
 ```
 
-`ctx` carries `{ state, actions, backend }`. Widgets read `state`, call
-`actions` to change it, and the framework re-renders. That is the whole contract.
+`page` is what the workflow's steps share: the run (`page.run`), the backend
+(`page.backend`), the canvas, and the functions the steps lend one another
+(see `workflows/README.md`). `locked` is true while something runs. The
+framework mounts a channel once for each combination of step and `locked`, so
+a channel keeps its own state and redraws itself as the run changes; it does
+not hand the framework a function to call on every change.
 
 **The canvas is the base from step 3 on.** It is the microscope's own limits
 drawn to scale, so it exists from *reaching* the carrier step, not from
@@ -329,9 +347,9 @@ filled; the other was a duplication, and it has since been taken out:
 - the step rules gave every step the canvas whether or not it asked, so a step
   wanting only its own module could not be written. `panels` above is the fix.
 - a panel that builds a picture of its own — rather than drawing on one of the
-  page's canvases — had no way to learn that it was on screen. `PANEL_META` now
-  takes an optional `whenShown`, which is the general form of the `if (show ===
-  …)` chain that was already there for the page's own panels.
+  page's canvases — had no way to learn that it was on screen. The canvas
+  handle now offers `whenShown()` (`parts/canvas/viewer.js`), which a step
+  awaits before it draws.
 - **every step held up every step after it.** That is right for a run, where each
   step produces something the next one needs, and wrong for a step that only
   shows the operator something: such a step produces nothing, so there is nothing
@@ -416,8 +434,8 @@ reached for.
 
 One rule it establishes, which the next widget should keep: **a widget redraws
 itself.** Asking the framework to rebuild the panel on every change destroys the
-field being typed into — the defect this page has produced twice. `carrier.js`
-writes new values into the controls that already exist and skips the focused
+field being typed into — the defect this page has produced twice.
+`define_carrier/carrier-panel.js` writes new values into the controls that already exist and skips the focused
 one.
 
 Every step's controls now live beside the step, in its `channel.js`, and

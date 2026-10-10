@@ -89,7 +89,7 @@ def as_a_measurement(scored: dict, *, metric: str = DEFAULT_METRIC) -> dict:
         "traces": {
             name: {
                 "samples": [
-                    {"z": z, "s": s} for z, s in zip(heights, curve.get("scores") or [])
+                    {"z": z, "s": s} for z, s in zip(heights, curve.get("scores") or [], strict=False)
                 ],
                 "peak_z_um": curve.get("peak_z_um"),
             }
