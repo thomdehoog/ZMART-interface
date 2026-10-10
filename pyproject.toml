@@ -38,11 +38,11 @@ dependencies = [
     "tifffile>=2024.1",
     # The small pictures beside the canvas, and the detection masks.
     "pillow>=10",
-    # The mock microscope's sample (scikit-image's kidney section, fetched by
-    # pooch the first time) and the synthetic pixels for the LAS X simulator.
+    # Image filters for the analysis steps run in this process, and the blur of
+    # the synthetic pixels for the LAS X simulator. The mock's kidney section
+    # itself ships with the package, so nothing is downloaded.
     "scikit-image>=0.22",
     "scipy>=1.10",
-    "pooch>=1.8",
     # The analysis engine reads its pipelines from YAML.
     "pyyaml>=6",
     # Checking that the installed viewer is a version this interface was tested with.
@@ -78,7 +78,7 @@ namespaces = false
 # says how.
 "zmart_interface.framework" = ["window/build/*"]
 # The mock's driver file: what the controller's registry reads to install it.
-"zmart_interface.mock_microscope" = ["zmart_driver.json"]
+"zmart_interface.mock_microscope" = ["zmart_driver.json", "kidney-plane.npz"]
 
 [tool.pytest.ini_options]
 testpaths = ["zmart_interface"]

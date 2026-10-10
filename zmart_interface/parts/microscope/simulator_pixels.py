@@ -26,9 +26,9 @@ class KidneyPixels:
     @staticmethod
     @lru_cache(maxsize=1)
     def _texture():
-        from skimage.data import kidney
+        from zmart_interface.mock_microscope.kidney import the_kidney_plane
 
-        return np.moveaxis(kidney()[8], -1, 0).astype(np.float32) / 65535.0
+        return the_kidney_plane().astype(np.float32) / 65535.0
 
     @lru_cache(maxsize=12)
     def _blurred(self, channel, z):
