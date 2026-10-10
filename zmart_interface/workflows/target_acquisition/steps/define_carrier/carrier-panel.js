@@ -17,6 +17,7 @@
  */
 
 import { sideGroup } from "../../../../framework/window/panels.js";
+import { anchorWarning } from "./alignment.js";
 import {
   CARRIER_TYPES, carrierType, fromPreset, matchingPreset, geometry, maxRadius,
   centres, areaLabels, depthMm,
@@ -673,6 +674,11 @@ export default {
         row.append(pick);
         anchorList.append(row);
       });
+      /* Under the points, when the points snapped so far disagree: they are
+         averaged into one shift, so a turned carrier or a point snapped at
+         the wrong well would otherwise place the plate wrong in silence. */
+      const disagreeing = anchorWarning(anchors.list());
+      if (disagreeing) anchorList.append(el("div", "rec-warn anchor-warn", disagreeing));
     };
     anchors.onChange(drawAnchors);
     drawAnchors();
