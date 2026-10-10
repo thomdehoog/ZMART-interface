@@ -25,7 +25,7 @@ import { METRICS, METRIC_KEYS }
 import { MIN_TISSUE_WIDTH_UM, findCandidates, pickPeak }
   from "../../../../parts/microscope/focus-peaks.js";
 import {
-  affineSurface, fitSurface, residualsUm, surfaceZ,
+  fitSurface, residualsUm, surfaceZ,
 } from "../../../../parts/microscope/pretend-sample/surface.js";
 import { sharePoints } from "../../shared/scanfields.js";
 import { visitOrder } from "./visit-order.js";
@@ -61,22 +61,15 @@ export function openTheFocusMap(ctx) {
 
 const carrierSpan = () => carrierWidget.extentUm(run.carrier);
 
-/* The surfaces a run could reuse from an earlier one, for the parked "reuse"
-   strategy (see `newFocus` in the run document): nothing reaches it today,
-   and the two entries are what the choice would look like when it does. */
-const PREVIOUS_SURFACES = {
-  run_0714_a: { label: "2026-07-14 · slide A", plane: { a: 96, b: 61, c: -412 }, residual: 1.8, ageDays: 14 },
-  run_0709_c: { label: "2026-07-09 · slide C", plane: { a: 71, b: 88, c: -389 }, residual: 3.1, ageDays: 19 },
-};
-
+/* The surface the stage is driven to: the one fitted through the points
+   measured in this session, and nothing else. The parked strategies (see
+   `newFocus` in the run document) once answered here with a demonstration
+   height and two invented earlier runs, and a protocol naming one of them
+   sent the stage there; they give no surface now, so a step that drives
+   to the map's height stands where the objective is instead. */
 function focusSurface() {
   const f = run.focus;
-  const [w, h] = carrierSpan();
-  if (f.strategy === "fixed") return affineSurface({ c: f.zFixed, width: w, height: h });
-  if (f.strategy === "reuse") {
-    return affineSurface({ ...PREVIOUS_SURFACES[f.reuse].plane, width: w, height: h });
-  }
-  return f.surface;
+  return f.strategy === "plane" ? f.surface : null;
 }
 
 /* Fitting the focus surface — which model the geometry buys, the fit, the
@@ -791,7 +784,9 @@ function doubtsAbout(point, i) {
      automatic pick, and dragging past it is the look they asked for. */
   if (point.manual) return [];
   const out = [];
-  if (point.lost) {
+  if (point.lost && point.refused) {
+    out.push(`The microscope did not measure this point: ${point.refused}`);
+  } else if (point.lost) {
     out.push("The search swept its whole range without finding a peak — no height was measured here.");
   }
   if (point.onNarrow) {
@@ -905,9 +900,7 @@ function renderPointList() {
     d.className = "none";
     d.textContent = f.strategy === "auto"
       ? "Per-tile autofocus measures every position — no points to place."
-      : f.strategy === "fixed"
-        ? "A fixed height needs no measured points."
-        : "The stored surface already carries its points.";
+      : "This strategy is not available yet; only a measured focus map is.";
     host.append(d);
     return;
   }

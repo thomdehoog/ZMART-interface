@@ -320,8 +320,13 @@ export const backend = {
           say("scoring");
           landed = await ask("/api/focus/score", { record, centre: at.z.position, point });
         } catch (why) {
-          console.warn(`focus point ${index + 1} is lost: ${why.message}`);
-          landed = { ...asked, z: null, zAuto: null, lost: true, traces: null, cost_s: {}, slices: [] };
+          /* The microscope's own sentence rides on the point, so the row
+             can say why: a move it declined is not a search that found no
+             peak, and the window has no console to read it in. */
+          landed = {
+            ...asked, z: null, zAuto: null, lost: true, refused: why.message,
+            traces: null, cost_s: {}, slices: [],
+          };
         }
         measured.push(landed);
         onPoint?.(landed, index);
@@ -474,7 +479,13 @@ export const backend = {
         if (focus) {
           say("focussing on");
           if (focus.state) await ask("/api/state", focus.state);
-          const stood = await ask("/api/xyz", { ...at, x: focusXY.x, y: focusXY.y });
+          /* The stack is taken at the map's own height, without the offset:
+             the offset is for the target, and is added once to the height
+             chosen from the stack. Taken at the lifted height, a stack with
+             no peak lifted the target a second time. */
+          const stood = await ask("/api/xyz", {
+            x: focusXY.x, y: focusXY.y, ...(Number.isFinite(zMap) ? { z: zMap } : {}),
+          });
           standing = stood.z.position;
           const stack = capturedBy(await ask("/api/acquire", {
             folder: "target-focussing", position_label: labels[index], acquisition_settings: null,

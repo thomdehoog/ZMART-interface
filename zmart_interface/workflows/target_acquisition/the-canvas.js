@@ -18,6 +18,10 @@
 import { mountTheAxes } from "../../parts/canvas/axes.js";
 import { showPublicationStatus } from "../../parts/canvas/publication-note.js";
 import { css, el, sizeCanvas } from "../../framework/window/dom.js";
+import { status } from "../../framework/window/status.js";
+
+/* How the status bar begins a drive the microscope declined. */
+const REFUSED = "The stage did not go there: ";
 import carrierWidget from "./steps/define_carrier/carrier-panel.js";
 import scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.js";
 import { watchTheRun } from "./steps/scan_the_overview/watching-the-run.js";
@@ -154,17 +158,21 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
      * `null` when there is no session, when the run is driving the stage
      * itself, or when the instrument refused — and the mark then stays where
      * the last reading put it, which is the truth as far as the page knows it.
+     * A refusal is said in the status bar, in the microscope's own words:
+     * a double-click that does nothing, with no reason, looks like a fault.
      */
     driveTo: async ({ x, y }) => {
       if (!page.backend?.set_xyz || state.running) return null;
       try {
         const at = await page.backend.set_xyz({ x, y });
+        /* The last refusal, if it is still showing, is no longer true. */
+        if (document.getElementById("status-bar")?.textContent?.startsWith(REFUSED)) status.quiet();
         return {
           x: Number(at.x.position), y: Number(at.y.position),
           z: Number(at.z?.position ?? 0),
         };
       } catch (why) {
-        console.warn(`the stage would not go there: ${why.message}`);
+        status.say(`${REFUSED}${why.message}`);
         return null;
       }
     },

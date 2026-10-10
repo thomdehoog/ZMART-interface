@@ -154,6 +154,40 @@ describe("the live target run", () => {
     expect(landed.focus).toEqual({ job: "Focussing", z_map_um: null, z_peak_um: null, found: false });
   });
 
+  /* The operator's z offset is added once, to the height chosen for the
+     target. The stack itself is taken at the map's own height: it was taken
+     at the lifted height, and when it showed no peak the target was lifted a
+     second time from there (map 100, offset 5: the target at 110). */
+  it("adds the offset once when the stack shows no peak", async () => {
+    const calls = bridgeTakingTargets({ curve: false });
+    await backend.acquireTargets({
+      positions: [{ x: 10, y: 20, z: 100, position_index: 0 }], state: { job: "Target" },
+      focus: { state: { job: "Focussing" }, metric: "brenner" }, zOffsetUm: 5,
+    });
+    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body.z);
+    expect(drives).toEqual([100, 105]);
+    const landed = calls.find(([route]) => route === "/api/targets/acquire/landed")[1];
+    expect(landed.position.z).toBe(105);
+  });
+
+  it("adds the offset once to the peak, and takes the stack at the map's height", async () => {
+    const calls = bridgeTakingTargets({ peak: 12 });
+    await backend.acquireTargets({
+      positions: positions.slice(0, 1), state: { job: "Target" },
+      focus: { state: { job: "Focussing" }, metric: "brenner" }, zOffsetUm: 5,
+    });
+    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body.z);
+    expect(drives).toEqual([5, 17]);
+    expect(calls.find(([route]) => route === "/api/targets/acquire/focus")[1]).toMatchObject({ centre: 5 });
+  });
+
+  it("adds the offset to the map's height when there is no focussing", async () => {
+    const calls = bridgeTakingTargets();
+    await backend.acquireTargets({ positions: positions.slice(0, 1), state: null, zOffsetUm: 5 });
+    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body.z);
+    expect(drives).toEqual([10]);
+  });
+
   it("lands the capture's content, not the controller's envelope around it", async () => {
     const calls = bridgeTakingTargets();
     await backend.acquireTargets({ positions: positions.slice(0, 1), state: null });
