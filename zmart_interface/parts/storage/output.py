@@ -27,10 +27,19 @@ class AcquisitionOutput:
     data: Path
 
 
-def _validate_name(value: str, *, field: str) -> str:
+def checked_name(value: str, *, field: str) -> str:
+    """``value`` itself, when it can safely become one folder name; otherwise a ValueError.
+
+    Letters and digits, joined by single ``-`` or ``_``. Such a name can never
+    be a path: it has no slash, no backslash, no drive letter and no ``..``,
+    so a folder made from it always stays inside the folder it is joined
+    onto. Names that arrive from the page are checked with this before they
+    reach the disk, because some of them decide what is deleted.
+    """
     if not isinstance(value, str) or not _NAME_RE.fullmatch(value):
         raise ValueError(
-            f"{field} must contain only letters/digits separated by '-' or '_', got {value!r}"
+            f"the {field} {value!r} cannot be used as a folder name; it may hold only letters "
+            "and digits, joined by single '-' or '_'"
         )
     return value
 
@@ -67,7 +76,7 @@ def _create_hashed_dir(parent: Path, name: str, hash6: str | None) -> tuple[str,
 def prepare_experiment(output_root: Any, experiment: str, *, hash6: str | None = None) -> Path:
     """Create and return ``<output_root>/<experiment>_<hash6>``."""
 
-    name = _validate_name(experiment, field="experiment")
+    name = checked_name(experiment, field="experiment")
     _hash, path = _create_hashed_dir(Path(output_root).expanduser().resolve(), name, hash6)
     return path
 
@@ -78,7 +87,7 @@ def prepare_acquisition(
 ) -> AcquisitionOutput:
     """Create ``<experiment>/<acquisition_type>/data``."""
 
-    name = _validate_name(acquisition_type, field="acquisition_type")
+    name = checked_name(acquisition_type, field="acquisition_type")
     root = Path(experiment_root) / name
     root.mkdir(parents=True, exist_ok=True)
     data = root / "data"

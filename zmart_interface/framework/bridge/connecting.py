@@ -13,6 +13,8 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 import json
+import sys
+import time
 
 from zmart_controller import ZmartController
 from zmart_controller.registry import find_driver, get_instruments
@@ -76,40 +78,52 @@ def connect(asked: dict) -> dict:
         connection["password"] = asked["password"]
     if state.output_root is not None:
         connection["output_root"] = state.output_root
+    # The session before this one is closed first. A page that is reloaded
+    # connects again, and the old session was left open behind the new one:
+    # the microscope software still had a client, and a scan still running
+    # on it kept moving the stage. The scan itself was asked to stop by
+    # :func:`let_the_last_session_go` before the instrument's turn was taken.
+    close_the_last_session()
     # A controller of the bridge's own, not the module-level ``mic`` that
     # scripts share: the bridge opens and closes it, and nothing else may.
     driver = mock_microscope if name == INTERFACE_MOCK else name
-    state.session = Instrument(ZmartController(driver, connection))
-    state.context = {**state.session.context, "name": name}
+    session = Instrument(ZmartController(driver, connection))
     if driver is mock_microscope:
         mock_microscope.open_the_window(connection)
     try:
-        info = state.session.get_info()
-        standing = state.session.get_xyz()
+        info = session.get_info()
+        standing = session.get_xyz()
         area = the_viewers_area(standing)
-    except Exception:
-        # A microscope that cannot describe itself, or say where its
-        # pictures can show, is not a session to keep.
-        state.session.disconnect()
-        state.session = None
-        raise
-    # One synthetic specimen per session, anchored in the same specimen frame
-    # as the captured planes. Never recenter it for a new job, tile or stack.
-    state.pixel_provider = None
-    if state.simulator_pixels_enabled:
-        from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels
+        # One synthetic specimen per session, anchored in the same specimen
+        # frame as the captured planes. Never recenter it for a new job,
+        # tile or stack.
+        provider = None
+        if state.simulator_pixels_enabled:
+            from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels
 
-        try:
-            state.pixel_provider = KidneyPixels(focus_z_um=float(standing["z"]["position"]))
-            state.pixel_provider.recipe["focus_reference"] = "session-connect"
-        except Exception:
-            state.session.disconnect()
-            state.session = None
-            raise
-    state.run = prepare_experiment(info["output_root"], EXPERIMENT)
-    if state.pixel_provider is not None:
-        (state.run / "synthetic-specimen.json").write_text(
-            json.dumps(state.pixel_provider.recipe, indent=2), encoding="utf-8")
+            provider = KidneyPixels(focus_z_um=float(standing["z"]["position"]))
+            provider.recipe["focus_reference"] = "session-connect"
+        if not info.get("output_root"):
+            raise RuntimeError(
+                f"the microscope {name!r} does not say where its pictures are to be saved "
+                "(its get_info gives no 'output_root'); start the interface with --output-root "
+                "to choose a folder"
+            )
+        run = prepare_experiment(info["output_root"], EXPERIMENT)
+        if provider is not None:
+            (run / "synthetic-specimen.json").write_text(
+                json.dumps(provider.recipe, indent=2), encoding="utf-8")
+    except Exception:
+        # A microscope that cannot describe itself, say where its pictures
+        # can show, or be given a folder to save into is not a session to
+        # keep. Nothing of it was handed to the rest of the bridge yet, so
+        # closing it here leaves no half-open session behind.
+        session.disconnect()
+        raise
+    state.session = session
+    state.context = {**session.context, "name": name}
+    state.pixel_provider = provider
+    state.run = run
     # A fresh session has scanned nothing. The bridge outlives the page, and
     # records carried over from the last session rebuilt its scan's pictures
     # into this run's view -- a just-connected canvas showed a scan nobody
@@ -161,6 +175,56 @@ def the_viewers_area(reading: dict) -> dict[str, list[float]]:
             )
         area[f"{axis}_um"] = [float(canvas[0]), float(canvas[1])]
     return area
+
+
+#: How long connecting again waits for the running scan to finish the field it
+#: is capturing. A field is never cut off halfway, and one slow field (a deep
+#: stack) can take minutes; beyond this the operator is told to try again.
+WAIT_FOR_THE_LAST_SCAN_S = 600.0
+
+
+def let_the_last_session_go(wait_s: float | None = None) -> None:
+    """Stop what the bridge runs on its own before another session is opened.
+
+    The overview scan and target discovery run in the bridge's own threads
+    and outlive the page that started them. Both are asked to stop between
+    two fields, exactly as the operator's Interrupt does, and this waits
+    until they have. It must be called without holding the instrument's
+    turn, because the scan needs that turn to finish the field it is on.
+    The focus map and the target run are driven by the page itself, so a
+    reloaded page has already let them go; connecting resets their records.
+    """
+    from . import discovery, scan  # noqa: PLC0415 -- they import this module's neighbours
+
+    if state.scan["running"]:
+        scan.stop_scan()
+    if state.targets["running"]:
+        discovery.stop_targets()
+    limit = time.monotonic() + (WAIT_FOR_THE_LAST_SCAN_S if wait_s is None else wait_s)
+    while state.scan["running"] or state.targets["running"]:
+        if time.monotonic() > limit:
+            raise RuntimeError(
+                "the scan that was running has not stopped yet; it finishes the field it is "
+                "capturing first, so wait a moment and connect again"
+            )
+        time.sleep(0.05)
+
+
+def close_the_last_session() -> None:
+    """Close the session that is open, if any, even when the microscope no longer answers.
+
+    A microscope that has gone away cannot be closed politely, and that must
+    not stop the operator from opening a new session, so a failure here is
+    reported in the terminal and otherwise ignored.
+    """
+    if state.session is None:
+        return
+    try:
+        state.session.disconnect()
+    except Exception as why:  # noqa: BLE001 -- the old session is being let go either way
+        print(f"the last session could not be closed cleanly: {why}", file=sys.stderr, flush=True)
+    state.session = None
+    state.run = None
 
 
 def disconnect() -> dict:

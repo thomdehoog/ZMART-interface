@@ -23,7 +23,8 @@ from . import pictures, stage, state
 
 
 def scan_worker(
-    positions: list, acquisition_type: str = "overview", recorded: dict | None = None
+    positions: list, acquisition_type: str = "overview", recorded: dict | None = None,
+    *, session=None, run=None,
 ) -> None:
     """Drive to each position, capture, and keep what came back.
 
@@ -31,12 +32,22 @@ def scan_worker(
     run lands is knowable in advance, what each capture wrote is not. They
     were dropped on the floor here, so a run could be caused and never
     accounted for.
+
+    The scan belongs to the session and the run folder that were open when
+    it started. It used to look both up afresh for every field, so a page
+    that connected again in the middle of a scan handed the old scan the new
+    session: it kept moving the stage and wrote into the new run. Now it
+    stops, between two fields, as soon as its session is no longer the open
+    one. ``session`` and ``run`` are the ones the scan was started with;
+    left out, they are the ones open now.
     """
     standing = None
     # What polling this invocation reports. The durable acquisition records
     # may also contain frames retained while one selected target is rerun.
     state.scan["records"] = []
     try:
+        session = session or state.require_session()
+        run = run or state.the_run()
         if recorded:
             # The recorded configuration for this kind of scan, applied once
             # before the first drive. ``set_state`` returns once the
@@ -44,7 +55,7 @@ def scan_worker(
             # applying it captured everything with whatever job happened to
             # be selected.
             with state.the_instruments_turn:
-                state.require_session().set_state(as_state(recorded))
+                session.set_state(as_state(recorded))
         for i, position in enumerate(positions):
             if state.stop_asked["scan"]:
                 # Between two fields, on the operator's say-so: what was
@@ -52,7 +63,13 @@ def scan_worker(
                 state.scan["stopped"] = True
                 break
             with state.the_instruments_turn:
-                session = state.require_session()
+                if state.session is not session:
+                    state.scan["stopped"] = True
+                    state.scan["error"] = (
+                        "the scan stopped because its session was closed or another was opened; "
+                        "what it captured before that is kept"
+                    )
+                    break
                 z = position.get("z")
                 if z is None:
                     # A position that names no height means "image where the
@@ -80,7 +97,7 @@ def scan_worker(
                 # and the page tells the new pixels from the old by this.
                 record["taken"] = time.time()
                 output.move_record_images(
-                    record, prepare_acquisition(state.the_run(), acquisition_type).data
+                    record, prepare_acquisition(run, acquisition_type).data
                 )
             if record.get("timing_s"):
                 # Where the seconds of this site went, as the driver clocked them.
@@ -129,15 +146,29 @@ def label_for(index: int, position: dict) -> str:
     )
 
 
+#: Held while a scan is being started, so that two requests that arrive
+#: together cannot both find "nothing running" and start two scans that take
+#: turns moving the stage.
+starting = threading.Lock()
+
+
 def start_scan(asked: dict) -> dict:
+    with starting:
+        return start_one_scan(asked)
+
+
+def start_one_scan(asked: dict) -> dict:
     if state.scan["running"]:
         raise RuntimeError("a scan is already running")
     if state.focus["running"]:
         raise RuntimeError("a focus map is being measured; the stage is its until it ends")
     if state.acquired["running"]:
         raise RuntimeError("the targets are being taken; the stage is theirs until the run ends")
+    state.require_session()
     positions = asked.get("positions", [])
-    acquisition_type = str(asked.get("acquisition_type", "overview"))
+    acquisition_type = output.checked_name(
+        asked.get("acquisition_type", "overview"), field="acquisition_type",
+    )
     state.records[acquisition_type] = []
     pictures.replace_the_acquisition(
         acquisition_type,
@@ -153,7 +184,8 @@ def start_scan(asked: dict) -> dict:
         planned=[(float(p.get("x", 0.0)), float(p.get("y", 0.0))) for p in planned],
     )
     threading.Thread(
-        target=scan_worker, args=(positions, acquisition_type, asked.get("state")), daemon=True
+        target=scan_worker, args=(positions, acquisition_type, asked.get("state")),
+        kwargs={"session": state.require_session(), "run": state.the_run()}, daemon=True,
     ).start()
     return the_scan()
 

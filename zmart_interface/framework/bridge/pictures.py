@@ -19,7 +19,7 @@ import urllib.parse
 from pathlib import Path
 
 from zmart_interface.parts.microscope.focus_run import FOCUSSING
-from zmart_interface.parts.storage import viewer_service
+from zmart_interface.parts.storage import output, viewer_service
 from zmart_interface.parts.storage.zarr_positions import frame_um_of, position_store_from_record
 
 from . import stage, state
@@ -101,8 +101,12 @@ def a_picture_as_displayed(acquisition_type: str, label: str, display: list) -> 
 
 
 def view_of(acquisition_type: str) -> Path:
-    """Where this kind of scan's pictures are, in this run's own folder."""
-    return state.the_run() / acquisition_type / VIEW
+    """Where this kind of scan's pictures are, in this run's own folder.
+
+    The kind arrives from the page, so it is checked to be a plain folder
+    name first: anything else could name a folder outside the run.
+    """
+    return state.the_run() / output.checked_name(acquisition_type, field="acquisition_type") / VIEW
 
 
 def the_slice_copies_of(planes: list, *, store=None, z_shift_um=0.0) -> list:
@@ -177,7 +181,9 @@ def replace_the_acquisition(acquisition_type: str, keeping: set[str] = frozenset
     the new run's own records.
     """
     run = state.the_run()
-    positions = run / "positions" / acquisition_type
+    # Checked before the first deletion: this removes folders by a name the
+    # page chose, and an absolute path in its place replaced the run folder.
+    positions = run / "positions" / output.checked_name(acquisition_type, field="acquisition_type")
     stale = [
         child for child in (positions.iterdir() if positions.is_dir() else [])
         if child.is_dir() and child.name.endswith(".ome.zarr") and child.name not in keeping
