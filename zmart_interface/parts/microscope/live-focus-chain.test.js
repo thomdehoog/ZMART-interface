@@ -64,6 +64,38 @@ describe("the live focus map", () => {
     expect(points[0]).toMatchObject({ lost: true, z: null, refused: "the stage cannot go beyond its travel" });
   });
 
+  it("reaches a scoring that hangs: the bridge is asked to stop, and the cut point is not kept", async () => {
+    /* The review of 10 October, finding 16. The bridge's stop puts the
+       analysis down, which makes the hung score answer with an error; that
+       point was cut off by the operator's own hand, so it is not a "lost"
+       point with the microscope's reason, it is simply not measured. */
+    bridgeMeasuringFocus();
+    const inner = globalThis.fetch;
+    let release;
+    const asked = [];
+    globalThis.fetch = async (url, init) => {
+      const route = url.replace(/^http:\/\/[^/]+/, "");
+      asked.push(route);
+      if (route === "/api/focus/score") {
+        await new Promise((resolve) => { release = resolve; });
+        return { ok: false, json: async () => ({ error: "Engine has been shut down" }) };
+      }
+      if (route === "/api/focus/stop") {
+        release();
+        return { ok: true, json: async () => ({ running: true }) };
+      }
+      return inner(url, init);
+    };
+    const run = backend.measureFocus([{ x: 1, y: 1 }, { x: 2, y: 2 }], { metric: "brenner" });
+    while (!release) await new Promise((resolve) => setTimeout(resolve, 1));
+    await backend.stopFocusMeasure();
+    const { points, stopped } = await run;
+    expect(asked).toContain("/api/focus/stop");
+    expect(stopped).toBe(true);
+    expect(points).toEqual([]);
+    expect(asked.filter((route) => route === "/api/xyz")).toHaveLength(1);
+  });
+
   it("keeps the point's own startZ when beginAt has no answer", async () => {
     const drives = bridgeMeasuringFocus();
     await backend.measureFocus([{ x: 1, y: 1, startZ: -50 }, { x: 2, y: 2 }], {

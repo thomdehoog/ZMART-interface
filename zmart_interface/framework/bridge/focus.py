@@ -94,6 +94,21 @@ def score_focus(asked: dict) -> dict:
     return landed
 
 
+def stop_focus() -> dict:
+    """The operator's Interrupt for a focus map: reach a point whose scoring has hung.
+
+    The page stops its own loop between two points, but a point whose
+    scoring never answers keeps its request open for ever, and the map with
+    it. Putting the analysis workers down makes that scoring answer at once
+    with an error, as stopping discovery does; the workers start again on
+    the next request. The capture in hand is already on disk, so nothing is
+    lost. The page still ends the map itself, with ``/api/focus/end``.
+    """
+    if state.focus["running"]:
+        warm.close()
+    return dict(state.focus)
+
+
 def end_focus(asked: dict) -> dict:
     """The page ends the map, stopped by its hand or complete."""
     state.focus.update(running=False, doing=None, stopped=bool(asked.get("stopped")))

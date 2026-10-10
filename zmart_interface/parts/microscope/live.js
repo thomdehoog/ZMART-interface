@@ -320,6 +320,10 @@ export const backend = {
           say("scoring");
           landed = await ask("/api/focus/score", { record, centre: at.z.position, point });
         } catch (why) {
+          /* Cut off by the operator's own Interrupt (the bridge put the
+             analysis down to reach a scoring that hung): not a point the
+             microscope failed, just one not measured. */
+          if (focusStopAsked) { stopped = true; break; }
           /* The microscope's own sentence rides on the point, so the row
              can say why: a move it declined is not a search that found no
              peak, and the window has no console to read it in. */
@@ -339,9 +343,12 @@ export const backend = {
   },
 
   /** The operator's Interrupt for the focus run: the loop above stops before
-      its next drive, and returns what was measured. */
+      its next drive, and returns what was measured. The bridge is asked too,
+      because a point whose scoring has hung never reaches "before its next
+      drive"; its stop puts the analysis down, and that scoring answers. */
   async stopFocusMeasure() {
     focusStopAsked = true;
+    await ask("/api/focus/stop", {}).catch(() => {});
     return { stopped: true };
   },
 
