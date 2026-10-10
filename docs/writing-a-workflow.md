@@ -193,8 +193,17 @@ lands under `/api/<folder>/`, so the two above answer `GET /api/my_workflow/hell
 and `POST /api/my_workflow/count`. A handler is written the way the bridge's
 own are: it takes the request's JSON body as a dictionary (empty for a GET)
 and the raw query string, and answers a dictionary; an exception it raises
-reaches the page as a sentence, with status 400 for a `ValueError`. From the
-page, your steps reach them at the bridge's address, which
+reaches the page as a sentence, with status 400 for a `ValueError`.
+
+Two things follow from the bridge loading Python halves only as it starts.
+A package installed while the interface is running is listed with the
+sentence "restart the interface to finish installing it" until it is
+restarted. And a package's folder may not be one of the names the bridge
+uses for its own routes (`targets`, `scan`, `focus`, `plots`, `protocol`
+and the others under `/api/`): such a package would replace the bridge's
+own routes, so its Python half is not loaded and the chooser says why.
+
+From the page, your steps reach them at the bridge's address, which
 `zmart-interface/framework/window/bridge-address.js` knows:
 
 ```js

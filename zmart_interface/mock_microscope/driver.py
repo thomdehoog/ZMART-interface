@@ -11,8 +11,8 @@ height -- the failure a focus routine has to survive.
 
 The functions here return their answers as they are. The controller's
 two-part reply, ``{"success": ..., "content": ...}``, is added by the plug-in
-next door (``zmart_controller/__init__.py``), which is the folder the ZMART
-Controller looks for when the mock is plugged in.
+next door (``zmart_controller_plugin.py``), which ``zmart_driver.json`` names
+for the ZMART Controller when the mock is plugged in.
 
 What this mock does not have: a setup of its own. A real driver loads its
 origin, travel limits and calibration from the setup the operator made once

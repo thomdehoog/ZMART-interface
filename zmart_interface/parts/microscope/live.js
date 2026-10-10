@@ -2,7 +2,7 @@
  * The seam where the microscope goes — the live side of it.
  *
  * The same shape as `mock.js`, implemented as HTTP calls to the bridge
- * (`zmart_interface/framework/bridge.py`), which speaks to the ZMART
+ * (the package `zmart_interface/framework/bridge/`), which speaks to the ZMART
  * Controller, which speaks to whichever driver is plugged in — a real
  * microscope's driver on the microscope PC, or the interface's own mock
  * microscope on a machine with no instrument.

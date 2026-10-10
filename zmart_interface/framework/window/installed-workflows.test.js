@@ -3,9 +3,9 @@
    loaded at all. The loading itself needs a browser and is the
    installed-workflow browser test's business. */
 
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
-  importedFrameworkModules, loadOneWorkflow, shimSource, withImportsPointedAt,
+  importedFrameworkModules, loadInstalledWorkflows, loadOneWorkflow, shimSource, withImportsPointedAt,
 } from "./installed-workflows.js";
 
 const A_BUNDLE = `import { sideGroup } from "zmart-interface/framework/window/panels.js";
@@ -83,13 +83,35 @@ describe("whether a package may be loaded", () => {
     expect(outcome.name).toBe("Three steps");
   });
 
-  it("refuses one whose Python half the bridge could not import", async () => {
-    const outcome = await loadOneWorkflow(listed({ error: "No module named 'nowhere'" }), page);
-    expect(outcome.refused).toMatch(/Python half could not be imported: No module named 'nowhere'/);
+  it("refuses one the bridge listed with an error, in the bridge's own sentence", async () => {
+    const said = "its Python half could not be imported: No module named 'nowhere'";
+    const outcome = await loadOneWorkflow(listed({ error: said }), page);
+    expect(outcome.refused).toBe(said);
   });
 
   it("refuses one whose range nobody can read", async () => {
     const outcome = await loadOneWorkflow(listed({ framework: "latest" }), page);
     expect(outcome.refused).toBeTruthy();
+  });
+});
+
+describe("a package that cannot be read", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  /* The review of 10 October, finding 13: a package whose workflow.json does
+     not read is listed with an error and no bundle, and was skipped before
+     it could be refused, so it never appeared in the chooser at all. */
+  it("still reaches the chooser, with the reason", async () => {
+    const said = "its workflow.json could not be read: Expecting value: line 1 column 1";
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true, json: async () => ({ workflows: [{ folder: "broken", name: "broken", error: said }] }),
+    }));
+    const refusals = [];
+    await loadInstalledWorkflows({
+      register: () => { throw new Error("nothing should be registered"); },
+      refuse: (folder, name, why) => refusals.push([folder, name, why]),
+    });
+    expect(refusals).toEqual([["broken", "broken", said]]);
   });
 });

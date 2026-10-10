@@ -952,6 +952,7 @@ def _asked_for(paths):
     class _Probe(server.Bridge):
         def __init__(self):
             self.sent = None
+            self.headers = {}
 
         def _answer(self, payload, status=200):
             self.sent = (status, None)
@@ -1629,6 +1630,7 @@ def test_a_copy_is_drawn_with_the_display_the_page_asks_with(mock_instrument, mo
             def __init__(self):
                 self.sent = []
                 self.out = io.BytesIO()
+                self.headers = {}
 
             def send_response(self, status):
                 self.sent.append(status)

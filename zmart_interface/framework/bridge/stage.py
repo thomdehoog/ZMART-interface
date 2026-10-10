@@ -76,16 +76,29 @@ def drive_to(asked: dict) -> dict:
 
     ``z`` is optional and left where it stands when it is not given: an
     operator driving to a place on the plate is asking to move across it, not
-    to change how far the objective is from it.
+    to change how far the objective is from it. An axis that is not given
+    and that the stage does not report is refused, never taken as zero:
+    zero was an absolute move of the objective to its own zero.
     """
     session = state.require_session()
     standing = session.get_xyz()
-    here = lambda axis: float(standing.get(axis, {}).get("position", 0.0))  # noqa: E731
-    went = session.set_xyz(
-        float(asked.get("x", here("x"))),
-        float(asked.get("y", here("y"))),
-        float(asked["z"]) if asked.get("z") is not None else here("z"),
-    )
+
+    def wanted(axis: str) -> float:
+        given = asked.get(axis)
+        if given is not None:
+            try:
+                return float(given)
+            except (TypeError, ValueError):
+                raise ValueError(f"{axis} must be a number of micrometres, not {given!r}") from None
+        reported = (standing.get(axis) or {}).get("position")
+        if reported is None:
+            raise RuntimeError(
+                f"the microscope does not say where the {axis} axis stands, so a drive that "
+                f"leaves {axis} where it is cannot be made; give {axis} explicitly"
+            )
+        return float(reported)
+
+    went = session.set_xyz(wanted("x"), wanted("y"), wanted("z"))
     # The controller's set_xyz answers exactly like get_xyz, read back after
     # the stage has arrived, so that answer is the reading. A driver that
     # answers something else is asked once more.

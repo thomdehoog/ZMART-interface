@@ -9,7 +9,7 @@ parts that plug into the interface's sides:
 ```
    the page (JavaScript)            the bridge (Python)              beside it
    ---------------------            -------------------              ---------
-   steps, panels, canvas  --HTTP-->  framework/bridge.py  --------->  ZMART Controller --> driver --> microscope
+   steps, panels, canvas  --HTTP-->  framework/bridge/    --------->  ZMART Controller --> driver --> microscope
    parts/microscope/live.js          parts/microscope/instrument.py      (any ZMART driver, or the mock)
                                      parts/storage/      ----------->  ZMART-viewer (serves the run's pictures)
    parts/canvas/engines/  <--HTTP--  (the viewer's own server)

@@ -139,6 +139,7 @@ def _asked_for(paths):
         def __init__(self):
             self.sent = None
             self.out = io.BytesIO()
+            self.headers = {}
 
         def _answer(self, payload, status=200):
             self.sent = (status, None)

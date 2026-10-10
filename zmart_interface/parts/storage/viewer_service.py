@@ -205,6 +205,8 @@ def stop() -> None:
         if server is not None:
             try:
                 server.shutdown()
+                # shutdown() only stops answering; this lets the port go.
+                server.server_close()
             except Exception:  # noqa: BLE001 -- already going away
                 pass
 

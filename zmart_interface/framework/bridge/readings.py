@@ -131,7 +131,7 @@ def reading(kind: str) -> dict:
     ``get_state`` either way, because a preset is a readout and never a
     procedure. The instrument is read as it stands: its operator set it up
     in its own software before pressing Import -- LAS X on the Leica, the
-    mock instrument window (``mock-instrument.py``) on the mock.
+    mock microscope's own window (``mock_microscope/window.py``) on the mock.
     """
     session = state.require_session()
     settings = session.get_state()

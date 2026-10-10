@@ -130,6 +130,6 @@ Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 """
 
-from .server import THE_PAGE, add_arguments, main, serve
+from .server import THE_PAGE, add_arguments, main, serve, shut_down
 
-__all__ = ["THE_PAGE", "add_arguments", "main", "serve"]
+__all__ = ["THE_PAGE", "add_arguments", "main", "serve", "shut_down"]

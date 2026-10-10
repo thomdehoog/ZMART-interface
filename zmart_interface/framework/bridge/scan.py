@@ -158,6 +158,10 @@ def start_scan(asked: dict) -> dict:
 
 
 def start_one_scan(asked: dict) -> dict:
+    # The name first: it arrives from the page and decides what is deleted below.
+    acquisition_type = output.checked_name(
+        asked.get("acquisition_type", "overview"), field="acquisition_type",
+    )
     if state.scan["running"]:
         raise RuntimeError("a scan is already running")
     if state.focus["running"]:
@@ -166,9 +170,6 @@ def start_one_scan(asked: dict) -> dict:
         raise RuntimeError("the targets are being taken; the stage is theirs until the run ends")
     state.require_session()
     positions = asked.get("positions", [])
-    acquisition_type = output.checked_name(
-        asked.get("acquisition_type", "overview"), field="acquisition_type",
-    )
     state.records[acquisition_type] = []
     pictures.replace_the_acquisition(
         acquisition_type,

@@ -62,8 +62,7 @@ const NO_BACKEND = Object.freeze({});
 /* Which workflow to open on — `?workflow=target_acquisition`.
  *
  * For pointing this page at a run and looking at it, which is what somebody
- * with an acquisition in their hand wants and what `serve_a_run.py` prints an
- * address for. Without it that address lands on the first step of the ordinary
+ * with an acquisition in their hand wants. Without it that address lands on the first step of the ordinary
  * run and the picture is two clicks away, every time.
  *
  * A name that is not a workflow is ignored rather than refused: the page is

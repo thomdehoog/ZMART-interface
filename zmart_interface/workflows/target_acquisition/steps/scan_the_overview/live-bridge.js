@@ -3,7 +3,7 @@
  * microscope, through the controller, with its pictures served as they land.
  *
  * This points the page at the bridge it actually talks to:
- * `zmart_interface/framework/bridge.py`, running the mock microscope through
+ * the package `zmart_interface/framework/bridge/`, running the mock microscope through
  * the ZMART Controller, writing OME-TIFFs into a folder of its own, an
  * OME-Zarr position per field, and one small JPEG per field beside them.
  *

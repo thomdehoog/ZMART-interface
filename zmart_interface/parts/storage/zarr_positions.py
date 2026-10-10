@@ -461,9 +461,17 @@ def _the_corner_of(
 
     The z origin was decided once by :func:`_the_z_model`: the specimen z
     of the lowest plane, so a store's z is the specimen's like its x and y.
+    A plane that does not say where it was taken is refused: placed at the
+    stage's zero, it showed in the corner of the canvas as if taken there.
     """
-    x_um = float(planes[0].get("x_um") or 0.0)
-    y_um = float(planes[0].get("y_um") or 0.0)
+    for axis in ("x_um", "y_um"):
+        if planes[0].get(axis) is None:
+            raise ValueError(
+                f"the capture does not say where it was taken (its first plane has no {axis}), "
+                "so it cannot be placed on the stage"
+            )
+    x_um = float(planes[0]["x_um"])
+    y_um = float(planes[0]["y_um"])
     return (
         z_origin_um,
         y_um - frame_yx[0] * pixel_size_um[0] / 2.0,

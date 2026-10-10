@@ -94,7 +94,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"opening the {note}")
     title = "ZMART — LAS X SIMULATOR / SYNTHETIC PIXELS" if args.simulator_pixels else "ZMART"
     webview.create_window(title, target, width=1500, height=950)
-    webview.start()
+    try:
+        webview.start()
+    finally:
+        # The window is closed: the session with the microscope software is
+        # closed with it, rather than left open until the process is killed.
+        bridge.shut_down(server)
     return 0
 
 

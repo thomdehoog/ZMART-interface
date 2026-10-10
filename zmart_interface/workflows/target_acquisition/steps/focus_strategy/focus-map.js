@@ -74,8 +74,7 @@ function focusSurface() {
 
 /* Fitting the focus surface — which model the geometry buys, the fit, the
    height it predicts anywhere, and the residuals — lives in
-   `microscope/pretend-sample/surface.js`, imported above, mirroring the
-   Python `workflow/_focus_surface.py`. */
+   `microscope/pretend-sample/surface.js`, imported above. */
 
 // viridis — multi-hue but monotone in lightness, which is the property that
 // matters: it stays readable in greyscale and for every kind of colour vision

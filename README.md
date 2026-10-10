@@ -86,8 +86,12 @@ the environments its workflows need, and tell the interface where it is:
 git clone https://github.com/thomdehoog/ZMART-analysis
 python ZMART-analysis/workflows/focus/environments/setup_env.py --step main
 python ZMART-analysis/workflows/object_analysis/environments/setup_env.py --step classical
-set ZMART_ANALYSIS_WORKFLOWS=C:\path\to\ZMART-analysis
+setx ZMART_ANALYSIS_WORKFLOWS C:\path\to\ZMART-analysis
 ```
+
+`setx` keeps the setting for every window opened after it, in PowerShell and in the Command
+Prompt alike; the window it was typed in does not see it yet, so open a new one before you
+start the interface.
 
 (Installing ZMART-analysis from that checkout with `pip install -e ZMART-analysis` does the
 same without the variable.)
