@@ -57,7 +57,6 @@ export function protocolFrom(state) {
       metric: f.metric,
       perField: f.perField,
       perCarrier: f.perCarrier,
-      zFixed: f.zFixed,
       points: f.points.map(({ x, y }) => ({ x, y })),
     },
     detect: {
@@ -91,6 +90,14 @@ export function protocolFits(state, protocol) {
   if (from && here && from !== here) {
     return `written on ${from}, this session is on ${here}`;
   }
+  /* Only a measured focus map exists. A file asking for another strategy
+     (older pages parked "fixed" and "reuse") would skip measuring and send
+     the stage to a height nobody measured here. */
+  const strategy = protocol.focus?.strategy ?? "plane";
+  if (strategy !== "plane") {
+    return `it asks for the "${strategy}" focus strategy, which this page does not have; `
+      + "only a measured focus map can be used";
+  }
   return null;
 }
 
@@ -114,12 +121,13 @@ export function applyProtocol(state, protocol) {
   state.targetFocusOn = !!protocol.targetFocusOn;
   state.targetFocus = { ...state.targetFocus, records: [], active: null };
   state.targetZOffsetUm = Number(protocol.targetZOffsetUm) || 0;
+  /* The strategy is not read from the file: there is one, the measured map,
+     and `protocolFits` has refused a file that asks for another. A fixed
+     height an older file carries is not read either. */
   Object.assign(state.focus, {
-    strategy: protocol.focus.strategy,
     metric: protocol.focus.metric,
     perField: protocol.focus.perField,
     perCarrier: protocol.focus.perCarrier,
-    zFixed: protocol.focus.zFixed,
     /* Places to measure, not yet measured: `z: null` is how a point says so. */
     points: protocol.focus.points.map(({ x, y }) => ({ x, y, z: null })),
   });

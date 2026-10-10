@@ -46,8 +46,6 @@ export function newFocus() {
     picked: new Set(),   // which are held, for moving or taking away together
     hovered: -1,         // which one the pointer has found, if any
     placing: false,      // whether the crosshair is armed for a press
-    zFixed: -412,        // the fixed strategy's height, parked with it
-    reuse: "run_0714_a", // the reuse strategy's choice, parked with it
     applied: false,
     surface: null,       // constant | plane | spline, chosen by geometry
     residual: null,

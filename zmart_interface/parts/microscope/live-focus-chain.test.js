@@ -51,6 +51,19 @@ describe("the live focus map", () => {
     expect(drives.map((d) => d.z)).toEqual([-50, -60, -70]);
   });
 
+  it("keeps the microscope's own sentence on a point it would not drive to", async () => {
+    /* The review of 10 October, finding 6: the reason went to the console,
+       which the window does not show, and the point then read as a search
+       that found no peak. */
+    bridgeMeasuringFocus();
+    const inner = globalThis.fetch;
+    globalThis.fetch = async (url, init) => (url.endsWith("/api/xyz")
+      ? { ok: false, json: async () => ({ error: "the stage cannot go beyond its travel" }) }
+      : inner(url, init));
+    const { points } = await backend.measureFocus([{ x: 1, y: 1 }], { metric: "brenner" });
+    expect(points[0]).toMatchObject({ lost: true, z: null, refused: "the stage cannot go beyond its travel" });
+  });
+
   it("keeps the point's own startZ when beginAt has no answer", async () => {
     const drives = bridgeMeasuringFocus();
     await backend.measureFocus([{ x: 1, y: 1, startZ: -50 }, { x: 2, y: 2 }], {

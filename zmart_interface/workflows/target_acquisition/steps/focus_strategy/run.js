@@ -35,7 +35,6 @@ export function focusFinished(page, s) {
   state.notes[s.id] =
     f.strategy === "plane" ? (f.surface ? `${f.surface.model} from ${f.points.length} points · ${focusFitWord(f)}`
       : `no focus map: none of the ${f.points.length} points found the tissue`)
-    : f.strategy === "fixed" ? `fixed z ${f.zFixed} µm`
     : `focused at every position · ${METRICS[f.metric].label}`;
   page.renderPointList(); page.drawTrace();
 }
