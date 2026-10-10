@@ -13,14 +13,26 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-from zmart_interface.framework.bridge import focus, server, state
+import pytest
+
+from zmart_interface.framework.bridge import server, workflows
+from zmart_interface.workflows.target_acquisition.bridge import focus, ledgers
+
+STOP = ("POST", "/api/target_acquisition/focus/stop")
+
+
+@pytest.fixture(autouse=True)
+def the_workflows_routes(monkeypatch):
+    """The bridge's routes with the built-in workflows' halves loaded, as at start-up."""
+    monkeypatch.setattr(server, "ROUTES", dict(server.ROUTES))
+    workflows.load_built_in_halves(server.add_route)
 
 
 def test_stopping_a_running_map_puts_the_analysis_workers_down(monkeypatch):
     closed = []
     monkeypatch.setattr(focus.warm, "close", lambda: closed.append(True))
-    monkeypatch.setitem(state.focus, "running", True)
-    answer = server.ROUTES[("POST", "/api/focus/stop")]({}, "")
+    monkeypatch.setitem(ledgers.focus, "running", True)
+    answer = server.ROUTES[STOP]({}, "")
     assert closed == [True]
     assert answer["running"] is True, "the page still ends the map itself"
 
@@ -28,6 +40,6 @@ def test_stopping_a_running_map_puts_the_analysis_workers_down(monkeypatch):
 def test_stopping_when_no_map_runs_leaves_the_workers_alone(monkeypatch):
     closed = []
     monkeypatch.setattr(focus.warm, "close", lambda: closed.append(True))
-    monkeypatch.setitem(state.focus, "running", False)
-    server.ROUTES[("POST", "/api/focus/stop")]({}, "")
+    monkeypatch.setitem(ledgers.focus, "running", False)
+    server.ROUTES[STOP]({}, "")
     assert closed == []

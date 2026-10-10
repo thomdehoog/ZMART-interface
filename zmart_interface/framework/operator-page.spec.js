@@ -1437,7 +1437,7 @@ test("target inspection changes selection without rebuilding published images", 
   await runStep(page, 1000);
   await gotoStep(page, "Acquire Targets");
   await page.evaluate(async () => {
-    const { backend } = await import("/zmart_interface/parts/microscope/mock.js");
+    const { targetAcquisitionPretend: backend } = await import("/zmart_interface/workflows/target_acquisition/backend/pretend.js");
     window.selectionRebuilds = [];
     window.targetCaptureRequests = [];
     // The live call can remain busy for minutes. Any invocation is a regression,

@@ -75,7 +75,7 @@ test("Connect opens an empty middle viewer; focusing and overview fill it above 
   await page.waitForFunction(() => window.__thePicture?.layersForMeasurement().length > 0, null, { timeout: 120_000 });
   expect(await page.evaluate(() => window.firstPicture === window.__thePicture)).toBe(true);
   await expect(page.locator(".panel.on button.step-run")).not.toHaveClass(/running/, { timeout: 120_000 });
-  const focus = await (await page.request.get(`${bridge.at}/api/focus/measure`)).json();
+  const focus = await (await page.request.get(`${bridge.at}/api/target_acquisition/focus/measure`)).json();
   expect(focus).toMatchObject({ running: false, error: null, stopped: false, done: focusCount, of: focusCount });
   expect(focus.points).toHaveLength(focusCount);
   for (const point of focus.points) {

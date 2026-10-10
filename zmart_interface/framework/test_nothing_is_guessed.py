@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import pytest
 
-from zmart_interface.framework.bridge import discovery, readings, state
+from zmart_interface.framework.bridge import readings, state
 from zmart_interface.parts.microscope.instrument import Instrument
+from zmart_interface.workflows.target_acquisition.bridge import discovery
 
 
 class Reporting:

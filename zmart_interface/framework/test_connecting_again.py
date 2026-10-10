@@ -23,8 +23,9 @@ import time
 
 import pytest
 
-from zmart_interface.framework.bridge import connecting, pictures, scan, server, state
+from zmart_interface.framework.bridge import connecting, pictures, server, state
 from zmart_interface.parts.microscope.instrument import Instrument
+from zmart_interface.workflows.target_acquisition.bridge import ledgers, scan
 
 
 class Stage:
@@ -70,10 +71,10 @@ def a_run_without_pictures(tmp_path, monkeypatch):
     monkeypatch.setattr(scan.output, "move_record_images", lambda record, data: record)
     monkeypatch.setattr(pictures, "keep_position_as_zarr", lambda record, kind: None)
     monkeypatch.setattr(pictures, "replace_the_acquisition", lambda kind, keeping=frozenset(): None)
-    state.scan.update(running=False, stopped=False, error=None)
-    state.stop_asked["scan"] = False
+    ledgers.scan.update(running=False, stopped=False, error=None)
+    ledgers.stop_asked["scan"] = False
     yield run
-    state.stop_asked["scan"] = False
+    ledgers.stop_asked["scan"] = False
 
 
 def a_row_of(count):
@@ -89,15 +90,15 @@ def test_a_scan_stops_when_its_session_is_no_longer_the_open_one(monkeypatch):
 
     older = Stage("older", on_capture=another_session_opens)
     monkeypatch.setattr(state, "session", Instrument(older))
-    state.scan.update(running=True)
+    ledgers.scan.update(running=True)
 
     scan.scan_worker(a_row_of(6))
 
     assert older.moves == [(0.0, 0.0, 1.0), (1.0, 0.0, 1.0)]
     assert newer.moves == []
-    assert state.scan["running"] is False
-    assert state.scan["stopped"] is True
-    assert "closed" in state.scan["error"]
+    assert ledgers.scan["running"] is False
+    assert ledgers.scan["stopped"] is True
+    assert "closed" in ledgers.scan["error"]
 
 
 def test_connecting_again_stops_the_running_scan_before_the_new_session_opens(monkeypatch):
@@ -115,7 +116,7 @@ def test_connecting_again_stops_the_running_scan_before_the_new_session_opens(mo
         assert len(older.moves) == moved_by_then, "the old scan kept moving the stage"
         assert moved_by_then < 500
         assert older.closed is True
-        assert state.scan["running"] is False
+        assert ledgers.scan["running"] is False
         assert state.session is not None
         assert state.context["name"] == connecting.INTERFACE_MOCK
     finally:
@@ -170,7 +171,7 @@ def test_two_scans_asked_for_at_once_start_only_one(monkeypatch):
     for one in askers:
         one.join()
     scan.stop_scan()
-    while state.scan["running"]:
+    while ledgers.scan["running"]:
         time.sleep(0.01)
     assert len(started) == 1
     assert len(refused) == 7

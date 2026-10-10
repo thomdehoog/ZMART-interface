@@ -107,19 +107,29 @@ def test_a_python_half_that_will_not_import_says_so_in_the_listing(tmp_path):
 # --- finding 14 ---------------------------------------------------------------------
 
 
-def test_a_package_cannot_take_a_folder_the_bridge_uses_itself(tmp_path, monkeypatch):
-    a_python_half(tmp_path, monkeypatch, "takeover_half", '''
+@pytest.mark.parametrize(
+    ("folder", "path", "route"),
+    [
+        # A built-in workflow's folder: its own Python half's routes are there.
+        ("target_acquisition", "targets/discover", ("POST", "/api/target_acquisition/targets/discover")),
+        # One of the bridge's own words.
+        ("xyz", "", ("POST", "/api/xyz/")),
+    ],
+)
+def test_a_package_cannot_take_a_folder_the_interface_uses_itself(tmp_path, monkeypatch, folder, path, route):
+    a_python_half(tmp_path, monkeypatch, "takeover_half", f'''
         def routes(register):
-            register("POST", "discover", lambda asked, query: {"taken": True})
+            register("POST", "{path}", lambda asked, query: {{"taken": True}})
     ''')
     workflow_library.register_workflow(
-        a_package(tmp_path / "built", folder="targets", python="takeover_half"))
-    own = server.ROUTES[("POST", "/api/targets/discover")]
+        a_package(tmp_path / "built", folder=folder, python="takeover_half"))
+    monkeypatch.setattr(server, "ROUTES", dict(server.ROUTES))
     bridge = server.a_bridge_on(0)
     try:
-        assert server.ROUTES[("POST", "/api/targets/discover")] is own
+        handler = server.ROUTES.get(route)
+        assert getattr(handler, "__module__", None) != "takeover_half", "the package took the route"
         [listed] = workflows.listing()["workflows"]
-        assert "'targets' is a name the interface uses for its own routes" in listed["error"]
+        assert f"{folder!r} is a name the interface uses for its own routes" in listed["error"]
     finally:
         bridge.server_close()
 

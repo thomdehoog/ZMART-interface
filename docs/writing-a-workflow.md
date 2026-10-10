@@ -199,9 +199,40 @@ Two things follow from the bridge loading Python halves only as it starts.
 A package installed while the interface is running is listed with the
 sentence "restart the interface to finish installing it" until it is
 restarted. And a package's folder may not be one of the names the bridge
-uses for its own routes (`targets`, `scan`, `focus`, `plots`, `protocol`
-and the others under `/api/`): such a package would replace the bridge's
-own routes, so its Python half is not loaded and the chooser says why.
+uses for its own routes (`instruments`, `connect`, `xyz`, `acquire` and the
+others under `/api/`) nor the folder of a workflow built into the interface
+(`target_acquisition`): such a package would replace their routes, so its
+Python half is not loaded and the chooser says why.
+
+The workflows built into the interface have a Python half the same way, in
+`zmart_interface/workflows/<folder>/bridge/`; Target acquisition's is the
+complete example to read, with its own routes for the focus map, the scans,
+finding and taking the targets, the plots and the protocols.
+
+## What a Python half may tell the bridge
+
+The bridge's general part knows no workflow, so a half that runs things on
+its own tells the bridge about them, in `zmart_interface.framework.bridge.hooks`:
+
+```python
+from zmart_interface.framework.bridge import hooks
+
+hooks.plug(
+    "my_workflow",
+    holds_the_stage=lambda: my_scan["running"],  # while true, nothing else drives the stage
+    let_go=stop_and_wait,                        # before another session opens: stop between fields
+    forget=reset_my_ledgers,                     # when a fresh session opens
+    raw_kinds={"my-stacks"},                     # view folders served as they are
+    picture_endings={".mask.png": draw_a_mask},  # pictures drawn on request, by name
+)
+```
+
+Each is optional. `let_go(wait_s)` is called without holding the
+instrument's lock, because a run needs that lock to finish its field.
+
+The run folder the bridge makes at connect is named by the page:
+`backend.connect(session, { experiment: "my-workflow" })` makes
+`<output root>/my-workflow_<hash>`.
 
 From the page, your steps reach them at the bridge's address, which
 `zmart-interface/framework/window/bridge-address.js` knows:

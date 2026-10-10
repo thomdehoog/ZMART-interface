@@ -32,23 +32,17 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from zmart_interface.parts.microscope.focus_run import FOCUSSING
 from zmart_interface.parts.microscope.instrument import InstrumentDeclined
 from zmart_interface.parts.storage import viewer_service
 
 from .. import workflow_library
 from . import (
     connecting,
-    discovery,
-    focus,
+    hooks,
     pictures,
-    plots,
-    protocols,
     readings,
-    scan,
     stage,
     state,
-    targets,
     workflows,
 )
 
@@ -81,12 +75,6 @@ def route(method: str, path: str):
 
 
 # --- the routes, in the order the page meets them ------------------------------
-
-
-def _since(query: str) -> int | None:
-    """The ``since=N`` a ledger is read from, when the page has part of it already."""
-    since = urllib.parse.parse_qs(query or "").get("since", [None])[0]
-    return int(since) if since is not None else None
 
 
 @route("GET", "/api/instruments")
@@ -152,135 +140,6 @@ def _capture(asked, query):
         return readings.capture(asked)
 
 
-@route("POST", "/api/focus/begin")
-def _begin_focus(asked, query):
-    return focus.begin_focus(asked)
-
-
-@route("POST", "/api/focus/score")
-def _score_focus(asked, query):
-    return focus.score_focus(asked)
-
-
-@route("POST", "/api/focus/stop")
-def _stop_focus(asked, query):
-    return focus.stop_focus()
-
-
-@route("POST", "/api/focus/end")
-def _end_focus(asked, query):
-    return focus.end_focus(asked)
-
-
-@route("GET", "/api/focus/measure")
-def _focus_ledger(asked, query):
-    return dict(state.focus)
-
-
-@route("POST", "/api/scan")
-def _start_scan(asked, query):
-    return scan.start_scan(asked)
-
-
-@route("GET", "/api/scan")
-def _the_scan(asked, query):
-    return scan.the_scan(_since(query))
-
-
-@route("POST", "/api/scan/stop")
-def _stop_scan(asked, query):
-    return scan.stop_scan()
-
-
-@route("POST", "/api/targets/discover")
-def _discover_targets(asked, query):
-    return discovery.discover_targets(asked)
-
-
-@route("GET", "/api/targets/discover")
-def _the_targets(asked, query):
-    return discovery.the_targets(_since(query))
-
-
-@route("POST", "/api/targets/discover/stop")
-def _stop_targets(asked, query):
-    return discovery.stop_targets()
-
-
-@route("POST", "/api/plots/compute")
-def _compute_plot(asked, query):
-    return plots.compute_plot(asked)
-
-
-@route("GET", "/api/plots/compute")
-def _plots_ledger(asked, query):
-    return dict(state.plots)
-
-
-@route("POST", "/api/plots/compute/stop")
-def _stop_plot(asked, query):
-    return plots.stop_plot()
-
-
-@route("GET", "/api/plots/columns")
-def _plot_columns(asked, query):
-    kind = urllib.parse.parse_qs(query or "").get("kind", [""])[0]
-    return plots.plot_columns(kind)
-
-
-@route("POST", "/api/targets/acquire/begin")
-def _begin_target_run(asked, query):
-    return targets.begin_target_run(asked)
-
-
-@route("POST", "/api/targets/acquire/focus")
-def _score_target_focus(asked, query):
-    return targets.score_target_focus(asked)
-
-
-@route("POST", "/api/targets/acquire/landed")
-def _target_landed(asked, query):
-    return targets.target_landed(asked)
-
-
-@route("POST", "/api/targets/acquire/end")
-def _end_target_run(asked, query):
-    return targets.end_target_run(asked)
-
-
-@route("GET", "/api/targets/acquire")
-def _the_target_run(asked, query):
-    return targets.the_target_run(_since(query))
-
-
-@route("POST", "/api/targets/raise")
-def _raise_target(asked, query):
-    return targets.raise_target(asked)
-
-
-@route("GET", "/api/protocols")
-def _protocols(asked, query):
-    return protocols.protocols()
-
-
-@route("POST", "/api/protocols")
-def _protocols_for(asked, query):
-    # Before connecting: what the chosen microscope's saved connection can
-    # say about the root.
-    chosen = asked.get("instrument")
-    return protocols.protocols(connecting.saved_connection(chosen) if chosen else None)
-
-
-@route("POST", "/api/protocol")
-def _save_protocol(asked, query):
-    return protocols.save_protocol(asked)
-
-
-@route("POST", "/api/protocol/save")
-def _save_protocol_to_library(asked, query):
-    return protocols.save_protocol_to_library(asked)
-
-
 @route("GET", "/api/viewer")
 def _viewer(asked, query):
     return viewer_service.status()
@@ -293,10 +152,11 @@ def _installed_workflows(asked, query):
     return workflows.listing()
 
 
-#: The first part of every route the bridge itself answers (``targets`` for
-#: ``/api/targets/discover``), taken before any workflow adds its own. A
-#: workflow package in a folder of one of these names would replace the
-#: bridge's own routes, so its Python half is refused at start-up.
+#: The first part of every route the bridge itself answers (``xyz`` for
+#: ``/api/xyz``), taken before any workflow adds its own. A workflow package
+#: in a folder of one of these names would replace the bridge's own routes,
+#: so its Python half is refused at start-up (as is one in the folder of a
+#: workflow built into the interface).
 THE_BRIDGES_OWN = frozenset(path.split("/")[2] for _method, path in ROUTES if path.startswith("/api/"))
 
 
@@ -476,7 +336,8 @@ class Bridge(BaseHTTPRequestHandler):
             self._answer({"error": f"no picture {rest!r}"}, status=404)
             return
         display = pictures.the_display_asked_for(query)
-        if display is not None and name.endswith(".jpg") and kind != FOCUSSING:
+        raw = hooks.is_raw(kind)
+        if display is not None and name.endswith(".jpg") and not raw:
             # The copy drawn with the picture's own display settings: what
             # the page's canvas shows, not the scan-wide stretch the small
             # copies wear. Rendered on request and remembered by its asking.
@@ -486,18 +347,16 @@ class Bridge(BaseHTTPRequestHandler):
                 return
             self._send_bytes(body, wanted)
             return
-        if name.endswith(".mask.png"):
-            # A field's detection mask, colorized on first request: the page
-            # asks by the field's label, and a field detection has not
-            # visited answers 404 rather than a broken picture.
-            where = pictures.the_mask_view_for(kind, name[: -len(".mask.png")])
-        elif name.endswith(".labels.png"):
-            # The raw labels, losslessly: what lets the page light one
-            # object's true shape rather than a blob where it stands.
-            where = pictures.the_label_map_for(kind, name[: -len(".labels.png")])
-        elif kind == FOCUSSING:
-            # A focus stack's slices: written as each point lands, no note --
-            # the point itself tells the page their names and heights.
+        drawn = hooks.drawing_for(name)
+        if drawn is not None:
+            # A picture a workflow draws on request (a field's detection
+            # mask, say), asked for by the field's label; one it cannot draw
+            # answers 404 rather than a broken picture.
+            ending, draw = drawn
+            where = draw(kind, name[: -len(ending)])
+        elif raw:
+            # A kind whose files a workflow writes into its view folder as
+            # they land (a focus stack's slices), served as they are.
             where = pictures.view_of(kind) / name
         else:
             note = pictures.the_view_of(kind)

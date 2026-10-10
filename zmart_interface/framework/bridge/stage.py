@@ -12,7 +12,7 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-from . import state
+from . import hooks, state
 
 
 def where_the_stage_is() -> dict:
@@ -38,15 +38,14 @@ def where_the_stage_is() -> dict:
 
 
 def a_run_has_the_stage() -> bool:
-    """Whether a focus map, a scan, discovery or a target run is driving the
-    stage.
+    """Whether a workflow's run is driving the stage, as the workflows say (see ``hooks.py``).
 
     For as long as one is, its own record of where it sent the stage is the
     answer, even between two sites when the instrument's turn is free: a
     position read right after a move can still report the site before, and
     the mark jumped back and forth on that stale answer.
     """
-    return any(run.get("running") for run in (state.focus, state.scan, state.targets, state.acquired))
+    return hooks.a_run_has_the_stage()
 
 
 def the_stage_was_sent_to(x: float, y: float, z: float) -> None:

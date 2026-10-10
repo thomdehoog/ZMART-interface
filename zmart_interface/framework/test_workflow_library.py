@@ -216,7 +216,9 @@ def test_a_python_half_registers_its_routes_under_the_packages_folder(tmp_path, 
     added = {}
     errors = workflows.load_python_halves(lambda method, path, handler: added.__setitem__((method, path), handler))
     assert errors == {}
-    assert set(added) == {("GET", "/api/three_steps/hello"), ("POST", "/api/three_steps/count")}
+    # The built-in workflows' halves are loaded too; this package's are its own two.
+    assert {route for route in added if "/three_steps/" in route[1]} == {
+        ("GET", "/api/three_steps/hello"), ("POST", "/api/three_steps/count")}
     assert added[("GET", "/api/three_steps/hello")]({}, "a=1") == {"hello": "world", "query": "a=1"}
     assert added[("POST", "/api/three_steps/count")]({"to": 3}, "") == {"counted": 3}
     # and the listing carries no error for it
@@ -260,24 +262,35 @@ def test_building_a_bridge_wires_the_python_halves(tmp_path, monkeypatch):
 # --- the route table keeps every route the page speaks ----------------------------------
 
 
-def test_every_route_the_page_speaks_is_in_the_table():
-    """The if-chains became a table; nothing the page asks for may have fallen out."""
-    expected = {
+def test_the_bridges_own_routes_are_only_the_general_ones():
+    """The general part answers what every workflow needs, and nothing of any one workflow."""
+    general = {
         ("GET", "/api/setting"), ("GET", "/api/instruments"), ("GET", "/api/info"), ("GET", "/api/xyz"),
-        ("GET", "/api/acquisition_settings"), ("GET", "/api/scan"), ("GET", "/api/focus/measure"),
-        ("GET", "/api/targets/discover"), ("GET", "/api/plots/compute"), ("GET", "/api/protocols"),
-        ("GET", "/api/plots/columns"), ("GET", "/api/targets/acquire"), ("GET", "/api/viewer"),
-        ("GET", "/api/workflows"),
+        ("GET", "/api/acquisition_settings"), ("GET", "/api/viewer"), ("GET", "/api/workflows"),
         ("POST", "/api/connect"), ("POST", "/api/disconnect"), ("POST", "/api/xyz"), ("POST", "/api/state"),
-        ("POST", "/api/acquire"), ("POST", "/api/focus/begin"), ("POST", "/api/focus/score"),
-        ("POST", "/api/focus/end"), ("POST", "/api/plots/compute"), ("POST", "/api/plots/compute/stop"),
-        ("POST", "/api/protocol"), ("POST", "/api/protocol/save"), ("POST", "/api/protocols"),
-        ("POST", "/api/targets/acquire/begin"), ("POST", "/api/targets/acquire/focus"),
-        ("POST", "/api/targets/acquire/landed"), ("POST", "/api/targets/acquire/end"),
-        ("POST", "/api/targets/discover/stop"), ("POST", "/api/scan"), ("POST", "/api/scan/stop"),
-        ("POST", "/api/targets/discover"), ("POST", "/api/targets/raise"),
+        ("POST", "/api/acquire"),
     }
-    assert expected <= set(server.ROUTES), expected - set(server.ROUTES)
+    own = {route for route in server.ROUTES if route[1].split("/")[2] in server.THE_BRIDGES_OWN}
+    assert own == general
+
+
+def test_every_route_target_acquisition_speaks_is_registered_under_its_folder(monkeypatch):
+    """The 25 routes the page's Target acquisition asks for, all under ``/api/target_acquisition/``."""
+    monkeypatch.setattr(server, "ROUTES", dict(server.ROUTES))
+    workflows.load_built_in_halves(server.add_route)
+    under = "/api/target_acquisition/"
+    expected = {(method, under + path) for method, path in {
+        ("GET", "scan"), ("GET", "focus/measure"), ("GET", "targets/discover"), ("GET", "plots/compute"),
+        ("GET", "protocols"), ("GET", "plots/columns"), ("GET", "targets/acquire"),
+        ("POST", "focus/begin"), ("POST", "focus/score"), ("POST", "focus/stop"), ("POST", "focus/end"),
+        ("POST", "plots/compute"), ("POST", "plots/compute/stop"),
+        ("POST", "protocol"), ("POST", "protocol/save"), ("POST", "protocols"),
+        ("POST", "targets/acquire/begin"), ("POST", "targets/acquire/focus"),
+        ("POST", "targets/acquire/landed"), ("POST", "targets/acquire/end"),
+        ("POST", "targets/discover/stop"), ("POST", "scan"), ("POST", "scan/stop"),
+        ("POST", "targets/discover"), ("POST", "targets/raise"),
+    }}
+    assert {route for route in server.ROUTES if route[1].startswith(under)} == expected
 
 
 def test_the_report_of_installed_workflows_reads_as_sentences(tmp_path):

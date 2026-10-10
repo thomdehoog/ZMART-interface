@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import pytest
 
-from zmart_interface.framework.bridge import pictures, scan, state
+from zmart_interface.framework.bridge import pictures, state
+from zmart_interface.workflows.target_acquisition.bridge import ledgers, scan
 
 NAMES_THAT_LEAVE_THE_RUN = ["..", "../elsewhere", "..\\elsewhere", "a/b", "", "overview "]
 
@@ -31,7 +32,7 @@ def run_and_a_bystander(tmp_path, monkeypatch):
     (bystander / "positions" / "x" / "field_2.ome.zarr").mkdir(parents=True)
     monkeypatch.setattr(state, "run", run)
     monkeypatch.setattr(state, "records", {})
-    monkeypatch.setitem(state.scan, "running", False)
+    monkeypatch.setitem(ledgers.scan, "running", False)
     return run, bystander
 
 
@@ -45,7 +46,7 @@ def test_a_scan_named_by_an_absolute_folder_is_refused_and_deletes_nothing(run_a
     with pytest.raises(ValueError, match="acquisition_type"):
         scan.start_scan({"acquisition_type": str(bystander), "positions": []})
     assert everything_under(bystander) == before
-    assert state.scan["running"] is False
+    assert ledgers.scan["running"] is False
 
 
 @pytest.mark.parametrize("name", NAMES_THAT_LEAVE_THE_RUN)

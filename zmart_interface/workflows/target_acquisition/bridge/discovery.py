@@ -15,9 +15,10 @@ from __future__ import annotations
 import json
 import threading
 
+from zmart_interface.framework.bridge import readings, state
 from zmart_interface.parts.analysis import detection, warm
 
-from . import plots, readings, state
+from . import ledgers, plots
 
 
 def find_targets():
@@ -38,15 +39,15 @@ def discover_targets(asked: dict) -> dict:
     ``fields`` names the overview's fields by index -- one, to try settings on
     before the whole sample is run -- and left out means all of them.
     """
-    if state.targets["running"]:
+    if ledgers.targets["running"]:
         raise RuntimeError("targets are already being discovered")
     records = state.records.get("overview", [])
     if not records:
         raise RuntimeError("no overview has been scanned, so there is nothing to find targets in")
     chosen = asked.get("fields")
     fields = list(range(len(records))) if chosen is None else [int(field) for field in chosen]
-    state.stop_asked["targets"] = False
-    state.targets.update(
+    ledgers.stop_asked["targets"] = False
+    ledgers.targets.update(
         running=True, done=0, of=len(fields), error=None, stopped=False,
         fields=[], failed=[], doing=None, phase="objects", objects=0,
     )
@@ -55,7 +56,7 @@ def discover_targets(asked: dict) -> dict:
         args=(fields, dict(asked.get("settings") or {}), chosen is None),
         daemon=True,
     ).start()
-    return dict(state.targets)
+    return dict(ledgers.targets)
 
 
 def targets_worker(fields: list, settings: dict, whole: bool) -> None:
@@ -75,19 +76,19 @@ def targets_worker(fields: list, settings: dict, whole: bool) -> None:
         at_once = detection.width_of(settings)
 
         def what_is_being_done() -> str:
-            in_flight = min(at_once, len(fields) - state.targets["done"])
+            in_flight = min(at_once, len(fields) - ledgers.targets["done"])
             return (
                 f"detecting and measuring objects in {in_flight} "
                 f"position{'s' if in_flight != 1 else ''} at once, "
-                f"{state.targets['done']} of {len(fields)} done"
+                f"{ledgers.targets['done']} of {len(fields)} done"
             )
 
-        state.targets["doing"] = what_is_being_done()
-        stopped = lambda: state.stop_asked["targets"]  # noqa: E731 -- the brake, asked by the finder
+        ledgers.targets["doing"] = what_is_being_done()
+        stopped = lambda: ledgers.stop_asked["targets"]  # noqa: E731 -- the brake, asked by the finder
         for field, found in find.each(records, settings, at_once=at_once, until=stopped):
             record = records[field]
             if isinstance(found, Exception):
-                if state.stop_asked["targets"]:
+                if ledgers.stop_asked["targets"]:
                     # The hand that stopped the run also put its workers
                     # down; that death is the stop, not a bad field.
                     break
@@ -95,37 +96,37 @@ def targets_worker(fields: list, settings: dict, whole: bool) -> None:
                 # map files a lost point: a nine-field run died whole on the
                 # one field the pipeline choked on, and nothing short of
                 # running everything again could recover it.
-                state.targets["failed"].append({"field": field, "why": str(found)})
-                state.targets["done"] += 1
-                state.targets["doing"] = what_is_being_done()
+                ledgers.targets["failed"].append({"field": field, "why": str(found)})
+                ledgers.targets["done"] += 1
+                ledgers.targets["doing"] = what_is_being_done()
                 continue
             keep_targets(found["cells"], record)
-            state.targets["fields"].append({
+            ledgers.targets["fields"].append({
                 "field": field, "position_label": record["position_label"],
                 "cells": found["cells"],
                 # The device the field was segmented on, for the page to say:
                 # a run that fell back to the CPU took ten minutes a field.
                 "device": found.get("device"),
             })
-            state.targets["objects"] += len(found["cells"])
-            state.targets["done"] += 1
-            state.targets["doing"] = what_is_being_done()
-        if state.stop_asked["targets"]:
-            state.targets["stopped"] = True
+            ledgers.targets["objects"] += len(found["cells"])
+            ledgers.targets["done"] += 1
+            ledgers.targets["doing"] = what_is_being_done()
+        if ledgers.stop_asked["targets"]:
+            ledgers.targets["stopped"] = True
         # Kept in landing order: a page's cursor into the list holds.
-        if whole and state.targets["fields"]:
-            plots.keep_the_population(state.targets["fields"])
+        if whole and ledgers.targets["fields"]:
+            plots.keep_the_population(ledgers.targets["fields"])
     except Exception as why:  # noqa: BLE001 -- the window shows the sentence
-        if state.stop_asked["targets"]:
+        if ledgers.stop_asked["targets"]:
             # The hand that stopped the run also put its worker down, and a
             # worker dying of that press is the stop itself, not a failure.
-            state.targets["stopped"] = True
+            ledgers.targets["stopped"] = True
         else:
-            state.targets["error"] = str(why)
+            ledgers.targets["error"] = str(why)
     finally:
-        state.targets["running"] = False
-        state.targets["doing"] = None
-        state.targets["phase"] = "complete"
+        ledgers.targets["running"] = False
+        ledgers.targets["doing"] = None
+        ledgers.targets["phase"] = "complete"
 
 
 def stop_targets() -> dict:
@@ -137,10 +138,10 @@ def stop_targets() -> dict:
     worker is the only hand that reaches one that has genuinely wedged, now
     that no clock cuts a step short. The workers respawn on the next run.
     """
-    state.stop_asked["targets"] = True
-    if state.targets["running"]:
+    ledgers.stop_asked["targets"] = True
+    if ledgers.targets["running"]:
         warm.close()
-    return dict(state.targets)
+    return dict(ledgers.targets)
 
 
 def the_targets(since: int | None = None) -> dict:
@@ -152,7 +153,7 @@ def the_targets(since: int | None = None) -> dict:
     run -- 900 MB at three hundred fields, 26 s to answer, asked three times
     a second -- and that was the whole of what looked like a stalled run.
     """
-    answer = dict(state.targets)
+    answer = dict(ledgers.targets)
     if since is not None:
         answer["fields"] = answer["fields"][max(0, since):]
     return answer

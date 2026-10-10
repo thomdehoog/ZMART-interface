@@ -148,7 +148,7 @@ export async function startTheBridge({ port, connect = true } = {}) {
   const { instruments } = await ask("/api/instruments");
   const scope = instruments.find(isTheMock);
   if (!scope) throw new Error("the bridge has no mock microscope to connect to");
-  const opened = connect ? await ask("/api/connect", { instrument: scope }) : null;
+  const opened = connect ? await ask("/api/connect", { instrument: scope, experiment: "target-acquisition" }) : null;
 
   return {
     /* Where the pictures of the overview are served — the same address the
@@ -173,9 +173,9 @@ export async function startTheBridge({ port, connect = true } = {}) {
     folder,
     async image(positions) {
       if ((process.env.LIVE_BRIDGE_SABOTAGE ?? "") === "stalled") return;
-      await ask("/api/scan", { positions });
+      await ask("/api/target_acquisition/scan", { positions });
       for (let waited = 0; waited < 300; waited++) {
-        const scan = await ask("/api/scan");
+        const scan = await ask("/api/target_acquisition/scan");
         if (!scan.running) {
           if (scan.error) throw new Error(`the scan stopped: ${scan.error}`);
           return scan;

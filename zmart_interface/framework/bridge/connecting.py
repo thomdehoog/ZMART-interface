@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import sys
-import time
 
 from zmart_controller import ZmartController
 from zmart_controller.registry import find_driver, get_instruments
@@ -23,9 +22,9 @@ from zmart_interface import mock_microscope
 from zmart_interface.parts.analysis import warm
 from zmart_interface.parts.microscope.instrument import Instrument
 from zmart_interface.parts.storage import viewer_service
-from zmart_interface.parts.storage.output import prepare_experiment
+from zmart_interface.parts.storage.output import checked_name, prepare_experiment
 
-from . import state
+from . import hooks, state
 
 #: The name the interface's own mock microscope is offered under, from its
 #: plug-in. It is always offered, registered or not, and the bridge plugs the
@@ -58,9 +57,11 @@ def saved_connection(name: str) -> dict:
     return find_driver(name)[1]
 
 
-#: What a run made through this page is called. One name for the workflow, so
-#: two runs are told apart by their hash and not by what somebody typed.
-EXPERIMENT = "target-acquisition"
+#: What a run is called on disk when the page names nothing: ``run_<hash>``.
+#: A workflow names its own (Target acquisition's runs are
+#: ``target-acquisition_<hash>``), so that its runs are told apart from other
+#: workflows' by name and from each other by their hash.
+A_RUN = "run"
 
 
 def connect(asked: dict) -> dict:
@@ -69,10 +70,14 @@ def connect(asked: dict) -> dict:
     ``asked["instrument"]`` is a name from :func:`instruments`, and
     ``asked["password"]``, when given, is what the operator typed; it is
     handed to the driver with the connection that was saved for it.
+    ``asked["experiment"]`` is what the workflow calls its runs: the run
+    folder is ``<experiment>_<hash>``. It is checked to be a plain folder
+    name before anything is opened.
     """
     name = asked.get("instrument")
     if not isinstance(name, str):
         raise ValueError("connect needs the name of one of the microscopes listed by /api/instruments")
+    experiment = checked_name(asked.get("experiment") or A_RUN, field="experiment")
     connection = saved_connection(name)
     if asked.get("password"):
         connection["password"] = asked["password"]
@@ -109,7 +114,7 @@ def connect(asked: dict) -> dict:
                 "(its get_info gives no 'output_root'); start the interface with --output-root "
                 "to choose a folder"
             )
-        run = prepare_experiment(info["output_root"], EXPERIMENT)
+        run = prepare_experiment(info["output_root"], experiment)
         if provider is not None:
             (run / "synthetic-specimen.json").write_text(
                 json.dumps(provider.recipe, indent=2), encoding="utf-8")
@@ -131,16 +136,8 @@ def connect(asked: dict) -> dict:
     state.records.clear()
     state.view_built.clear()
     state.displayed_pictures.clear()
-    state.scan.update(
-        running=False, done=0, of=0, error=None, stopped=False,
-        acquisition_type=None, records=[], planned=[],
-    )
-    state.focus.update(running=False, done=0, of=0, error=None, points=[])
-    state.acquired.update(running=False, done=0, of=0, error=None, stopped=False, records=[])
-    state.targets.update(
-        running=False, done=0, of=0, error=None, stopped=False, fields=[],
-        failed=[], doing=None, phase=None, objects=0,
-    )
+    # And every workflow forgets how far its own runs had got.
+    hooks.forget()
     # The picture server, beside the run: the viewer links each acquisition's
     # positions into one live picture and serves it to the page's own engine.
     # An optional guest -- a machine without it still scans, and still draws
@@ -177,37 +174,16 @@ def the_viewers_area(reading: dict) -> dict[str, list[float]]:
     return area
 
 
-#: How long connecting again waits for the running scan to finish the field it
-#: is capturing. A field is never cut off halfway, and one slow field (a deep
-#: stack) can take minutes; beyond this the operator is told to try again.
-WAIT_FOR_THE_LAST_SCAN_S = 600.0
-
-
 def let_the_last_session_go(wait_s: float | None = None) -> None:
-    """Stop what the bridge runs on its own before another session is opened.
+    """Stop what the workflows run on their own before another session is opened.
 
-    The overview scan and target discovery run in the bridge's own threads
-    and outlive the page that started them. Both are asked to stop between
-    two fields, exactly as the operator's Interrupt does, and this waits
-    until they have. It must be called without holding the instrument's
-    turn, because the scan needs that turn to finish the field it is on.
-    The focus map and the target run are driven by the page itself, so a
-    reloaded page has already let them go; connecting resets their records.
+    A workflow's runs (an overview scan, say) run in the bridge's own threads
+    and outlive the page that started them. Each workflow is asked to stop
+    them between two fields, as the operator's Interrupt does, and to wait
+    until it has (see ``hooks.py``). It must be called without holding the
+    instrument's turn, because a run needs that turn to finish its field.
     """
-    from . import discovery, scan  # noqa: PLC0415 -- they import this module's neighbours
-
-    if state.scan["running"]:
-        scan.stop_scan()
-    if state.targets["running"]:
-        discovery.stop_targets()
-    limit = time.monotonic() + (WAIT_FOR_THE_LAST_SCAN_S if wait_s is None else wait_s)
-    while state.scan["running"] or state.targets["running"]:
-        if time.monotonic() > limit:
-            raise RuntimeError(
-                "the scan that was running has not stopped yet; it finishes the field it is "
-                "capturing first, so wait a moment and connect again"
-            )
-        time.sleep(0.05)
+    hooks.let_go(wait_s)
 
 
 def close_the_last_session() -> None:

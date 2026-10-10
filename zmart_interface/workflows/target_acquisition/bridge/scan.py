@@ -15,11 +15,12 @@ import sys
 import threading
 import time
 
+from zmart_interface.framework.bridge import pictures, stage, state
 from zmart_interface.parts.microscope.focus_run import as_state
 from zmart_interface.parts.storage import output
 from zmart_interface.parts.storage.output import position_label, prepare_acquisition
 
-from . import pictures, stage, state
+from . import ledgers
 
 
 def scan_worker(
@@ -44,7 +45,7 @@ def scan_worker(
     standing = None
     # What polling this invocation reports. The durable acquisition records
     # may also contain frames retained while one selected target is rerun.
-    state.scan["records"] = []
+    ledgers.scan["records"] = []
     try:
         session = session or state.require_session()
         run = run or state.the_run()
@@ -57,15 +58,15 @@ def scan_worker(
             with state.the_instruments_turn:
                 session.set_state(as_state(recorded))
         for i, position in enumerate(positions):
-            if state.stop_asked["scan"]:
+            if ledgers.stop_asked["scan"]:
                 # Between two fields, on the operator's say-so: what was
                 # captured stands, and no further stage move is made.
-                state.scan["stopped"] = True
+                ledgers.scan["stopped"] = True
                 break
             with state.the_instruments_turn:
                 if state.session is not session:
-                    state.scan["stopped"] = True
-                    state.scan["error"] = (
+                    ledgers.scan["stopped"] = True
+                    ledgers.scan["error"] = (
                         "the scan stopped because its session was closed or another was opened; "
                         "what it captured before that is kept"
                     )
@@ -121,12 +122,12 @@ def scan_worker(
                 records.append(record)
             else:
                 records[replaced] = record
-            state.scan["records"].append(record)
-            state.scan["done"] = i + 1
+            ledgers.scan["records"].append(record)
+            ledgers.scan["done"] = i + 1
     except Exception as why:  # noqa: BLE001 — the window shows the sentence
-        state.scan["error"] = str(why)
+        ledgers.scan["error"] = str(why)
     finally:
-        state.scan["running"] = False
+        ledgers.scan["running"] = False
 
 
 def label_for(index: int, position: dict) -> str:
@@ -162,11 +163,11 @@ def start_one_scan(asked: dict) -> dict:
     acquisition_type = output.checked_name(
         asked.get("acquisition_type", "overview"), field="acquisition_type",
     )
-    if state.scan["running"]:
+    if ledgers.scan["running"]:
         raise RuntimeError("a scan is already running")
-    if state.focus["running"]:
+    if ledgers.focus["running"]:
         raise RuntimeError("a focus map is being measured; the stage is its until it ends")
-    if state.acquired["running"]:
+    if ledgers.acquired["running"]:
         raise RuntimeError("the targets are being taken; the stage is theirs until the run ends")
     state.require_session()
     positions = asked.get("positions", [])
@@ -177,9 +178,9 @@ def start_one_scan(asked: dict) -> dict:
     )
     for key in [key for key in state.displayed_pictures if key[0] == acquisition_type]:
         del state.displayed_pictures[key]
-    state.stop_asked["scan"] = False
+    ledgers.stop_asked["scan"] = False
     planned = asked.get("planned") or positions
-    state.scan.update(
+    ledgers.scan.update(
         running=True, done=0, of=len(positions), error=None, stopped=False,
         acquisition_type=acquisition_type, records=[],
         planned=[(float(p.get("x", 0.0)), float(p.get("y", 0.0))) for p in planned],
@@ -198,7 +199,7 @@ def stop_scan() -> dict:
     field being captured completes and is kept. Idempotent, and harmless
     when nothing runs.
     """
-    state.stop_asked["scan"] = True
+    ledgers.stop_asked["scan"] = True
     return the_scan()
 
 
@@ -210,7 +211,7 @@ def the_scan(since: int | None = None) -> dict:
     landed after. Every record rides along otherwise, so a run can always be
     accounted for from one answer.
     """
-    answer = dict(state.scan)
+    answer = dict(ledgers.scan)
     if since is not None:
         answer["records"] = answer["records"][max(0, since):]
     return answer

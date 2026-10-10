@@ -5,7 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backend } from "../../parts/microscope/live.js";
+import { targetAcquisition as backend } from "./live.js";
 
 /** A bridge whose discovery walks through `polls`, one state per GET, and
     answers each with only the fields past the `since` the page asked. */
@@ -13,10 +13,10 @@ function bridgeDiscovering(polls) {
   let asked = 0;
   const askedSince = [];
   globalThis.fetch = vi.fn(async (url, init) => {
-    if (url.endsWith("/api/targets/discover") && init?.method === "POST") {
+    if (url.endsWith("/api/target_acquisition/targets/discover") && init?.method === "POST") {
       return { ok: true, json: async () => ({ running: true }) };
     }
-    if (url.includes("/api/targets/discover?since=")) {
+    if (url.includes("/api/target_acquisition/targets/discover?since=")) {
       const since = Number(url.split("since=")[1]);
       askedSince.push(since);
       const state = polls[Math.min(asked, polls.length - 1)];

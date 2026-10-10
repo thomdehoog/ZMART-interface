@@ -67,7 +67,7 @@ def test_failed_canonical_ingestion_never_scores_vendor_pixels():
 def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypatch, enabled):
     import json
 
-    from zmart_interface.framework.bridge import connecting, state
+    from zmart_interface.framework.bridge import connecting, hooks, state
     from zmart_interface.parts.storage import viewer_service
 
     class Session:
@@ -98,8 +98,10 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
     monkeypatch.setattr(state, "simulator_pixels_enabled", enabled)
     for name in ("session", "run", "pixel_provider"):
         monkeypatch.setattr(state, name, None)
-    for name in ("context", "records", "view_built", "displayed_pictures", "scan", "focus", "targets"):
+    for name in ("context", "records", "view_built", "displayed_pictures"):
         monkeypatch.setattr(state, name, {})
+    # No workflow plugged in: connecting has nobody's runs to forget.
+    monkeypatch.setattr(hooks, "plugged", {})
     connecting.connect({"instrument": connecting.INTERFACE_MOCK})
     first = state.pixel_provider
     if enabled:
