@@ -97,6 +97,9 @@ import { makeLayer, deleteLayer } from "neuroglancer/unstable/layer/index.js";
 import "neuroglancer/unstable/ui/default_viewer.css";
 import "./engine-chrome.css";
 import { refreshSources } from "./source-refresh.js";
+import {
+  shaderControlsFor as theViewersControls, shaderFor as theViewersProgram,
+} from "zmart-viewer/drawing/programs.js";
 // The two gestures, from the one copy every option shares. See `../gestures.js`
 // for why there is only one copy and what it costs to have three.
 import { onlyPanAndZoom } from "../gestures.js";
@@ -727,7 +730,7 @@ function installRows(own) {
       // acquisition per address is what produced 27 controls for a 3-channel,
       // 3-by-3 overview and is deliberately impossible here.
       source: row.sources.length === 1 ? row.sources[0] : row.sources,
-      shader: shaderFor(row.colour, { opaque: row.opaque }),
+      shader: programFor(row),
       shaderControls: controlsFor(row),
       // How solid this layer is. The engine's own default for an image layer is
       // a half, which is right for looking through one layer at another and
@@ -1631,89 +1634,27 @@ function theLowestPlaneOf(own, depth) {
  * program declares, so that dragging a contrast handle reaches a program that is
  * already compiled instead of causing a fresh one to be built several times a
  * second.
+ *
+ * **The programs are the ZMART viewer's.** The viewer's own window draws with
+ * exactly these, and operators have learned to read their specimens by that
+ * look, so there is one copy, in the viewer (`programs.js` in its `drawing`
+ * folder), and this page's build takes it from the installed viewer. This page
+ * asks for one thing the viewer's window does not offer yet: gamma, which bends
+ * the curve between the window's ends.
  */
-function shaderFor(colour, { asAVolume = false, opaque = false } = {}) {
-  void colour; // kept in the signature for the call sites; the colour travels
-  //             as a control now, so a colour change never recompiles.
-  /* The ZMART viewer's own programs, ported verbatim from its
-     `app/page/src/scene.js` (`shaderFor`), because that is the look the
-     microscope's operators have tested and know. Three things distinguish
-     them from what stood here before:
-
-     - the colour is a `color` uicontrol, not a number baked into the text,
-       so changing it is a control write instead of a recompile;
-     - `weight` is the channel's own opacity, multiplying the value;
-     - alpha in the flat program comes from `imaged()` — an invlerp over the
-       RAW value — not from the windowed one. That difference is load-bearing:
-       alpha from the windowed value punched holes wherever a pixel sat below
-       the window's floor, so raising MIN made the specimen see-through.
-
-     `opaque` goes one step further for an acquisition whose every store is
-     one imaged position and nothing else: coverage is then the store's own
-     extent, all or nothing, and alpha is simply 1. Alpha from the raw value
-     still punched a hole wherever the detector recorded an exact zero -- a
-     few hundred pixels a tile on a dark background -- and the page's ground
-     showed through each as a white speck no window could remove. */
-  if (asAVolume) {
-    return (
-      "#uicontrol invlerp normalized\n" +
-      "#uicontrol float weight slider(min=0, max=1, default=1)\n" +
-      "#uicontrol float gamma slider(min=0.1, max=4, default=1)\n" +
-      "#uicontrol invlerp imaged(range=[0, 1], clamp=false)\n" +
-      '#uicontrol vec3 color color(default="white")\n' +
-      "#uicontrol float attenuation slider(min=0, max=8, default=0)\n" +
-      "void main() {\n" +
-      "  float v = pow(normalized(), gamma);\n" +
-      "  vec3 shown = color * (v * weight);\n" +
-      "  float faded = exp(-attenuation * depthAtRayPosition);\n" +
-      "  emitIntensity(v * weight * faded);\n" +
-      "  emitRGBA(vec4(shown * faded, v * weight * faded));\n" +
-      "}\n"
-    );
-  }
-  return (
-    "#uicontrol invlerp normalized\n" +
-    "#uicontrol float weight slider(min=0, max=1, default=1)\n" +
-    /* gamma bends the curve between the window's ends: below one the dim
-       end takes more of the screen, which is what a picture with a few
-       bright objects and faint structure between them needs. */
-    "#uicontrol float gamma slider(min=0.1, max=4, default=1)\n" +
-    "#uicontrol invlerp imaged(range=[0, 1], clamp=false)\n" +
-    '#uicontrol vec3 color color(default="white")\n' +
-    "void main() {\n" +
-    "  float v = pow(normalized(), gamma);\n" +
-    "  vec3 shown = color * (v * weight);\n" +
-    (opaque
-      ? "  emitRGBA(vec4(shown, 1.0));\n"
-      : "  emitRGBA(vec4(shown, imaged() > 0.0 ? 1.0 : 0.0));\n") +
-    "}\n"
-  );
-}
-
-/** A colour as the engine's `color` control wants it: six hex digits. */
-function hexColourFor(colour) {
-  return `#${(colour ?? WHITE)
-    .map((part) => Math.round(Math.min(1, Math.max(0, part)) * 255)
-      .toString(16).padStart(2, "0"))
-    .join("")}`;
+function programFor(row, { asAVolume = false } = {}) {
+  return theViewersProgram(asAVolume, null, row.opaque, { gamma: true });
 }
 
 /**
  * Every shader control of one row, as one whole object.
  *
  * Always restored whole, never piecewise: a partial restore is how one
- * control quietly resets another to its default. This mirrors the viewer's
- * own `shaderControlsFor` in `app/page/src/scene.js`.
+ * control quietly resets another to its default.
  */
 function controlsFor(row, { asAVolume = false } = {}) {
-  const controls = {
-    normalized: { range: [row.window.low, row.window.high] },
-    weight: row.weight ?? 1,
-    gamma: row.gamma ?? 1,
-    color: hexColourFor(row.colour),
-  };
-  if (asAVolume) controls.attenuation = row.attenuation ?? 0;
-  return controls;
+  return theViewersControls(row.window, asAVolume, row.weight ?? 1, row.colour, null,
+    row.attenuation ?? 0, row.gamma ?? 1);
 }
 
 
@@ -2395,11 +2336,11 @@ function handleFor(own) {
           layer.volumeRenderingGain.value = own.showingVolume ? A_VOLUME_NEEDS_LIFTING : 0;
         }
         // And the little program, because how a sample contributes is the whole
-        // difference between a volume and a fog. See `shaderFor`. A fresh
+        // difference between a volume and a fog. See `programFor`. A fresh
         // program starts on its controls' defaults, so the row's own values
         // are restored right after it — whole, never piecewise.
         if (layer.fragmentMain) {
-          layer.fragmentMain.value = shaderFor(row.colour, { asAVolume: own.showingVolume, opaque: row.opaque });
+          layer.fragmentMain.value = programFor(row, { asAVolume: own.showingVolume });
           layer.shaderControlState.restoreState(
             controlsFor(row, { asAVolume: own.showingVolume }),
           );

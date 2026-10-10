@@ -71,11 +71,10 @@
  */
 
 import { build } from "esbuild";
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { theViewersDrawingFolder } from "./the-installed-viewer.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -165,31 +164,6 @@ async function compile(name, entry, plugins = []) {
 }
 
 /**
- * Where the installed ZMART viewer keeps its patches for neuroglancer.
- *
- * The viewer and this page draw with the same neuroglancer, changed in the
- * same way so that a picture can grow while it is on screen. The viewer owns
- * those changes, in `zmart_viewer/drawing/neuroglancer-growth.mjs`, and this
- * page applies them from there rather than keeping a copy of its own that
- * could drift. So the viewer has to be installed in the Python that builds the
- * page: `PYTHON=` names that Python when it is not the one on the path.
- */
-function theViewersGrowthPatches() {
-  const said = execFileSync(process.env.PYTHON || "python", ["-c",
-    "from pathlib import Path; import zmart_viewer; " +
-    "print(Path(zmart_viewer.__file__).parent / 'drawing' / 'neuroglancer-growth.mjs')"],
-    { encoding: "utf8", windowsHide: true }).trim();
-  if (!existsSync(said)) {
-    throw new Error(
-      `the installed ZMART viewer has no neuroglancer patches at ${said}. ` +
-        "Install zmart-viewer 0.5 (or newer within 0.5) in the Python that builds " +
-        "this page, or name that Python with PYTHON=.",
-    );
-  }
-  return said;
-}
-
-/**
  * Get both background programs ready.
  *
  * Rebuild from the saved original import lists, never the previous bundle.
@@ -199,9 +173,19 @@ function theViewersGrowthPatches() {
  * @returns how large each finished program is, in bytes, by file name.
  */
 export async function readyTheBackgroundPrograms() {
-  const modulePath = theViewersGrowthPatches();
-  const { applyGrowthPatches, workerEntry } = await import(pathToFileURL(modulePath).href);
+  /* The viewer owns the edits this page's neuroglancer needs: the growth
+     edits, which let a picture grow while it is on screen, and the
+     transparency edits, which keep an image see-through only where nothing
+     was imaged. They are applied from the installed viewer, so the two pages
+     cannot drift apart; see `the-installed-viewer.mjs`. */
+  const drawing = theViewersDrawingFolder();
+  const { applyGrowthPatches, workerEntry } = await import(
+    pathToFileURL(join(drawing, "neuroglancer-growth.mjs")).href);
+  const { applyPatches, transparencyPatches } = await import(
+    pathToFileURL(join(drawing, "neuroglancer-patches.mjs")).href);
   applyGrowthPatches(WHERE_THE_WORKERS_LIVE);
+  const problems = applyPatches(transparencyPatches(WHERE_THE_WORKERS_LIVE), { say: () => {} });
+  if (problems.length) throw new Error(problems.join("\n"));
   const unpacking = await compile(THE_UNPACKING_PROGRAM, workerEntry(WHERE_THE_WORKERS_LIVE, THE_UNPACKING_PROGRAM));
   const fetching = await compile(THE_FETCHING_PROGRAM, workerEntry(WHERE_THE_WORKERS_LIVE, THE_FETCHING_PROGRAM), [lookBesideMeInstead]);
   return { [THE_UNPACKING_PROGRAM]: unpacking, [THE_FETCHING_PROGRAM]: fetching };

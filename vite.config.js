@@ -5,6 +5,7 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 import {
   THE_UNPACKING_PROGRAM, WHERE_THE_WORKERS_LIVE, theUnpackingProgram,
 } from "./neuroglancer-workers.mjs";
+import { theViewersDrawingFolder } from "./the-installed-viewer.mjs";
 
 const here = import.meta.dirname;
 
@@ -28,6 +29,16 @@ const WHERE_NEUROGLANCER_KEEPS_ITS_INSIDES = {
 const THE_FRAMEWORKS_BARE_NAME = {
   find: /^zmart-interface\//,
   replacement: `${path.join(here, "zmart_interface")}/`,
+};
+
+/* The drawing rules this page shares with the ZMART viewer -- the shader
+   programs that turn a stored value into a colour -- are the viewer's, and are
+   imported under the bare name `zmart-viewer/drawing/<file>` from the viewer
+   installed in the Python that builds the page (see `the-installed-viewer.mjs`). */
+const theViewersDrawing = theViewersDrawingFolder();
+const THE_VIEWERS_DRAWING = {
+  find: /^zmart-viewer\/drawing\//,
+  replacement: `${theViewersDrawing}/`,
 };
 
 /**
@@ -160,7 +171,7 @@ export default defineConfig({
     exclude: ["neuroglancer"],
   },
   resolve: {
-    alias: [WHERE_NEUROGLANCER_KEEPS_ITS_INSIDES, THE_FRAMEWORKS_BARE_NAME],
+    alias: [WHERE_NEUROGLANCER_KEEPS_ITS_INSIDES, THE_FRAMEWORKS_BARE_NAME, THE_VIEWERS_DRAWING],
   },
   server: {
     host: "127.0.0.1",
@@ -169,7 +180,7 @@ export default defineConfig({
        off the disk, and refuses anything outside the folders named here. The
        background programs are named by where they really are, since
        `node_modules` may be a link to a folder elsewhere. */
-    fs: { allow: [here, realpathSync(WHERE_THE_WORKERS_LIVE)] },
+    fs: { allow: [here, realpathSync(WHERE_THE_WORKERS_LIVE), theViewersDrawing] },
     watch: {
       /* The browser tests leave photographs here. Vite reloads the page when a
          file in the project changes, which is exactly what you want while
