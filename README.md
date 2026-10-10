@@ -108,7 +108,8 @@ zmart-interface
 The window opens on the first step with **Mock** chosen. Press **Connect**; a second small
 window opens beside it, the mock's own software, where you choose the job each step is
 imaged with (Overview, Focussing, Target, ...), the way you would in the vendor's software.
-Its sample is a section of a mouse kidney; the first capture downloads it once.
+Its sample is a section of a mouse kidney, which comes with the interface, so the mock works
+on a computer without a network too.
 
 ### Run it on a microscope
 

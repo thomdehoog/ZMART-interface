@@ -667,9 +667,10 @@ _SPECK_PX = 32
 _SPECK_LEVEL = 4095.0
 
 #: The micrograph the sample is made of, loaded on the first capture: one
-#: plane of scikit-image's mouse kidney, its three channels first. Real
-#: tissue rather than noise, because a detector run over the overview has to
-#: find real cells, and nothing made of random numbers has any.
+#: plane of a mouse kidney section, its three channels first, shipped with
+#: the package (see ``kidney.py``). Real tissue rather than noise, because a
+#: detector run over the overview has to find real cells, and nothing made of
+#: random numbers has any.
 _sample = None
 
 
@@ -677,9 +678,9 @@ def _the_micrograph(np):
     """The kidney's middle plane as (channel, row, column), read once."""
     global _sample
     if _sample is None:
-        from skimage.data import kidney  # noqa: PLC0415 -- see _write_a_frame
+        from .kidney import the_kidney_plane  # noqa: PLC0415 -- see _write_a_frame
 
-        _sample = np.moveaxis(kidney()[8], -1, 0).astype("float64")
+        _sample = the_kidney_plane().astype("float64")
     return _sample
 
 
