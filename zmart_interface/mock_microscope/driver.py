@@ -527,7 +527,7 @@ def acquire(
             "y_um": where["y"],
             "z_um": height,
         }
-        for (channel, z_index, height), path in zip(taken, paths)
+        for (channel, z_index, height), path in zip(taken, paths, strict=True)
     ]
     return {
         "acquisition_hash": acquisition_hash,

@@ -394,7 +394,7 @@ def _the_z_model(record: dict, planes: list[dict]) -> dict:
         if not math.isfinite(requested_z):
             requested_z = None
 
-    known = [(centre, number) for centre, number in zip(centres, numbered) if centre is not None]
+    known = [(centre, number) for centre, number in zip(centres, numbered, strict=True) if centre is not None]
     if not known and len(numbered) > 1:
         # A stack with no height on any plane has no stage z to stand at and
         # no spacing: a store made up for it would stand at z 0, one
@@ -406,7 +406,7 @@ def _the_z_model(record: dict, planes: list[dict]) -> dict:
         # Ascending stage z; a plane whose height is unknown keeps its vendor
         # place after the known ones, so nothing is invented for it.
         ascending = [number for _centre, number in sorted(known)]
-        ascending += [number for centre, number in zip(centres, numbered) if centre is None]
+        ascending += [number for centre, number in zip(centres, numbered, strict=True) if centre is None]
         heights = sorted(centre for centre, _number in known)
         lowest = heights[0]
     else:
@@ -417,7 +417,7 @@ def _the_z_model(record: dict, planes: list[dict]) -> dict:
         heights = []
         lowest = requested_z if requested_z is not None else 0.0
 
-    steps = [b - a for a, b in zip(heights, heights[1:])]
+    steps = [b - a for a, b in zip(heights, heights[1:], strict=False)]
     spacing = abs(float(np.median(steps))) if steps else 1.0
     if not math.isfinite(spacing) or spacing == 0:
         spacing = 1.0

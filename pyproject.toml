@@ -55,10 +55,12 @@ dependencies = [
 # The drivers for real microscopes. Install the extra of the driver too, for
 # example the Leica's: pip install "zmart-drivers[leica] @ git+...".
 drivers = ["zmart-drivers @ git+https://github.com/thomdehoog/ZMART-drivers"]
-# What working on the interface needs beyond running it: pytest, and the reader
+# What working on the interface needs beyond running it: pytest, the reader
 # of the OME description inside a TIFF, which the analysis steps run in-process
-# use. The page's own tools come from npm (see README.md).
-dev = ["pytest>=8", "ome-types>=0.5"]
+# use, and ruff, which checks the Python as the automatic checks do (pinned, so
+# a new ruff release cannot fail a change nobody made). The page's own tools
+# come from npm (see README.md).
+dev = ["pytest>=8", "ome-types>=0.5", "ruff==0.12.12"]
 
 [project.urls]
 Repository = "https://github.com/thomdehoog/ZMART-interface"
@@ -76,7 +78,7 @@ namespaces = false
 # The page's JavaScript sources, and its tests, stay in the repository; only
 # the build goes. The Python tests beside the code stay behind too; setup.py
 # says how.
-"zmart_interface.framework" = ["window/build/*"]
+"zmart_interface.framework" = ["window/build/**/*"]
 # The mock's driver file: what the controller's registry reads to install it.
 "zmart_interface.mock_microscope" = ["zmart_driver.json", "kidney-plane.npz"]
 
@@ -91,4 +93,6 @@ extend-exclude = ["node_modules", "zmart_interface/framework/window/build"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
-ignore = ["E501", "B008"]
+# UP038 (`X | Y` in isinstance) is deprecated by ruff itself: the tuple form is
+# faster and just as clear.
+ignore = ["E501", "B008", "UP038"]

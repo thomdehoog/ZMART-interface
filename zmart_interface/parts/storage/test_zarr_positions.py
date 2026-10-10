@@ -17,7 +17,8 @@ import pytest
 tifffile = pytest.importorskip("tifffile")
 zarr = pytest.importorskip("zarr")
 
-from zmart_interface.parts.storage.zarr_positions import position_store_from_record
+# After the skips, so a machine without tifffile or zarr skips rather than fails.
+from zmart_interface.parts.storage.zarr_positions import position_store_from_record  # noqa: E402, I001
 
 
 def a_record(planes: list[dict]) -> dict:
