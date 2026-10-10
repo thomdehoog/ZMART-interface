@@ -3,9 +3,8 @@ import {
   fitSurface, surfaceZ, residualSummary, looErrors, affineSurface, nonCollinear, solve,
 } from "../../../parts/microscope/pretend-sample/surface.js";
 
-/* The contract these pin is not ours — it is
-   workflows/target_acquisition/workflow/_focus_surface.py. Change one and the
-   other is wrong. */
+/* These tests are the contract for the focus surface: the Python fitter they
+   once mirrored has been removed, so nothing else pins it. */
 
 const plane = (x, y) => -412 + 0.006 * x + 0.004 * y;
 const grid = (pts) => pts.map(([x, y]) => ({ x, y, z: plane(x, y) }));
@@ -54,8 +53,7 @@ describe("model chosen by geometry", () => {
   });
 });
 
-/* The same table as `focus_strategy/test_focus_surface.py::test_the_shared_fixture_table`:
-   a tilted carrier at the rig's absolute stage height, points millimetres
+/* A tilted carrier at the rig's absolute stage height, points millimetres
    apart. Every layout that spans the plane must give the plane back exactly,
    in height as well as in tilt; the layouts that cannot (one point, points on
    one line) must still give the measured height at the points themselves.

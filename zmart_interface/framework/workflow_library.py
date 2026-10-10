@@ -110,7 +110,10 @@ def installed() -> list[dict]:
         try:
             manifest = read_manifest(package)
         except ValueError as why:
-            found.append({"folder": package.name, "name": package.name, "error": str(why)})
+            found.append({
+                "folder": package.name, "name": package.name,
+                "error": f"its workflow.json could not be read: {why}",
+            })
             continue
         found.append({
             "folder": package.name,
@@ -131,17 +134,47 @@ def register_workflow(where: str | Path) -> str:
     a sentence saying what, and nothing is copied. Installing a package again
     replaces what was there under its folder. Returns the folder it is
     installed as; the page offers it the next time it opens.
+
+    The version that was installed stays until the new one is completely
+    copied: the copy is made beside the library first and only then swapped
+    in, so a copy that fails halfway (a full disk, a file held open) leaves
+    the old version working. The installed folder itself is refused as a
+    source, because replacing a folder with itself deleted it.
     """
     manifest = read_manifest(where)
+    folder = manifest["folder"]
     source = Path(where).resolve()
     if source.is_file():
         source = source.parent
-    target = library() / manifest["folder"]
+    target = library() / folder
+    if source == target.resolve():
+        raise ValueError(
+            f"{source} is where {folder!r} is already installed; to install it again, "
+            "register the folder the package was built in"
+        )
+    staging = library().parent / "workflows-being-installed"
+    incoming, outgoing = staging / f"{folder}.new", staging / f"{folder}.old"
+    for leftover in (incoming, outgoing):
+        shutil.rmtree(leftover, ignore_errors=True)
+    staging.mkdir(parents=True, exist_ok=True)
     target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.copytree(source, incoming)
+    except BaseException:
+        shutil.rmtree(incoming, ignore_errors=True)
+        raise
+    # Windows cannot rename a folder onto one that exists, so the old
+    # version steps aside first, and steps back if the new one cannot go in.
     if target.exists():
-        shutil.rmtree(target)
-    shutil.copytree(source, target)
-    return manifest["folder"]
+        target.rename(outgoing)
+    try:
+        incoming.rename(target)
+    except BaseException:
+        if outgoing.exists():
+            outgoing.rename(target)
+        raise
+    shutil.rmtree(outgoing, ignore_errors=True)
+    return folder
 
 
 def package_file(folder: str, name: str) -> tuple[Path, str] | None:

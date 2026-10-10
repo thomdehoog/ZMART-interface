@@ -97,7 +97,9 @@ export async function listInstalledWorkflows() {
 export async function loadOneWorkflow(listed, zmart = globalThis.zmart) {
   const { folder, name = folder } = listed;
   const refused = (why) => ({ folder, name, refused: why });
-  if (listed.error) return refused(`its Python half could not be imported: ${listed.error}`);
+  /* The bridge's sentence says what went wrong -- a manifest that will not
+     read, a Python half that will not import -- so it is passed on whole. */
+  if (listed.error) return refused(listed.error);
   if (!satisfies(zmart.version, listed.framework)) {
     return refused(`written for framework ${listed.framework}, and this page is ${zmart.version}`);
   }
@@ -127,7 +129,9 @@ export async function loadInstalledWorkflows({ register, refuse }) {
   if (!listing) return [];
   const outcomes = [];
   for (const listed of listing.workflows) {
-    if (!listed?.folder || !listed.bundle) continue;
+    /* A package listed with an error has no bundle, and is refused below
+       rather than skipped: skipped, a broken install never appeared at all. */
+    if (!listed?.folder || (!listed.bundle && !listed.error)) continue;
     let outcome = await loadOneWorkflow(listed);
     if (!outcome.refused) {
       /* A bundle that loaded but cannot be made into a workflow -- no steps,

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -117,7 +118,7 @@ def _info(asked, query):
 
 @route("GET", "/api/setting")
 def _setting(asked, query):
-    kind = dict(pair.split("=") for pair in query.split("&") if pair).get("type", "acquisition")
+    kind = urllib.parse.parse_qs(query or "").get("type", ["acquisition"])[0]
     with state.the_instruments_turn:
         return readings.reading(kind)
 
@@ -287,6 +288,13 @@ def _installed_workflows(asked, query):
     return workflows.listing()
 
 
+#: The first part of every route the bridge itself answers (``targets`` for
+#: ``/api/targets/discover``), taken before any workflow adds its own. A
+#: workflow package in a folder of one of these names would replace the
+#: bridge's own routes, so its Python half is refused at start-up.
+THE_BRIDGES_OWN = frozenset(path.split("/")[2] for _method, path in ROUTES if path.startswith("/api/"))
+
+
 #: The names this computer answers to. A request that arrives under any other
 #: name was sent to a web address that someone pointed at 127.0.0.1, which is
 #: how a page from elsewhere would try to look like one served here.
@@ -353,6 +361,11 @@ class Bridge(BaseHTTPRequestHandler):
         why = refusal_for(self.headers)
         if why is None:
             return False
+        # The body is read and dropped first: a connection closed with a body
+        # still unread is reset on Windows, and the refusal never arrives.
+        length = int(self.headers.get("Content-Length") or 0)
+        if 0 < length <= 1_000_000:
+            self.rfile.read(length)
         self.close_connection = True
         self._answer({"error": why}, status=403)
         return True
@@ -374,13 +387,17 @@ class Bridge(BaseHTTPRequestHandler):
         refusal rather than an internal error. The page shows the sentence
         either way, where the press was made.
         """
+        said = str(why)
         if isinstance(why, InstrumentDeclined):
             kind = 409
-        elif isinstance(why, (ValueError, KeyError)):
+        elif isinstance(why, KeyError):
+            # Python says only the missing name, in quotes: "'record'".
+            kind, said = 400, f"the request is missing {why.args[0]!r}" if why.args else said
+        elif isinstance(why, (ValueError, TypeError)):
             kind = 400
         else:
             kind = 500
-        self._answer({"error": str(why)}, status=kind)
+        self._answer({"error": said}, status=kind)
 
     #: What the built page is made of, and what to call each piece when sent.
     #: A browser will not start a background program from a file it was told is
@@ -560,7 +577,7 @@ def a_bridge_on(
     state.simulator_pixels_enabled = bool(simulator_pixels)
     state.pixel_provider = None
     state.output_root = output_root
-    workflows.load_python_halves(add_route)
+    workflows.load_python_halves(add_route, reserved=THE_BRIDGES_OWN)
     return ThreadingHTTPServer(("127.0.0.1", port), Bridge)
 
 
@@ -571,6 +588,31 @@ def serve(
     server = a_bridge_on(port, output_root, simulator_pixels=simulator_pixels)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
+
+
+#: How long closing the window waits for a running scan to finish its field.
+CLOSING_WAIT_S = 60.0
+
+
+def shut_down(server: ThreadingHTTPServer) -> None:
+    """Close everything a bridge holds, when the window it served is closed.
+
+    A running scan is asked to stop between two fields, the session with the
+    microscope is closed (which also stops the picture server and the
+    analysis workers), and the bridge stops listening. Each part is closed
+    even when the one before it fails -- a microscope that no longer answers
+    must not keep the bridge open -- and what failed is said in the terminal.
+    """
+    for closing in (
+        lambda: connecting.let_the_last_session_go(wait_s=CLOSING_WAIT_S),
+        connecting.disconnect,
+        server.shutdown,
+        server.server_close,
+    ):
+        try:
+            closing()
+        except Exception as why:  # noqa: BLE001 -- the rest must still close
+            print(f"while closing the interface: {why}", file=sys.stderr, flush=True)
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:

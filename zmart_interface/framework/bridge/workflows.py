@@ -31,21 +31,38 @@ from .. import workflow_library
 #: started, by folder: the sentence each failed with, carried in the listing.
 python_errors: dict[str, str] = {}
 
+#: The packages that were installed when the bridge started, by folder. A
+#: Python half is imported only then, so a package installed later that has
+#: one is not finished until the interface is started again.
+installed_at_start: set[str] = set()
 
-def load_python_halves(add_route) -> dict[str, str]:
+
+def load_python_halves(add_route, reserved=frozenset()) -> dict[str, str]:
     """Import every installed workflow's Python half and register its routes.
 
     ``add_route(method, path, handler)`` is the bridge's own way of adding a
-    route; each half's routes land under ``/api/<folder>/``. Called once when
-    the bridge starts. Answers the errors, by folder, and keeps them for the
-    listing; a half that imports cleanly leaves no entry.
+    route; each half's routes land under ``/api/<folder>/``. ``reserved`` are
+    the first parts of the bridge's own routes (``targets`` for
+    ``/api/targets/discover``): a package in a folder of that name would
+    replace the bridge's own routes with its own, so its half is not loaded
+    and the listing says why. Called once when the bridge starts. Answers
+    the errors, by folder, and keeps them for the listing; a half that
+    imports cleanly leaves no entry.
     """
     python_errors.clear()
+    installed_at_start.clear()
     for package in workflow_library.installed():
+        folder = package["folder"]
+        installed_at_start.add(folder)
         module_name = package.get("python")
         if not module_name or package.get("error"):
             continue
-        folder = package["folder"]
+        if folder in reserved:
+            python_errors[folder] = (
+                f"its folder name {folder!r} is a name the interface uses for its own routes; "
+                "give the package another folder name and install it again"
+            )
+            continue
 
         def register(method, path, handler, *, folder=folder):
             add_route(method.upper(), f"/api/{folder}/{str(path).lstrip('/')}", handler)
@@ -57,7 +74,9 @@ def load_python_halves(add_route) -> dict[str, str]:
                 raise AttributeError(f"{module_name} has no routes(register) function")
             routes(register)
         except Exception as why:  # noqa: BLE001 -- said in the listing, whatever it was
-            python_errors[folder] = f"{type(why).__name__}: {why}"
+            python_errors[folder] = (
+                f"its Python half could not be imported: {type(why).__name__}: {why}"
+            )
     return dict(python_errors)
 
 
@@ -72,6 +91,11 @@ def listing() -> dict:
     for package in workflow_library.installed():
         entry = {key: value for key, value in package.items() if key != "python" and value is not None}
         failed = python_errors.get(package["folder"])
+        if not failed and package.get("python") and package["folder"] not in installed_at_start:
+            failed = (
+                "it was installed while the interface was running; restart the interface "
+                "to finish installing it, because its Python half is loaded at start-up"
+            )
         if failed and "error" not in entry:
             entry["error"] = failed
         found.append(entry)

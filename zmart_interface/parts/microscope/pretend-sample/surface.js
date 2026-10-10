@@ -1,9 +1,9 @@
 /**
  * Fitting a focus surface z(x, y) from measured points.
  *
- * Pure: no DOM, no app state, micrometres in and micrometres out. It mirrors
- * `workflows/target_acquisition/workflow/_focus_surface.py`, which is the
- * authority — if the two ever disagree, that one is right.
+ * Pure: no DOM, no app state, micrometres in and micrometres out. It once
+ * mirrored a Python fitter that has since been removed, so this file is now
+ * the one place the focus surface is fitted, and its tests are the contract.
  *
  * The model is chosen by geometry rather than by preference:
  *
