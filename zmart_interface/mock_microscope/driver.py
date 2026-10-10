@@ -26,9 +26,12 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import random
+import subprocess
+import sys
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -314,13 +317,41 @@ def _write_the_settings(handle: MockHandle) -> None:
     write_instrument_settings({key: getattr(handle, key) for key in CHANGEABLE}, handle.state_file)
 
 
+def open_the_window(connection: dict) -> None:
+    """Open the mock's own window beside a session, unless one is open already.
+
+    On a real microscope the vendor's software is simply there; the mock has
+    only its window, and an operator connecting to the mock wants it in front
+    of them without remembering to start it. Its own process, so closing it
+    never touches the session. A window that cannot be opened is a warning,
+    never a failed connect.
+    """
+    state_file = where_the_instrument_stands(connection)
+    if the_window_is_open(state_file):
+        return
+    try:
+        subprocess.Popen(
+            [sys.executable, "-m", "zmart_interface.mock_microscope.window"],
+            env={**os.environ, STATE_FILE_ENV: str(state_file)},
+        )
+    except OSError as why:
+        logging.getLogger(__name__).warning("the mock instrument window could not be opened: %s", why)
+
+
 def connect(connection: dict):
     """Open a session with a small vendor-authored tile setup.
 
     Receives the whole variable connection dict; a real driver would validate the
     api and authenticate with e.g. ``connection["client"]`` / credentials. The
     stage counts from its own zero, so ``set_xyz`` works at once.
+
+    ``connection["open_window"]`` true opens the mock's own window beside the
+    session (:func:`open_the_window`), as the interface asks when it offers the
+    mock: an operator expects the instrument's software to be there. A script
+    that plugs the mock in leaves it out and gets no window.
     """
+    if connection.get("open_window"):
+        open_the_window(connection)
     handle = MockHandle()
     handle.client = connection.get("client")
     handle.connection = dict(connection)

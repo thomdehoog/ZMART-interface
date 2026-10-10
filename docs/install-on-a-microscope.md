@@ -101,7 +101,7 @@ zmart-interface
 
 This opens the operator window with its bridge beside it. Never pass `--simulator-pixels` on a
 real instrument. For a browser instead of the window:
-`python -m zmart_interface.framework.bridge --port 8600` and open `http://127.0.0.1:8600`.
+`python -m zmart_interface.serving --port 8600` and open `http://127.0.0.1:8600`.
 One controlling process at a time.
 
 For a dry run without the instrument, choose **Mock** on the Connect step.
@@ -115,7 +115,7 @@ Install it once on this computer, in the interface's environment, and list what 
 
 ```powershell
 python -c "import zmart_interface; print(zmart_interface.register_workflow(r'C:\path\to\the\package'))"
-python -m zmart_interface.framework.bridge --workflows
+python -m zmart_interface.serving --workflows
 ```
 
 The package is copied into the computer's workflow library (above), and the chooser at the

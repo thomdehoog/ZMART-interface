@@ -34,10 +34,11 @@ def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
 
     A conversion that fails is filed on the record rather than felling the
     scan: the vendor's files are on disk and the conversion can be run again,
-    while a stage drive cut short cannot.
+    while a stage drive cut short cannot. The one exception is an error that
+    says it must stop the run (``stops_the_run``): stand-in pixels refusing a
+    frame that is not theirs to replace, say, which filed as one failed field
+    would let a run carry on over real data.
     """
-    from zmart_interface.parts.microscope.simulator_guard import NonSimulatorFrameError
-
     try:
         folder = state.the_run() / "positions" / acquisition_type
         record["zarr"] = str(position_store_from_record(record, folder, pixel_provider=state.pixel_provider))
@@ -48,9 +49,9 @@ def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
         # another job by the time it captured, and the page draws, crops and
         # opens the ground over what actually landed.
         record["frame_um"] = frame_um_of(record["zarr"])
-    except NonSimulatorFrameError:
-        raise
-    except Exception as why:  # noqa: BLE001 -- filed, not fatal
+    except Exception as why:  # noqa: BLE001 -- filed, not fatal, unless it stops the run
+        if getattr(why, "stops_the_run", False):
+            raise
         record["zarr_error"] = str(why)
         return
     # The viewer beside this bridge links the folder into one live picture;

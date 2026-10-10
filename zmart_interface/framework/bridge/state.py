@@ -51,11 +51,17 @@ run: Path | None = None
 #: nowhere to say it -- it connects with the entry the list offered.
 output_root: str | None = None
 
-#: The synthetic specimen that stands in for the LAS X simulator's pixels,
-#: when the bridge was started with ``--simulator-pixels`` and a session is
-#: open; None otherwise. One per session, anchored at connect.
+#: How to make pixels that stand in for the captured ones, when whoever started
+#: the bridge asked for them: ``pixels_for(z_um)`` answers a provider anchored
+#: at the height the stage stands at. The interface hands over the LAS X
+#: simulator's synthetic specimen when started with ``--simulator-pixels``
+#: (``zmart_interface/serving.py``); None means the captured pixels are kept.
+pixels_for = None
+
+#: The provider made from ``pixels_for`` for the session that is open, or
+#: None. One per session, anchored at connect; it has a ``recipe`` that is
+#: written beside the run, so a run made with stand-in pixels says so.
 pixel_provider = None
-simulator_pixels_enabled = False
 
 
 def require_session() -> Instrument:

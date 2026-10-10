@@ -143,7 +143,7 @@ installed in:
 
 ```powershell
 python -c "import zmart_interface; print(zmart_interface.register_workflow(r'C:\path\to\the\package'))"
-python -m zmart_interface.framework.bridge --workflows
+python -m zmart_interface.serving --workflows
 ```
 
 The first copies the package into the computer's workflow library,

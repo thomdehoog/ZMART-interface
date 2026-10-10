@@ -67,6 +67,7 @@ def test_failed_canonical_ingestion_never_scores_vendor_pixels():
 def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypatch, enabled):
     import json
 
+    from zmart_interface import mock_microscope, serving
     from zmart_interface.framework.bridge import connecting, hooks, state
     from zmart_interface.parts.storage import viewer_service
 
@@ -95,14 +96,14 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
     monkeypatch.setattr(connecting, "ZmartController", lambda *_: session)
     monkeypatch.setattr(viewer_service, "start", lambda *a, **k: None)
     monkeypatch.setattr(viewer_service, "stop", lambda: None)
-    monkeypatch.setattr(state, "simulator_pixels_enabled", enabled)
+    monkeypatch.setattr(state, "pixels_for", serving.pixels_for(simulator_pixels=enabled))
     for name in ("session", "run", "pixel_provider"):
         monkeypatch.setattr(state, name, None)
     for name in ("context", "records", "view_built", "displayed_pictures"):
         monkeypatch.setattr(state, name, {})
     # No workflow plugged in: connecting has nobody's runs to forget.
     monkeypatch.setattr(hooks, "plugged", {})
-    connecting.connect({"instrument": connecting.INTERFACE_MOCK})
+    connecting.connect({"instrument": mock_microscope.NAME})
     first = state.pixel_provider
     if enabled:
         assert first.focus_z_um == 420
@@ -116,7 +117,7 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         # Connect reads the stage once, for the canvas the viewer is laid out over.
         assert first is None and session.reads == 1
         session.height = 435
-    connecting.connect({"instrument": connecting.INTERFACE_MOCK})
+    connecting.connect({"instrument": mock_microscope.NAME})
     if enabled:
         assert state.pixel_provider.focus_z_um == 435
         assert first.focus_z_um == 420

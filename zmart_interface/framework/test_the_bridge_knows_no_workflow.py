@@ -61,6 +61,18 @@ def test_a_framework_module_imports_no_workflow(path):
     assert workflows == [], f"{path.relative_to(FRAMEWORK)} imports {workflows}"
 
 
+#: What would tie the framework to one instrument: the interface's own mock
+#: microscope and the LAS X simulator's stand-in pixels. Whoever starts the
+#: bridge hands those over (``zmart_interface/serving.py``).
+ONE_INSTRUMENT = ("zmart_interface.mock_microscope", "zmart_interface.parts.microscope.simulator")
+
+
+@pytest.mark.parametrize("path", modules_of_the_framework(), ids=lambda path: path.relative_to(FRAMEWORK).as_posix())
+def test_a_framework_module_imports_no_instrument(path):
+    instruments = [name for name in imported_by(path) if name.startswith(ONE_INSTRUMENT)]
+    assert instruments == [], f"{path.relative_to(FRAMEWORK)} imports {instruments}"
+
+
 def test_the_check_would_catch_a_relative_import(tmp_path, monkeypatch):
     """The positive control: a relative import of a workflow is seen for what it is."""
     sneaky = FRAMEWORK / "bridge" / "sneaky_example_for_the_test.py"

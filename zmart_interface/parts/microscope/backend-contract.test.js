@@ -5,7 +5,7 @@
  * The live one is asked when there is a bridge to ask — start one and point
  * this at it:
  *
- *     python -m zmart_interface.framework.bridge --port 8600
+ *     python -m zmart_interface.serving --port 8600
  *     BACKEND_BRIDGE=http://127.0.0.1:8600 npx vitest run zmart_interface/parts/microscope/backend-contract.test.js
  *
  * With the mock microscope behind that bridge it is a full round of the real path
