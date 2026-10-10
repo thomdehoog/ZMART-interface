@@ -173,12 +173,12 @@ def test_the_installed_viewer_is_a_version_this_interface_accepts():
     assert Path(found["path"]).name == "__init__.py"
 
 
-@pytest.mark.parametrize("installed_version", ["0.5.0rc2", "0.5.0rc3", "0.5.0", "0.5.3"])
+@pytest.mark.parametrize("installed_version", ["0.5.0rc3", "0.5.0rc4", "0.5.0", "0.5.3"])
 def test_the_tested_viewer_line_is_accepted(installed_version):
     service._accept_the_version(installed_version)
 
 
-@pytest.mark.parametrize("installed_version", ["0.4.0", "0.5.0.dev0", "0.5.0rc1", "0.6.0", "1.0.0"])
+@pytest.mark.parametrize("installed_version", ["0.4.0", "0.5.0.dev0", "0.5.0rc1", "0.5.0rc2", "0.6.0", "1.0.0"])
 def test_a_viewer_outside_the_tested_line_is_refused(installed_version):
     with pytest.raises(RuntimeError, match=f"the ZMART viewer {installed_version} is installed"):
         service._accept_the_version(installed_version)
@@ -191,7 +191,6 @@ def test_the_external_viewer_owns_the_measurement_route(tmp_path):
         data_dir=str(tmp_path),
         live=True,
         allow_open=True,
-        panel_side="left",
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
