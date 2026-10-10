@@ -56,7 +56,9 @@ describe.skipIf(!bridgeAt)("the live backend keeps the same promises", () => {
        so it takes a word from whoever is running this. */
     const offered = await live.instruments();
     const mockDriver = offered.find(isTheMock);
-    if (!mockDriver && !process.env.BACKEND_BRIDGE_MAY_MOVE_THE_MICROSCOPE) {
+    /* Exactly "yes": a variable left over from another run, or set to "no",
+       must not count as permission to move a real stage. */
+    if (!mockDriver && process.env.BACKEND_BRIDGE_MAY_MOVE_THE_MICROSCOPE !== "yes") {
       throw new Error(
         "this bridge offers no mock driver, and these promises drive the stage."
         + " Set BACKEND_BRIDGE_MAY_MOVE_THE_MICROSCOPE=yes to run them against"

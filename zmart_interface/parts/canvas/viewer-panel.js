@@ -196,7 +196,6 @@ const LOOK_COLOURS = [
 export async function measureViewerRow(row, {
   signal = null,
   box = [[0, 0], [1, 1]],
-  span = null,
 } = {}) {
   try {
     const origin = new URL(row.source).origin;
@@ -205,7 +204,7 @@ export async function measureViewerRow(row, {
       headers: { "Content-Type": "application/json" },
       signal,
       body: JSON.stringify({
-        source: row.source, sources: row.sources, channel: row.within, box, span,
+        source: row.source, sources: row.sources, channel: row.within, box,
       }),
     });
     if (!answer.ok) {
