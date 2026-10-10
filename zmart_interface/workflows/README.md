@@ -43,6 +43,11 @@ target_acquisition/
   shared/        what several steps of this workflow use: the carrier geometry,
                  the scan-field arithmetic, the layers the run draws, and the
                  small things they share on the page (page-helpers.js).
+  backend/       the workflow's own verbs: live.js over the bridge, pretend.js
+                 for the rehearsal, and the promises both keep.
+  bridge/        the workflow's Python half on the bridge: the focus map, the
+                 scans, finding and taking the targets, the plots and the
+                 protocols, with their routes under /api/target_acquisition/.
   the-canvas.js  what the workflow puts on its canvas: the stage picture, the
                  live picture of the run, the axes under them.
   on-the-page.js how the workflow is wired to the page when it opens: the
@@ -50,9 +55,12 @@ target_acquisition/
 ```
 
 The microscope seam is a part, not the workflow's: `../parts/microscope/`
-holds `live.js`, which speaks to the bridge, and `mock.js`, the in-browser
-rehearsal used by some of the page's own tests. Every call to the instrument
-lives behind that seam — a step only calls it and awaits.
+holds the verbs every workflow shares, `live.js`, which speaks to the bridge,
+and `mock.js`, the in-browser rehearsal used by some of the page's own tests.
+A workflow's own verbs are its own: Target acquisition's are in its
+`backend/` (live and pretend), and its runs on the bridge in its `bridge/`,
+the Python half with its routes under `/api/target_acquisition/`. Every call
+to the instrument lives behind that seam — a step only calls it and awaits.
 
 The rule that decides where a file goes: **put it beside the things that use
 it, at the lowest folder that covers them all.** Used by one step → in that
@@ -220,8 +228,10 @@ drives nothing and keeps nothing of its own needs only the first two.
   The panels, by contrast, are built for every workflow when the page opens,
   so what a workflow draws on them is wired once and kept.
 - `backendFor(search)` — which backend the steps speak to, given the page's
-  own address (a `URLSearchParams`): target acquisition answers the bridge, or
-  the in-browser rehearsal for `?backend=pretend`. A workflow that drives
+  own address (a `URLSearchParams`): target acquisition puts the shared verbs
+  and its own together, over the bridge, or the in-browser rehearsal for
+  `?backend=pretend`, and its `connect` names the run folder
+  (`target-acquisition_<hash>`). A workflow that drives
   nothing leaves this out and is handed an empty object.
 - `freshState({ backend })` — the workflow's half of the run document: every
   key its steps read, with the value it has before anything was done. The

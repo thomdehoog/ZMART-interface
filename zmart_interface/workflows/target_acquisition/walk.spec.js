@@ -186,7 +186,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await shot(page, "focus-points-placed");
       await page.locator(".panel.on button.step-run").click();
       await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 600_000 });
-      const focus = await ask(page, PORT, "/api/focus/measure");
+      const focus = await ask(page, PORT, "/api/target_acquisition/focus/measure");
       expect(focus.points?.length, "a focus point was measured through the bridge").toBeGreaterThan(0);
       await rest(1500);
       await shot(page, "focus-measured");
@@ -230,9 +230,9 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await shot(page, "scan-test-tiles");
       const TEST_TILES = 3;
       await page.locator(".panel.on button.step-run").click();
-      await expect.poll(async () => (await ask(page, PORT, "/api/scan")).done, { timeout: 400_000 }).toBe(TEST_TILES);
-      await expect.poll(async () => !(await ask(page, PORT, "/api/scan")).running, { timeout: 400_000 }).toBe(true);
-      const overview = await ask(page, PORT, "/api/scan");
+      await expect.poll(async () => (await ask(page, PORT, "/api/target_acquisition/scan")).done, { timeout: 400_000 }).toBe(TEST_TILES);
+      await expect.poll(async () => !(await ask(page, PORT, "/api/target_acquisition/scan")).running, { timeout: 400_000 }).toBe(true);
+      const overview = await ask(page, PORT, "/api/target_acquisition/scan");
       expect(overview).toMatchObject({ error: null, stopped: false, done: TEST_TILES, of: TEST_TILES });
       expect(overview.records).toHaveLength(TEST_TILES);
       expect((await page.evaluate(() => window.__theRunState())).scannedFields, "the fields are the test tiles")
@@ -444,10 +444,10 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await page.getByRole("button", { name: "Test detection on this tile" }).click();
       await expect(page.locator("#ramp-chip")).toHaveAttribute("aria-pressed", "true");
       await expect.poll(async () => {
-        const state = await ask(page, PORT, "/api/targets/discover");
+        const state = await ask(page, PORT, "/api/target_acquisition/targets/discover");
         return !state.running && (state.error || ((state.fields?.length ?? 0) + (state.failed?.length ?? 0)) >= 1);
       }, { timeout: 900_000, message: "the tile test never answered" }).toBeTruthy();
-      const tried = await ask(page, PORT, "/api/targets/discover");
+      const tried = await ask(page, PORT, "/api/target_acquisition/targets/discover");
       const blocked = tried.error ?? tried.failed?.[0]?.why ?? null;
       await rest(1000);
       if (blocked) {
@@ -716,7 +716,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
           "target rows keep the same viewer and its existing images").toBe(true);
         await expect(page.locator(".layer-fade input")).toHaveValue("100");
         expect(await page.evaluate(() => window.__theStageCanvas.layerShown("ground"))).toBe(true);
-        const acquired = await ask(page, PORT, "/api/targets/acquire");
+        const acquired = await ask(page, PORT, "/api/target_acquisition/targets/acquire");
         expect(acquired.error).toBeNull();
         expect(acquired.records.filter(record => record.zarr_error)).toEqual([]);
         expect(acquired.records.length, "the ledger holds a record a tile").toBe(run.targetTiles);
@@ -788,12 +788,12 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         /* The settings can be written as the protocol without a run. */
         await page.locator("#protocol-export").click();
         await expect(page.locator("#protocol-export-note")).toHaveText("protocol written");
-        expect((await ask(page, PORT, "/api/protocols")).protocols).toHaveLength(1);
+        expect((await ask(page, PORT, "/api/target_acquisition/protocols")).protocols).toHaveLength(1);
         /* And saved by name into the machine's library: listed with the run's. */
         await page.locator("#protocol-save-name").fill("walk kidney");
         await page.locator("#protocol-save").click();
         await expect(page.locator("#protocol-export-note")).toHaveText("saved as walk kidney");
-        expect((await ask(page, PORT, "/api/protocols")).protocols.map((one) => one.id)).toContain("walk kidney");
+        expect((await ask(page, PORT, "/api/target_acquisition/protocols")).protocols.map((one) => one.id)).toContain("walk kidney");
         await shot(page, "protocol-before");
         await walkTo(page, "Detect objects");
         await page.locator("#detect-threshold").fill("120");
@@ -851,9 +851,9 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         }), "confetti on the canvas").toBeGreaterThan(20);
         await shot(page, "protocol-confetti");
         await rest(1800);
-        const whole = await ask(page, PORT, "/api/scan");
+        const whole = await ask(page, PORT, "/api/target_acquisition/scan");
         expect(whole.done, "the protocol scanned the whole plan").toBe(plan.length);
-        const written = await ask(page, PORT, "/api/protocols");
+        const written = await ask(page, PORT, "/api/target_acquisition/protocols");
         /* The run's own, and the one saved by name earlier. */
         expect(written.protocols.map((one) => one.id).sort()).toEqual(
           [...written.protocols.filter((one) => one.id.startsWith("target-acquisition_")).map((one) => one.id), "walk kidney"].sort());

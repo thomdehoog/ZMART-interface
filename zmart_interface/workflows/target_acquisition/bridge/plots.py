@@ -14,9 +14,10 @@ import threading
 import time
 from pathlib import Path
 
+from zmart_interface.framework.bridge import state
 from zmart_interface.parts.analysis import warm
 
-from . import state
+from . import ledgers
 
 
 def the_population_table() -> Path:
@@ -45,9 +46,9 @@ def compute_plot(asked: dict) -> dict:
     picture server beside it never waits; the page polls, then asks for the
     columns.
     """
-    if state.plots["running"]:
+    if ledgers.plots["running"]:
         raise RuntimeError("a plot is already being computed")
-    if state.targets["running"]:
+    if ledgers.targets["running"]:
         raise RuntimeError("the objects are still being detected; plot them once detection ends")
     table = the_population_table()
     if not table.is_file():
@@ -57,15 +58,15 @@ def compute_plot(asked: dict) -> dict:
         raise ValueError(f"unknown plot {kind!r}; there are {', '.join(PLOT_KINDS)}")
     ids = asked.get("ids")
     ids = None if ids is None else [str(one) for one in ids]
-    state.plots_stop["asked"] = False
+    ledgers.plots_stop["asked"] = False
     what = "UMAP" if kind == "umap" else "principal components"
-    state.plots.update(
+    ledgers.plots.update(
         running=True, kind=kind, error=None, stopped=False, kinds=[], took_s=None, objects=None,
         of=None if ids is None else len(ids),
         doing=f"computing {what} over {'every candidate' if ids is None else f'{len(ids)} objects'}",
     )
     threading.Thread(target=plot_worker, args=(kind, table, ids), daemon=True).start()
-    return dict(state.plots)
+    return dict(ledgers.plots)
 
 
 def plot_through_the_analysis(kind: str, table: Path, ids: list[str] | None) -> dict:
@@ -78,26 +79,26 @@ def plot_worker(kind: str, table: Path, ids: list[str] | None) -> None:
     began = time.perf_counter()
     try:
         answered = plot_through_the_analysis(kind, table, ids)
-        state.plots.update(kinds=sorted(answered["written"]), objects=answered["objects"])
+        ledgers.plots.update(kinds=sorted(answered["written"]), objects=answered["objects"])
     except Exception as why:  # noqa: BLE001 -- the page shows the sentence
-        if state.plots_stop["asked"]:
+        if ledgers.plots_stop["asked"]:
             # The hand that stopped the plot put its worker down; that death
             # is the stop, not a failure.
-            state.plots["stopped"] = True
+            ledgers.plots["stopped"] = True
         else:
-            state.plots["error"] = str(why)
+            ledgers.plots["error"] = str(why)
     finally:
-        state.plots.update(running=False, doing=None, took_s=round(time.perf_counter() - began, 1))
+        ledgers.plots.update(running=False, doing=None, took_s=round(time.perf_counter() - began, 1))
 
 
 def stop_plot() -> dict:
     """The operator's Interrupt for a plot: its worker is put down, the only
     hand that reaches a computation already under way. The workers respawn
     on the next job."""
-    state.plots_stop["asked"] = True
-    if state.plots["running"]:
+    ledgers.plots_stop["asked"] = True
+    if ledgers.plots["running"]:
         warm.close()
-    return dict(state.plots)
+    return dict(ledgers.plots)
 
 
 def plot_columns(kind: str) -> dict:

@@ -4,7 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backend } from "../../parts/microscope/live.js";
+import { targetAcquisition as backend } from "./live.js";
 
 function bridgePlotting(polls, columns = {}) {
   const calls = [];
@@ -13,10 +13,10 @@ function bridgePlotting(polls, columns = {}) {
     const route = url.replace(/^http:\/\/[^/]+/, "");
     calls.push([route, init?.body ? JSON.parse(init.body) : null]);
     const answer = (json) => ({ ok: true, json: async () => json });
-    if (route === "/api/plots/compute" && init?.method === "POST") return answer({ running: true });
-    if (route === "/api/plots/compute") return answer(polls[Math.min(asked++, polls.length - 1)]);
-    if (route.startsWith("/api/plots/columns?kind=")) return answer(columns[route.split("=")[1]]);
-    if (route === "/api/plots/compute/stop") return answer({ running: true });
+    if (route === "/api/target_acquisition/plots/compute" && init?.method === "POST") return answer({ running: true });
+    if (route === "/api/target_acquisition/plots/compute") return answer(polls[Math.min(asked++, polls.length - 1)]);
+    if (route.startsWith("/api/target_acquisition/plots/columns?kind=")) return answer(columns[route.split("=")[1]]);
+    if (route === "/api/target_acquisition/plots/compute/stop") return answer({ running: true });
     throw new Error(`unexpected ${route}`);
   });
   return calls;
@@ -38,7 +38,7 @@ describe("the live multidimensional plot", () => {
     const run = backend.computePlot({ kind: "umap", ids: ["a", "b"], onDoing: (s) => said.push(s) });
     for (let i = 0; i < 4; i++) await vi.advanceTimersByTimeAsync(500);
     const out = await run;
-    expect(calls[0]).toEqual(["/api/plots/compute", { kind: "umap", ids: ["a", "b"] }]);
+    expect(calls[0]).toEqual(["/api/target_acquisition/plots/compute", { kind: "umap", ids: ["a", "b"] }]);
     expect(out).toEqual({ stopped: false, objects: 2, seconds: 1.5, columns: [pca, umap] });
     expect(said).toEqual(["computing UMAP over 2 objects", null]);
   });

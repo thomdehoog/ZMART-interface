@@ -3,7 +3,7 @@
 Begin clears the targets acquisition (unless appending) and names the
 captures; the page drives and captures each, with a focussing stack first
 when the operator asked for one; landed files the target's record the way
-the scan filed its own; end closes the run. The ledger is ``state.acquired``.
+the scan filed its own; end closes the run. The ledger is ``ledgers.acquired``.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -15,11 +15,12 @@ import shutil
 import time
 from pathlib import Path
 
+from zmart_interface.framework.bridge import pictures, stage, state
 from zmart_interface.parts.microscope.focus_run import measure_one_stack
 from zmart_interface.parts.storage import output, viewer_service
 from zmart_interface.parts.storage.output import prepare_acquisition
 
-from . import focus, pictures, scan, stage, state
+from . import focus, ledgers, scan
 
 #: The stacks taken before a target when the operator asked for focussing
 #: there: an acquisition of their own, beside the targets they were taken for.
@@ -60,8 +61,8 @@ def begin_target_run(asked: dict) -> dict:
         pictures.replace_the_acquisition(TARGET_FOCUSSING)
     for key in [key for key in state.displayed_pictures if key[0] == "targets"]:
         del state.displayed_pictures[key]
-    state.acquired.update(running=True, done=0, of=len(positions), error=None, stopped=False, records=[])
-    return {**dict(state.acquired), "labels": [scan.label_for(i, p) for i, p in enumerate(positions)]}
+    ledgers.acquired.update(running=True, done=0, of=len(positions), error=None, stopped=False, records=[])
+    return {**dict(ledgers.acquired), "labels": [scan.label_for(i, p) for i, p in enumerate(positions)]}
 
 
 def score_target_focus(asked: dict) -> dict:
@@ -73,13 +74,13 @@ def score_target_focus(asked: dict) -> dict:
     curves answered here with the same rule the focus map uses; ``z`` is the
     scorer's own tallest, for a page that wants no more than that.
     """
-    if not state.acquired["running"]:
+    if not ledgers.acquired["running"]:
         raise RuntimeError("no target run has begun")
     # The interface's own grouping, from what it asked for (see ``state.records``).
     asked["record"]["acquisition_type"] = TARGET_FOCUSSING
     measurement = measure_one_stack(
         asked["record"], x=float(asked["x"]), y=float(asked["y"]), centre=float(asked["centre"]),
-        score=focus.score_a_stack(), index=state.acquired["done"],
+        score=focus.score_a_stack(), index=ledgers.acquired["done"],
         output=prepare_acquisition(state.the_run(), TARGET_FOCUSSING),
         keep=lambda landed: pictures.keep_position_as_zarr(landed, TARGET_FOCUSSING),
     )
@@ -96,7 +97,7 @@ def target_landed(asked: dict) -> dict:
     before it found (or None when none was asked): both go on the record, so
     a later reading knows at which height the target was imaged and why.
     """
-    if not state.acquired["running"]:
+    if not ledgers.acquired["running"]:
         raise RuntimeError("no target run has begun")
     record = asked["record"]
     # The interface's own grouping, from what it asked for (see ``state.records``).
@@ -127,21 +128,21 @@ def target_landed(asked: dict) -> dict:
         records.append(record)
     else:
         records[replaced] = record
-    state.acquired["records"].append(record)
-    state.acquired["done"] = len(state.acquired["records"])
+    ledgers.acquired["records"].append(record)
+    ledgers.acquired["done"] = len(ledgers.acquired["records"])
     return record
 
 
 def end_target_run(asked: dict) -> dict:
     """The page ends the run, stopped by its hand or complete."""
-    state.acquired.update(running=False, stopped=bool(asked.get("stopped")))
-    return dict(state.acquired)
+    ledgers.acquired.update(running=False, stopped=bool(asked.get("stopped")))
+    return dict(ledgers.acquired)
 
 
 def the_target_run(since: int | None = None) -> dict:
     """The target run under way or last finished, with the records landed so
     far; asked ``since`` the number a page holds, only the ones after."""
-    answer = dict(state.acquired)
+    answer = dict(ledgers.acquired)
     if since is not None:
         answer["records"] = answer["records"][max(0, since):]
     return answer

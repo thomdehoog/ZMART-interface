@@ -5,7 +5,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { backend } from "../../parts/microscope/live.js";
+import { targetAcquisition as backend } from "./live.js";
 
 /** A bridge that finds the tissue 10 µm below wherever each stack began. */
 function bridgeMeasuringFocus() {
@@ -14,7 +14,7 @@ function bridgeMeasuringFocus() {
     const route = url.replace(/^http:\/\/[^/]+/, "");
     const body = init?.body ? JSON.parse(init.body) : null;
     const answer = (json) => ({ ok: true, json: async () => json });
-    if (route === "/api/focus/begin") {
+    if (route === "/api/target_acquisition/focus/begin") {
       return answer({ labels: Array.from({ length: body.of }, (_, i) => `P${i}`) });
     }
     if (route === "/api/xyz") {
@@ -22,10 +22,10 @@ function bridgeMeasuringFocus() {
       return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
     }
     if (route === "/api/acquire") return answer({ success: true, content: { position_label: body.position_label } });
-    if (route === "/api/focus/score") {
+    if (route === "/api/target_acquisition/focus/score") {
       return answer({ ...body.point, z: body.centre - 10, zAuto: body.centre - 10, lost: false });
     }
-    if (route === "/api/focus/end") return answer({});
+    if (route === "/api/target_acquisition/focus/end") return answer({});
     throw new Error(`unexpected ${route}`);
   });
   return drives;
@@ -76,11 +76,11 @@ describe("the live focus map", () => {
     globalThis.fetch = async (url, init) => {
       const route = url.replace(/^http:\/\/[^/]+/, "");
       asked.push(route);
-      if (route === "/api/focus/score") {
+      if (route === "/api/target_acquisition/focus/score") {
         await new Promise((resolve) => { release = resolve; });
         return { ok: false, json: async () => ({ error: "Engine has been shut down" }) };
       }
-      if (route === "/api/focus/stop") {
+      if (route === "/api/target_acquisition/focus/stop") {
         release();
         return { ok: true, json: async () => ({ running: true }) };
       }
@@ -90,7 +90,7 @@ describe("the live focus map", () => {
     while (!release) await new Promise((resolve) => setTimeout(resolve, 1));
     await backend.stopFocusMeasure();
     const { points, stopped } = await run;
-    expect(asked).toContain("/api/focus/stop");
+    expect(asked).toContain("/api/target_acquisition/focus/stop");
     expect(stopped).toBe(true);
     expect(points).toEqual([]);
     expect(asked.filter((route) => route === "/api/xyz")).toHaveLength(1);

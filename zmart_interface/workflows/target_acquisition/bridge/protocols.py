@@ -18,7 +18,14 @@ from pathlib import Path
 
 from zmart_controller.registry import config_root
 
-from . import connecting, state
+from zmart_interface.framework.bridge import state
+
+#: What a run of this workflow is called on disk: ``target-acquisition_<hash>``.
+#: The page names it when it connects (the bridge makes the run folder), and
+#: the protocols of earlier runs are found by it, so it never changes: runs
+#: and protocols saved before still have to be found.
+EXPERIMENT = "target-acquisition"
+
 
 #: What a finished run leaves beside its pictures: the settings it ran with,
 #: as the page wrote them. The next session lists these and opens on one.
@@ -87,7 +94,7 @@ def protocols(connection: dict | None = None) -> dict:
     if root is None or not root.is_dir():
         found.sort(key=lambda one: one["written"], reverse=True)
         return {"protocols": found}
-    for path in root.glob(f"{connecting.EXPERIMENT}_*/{PROTOCOL_FILE}"):
+    for path in root.glob(f"{EXPERIMENT}_*/{PROTOCOL_FILE}"):
         try:
             protocol = json.loads(path.read_text(encoding="utf-8"))
             written = path.stat().st_mtime

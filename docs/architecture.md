@@ -72,22 +72,27 @@ change belongs to, you know which file to open.
 ```
 zmart_interface/
   framework/        the engine. It knows how to run any workflow and none in particular:
-                    nothing under it names a step, a workflow or an instrument, and a
-                    unit test (`framework/knows-no-workflow.test.js`) keeps it so.
+                    nothing under it names a step, a workflow or an instrument, and two
+                    unit tests (`framework/knows-no-workflow.test.js` for the page,
+                    `framework/test_the_bridge_knows_no_workflow.py` for the bridge)
+                    keep it so.
     window/     what the operator sees: the rail, the chooser, the panels, the
                 channel, the press, the runner, and the framework's half of the
                 run document.
     rules/      what the engine enforces: step ordering and readiness, and how
                 workflow folders are found and assembled for the chooser.
     bridge/     the Python half: the HTTP door the page reaches the controller through.
+                It connects, drives the stage, reads and applies settings,
+                captures and serves the pictures. A workflow plugs its own runs
+                in through `hooks.py` and its own routes under `/api/<folder>/`.
     fixtures/   the framework's own test workflow, `three_steps/`, which knows
                 nothing about a microscope. Not under `workflows/`, so the
                 chooser never offers it.
   parts/        what a workflow is built from. A part knows nothing about any
                 workflow: hand it what to do and it does it.
     canvas/     the picture the operator pans, zooms and draws on.
-    microscope/ the seam where the instrument goes: the backend the page talks
-                to (`mock.js` for the rehearsal, `live.js` for the bridge), the
+    microscope/ the seam where the instrument goes: the verbs every workflow
+                shares (`mock.js` for the rehearsal, `live.js` for the bridge), the
                 synthetic specimen the rehearsal images in `pretend-sample/`,
                 and — in Python, on the other side of the same seam — the
                 procedures that drive the instrument through the controller.
@@ -107,6 +112,11 @@ zmart_interface/
                      draws, the workflow's half of the run document
                      (`run-document.js`) and the protocol file's settings
                      (`protocol.js`).
+    <name>/backend/  the workflow's own verbs, live and pretend, which
+                     `flow.js` puts together with the shared ones.
+    <name>/bridge/   the workflow's Python half: its runs on the bridge, its
+                     routes under `/api/<name>/`, and what it tells the
+                     bridge through `hooks.py`.
 ```
 
 The rule between the three: what several workflows share belongs in `parts/`
@@ -188,37 +198,49 @@ each call is an HTTP request to the bridge (the package
 `zmart_interface/framework/bridge/`), which speaks to the ZMART Controller,
 which speaks to whichever driver was chosen at Connect, the interface's own
 mock microscope included. `mock.js` pretends in the browser alone, for
-working on the page without a bridge. Their shape, as `live.js` has it today:
+working on the page without a bridge. They hold the verbs every workflow
+shares, as `live.js` has them today:
 
 ```js
 export const backend = {
-  // the session
-  async instruments(), async connect(session, …), async disconnect(), async info(),
+  // the session; `experiment` is what the workflow calls its runs on disk
+  async instruments(), async connect(session, { experiment, … }), async disconnect(), async info(),
   // the stage and the instrument's settings, in the controller's own words
   async get_xyz(), async set_xyz({ x, y, z }),
   async get_acquisition_settings(), async set_state(settings), async readSetting(type),
   async acquire(…),
+  // the pictures
+  viewOf(acquisitionType), async viewerSources(onStatus),
+};
+```
+
+A workflow's own verbs live with the workflow. Target acquisition's are in
+`workflows/target_acquisition/backend/` (`live.js` speaking to its Python
+half under `/api/target_acquisition/`, `pretend.js` its rehearsal):
+
+```js
+export const targetAcquisition = {
   // the runs, each followed by polling and stopped by the operator's Interrupt
   async measureFocus(points, { metric, onPoint, … }), async stopFocusMeasure(),
   async scanOverview({ positions, onProgress, … }), async stopScan(),
   async discoverTargets({ fields, settings, onField, … }), async stopTargets(),
   async acquireTargets({ positions, focus, zOffsetUm, … }), async stopAcquireTargets(),
-  async computePlot(…), async stopPlot(),
-  // protocols and pictures
+  async computePlot(…), async stopPlot(), async raiseTarget(label),
+  // protocols
   async protocols(), async saveProtocol(protocol), async saveProtocolAs(protocol, name),
-  viewOf(acquisitionType), async viewerSources(onStatus), async raiseTarget(label),
 };
 ```
 
-`backend-contract.js` lists the promises both keep, and
-`backend-contract.test.js` holds `mock.js` to them on every change and a
-running bridge to them when asked.
+`parts/microscope/backend-contract.js` lists the promises the shared verbs
+keep, and the workflow's `backend/backend-contract.js` its own; each test
+holds the pretend side to them on every change and a running bridge to them
+when asked.
 
 Which backend a run speaks to is the workflow's to say: its `flow.js` exports
-`backendFor(search)`, which answers `live.js`, or `mock.js` when the page's
-address asks for `?backend=pretend`. The framework asks and never imports
-either. If wiring a microscope means editing a step's controls, the seam
-leaked and wants fixing first.
+`backendFor(search)`, which puts the shared verbs and its own together, live,
+or pretend when the page's address asks for `?backend=pretend`. The
+framework asks and never imports either. If wiring a microscope means editing
+a step's controls, the seam leaked and wants fixing first.
 
 ## Channels
 

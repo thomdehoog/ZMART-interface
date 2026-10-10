@@ -18,6 +18,8 @@ import { canvasPanel } from "../../parts/canvas/panel.js";
    `?backend=pretend`, for this page's own browser tests. */
 import { backend as liveBackend } from "../../parts/microscope/live.js";
 import { backend as pretendBackend } from "../../parts/microscope/mock.js";
+import { targetAcquisition } from "./backend/live.js";
+import { targetAcquisitionPretend } from "./backend/pretend.js";
 import { installTargetAcquisition } from "./on-the-page.js";
 import { steps as theRun } from "./the-run.js";
 
@@ -31,11 +33,37 @@ export { freshState, keptAcrossSessions, forTests } from "./shared/run-document.
     and the functions its steps lend the page. */
 export const install = installTargetAcquisition;
 
+/** What a run of this workflow is called on disk: `target-acquisition_<hash>`.
+    Sent when connecting, and never changed, so the runs and protocols saved
+    before are still found (`bridge/protocols.py` keeps the same name). */
+export const EXPERIMENT = "target-acquisition";
+
+/** One backend for the steps: the shared verbs every workflow uses, and
+    this workflow's own, with the connection naming this workflow's runs.
+    Each verb is looked up on its own backend when it is called, not copied
+    once, so a test that stands in for one verb is heard. */
+function withOurVerbs(shared, ours) {
+  const backend = {};
+  for (const [from, names] of [[shared, Object.keys(shared)], [ours, Object.keys(ours)]]) {
+    for (const name of names) {
+      backend[name] = typeof from[name] === "function"
+        ? function (...args) { return from[name].apply(this, args); }
+        : from[name];
+    }
+  }
+  backend.connect = function (session, options = {}) {
+    return shared.connect.call(this, session, { ...options, experiment: EXPERIMENT });
+  };
+  return backend;
+}
+
+const live = withOurVerbs(liveBackend, targetAcquisition);
+const pretend = withOurVerbs(pretendBackend, targetAcquisitionPretend);
+
 /** Which backend this workflow's steps speak to, given the page's own
     address: the rehearsal when it asks for `?backend=pretend`, the bridge
     otherwise. */
-export const backendFor = (search) =>
-  (search.get("backend") === "pretend" ? pretendBackend : liveBackend);
+export const backendFor = (search) => (search.get("backend") === "pretend" ? pretend : live);
 
 export const blurb =
   "Find the targets on an overview and acquire them, on the microscope chosen "

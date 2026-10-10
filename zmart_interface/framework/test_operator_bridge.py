@@ -26,22 +26,25 @@ from zmart_controller import ZmartController, register_driver
 from zmart_interface import mock_microscope
 from zmart_interface.framework.bridge import (
     connecting,
-    discovery,
-    focus,
     pictures,
-    plots,
-    protocols,
     readings,
-    scan,
     server,
     stage,
     state,
-    targets,
 )
 from zmart_interface.parts.analysis import detection, focus_score, warm
 from zmart_interface.parts.microscope.instrument import Instrument
 from zmart_interface.parts.storage import output, viewer_service
 from zmart_interface.parts.storage.output import prepare_experiment
+from zmart_interface.workflows.target_acquisition.bridge import (
+    discovery,
+    focus,
+    ledgers,
+    plots,
+    protocols,
+    scan,
+    targets,
+)
 
 
 class _Enveloped:
@@ -264,8 +267,8 @@ def _measured(asked):
         record = readings.capture({"folder": "focussing", "position_label": begun["labels"][index]})["content"]
         focus.score_focus({"record": record, "centre": at["z"]["position"], "point": point})
     focus.end_focus({})
-    assert state.focus["error"] is None, state.focus["error"]
-    return dict(state.focus)
+    assert ledgers.focus["error"] is None, ledgers.focus["error"]
+    return dict(ledgers.focus)
 
 
 def test_a_scan_cannot_start_while_the_page_is_measuring_a_map(driver):
@@ -589,9 +592,9 @@ def _scanned(driver, positions, monkeypatch, **asked):
     monkeypatch.setattr(state, "session", _plugged(driver))
     kind = asked.get("acquisition_type", "overview")
     state.records[kind] = []
-    state.scan.update(running=True, done=0, of=len(positions), error=None, acquisition_type=kind)
+    ledgers.scan.update(running=True, done=0, of=len(positions), error=None, acquisition_type=kind)
     scan.scan_worker(positions, **asked)
-    assert state.scan["error"] is None, state.scan["error"]
+    assert ledgers.scan["error"] is None, ledgers.scan["error"]
     return scan.the_scan()
 
 
@@ -677,8 +680,8 @@ def _targets_taken(positions, *, append=False, focus=None):
             "focus": found and {"z_peak_um": found["z"], "found": found["z"] is not None},
         })
     targets.end_target_run({})
-    assert state.acquired["error"] is None, state.acquired["error"]
-    return dict(state.acquired)
+    assert ledgers.acquired["error"] is None, ledgers.acquired["error"]
+    return dict(ledgers.acquired)
 
 
 def test_the_targets_are_taken_one_by_one_as_the_page_drives_them(driver, monkeypatch):
@@ -754,12 +757,12 @@ def test_a_scan_cannot_start_while_targets_are_being_taken(driver):
             focus.begin_focus({"of": 1})
     finally:
         targets.end_target_run({})
-    state.scan["running"] = True
+    ledgers.scan["running"] = True
     try:
         with pytest.raises(RuntimeError, match="run"):
             targets.begin_target_run({"positions": [{"x": 0, "y": 0}]})
     finally:
-        state.scan["running"] = False
+        ledgers.scan["running"] = False
 
 
 def test_a_scan_captures_under_the_kind_of_scan_it_is(monkeypatch):
@@ -792,16 +795,16 @@ def test_a_scan_really_captures_at_every_position(mock_instrument, monkeypatch, 
             {"x": 900.0, "y": 0.0, "z": 5_000.0, "compartment": 1, "group": 1},
             {"x": 0.0, "y": 700.0, "z": 5_000.0, "compartment": 2, "group": 2},
         ]
-        state.scan.update(
+        ledgers.scan.update(
         running=True, done=0, of=len(positions), error=None, acquisition_type="overview"
     )
         state.records["overview"] = []
         scan.scan_worker(positions)
-        assert state.scan["error"] is None, state.scan["error"]
+        assert ledgers.scan["error"] is None, ledgers.scan["error"]
     finally:
         session.disconnect()
 
-    assert state.scan["done"] == 3
+    assert ledgers.scan["done"] == 3
     records = state.records["overview"]
     assert [record["position_label"] for record in records] == [
         "K00_M000001_G000001_P000000_V00",
@@ -850,14 +853,14 @@ def test_a_scan_stops_and_says_so_when_a_capture_fails(mock_instrument, monkeypa
     monkeypatch.setattr(state, "session", _FailsOnTheSecond(session))
     try:
         positions = [{"x": 0.0, "y": 0.0}, {"x": 900.0, "y": 0.0}, {"x": 1_800.0, "y": 0.0}]
-        state.scan.update(running=True, done=0, of=3, error=None, acquisition_type="overview")
+        ledgers.scan.update(running=True, done=0, of=3, error=None, acquisition_type="overview")
         scan.scan_worker(positions)
     finally:
         session.disconnect()
 
-    assert state.scan["error"] == "the shutter did not open"
-    assert state.scan["done"] == 1  # the one that finished, not the one that failed
-    assert state.scan["running"] is False
+    assert ledgers.scan["error"] == "the shutter did not open"
+    assert ledgers.scan["done"] == 1  # the one that finished, not the one that failed
+    assert ledgers.scan["running"] is False
     assert len(state.records["overview"]) == 1
 
 
@@ -880,9 +883,9 @@ def test_the_viewer_makes_a_picture_of_every_field_that_was_imaged(mock_instrume
             {"x": 0.0, "y": 0.0, "z": 5_000.0},
             {"x": 900.0, "y": 0.0, "z": 5_000.0},
         ]
-        state.scan.update(running=True, done=0, of=2, error=None, acquisition_type="overview")
+        ledgers.scan.update(running=True, done=0, of=2, error=None, acquisition_type="overview")
         scan.scan_worker(positions)
-        assert state.scan["error"] is None, state.scan["error"]
+        assert ledgers.scan["error"] is None, ledgers.scan["error"]
 
         view = pictures.view_of("overview")
         # Nothing is made while the run goes: the run only acquires.
@@ -912,7 +915,7 @@ def test_nothing_is_drawn_for_a_scan_that_has_imaged_nothing(mock_instrument, mo
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
     monkeypatch.setattr(state, "session", session)
     try:
-        state.scan.update(running=False, done=0, of=0, error=None, acquisition_type="overview")
+        ledgers.scan.update(running=False, done=0, of=0, error=None, acquisition_type="overview")
         assert pictures.the_view_of("overview") is None
     finally:
         session.disconnect()
@@ -1033,11 +1036,11 @@ def _discovered(asked):
 
     discovery.discover_targets(asked)
     for _ in range(200):
-        if not state.targets["running"]:
+        if not ledgers.targets["running"]:
             break
         time.sleep(0.01)
-    assert state.targets["error"] is None, state.targets["error"]
-    return dict(state.targets)
+    assert ledgers.targets["error"] is None, ledgers.targets["error"]
+    return dict(ledgers.targets)
 
 
 def test_targets_are_found_field_by_field_over_the_overview(monkeypatch):
@@ -1124,7 +1127,7 @@ def test_fast_fields_are_found_several_at_once_and_kept_in_the_samples_order(mon
     class _Wide(_Serial):
         def each(self, records, settings, *, at_once, until=None):
             self.widths.append(at_once)
-            seen["doing"] = state.targets["doing"]
+            seen["doing"] = ledgers.targets["doing"]
             for field in sorted(records, reverse=True):
                 yield field, self.one(records[field], field, settings)
 
@@ -1259,11 +1262,11 @@ def test_a_worker_put_down_by_the_hand_is_a_stop_not_a_failure(monkeypatch):
     monkeypatch.setattr(discovery, "find_targets", finder)
     discovery.discover_targets({"settings": {}})
     for _ in range(200):
-        if not state.targets["running"]:
+        if not ledgers.targets["running"]:
             break
         time.sleep(0.01)
-    assert state.targets["stopped"] is True
-    assert state.targets["error"] is None
+    assert ledgers.targets["stopped"] is True
+    assert ledgers.targets["error"] is None
 
 
 def test_a_position_without_a_height_is_scanned_where_the_objective_stands(monkeypatch):
@@ -1320,13 +1323,13 @@ def test_a_fresh_connect_forgets_the_last_sessions_runs(monkeypatch, tmp_path):
     just-connected canvas showed a scan nobody had taken."""
     monkeypatch.setattr(state, "output_root", str(tmp_path))
     state.records["overview"] = [{"stale": True}]
-    state.scan.update(running=False, done=5, of=5, error=None, acquisition_type="overview")
-    state.focus.update(running=False, done=3, of=3, error=None, points=[{"x": 1}])
+    ledgers.scan.update(running=False, done=5, of=5, error=None, acquisition_type="overview")
+    ledgers.focus.update(running=False, done=3, of=3, error=None, points=[{"x": 1}])
     try:
         connecting.connect({"instrument": connecting.INTERFACE_MOCK})
         assert state.records == {}
         assert scan.the_scan()["done"] == 0 and scan.the_scan()["records"] == []
-        assert state.focus["points"] == []
+        assert ledgers.focus["points"] == []
     finally:
         connecting.disconnect()
 
@@ -1602,7 +1605,7 @@ def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(mon
 
 def test_starting_a_scan_names_the_stores_it_keeps_by_the_new_plan(driver, monkeypatch):
     # The scan's thread is never started here, so its "running" is put back after.
-    monkeypatch.setitem(state.scan, "running", False)
+    monkeypatch.setitem(ledgers.scan, "running", False)
     asked = []
     monkeypatch.setattr(pictures, "replace_the_acquisition", lambda kind, keeping: asked.append((kind, keeping)))
     monkeypatch.setattr(threading, "Thread", lambda **kw: type("T", (), {"start": lambda self: None})())
@@ -1630,9 +1633,9 @@ def test_a_copy_is_drawn_with_the_display_the_page_asks_with(mock_instrument, mo
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
     monkeypatch.setattr(state, "session", session)
     try:
-        state.scan.update(running=True, done=0, of=1, error=None, acquisition_type="overview")
+        ledgers.scan.update(running=True, done=0, of=1, error=None, acquisition_type="overview")
         scan.scan_worker([{"x": 0.0, "y": 0.0, "z": 5_000.0}])
-        assert state.scan["error"] is None, state.scan["error"]
+        assert ledgers.scan["error"] is None, ledgers.scan["error"]
         label = state.records["overview"][0]["position_label"]
 
         class _Probe(server.Bridge):
@@ -1683,17 +1686,17 @@ def test_a_targets_scan_publishes_separate_originals_and_raises_by_order(mock_in
     """The viewer owns composition; the bridge only publishes originals and order."""
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
     monkeypatch.setattr(state, "session", session)
-    monkeypatch.setattr(state, "run", prepare_experiment(str(tmp_path), connecting.EXPERIMENT))
+    monkeypatch.setattr(state, "run", prepare_experiment(str(tmp_path), protocols.EXPERIMENT))
     try:
         positions = [{"x": 1000.0, "y": 1000.0, "z": 0.0}, {"x": 1060.0, "y": 1000.0, "z": 0.0}]
         scan.start_scan({"positions": positions, "acquisition_type": "targets"})
         for _ in range(200):
-            if not state.scan["running"]:
+            if not ledgers.scan["running"]:
                 break
             time.sleep(0.1)
-        assert state.scan["error"] is None, state.scan["error"]
-        assert state.scan["done"] == 2
-        assert not [r.get("zarr_error") for r in state.scan["records"] if r.get("zarr_error")]
+        assert ledgers.scan["error"] is None, ledgers.scan["error"]
+        assert ledgers.scan["done"] == 2
+        assert not [r.get("zarr_error") for r in ledgers.scan["records"] if r.get("zarr_error")]
         watched = sorted(p.name for p in (state.the_run() / "positions" / "targets").iterdir())
         assert len(watched) == 2 and all(name.startswith("targets_") for name in watched)
         originals = {p: p.read_bytes() for p in (state.the_run() / "positions" / "targets").rglob("*") if p.is_file()}
@@ -1761,10 +1764,10 @@ def _plotted(asked):
 
     plots.compute_plot(asked)
     for _ in range(600):
-        if not state.plots["running"]:
+        if not ledgers.plots["running"]:
             break
         time.sleep(0.05)
-    return dict(state.plots)
+    return dict(ledgers.plots)
 
 
 def test_a_plot_needs_the_population_table(monkeypatch):
@@ -1802,18 +1805,18 @@ def test_the_components_are_computed_apart_and_handed_back_as_columns(monkeypatc
 def test_a_plot_is_refused_while_one_runs_or_detection_runs(monkeypatch):
     _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
-    state.plots["running"] = True
+    ledgers.plots["running"] = True
     try:
         with pytest.raises(RuntimeError, match="already"):
             plots.compute_plot({"kind": "pca"})
     finally:
-        state.plots["running"] = False
-    state.targets["running"] = True
+        ledgers.plots["running"] = False
+    ledgers.targets["running"] = True
     try:
         with pytest.raises(RuntimeError, match="detect"):
             plots.compute_plot({"kind": "pca"})
     finally:
-        state.targets["running"] = False
+        ledgers.targets["running"] = False
 
 
 def test_a_stopped_plot_says_so_and_a_failed_one_says_why(monkeypatch):
