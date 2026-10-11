@@ -127,7 +127,9 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
     two kinds of description that sit beside the images: the state the driver
     printed (named under ``metadata``) goes to ``data_dir/metadata/ZMART_state``,
     and the microscope software's own metadata (named under
-    ``vendor_metadata``) to ``data_dir/metadata/vendor``. Every file a plane
+    ``vendor_metadata``) to ``data_dir/metadata/vendor``. What was made from
+    the capture goes beside ``data``: a projection (``projections``) to
+    ``projections/``, the driver's log of the capture (``log``) to ``log/``. Every file a plane
     or a description names must be one of the files, so that the record can
     never disagree with itself about what was saved.
 
@@ -144,6 +146,7 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
     sources = list(dict.fromkeys(Path(value) for value in files))
     named = [plane["path"] for plane in record.get("planes", [])]
     named += [*record.get("metadata", []), *record.get("vendor_metadata", [])]
+    named += [*record.get("projections", []), *record.get("log", [])]
     unlisted = [value for value in named if Path(value) not in sources]
     if unlisted:
         raise RuntimeError(f"the capture names {unlisted}, not among the files it saved")
@@ -152,6 +155,9 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
     beside = {
         **{Path(value): destination / "metadata" / "vendor" for value in record.get("vendor_metadata", [])},
         **{Path(value): destination / "metadata" / "ZMART_state" for value in record.get("metadata", [])},
+        # Made from the capture, so beside ``data`` rather than in it.
+        **{Path(value): destination.parent / "projections" for value in record.get("projections", [])},
+        **{Path(value): destination.parent / "log" for value in record.get("log", [])},
     }
     moves = [(source, beside.get(source, destination) / source.name) for source in sources]
     targets = [target for _, target in moves]
@@ -180,7 +186,7 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
     record["files"] = [mapped[source] for source in sources]
     for plane in record.get("planes", []):
         plane["path"] = mapped[Path(plane["path"])]
-    for key in ("metadata", "vendor_metadata"):
+    for key in ("metadata", "vendor_metadata", "projections", "log"):
         if record.get(key):
             record[key] = [mapped[Path(value)] for value in record[key]]
     return record

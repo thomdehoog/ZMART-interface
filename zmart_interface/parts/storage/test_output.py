@@ -206,3 +206,29 @@ def test_hash_and_name_validation_are_fail_closed(tmp_path):
         prepare_experiment(tmp_path, "../escape")
     with pytest.raises(ValueError, match="acquisition_type"):
         prepare_acquisition(tmp_path, "../overview")
+
+
+def test_a_projection_and_the_log_land_beside_data(tmp_path):
+    """What is made from a capture goes beside ``data``: its projection, and the driver's log."""
+    staging = tmp_path / "staging"
+    (staging / "projections" / "a.ome.zarr").mkdir(parents=True)
+    (staging / "projections" / "a.ome.zarr" / "zarr.json").write_text("{}", encoding="utf-8")
+    (staging / "data" / "a.ome.zarr").mkdir(parents=True)
+    (staging / "log").mkdir()
+    (staging / "log" / "a.log.json").write_text("{}", encoding="utf-8")
+    store, projection, log = staging / "data" / "a.ome.zarr", staging / "projections" / "a.ome.zarr", staging / "log" / "a.log.json"
+    record = {
+        "files": [str(store), str(projection), str(log)],
+        "planes": [{"t": 0, "c": 0, "z": 0, "path": str(store)}],
+        "projections": [str(projection)],
+        "log": [str(log)],
+    }
+    data = tmp_path / "run" / "overview" / "data"
+
+    result = move_record_images(record, data)
+
+    assert result["planes"][0]["path"] == str(data / "a.ome.zarr")
+    assert result["projections"] == [str(data.parent / "projections" / "a.ome.zarr")]
+    assert result["log"] == [str(data.parent / "log" / "a.log.json")]
+    assert (data.parent / "projections" / "a.ome.zarr" / "zarr.json").is_file()
+    assert (data.parent / "log" / "a.log.json").is_file()

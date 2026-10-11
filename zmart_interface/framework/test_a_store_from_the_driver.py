@@ -72,7 +72,7 @@ def announced(monkeypatch):
     told = []
     monkeypatch.setattr(
         viewer_service, "a_position_landed",
-        lambda kind, folder, *, store: told.append((kind, Path(folder), Path(store))),
+        lambda kind, folder, *, store, projections_in=None: told.append((kind, Path(folder), Path(store))),
     )
     return told
 
@@ -187,3 +187,52 @@ def test_the_interface_asks_for_one_store_when_the_driver_can_write_it(formats, 
 
     assert session.asked.get("format") == asked
     assert session.asked["folder"] == "overview"
+
+
+def test_the_viewer_is_told_where_the_drivers_projections_are(run, monkeypatch):
+    landed = []
+    monkeypatch.setattr(
+        viewer_service, "a_position_landed",
+        lambda kind, folder, *, store, projections_in=None: landed.append((kind, Path(projections_in))),
+    )
+    data = run / "focussing" / "data"
+    data.mkdir(parents=True)
+    stack = a_driver_store(data, "focussing_000001_F1.ome.zarr", np.zeros((1, 1, 3, 8, 8), np.uint16))
+    projection = a_driver_store(run / "focussing" / "projections", "focussing_000001_F1.ome.zarr",
+                                np.zeros((1, 1, 1, 8, 8), np.uint16))
+    record = a_record_from(stack, channels=1, label="F1")
+    record["planes"] = [{**record["planes"][0], "z": z} for z in range(3)]
+    record["projections"] = [str(projection)]
+    flat = a_driver_store(run / "overview" / "data", "overview_000002_A1.ome.zarr", np.zeros((1, 1, 1, 8, 8), np.uint16))
+
+    pictures.keep_position_as_zarr(record, "focussing")
+    pictures.keep_position_as_zarr(a_record_from(flat, channels=1), "overview")
+
+    assert landed == [
+        ("focussing", run / "focussing" / "projections"),
+        ("overview", run / "overview" / "data"),
+    ], "a stack's projection is the driver's; a flat capture is its own"
+
+
+def test_the_view_asks_the_viewer_to_read_the_given_projections(monkeypatch, tmp_path):
+    asked = []
+    monkeypatch.setattr(viewer_service, "_ask", lambda port, path, body: asked.append((path, body)))
+    data = tmp_path / "run" / "overview" / "data"
+    data.mkdir(parents=True)
+    (data / "overview_1_A1.ome.zarr").mkdir()
+    wake = type("Wake", (), {"set": lambda self: None})()
+    for key, value in {
+        "port": 1, "wake": wake, "opened": set(), "bake": False, "canvas": {},
+        "run_folder": str(tmp_path / "run"), "pending": set(), "publishing": set(),
+        "source_versions": {}, "source_order": {}, "folder_types": {}, "projections_in": {},
+    }.items():
+        monkeypatch.setitem(viewer_service._viewer, key, value)
+    monkeypatch.setattr(viewer_service, "_refresh_metadata", lambda wake, include_pending: None)
+
+    viewer_service.a_position_landed("overview", data, store=data / "overview_1_A1.ome.zarr", projections_in=data)
+    viewer_service._publish_once(wake, {str(data)})
+
+    [(path, body)] = asked
+    assert path == "/api/stores/open"
+    assert body["views"]["projection_path"] == str(data)
+    assert body["views"]["projections_given"] is True

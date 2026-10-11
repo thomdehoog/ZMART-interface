@@ -41,11 +41,17 @@ def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
     """
     try:
         store = the_drivers_store(record)
+        projections_in = None
         if store is not None:
             # The driver saved the capture as one OME-Zarr image: that is the
-            # capture's one copy, used as it is.
+            # capture's one copy, used as it is. So is its projection: the
+            # driver's, beside the data, or a flat capture itself.
             folder = store.parent
             record["zarr"] = str(store)
+            if record.get("projections"):
+                projections_in = Path(record["projections"][0]).parent
+            elif len({plane.get("z") for plane in record.get("planes") or []}) == 1:
+                projections_in = folder
         else:
             folder = state.the_run() / "positions" / acquisition_type
             record["zarr"] = str(position_store_from_record(record, folder, pixel_provider=state.pixel_provider))
@@ -63,7 +69,9 @@ def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
         return
     # The viewer beside this bridge links the folder into one live picture;
     # the first position of a kind opens it, the rest ring the doorbell.
-    viewer_service.a_position_landed(acquisition_type, folder, store=record["zarr"])
+    viewer_service.a_position_landed(
+        acquisition_type, folder, store=record["zarr"], projections_in=projections_in,
+    )
 
 
 def the_drivers_store(record: dict) -> Path | None:

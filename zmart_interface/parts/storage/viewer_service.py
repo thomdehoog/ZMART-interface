@@ -196,6 +196,7 @@ def stop() -> None:
             opened=set(),
             source_versions={},
             source_order={},
+            projections_in={},
             published_versions={},
             publishing=set(),
             publication_failures={},
@@ -247,10 +248,18 @@ def status() -> dict:
 
 
 def a_position_landed(
-    acquisition_type: str, positions_folder: Path | str, *, store: Path | str
+    acquisition_type: str, positions_folder: Path | str, *, store: Path | str,
+    projections_in: Path | str | None = None,
 ) -> None:
-    """Record a completed write; publication must never hold up acquisition."""
+    """Record a completed write; publication must never hold up acquisition.
+
+    *projections_in* is where this kind's projections already lie, made by
+    the microscope's driver under each store's own name (or, for flat
+    captures, their own folder): the viewer then reads them and makes none.
+    """
     with _the_turn:
+        if projections_in is not None:
+            _viewer.setdefault("projections_in", {}).setdefault(acquisition_type, str(projections_in))
         if _viewer["port"] is None:
             return
         versions = _viewer["source_versions"]
@@ -339,6 +348,7 @@ def _publish_once(wake: threading.Event, pending: set[str]) -> bool:
         orders = {kind: list(names) for kind, names in _viewer["source_order"].items()}
         canvas = _viewer["canvas"]
         run_folder = Path(_viewer["run_folder"])
+        given = dict(_viewer.get("projections_in", {}))
         _viewer.setdefault("publishing", set()).update(pending)
     retry = set()
     blocked_folders = set()
@@ -363,7 +373,11 @@ def _publish_once(wake: threading.Event, pending: set[str]) -> bool:
                         "path": str(run_folder / "view"),
                         "acquisition": kind,
                         "modes": [], "projections": ["max"],
-                        "projection_path": str(run_folder / kind / "projections"),
+                        **(
+                            {"projection_path": given[kind], "projections_given": True}
+                            if kind in given
+                            else {"projection_path": str(run_folder / kind / "projections")}
+                        ),
                     },
                 })
                 with _the_turn:
