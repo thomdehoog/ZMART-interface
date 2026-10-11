@@ -236,3 +236,33 @@ def test_the_view_asks_the_viewer_to_read_the_given_projections(monkeypatch, tmp
     assert path == "/api/stores/open"
     assert body["views"]["projection_path"] == str(data)
     assert body["views"]["projections_given"] is True
+
+
+def test_a_microscope_not_told_where_to_save_says_what_to_set_up(monkeypatch, tmp_path):
+    """A class driver answers where it saves and what is set up; connect names what is missing."""
+    from zmart_controller.template.zmart_driver import ZmartDriver
+
+    from zmart_interface.framework.bridge import connecting
+
+    class NotSetUp(ZmartDriver):
+        def __init__(self, connection):
+            pass
+
+        def disconnect(self):
+            pass
+
+        def get_info(self):
+            return True, ("A scope in memory. +z points up.", None, {
+                "limits": {"done": True, "says": "published"},
+                "data_location": {"done": False, "says": "run set_data_location.ipynb once"},
+            })
+
+        def get_xyz(self, with_actuators):
+            return True, (0.0, 0.0, 0.0, {"x": {"m": 0.0}, "y": {"m": 0.0}, "z": {"m": 0.0}},
+                          (-10.0, 10.0, -10.0, 10.0, -1.0, 1.0))
+
+    monkeypatch.setitem(connecting.offered, "not-set-up", (NotSetUp, {}))
+    monkeypatch.setattr(state, "output_root", None)
+
+    with pytest.raises(RuntimeError, match="run set_data_location.ipynb once"):
+        connecting.connect({"instrument": "not-set-up"})

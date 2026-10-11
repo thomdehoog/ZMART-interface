@@ -108,10 +108,16 @@ def connect(asked: dict) -> dict:
             if state.pixels_for is not None else None
         )
         if not info.get("output_root"):
+            # What the microscope says it still needs set up, in its own words.
+            missing = [
+                f"{item}: {state.get('says')}" for item, state in (info.get("setup") or {}).items()
+                if isinstance(state, dict) and not state.get("done")
+            ]
             raise RuntimeError(
                 f"the microscope {name!r} does not say where its pictures are to be saved "
-                "(its get_info gives no 'output_root'); start the interface with --output-root "
-                "to choose a folder"
+                "(its get_info gives no 'output_root')"
+                + (f"; not set up on it: {'; '.join(missing)}" if missing else "")
+                + "; or start the interface with --output-root to choose a folder"
             )
         run = prepare_experiment(info["output_root"], experiment)
         if provider is not None:
