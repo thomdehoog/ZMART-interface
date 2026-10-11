@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sys
+from importlib.metadata import version
 
 from zmart_controller import ZmartController
 from zmart_controller.registry import find_driver, get_instruments
@@ -59,6 +60,24 @@ def saved_connection(name: str) -> dict:
     return find_driver(name)[1]
 
 
+#: The controller versions this interface works with: 0.2.0 and later, below
+#: 0.3. From 0.2.0 a driver's get_info says where the microscope saves
+#: (``output_root``) and what is set up on it (``setup``), which connect
+#: needs; an older controller passes on only the description.
+CONTROLLER_VERSIONS = ">=0.2.0,<0.3"
+
+
+def accept_the_controller(installed_version: str) -> None:
+    """Refuse a controller outside :data:`CONTROLLER_VERSIONS`, saying which was found."""
+    from packaging.specifiers import SpecifierSet  # noqa: PLC0415
+
+    if not SpecifierSet(CONTROLLER_VERSIONS, prereleases=True).contains(installed_version):
+        raise RuntimeError(
+            f"the ZMART Controller {installed_version} is installed, and this interface "
+            f"needs zmart-controller {CONTROLLER_VERSIONS}"
+        )
+
+
 #: What a run is called on disk when the page names nothing: ``run_<hash>``.
 #: A workflow names its own (Target acquisition's runs are
 #: ``target-acquisition_<hash>``), so that its runs are told apart from other
@@ -76,6 +95,7 @@ def connect(asked: dict) -> dict:
     folder is ``<experiment>_<hash>``. It is checked to be a plain folder
     name before anything is opened.
     """
+    accept_the_controller(version("zmart-controller"))
     name = asked.get("instrument")
     if not isinstance(name, str):
         raise ValueError("connect needs the name of one of the microscopes listed by /api/instruments")

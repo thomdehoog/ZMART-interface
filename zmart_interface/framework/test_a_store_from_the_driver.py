@@ -266,3 +266,26 @@ def test_a_microscope_not_told_where_to_save_says_what_to_set_up(monkeypatch, tm
 
     with pytest.raises(RuntimeError, match="run set_data_location.ipynb once"):
         connecting.connect({"instrument": "not-set-up"})
+
+
+@pytest.mark.parametrize("installed", ["0.2.0", "0.2.7"])
+def test_a_controller_with_the_three_part_get_info_is_accepted(installed):
+    from zmart_interface.framework.bridge import connecting
+
+    connecting.accept_the_controller(installed)
+
+
+@pytest.mark.parametrize("installed", ["0.1.0", "0.3.0"])
+def test_an_older_or_newer_controller_is_refused_in_words(installed):
+    from zmart_interface.framework.bridge import connecting
+
+    with pytest.raises(RuntimeError, match=f"the ZMART Controller {installed} is installed"):
+        connecting.accept_the_controller(installed)
+
+
+def test_the_installed_controller_is_accepted():
+    from importlib.metadata import version
+
+    from zmart_interface.framework.bridge import connecting
+
+    connecting.accept_the_controller(version("zmart-controller"))
