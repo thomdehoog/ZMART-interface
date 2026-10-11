@@ -286,6 +286,27 @@ def stores_were_retired(acquisition_type: str, positions_folder: Path | str) -> 
             _queue_publication(folder)
 
 
+def forget_stores(acquisition_type: str, keeping: set[str]) -> None:
+    """Stop showing this kind's stores, except those named in *keeping*, without touching them.
+
+    A store a driver saved is the capture itself and is never deleted; a
+    rerun of the scan leaves it on disk and only stops handing it to the
+    viewer, the way a deleted store of the interface's own drops out.
+    """
+    with _the_turn:
+        versions = _viewer["source_versions"]
+        gone = [key for key in versions if key[0] == acquisition_type and key[1] not in keeping]
+        for key in gone:
+            del versions[key]
+        order = _viewer["source_order"].get(acquisition_type)
+        if order is not None:
+            order[:] = [name for name in order if name in keeping]
+        if gone:
+            for folder, kind in _viewer.get("folder_types", {}).items():
+                if kind == acquisition_type:
+                    _queue_publication(folder)
+
+
 def _queue_publication(folder: str) -> None:
     # Called with the turn held. Coalesce by folder, not by frame.
     _viewer["pending"].add(folder)

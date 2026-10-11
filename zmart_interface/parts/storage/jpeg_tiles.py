@@ -119,6 +119,8 @@ def pixel_size_um(path: Path | str) -> float:
     """
     import tifffile
 
+    if _is_a_store(path):
+        return _store_pixel_size_um(path)
     with tifffile.TiffFile(path) as tif:
         described = tif.pages[0].description
     try:
@@ -157,12 +159,35 @@ def _flatten(planes: list[Plane]) -> Any:
 
     channels: dict[int, Any] = {}
     for plane in planes:
-        frame = np.asarray(tifffile.imread(plane.path))
+        frame = np.asarray(
+            _store_plane(plane) if _is_a_store(plane.path) else tifffile.imread(plane.path)
+        )
         while frame.ndim > 2:
             frame = frame.max(axis=0)
         held = channels.get(plane.c)
         channels[plane.c] = frame if held is None else np.maximum(held, frame)
     return _colour_channels(channels)
+
+
+def _is_a_store(path: Path | str) -> bool:
+    """Whether a plane's path is an OME-Zarr store (indexed by c, z, t) rather than a file."""
+    return str(path).endswith(".ome.zarr") and Path(path).is_dir()
+
+
+def _store_plane(plane: Plane) -> Any:
+    """One plane of a driver's OME-Zarr store, at full resolution (axes t, c, z, y, x)."""
+    import zarr
+
+    return zarr.open_group(str(plane.path), mode="r")["0"][plane.t, plane.c, plane.z]
+
+
+def _store_pixel_size_um(path: Path | str) -> float:
+    """The x size of one full-resolution voxel, from the store's own description."""
+    attributes = json.loads((Path(path) / "zarr.json").read_text(encoding="utf-8"))["attributes"]
+    multiscale = (attributes.get("ome") or attributes)["multiscales"][0]
+    full = multiscale["datasets"][0]["coordinateTransformations"]
+    scale = next(transform["scale"] for transform in full if transform["type"] == "scale")
+    return float(scale[-1])
 
 
 def _colour_channels(channels):

@@ -40,8 +40,15 @@ def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
     would let a run carry on over real data.
     """
     try:
-        folder = state.the_run() / "positions" / acquisition_type
-        record["zarr"] = str(position_store_from_record(record, folder, pixel_provider=state.pixel_provider))
+        store = the_drivers_store(record)
+        if store is not None:
+            # The driver saved the capture as one OME-Zarr image: that is the
+            # capture's one copy, used as it is.
+            folder = store.parent
+            record["zarr"] = str(store)
+        else:
+            folder = state.the_run() / "positions" / acquisition_type
+            record["zarr"] = str(position_store_from_record(record, folder, pixel_provider=state.pixel_provider))
         if state.pixel_provider is not None:
             record["synthetic_pixels"] = state.pixel_provider.recipe
         # The frame's true width on the sample. A recording made before the
@@ -57,6 +64,19 @@ def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
     # The viewer beside this bridge links the folder into one live picture;
     # the first position of a kind opens it, the rest ring the doorbell.
     viewer_service.a_position_landed(acquisition_type, folder, store=record["zarr"])
+
+
+def the_drivers_store(record: dict) -> Path | None:
+    """The OME-Zarr store the driver saved the capture as, or None for files a plane.
+
+    Every plane then names the same store (its ``c``, ``z``, ``t`` index into
+    it), as the controller's acquire contract allows.
+    """
+    paths = {str(plane.get("path")) for plane in record.get("planes") or []}
+    if len(paths) != 1:
+        return None
+    store = Path(next(iter(paths)))
+    return store if store.name.endswith(".ome.zarr") and store.is_dir() else None
 
 
 #: Where a scan's display copies go: beside ``data``, under the acquisition
@@ -189,6 +209,9 @@ def replace_the_acquisition(acquisition_type: str, keeping: set[str] = frozenset
         for child in stale:
             shutil.rmtree(child, ignore_errors=True)
         viewer_service.stores_were_retired(acquisition_type, positions)
+    # The stores a driver saved are the captures themselves, in ``data``:
+    # never deleted, only no longer shown.
+    viewer_service.forget_stores(acquisition_type, keeping=set(keeping))
     # A store half-written when something crashed is in the shared staging
     # folder beside the positions; swept only while nothing is writing there.
     leftovers = [view_of(acquisition_type)]

@@ -127,6 +127,9 @@ def connect(asked: dict) -> dict:
     state.session = session
     state.context = {**session.context, "name": name}
     state.pixel_provider = provider
+    # Stand-in pixels replace the captured ones while the capture is
+    # converted, so a session that has them keeps the conversion.
+    session.keeps_one_copy = provider is None
     state.run = run
     # A fresh session has scanned nothing. The bridge outlives the page, and
     # records carried over from the last session rebuilt its scan's pictures

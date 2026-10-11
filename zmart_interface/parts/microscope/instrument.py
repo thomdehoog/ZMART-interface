@@ -87,9 +87,15 @@ class Instrument:
     def __init__(self, session: Any) -> None:
         self._session = session
         self.context = dict(session.context)
-        # Whether the driver offers the ``folder`` acquisition setting; asked
-        # once, on the first capture, because the menu's names do not change.
-        self._offers_folder: bool | None = None
+        # The driver's acquisition settings, asked once, on the first
+        # capture, because what the menu offers does not change.
+        self._offered: dict | None = None
+        #: Whether a capture is kept as the one copy the driver writes: when
+        #: the driver can write OME-Zarr itself, it is asked to, and nothing
+        #: converts it afterwards. Off only when the pixels are to be replaced
+        #: on the way in (the simulator's stand-in specimen), which needs the
+        #: interface's own conversion.
+        self.keeps_one_copy = True
 
     def get_info(self) -> dict:
         return unwrap(self._session.get_info(), "describe itself")
@@ -135,18 +141,28 @@ class Instrument:
         driver that does not offer it is simply not told. Either way the
         interface files the capture under this name itself afterwards, and
         never reads it back from the driver's answer.
+
+        A driver that offers ``"ome-zarr"`` as its ``format`` is asked for it
+        (unless :attr:`keeps_one_copy` is off): the capture then arrives as
+        one OME-Zarr store, the one copy the interface keeps.
         """
         settings = dict(acquisition_settings or {})
-        if folder is not None and self._the_driver_offers_folder():
+        if folder is not None and "folder" in self._the_drivers_settings():
             settings.setdefault("folder", folder)
+        if self.keeps_one_copy and "ome-zarr" in self._the_formats_offered():
+            settings.setdefault("format", "ome-zarr")
         return self._session.acquire(
             position_label=position_label, acquisition_settings=settings or None,
         )
 
-    def _the_driver_offers_folder(self) -> bool:
-        if self._offers_folder is None:
-            self._offers_folder = "folder" in self.get_acquisition_settings()
-        return self._offers_folder
+    def _the_drivers_settings(self) -> dict:
+        if self._offered is None:
+            self._offered = self.get_acquisition_settings()
+        return self._offered
+
+    def _the_formats_offered(self) -> list:
+        options = (self._the_drivers_settings().get("format") or {}).get("options")
+        return list(options) if isinstance(options, list) else []
 
     def disconnect(self) -> None:
         self._session.disconnect()
