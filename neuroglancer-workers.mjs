@@ -174,17 +174,22 @@ async function compile(name, entry, plugins = []) {
  */
 export async function readyTheBackgroundPrograms() {
   /* The viewer owns the edits this page's neuroglancer needs: the growth
-     edits, which let a picture grow while it is on screen, and the
-     transparency edits, which keep an image see-through only where nothing
-     was imaged. They are applied from the installed viewer, so the two pages
-     cannot drift apart; see `the-installed-viewer.mjs`. */
+     edits, which let a picture grow while it is on screen, the transparency
+     edits, which let what lies beneath show through where nothing was
+     imaged, and the refresh edits, which keep a refreshed picture on screen
+     until its fresh pieces arrive. They are applied from the installed
+     viewer, so the two pages cannot drift apart; see
+     `the-installed-viewer.mjs`. Only the modules are edited: both background
+     programs are compiled from them just below. */
   const drawing = theViewersDrawingFolder();
   const { applyGrowthPatches, workerEntry } = await import(
     pathToFileURL(join(drawing, "neuroglancer-growth.mjs")).href);
-  const { applyPatches, transparencyPatches } = await import(
+  const { applyPatches, transparencyPatches, refreshPatches } = await import(
     pathToFileURL(join(drawing, "neuroglancer-patches.mjs")).href);
   applyGrowthPatches(WHERE_THE_WORKERS_LIVE);
-  const problems = applyPatches(transparencyPatches(WHERE_THE_WORKERS_LIVE), { say: () => {} });
+  const problems = applyPatches(
+    [...transparencyPatches(WHERE_THE_WORKERS_LIVE), ...refreshPatches(WHERE_THE_WORKERS_LIVE)],
+    { modulesOnly: true, say: () => {} });
   if (problems.length) throw new Error(problems.join("\n"));
   const unpacking = await compile(THE_UNPACKING_PROGRAM, workerEntry(WHERE_THE_WORKERS_LIVE, THE_UNPACKING_PROGRAM));
   const fetching = await compile(THE_FETCHING_PROGRAM, workerEntry(WHERE_THE_WORKERS_LIVE, THE_FETCHING_PROGRAM), [lookBesideMeInstead]);

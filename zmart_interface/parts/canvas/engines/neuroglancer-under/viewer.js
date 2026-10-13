@@ -612,13 +612,13 @@ async function start(own, acquisitions) {
     showPanelBorders: false,
     showLayerDialog: false,
     resetStateWhenEmpty: false,
+    transparentBackground: own.transparentBackground,
   });
 
   // -- the three things that are set in exactly one place, here ------------
 
   // Which panels are on screen. Paired with the axis order below; see FLAT_LAYOUT.
   own.viewer.layout.restoreState(FLAT_LAYOUT);
-  own.viewer.display.transparentBackground = own.transparentBackground;
 
   // The engine's own furniture is off. It draws a cluster of layout buttons in
   // one corner, a panel of axis names in another, axis lines through the middle
@@ -2319,7 +2319,7 @@ function handleFor(own) {
       own.showingVolume = on !== false;
       syncCoverageVisibility(own);
       own.viewer.layout.restoreState(own.showingVolume ? VOLUME_LAYOUT : FLAT_LAYOUT);
-      own.viewer.display.transparentBackground = own.transparentBackground && !own.showingVolume;
+      own.viewer.uiConfiguration.transparentBackground.value = own.transparentBackground && !own.showingVolume;
       handTheEngineItsOwnGestures(own);
       for (const row of own.rows) {
         const layer = row.managed?.layer;
