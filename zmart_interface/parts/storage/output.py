@@ -7,6 +7,7 @@ without renaming them, into the acquisition's ``data`` folder.
 
 from __future__ import annotations
 
+import glob
 import re
 import shutil
 import uuid
@@ -93,6 +94,36 @@ def prepare_acquisition(
     data = root / "data"
     data.mkdir(exist_ok=True)
     return AcquisitionOutput(root=root, data=data)
+
+
+def run_hash(run: Any) -> str:
+    """The hash of a run folder ``<experiment>_<hash6>``: what tells this run's files from another's."""
+    return _validate_hash(Path(run).name.rsplit("_", 1)[-1])
+
+
+def file_stem(acquisition_type: str, hash6: str, label: str) -> str:
+    """How every file of one capture begins: ``{acquisition_type}_{hash6}_{label}``.
+
+    This is the naming convention's stem. The workflow decides it and hands it
+    to the driver as the position label; the driver adds only the time point,
+    channel and plane (``_T000000_C00_Z00000``), so files from every
+    microscope are named alike and can be read without opening them.
+    """
+    return f"{checked_name(acquisition_type, field='acquisition_type')}_{_validate_hash(hash6)}_{label}"
+
+
+def free_stem(data: Any, stem: str) -> str:
+    """``stem``, or ``stem_001``, ``stem_002``, ...: the first no earlier capture in *data* used.
+
+    A run never loses a capture to a rerun: the position taken again keeps the
+    same label, and its files take the next free name beside the first ones.
+    """
+    data = Path(data)
+    candidate, number = stem, 0
+    while any(data.glob(f"{glob.escape(candidate)}_T*")) or (data / f"{candidate}.ome.zarr").exists():
+        number += 1
+        candidate = f"{stem}_{number:03d}"
+    return candidate
 
 
 def position_label(

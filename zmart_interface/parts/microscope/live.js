@@ -256,9 +256,9 @@ export const backend = {
    *
    * `folder` is the page's own name for the acquisition this capture belongs
    * to (overview, focussing, targets, ...), not part of the controller's
-   * contract. The bridge offers it to the driver as its `folder` acquisition
-   * setting when the driver has one, so the pictures of one acquisition stay
-   * together on disk.
+   * contract. The bridge starts every file name with it, then the run's hash
+   * and the label (`{folder}_{hash}_{position_label}`), and files the record
+   * under the page's own label, with that stem as `file_stem`.
    */
   async acquire({ position_label, acquisition_settings = null, folder = null }) {
     return ask("/api/acquire", { position_label, acquisition_settings, folder });

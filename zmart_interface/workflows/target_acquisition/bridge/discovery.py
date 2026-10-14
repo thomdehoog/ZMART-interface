@@ -168,8 +168,5 @@ def keep_targets(cells: list, record: dict) -> None:
     """
     where = state.the_run() / record["acquisition_type"] / "analysis"
     where.mkdir(parents=True, exist_ok=True)
-    name = (
-        f"{record['acquisition_type']}_{record['acquisition_hash']}_"
-        f"{record['position_label']}_T000000_targets.json"
-    )
+    name = f"{record['file_stem']}_T000000_targets.json"
     (where / name).write_text(json.dumps(cells, indent=2), encoding="utf-8")

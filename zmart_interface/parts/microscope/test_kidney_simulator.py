@@ -79,7 +79,7 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         reads = 0
 
         def get_info(self):
-            return {"success": True, "content": {"output_root": str(tmp_path)}}
+            return {"success": True, "content": {"description": "a session in memory", "setup": {}}}
 
         def get_xyz(self):
             self.reads += 1
@@ -97,6 +97,7 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
     monkeypatch.setattr(viewer_service, "start", lambda *a, **k: None)
     monkeypatch.setattr(viewer_service, "stop", lambda: None)
     monkeypatch.setattr(state, "pixels_for", serving.pixels_for(simulator_pixels=enabled))
+    monkeypatch.setattr(state, "output_root", str(tmp_path))
     for name in ("session", "run", "pixel_provider"):
         monkeypatch.setattr(state, name, None)
     for name in ("context", "records", "view_built", "displayed_pictures"):

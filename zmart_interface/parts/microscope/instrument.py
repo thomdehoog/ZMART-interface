@@ -28,6 +28,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from zmart_interface.parts.storage.output import file_stem, free_stem, prepare_acquisition, run_hash
+
 
 class InstrumentDeclined(RuntimeError):
     """The microscope answered, and said it could not do what was asked.
@@ -87,15 +89,10 @@ class Instrument:
     def __init__(self, session: Any) -> None:
         self._session = session
         self.context = dict(session.context)
-        # The driver's acquisition settings, asked once, on the first
-        # capture, because what the menu offers does not change.
-        self._offered: dict | None = None
-        #: Whether a capture is kept as the one copy the driver writes: when
-        #: the driver can write OME-Zarr itself, it is asked to, and nothing
-        #: converts it afterwards. Off only when the pixels are to be replaced
-        #: on the way in (the simulator's stand-in specimen), which needs the
-        #: interface's own conversion.
-        self.keeps_one_copy = True
+        #: The run this session captures into, set at connect. Its hash is the
+        #: middle of every file name (see :func:`file_stem`); without a run, a
+        #: label goes to the driver as it is.
+        self.run: Any = None
 
     def get_info(self) -> dict:
         return unwrap(self._session.get_info(), "describe itself")
@@ -134,35 +131,26 @@ class Instrument:
         way, so it reads the same answer a Python script would.
 
         ``folder`` is the interface's own name for which acquisition this
-        capture belongs to (``"overview"``, ``"focussing"``, ...). It is not
-        part of the controller's contract. When the driver offers an
-        acquisition setting called ``folder``, the name is passed on through
-        it, so the driver keeps the pictures of one acquisition together; a
-        driver that does not offer it is simply not told. Either way the
-        interface files the capture under this name itself afterwards, and
-        never reads it back from the driver's answer.
-
-        A driver that offers ``"ome-zarr"`` as its ``format`` is asked for it
-        (unless :attr:`keeps_one_copy` is off): the capture then arrives as
-        one OME-Zarr store, the one copy the interface keeps.
+        capture belongs to (``"overview"``, ``"focussing"``, ...), the folder
+        of the run it is filed in. With a run open, the driver is given the
+        whole file stem, ``{folder}_{run hash}_{position_label}``, and starts
+        every file name with it; how and where it saves is set up on the
+        microscope, so it is told nothing else. A label already captured in
+        the run gets the next free stem (``_001``, ...), so a rerun never takes
+        an earlier capture's name. The record is then filed under the
+        interface's own ``position_label`` and keeps the stem as
+        ``file_stem``, the name its analysis files start with too.
         """
-        settings = dict(acquisition_settings or {})
-        if folder is not None and "folder" in self._the_drivers_settings():
-            settings.setdefault("folder", folder)
-        if self.keeps_one_copy and "ome-zarr" in self._the_formats_offered():
-            settings.setdefault("format", "ome-zarr")
-        return self._session.acquire(
-            position_label=position_label, acquisition_settings=settings or None,
-        )
-
-    def _the_drivers_settings(self) -> dict:
-        if self._offered is None:
-            self._offered = self.get_acquisition_settings()
-        return self._offered
-
-    def _the_formats_offered(self) -> list:
-        options = (self._the_drivers_settings().get("format") or {}).get("options")
-        return list(options) if isinstance(options, list) else []
+        stem = position_label
+        if folder is not None and self.run is not None:
+            stem = free_stem(
+                prepare_acquisition(self.run, folder).data,
+                file_stem(folder, run_hash(self.run), position_label),
+            )
+        answer = self._session.acquire(position_label=stem, acquisition_settings=acquisition_settings)
+        if isinstance(answer, dict) and answer.get("success") is True and isinstance(answer.get("content"), dict):
+            answer = {**answer, "content": {**answer["content"], "position_label": position_label, "file_stem": stem}}
+        return answer
 
     def disconnect(self) -> None:
         self._session.disconnect()

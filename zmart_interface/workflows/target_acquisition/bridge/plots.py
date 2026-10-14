@@ -16,6 +16,7 @@ from pathlib import Path
 
 from zmart_interface.framework.bridge import state
 from zmart_interface.parts.analysis import warm
+from zmart_interface.parts.storage.output import run_hash
 
 from . import ledgers
 
@@ -25,7 +26,7 @@ def the_population_table() -> Path:
     records = state.records.get("overview") or []
     if not records:
         raise RuntimeError("no overview has been scanned")
-    return state.the_run() / "overview" / "analysis" / f"overview_{records[0]['acquisition_hash']}_objects.csv"
+    return state.the_run() / "overview" / "analysis" / f"overview_{run_hash(state.the_run())}_objects.csv"
 
 
 #: The ZMART-analysis pipeline that draws a multidimensional plot of the
@@ -133,7 +134,6 @@ def keep_the_population(fields: list) -> None:
     """
     import csv  # noqa: PLC0415 -- the only use in this module
 
-    records = state.records["overview"]
     where = state.the_run() / "overview" / "analysis"
     where.mkdir(parents=True, exist_ok=True)
     measured = sorted({
@@ -141,7 +141,7 @@ def keep_the_population(fields: list) -> None:
         for name in (cell.get("features") or {})
     })
     columns = ["field", "position_label", "id", "x_um", "y_um", "area", "intensity", "r", *measured]
-    with (where / f"overview_{records[0]['acquisition_hash']}_objects.csv").open(
+    with (where / f"overview_{run_hash(state.the_run())}_objects.csv").open(
         "w", encoding="utf-8", newline=""
     ) as out:
         table = csv.DictWriter(out, fieldnames=columns)

@@ -75,19 +75,17 @@ def protocols(connection: dict | None = None) -> dict:
     """Every protocol under the machine's output root, newest first, settings inline.
 
     With a session open the root is the run folder's parent. Before one,
-    the root the bridge was started with, or the ``output_root`` the
-    instrument's own entry names. A microscope that learns its folder only
-    once connected (the Leica finds it beside LAS X's AutoSave) gives the
-    library alone until then, and the page asks again once connected. A file
-    that does not parse is left out rather than failing the list -- one
-    damaged run must not hide the others.
+    the folder the interface was started with (``--output-root``), where it
+    puts its runs; a driver's own entry is never read for it. Without that
+    folder the library alone is listed. A file that does not parse is left
+    out rather than failing the list -- one damaged run must not hide the
+    others. ``connection`` is the chosen instrument's entry, accepted so the
+    page can ask the same way before and after connecting.
     """
     if state.run is not None:
         root = state.run.parent
     elif state.output_root is not None:
         root = Path(state.output_root)
-    elif connection and connection.get("output_root"):
-        root = Path(str(connection["output_root"]))
     else:
         root = None
     found = library_protocols()

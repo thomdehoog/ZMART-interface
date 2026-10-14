@@ -5,10 +5,12 @@ from __future__ import annotations
 import pytest
 
 from zmart_interface.parts.storage.output import (
+    file_stem,
     move_record_images,
     position_label,
     prepare_acquisition,
     prepare_experiment,
+    run_hash,
 )
 
 
@@ -32,6 +34,18 @@ def test_location_label_has_exact_widths_and_rejects_overflow():
         position_label(0, carrier=100)
     with pytest.raises(ValueError, match="position"):
         position_label(1_000_000)
+
+
+def test_the_stem_every_file_of_a_capture_starts_with(tmp_path):
+    """``{acquisition_type}_{hash6}_{position_label}``: the convention, the run's hash in the middle."""
+    run = prepare_experiment(tmp_path, "organoid-screen", hash6="abc123")
+
+    assert run_hash(run) == "abc123"
+    assert file_stem("overview", run_hash(run), "K00_M000000_G000000_P000007_V00") == (
+        "overview_abc123_K00_M000000_G000000_P000007_V00"
+    )
+    with pytest.raises(ValueError, match="acquisition_type"):
+        file_stem("over view", "abc123", "K00_M000000_G000000_P000007_V00")
 
 
 def test_move_returns_full_final_filenames_in_files_and_planes(tmp_path):

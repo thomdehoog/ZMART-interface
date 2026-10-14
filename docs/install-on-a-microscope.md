@@ -96,12 +96,15 @@ The vendor's software (LAS X, with the CAM API and the intended jobs set up, on 
 be running before the window connects.
 
 ```powershell
-zmart-interface
+zmart-interface --output-root D:\ZMART-data
 ```
 
-This opens the operator window with its bridge beside it. Never pass `--simulator-pixels` on a
+This opens the operator window with its bridge beside it. `--output-root` is where the interface
+keeps its runs, one folder per run; choose it on the drive the microscope saves to, so each
+capture's files are moved into the run rather than copied. Without it the window cannot connect. Never pass `--simulator-pixels` on a
 real instrument. For a browser instead of the window:
-`python -m zmart_interface.serving --port 8600` and open `http://127.0.0.1:8600`.
+`python -m zmart_interface.serving --port 8600 --output-root D:\ZMART-data` and open
+`http://127.0.0.1:8600`.
 One controlling process at a time.
 
 For a dry run without the instrument, choose **Mock** on the Connect step.

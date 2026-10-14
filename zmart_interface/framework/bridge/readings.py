@@ -226,12 +226,12 @@ def capture(asked: dict) -> dict:
     declined is an answer with ``success`` false, as it is to a script.
 
     ``acquisition_settings`` go through as they came from
-    ``get_acquisition_settings``. Whatever is left out the driver fills from
-    its own actives, which is why nothing here invents a default. ``folder``
-    is the page's name for the acquisition this capture belongs to; it is
-    offered to the driver as its ``folder`` setting when the driver has one
-    (see :meth:`Instrument.acquire_answer`). The page files the capture under
-    that name itself afterwards, through the route it sends the record to.
+    ``get_acquisition_settings``: how the capture is triggered. Whatever is
+    left out the driver fills from its own actives, which is why nothing here
+    invents a default. ``folder`` is the page's name for the acquisition this
+    capture belongs to; the file names start with it (see
+    :meth:`Instrument.acquire_answer`), and the page files the capture under
+    it itself afterwards, through the route it sends the record to.
     """
     return state.require_session().acquire_answer(
         position_label=str(asked["position_label"]),

@@ -83,10 +83,7 @@ def _keep(measured: dict, acquisition: Any, record: dict) -> None:
     """
     where = Path(acquisition) / "analysis"
     where.mkdir(parents=True, exist_ok=True)
-    name = (
-        f"{record['acquisition_type']}_{record['acquisition_hash']}_"
-        f"{record['position_label']}_T000000_focus.json"
-    )
+    name = f"{record['file_stem']}_T000000_focus.json"
     (where / name).write_text(json.dumps(measured, indent=2), encoding="utf-8")
 
 

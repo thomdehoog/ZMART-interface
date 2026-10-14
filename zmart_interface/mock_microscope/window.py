@@ -85,7 +85,7 @@ class Api:
     @staticmethod
     def _frame(job: str) -> str:
         """One job's frame in words: how far across, how fine, and how deep."""
-        px, um = driver.frame_of(job, "")
+        px, um = driver.frame_of(job)
         stack = driver.JOB_STACKS.get(job)
         depth = f" · {stack['z_planes']} planes, {stack['z_step_um']:g} µm step" if stack else ""
         return f"{px * um:g} × {px * um:g} µm · {um:g} µm/px{depth}"

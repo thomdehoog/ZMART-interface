@@ -21,6 +21,7 @@ models = pytest.importorskip("ome_zarr_models.v05.image")
 
 from ome_zarr_models.v05.axes import Axis  # noqa: E402
 from pydantic_zarr.v3 import ArraySpec  # noqa: E402
+from zmart_controller.template.zmart_driver import ZmartDriver  # noqa: E402
 
 from zmart_interface.framework.bridge import pictures, state  # noqa: E402
 from zmart_interface.parts.microscope.instrument import Instrument  # noqa: E402
@@ -157,36 +158,60 @@ def test_forgetting_drops_a_kinds_stores_from_what_the_viewer_is_handed(monkeypa
 
 
 class FakeSession:
-    def __init__(self, formats):
-        self.formats = formats
+    def __init__(self):
         self.asked = None
         self.context = {"driver": "a driver"}
 
-    def get_acquisition_settings(self):
-        return {"success": True, "content": {
-            "folder": {"options": "text", "active": "scan"},
-            "format": {"options": self.formats, "active": self.formats[0]},
-        }}
-
     def acquire(self, *, position_label, acquisition_settings):
-        self.asked = acquisition_settings
-        return {"success": True, "content": {}}
+        self.asked = (position_label, acquisition_settings)
+        return {"success": True, "content": {"position_label": position_label, "files": [], "planes": []}}
 
 
-@pytest.mark.parametrize(("formats", "one_copy", "asked"), [
-    (["ome-tiff", "ome-zarr"], True, "ome-zarr"),
-    (["ome-tiff"], True, None),
-    (["ome-tiff", "ome-zarr"], False, None),
-])
-def test_the_interface_asks_for_one_store_when_the_driver_can_write_it(formats, one_copy, asked):
-    session = FakeSession(formats)
+def test_the_driver_is_given_the_whole_file_stem_and_the_record_keeps_the_label(tmp_path):
+    """The workflow names every file: type, run and position, the driver adds T/C/Z.
+
+    The driver is told nothing else about where or how to save; that is set up
+    on the microscope. The record is filed under the interface's own label,
+    and keeps the stem the files start with.
+    """
+    session = FakeSession()
     instrument = Instrument(session)
-    instrument.keeps_one_copy = one_copy
+    instrument.run = tmp_path / "a-run_a1b2c3"
 
-    instrument.acquire_answer(position_label="A1", folder="overview")
+    answer = instrument.acquire_answer(position_label="K00_M000000_G000000_P000001_V00", folder="overview")
 
-    assert session.asked.get("format") == asked
-    assert session.asked["folder"] == "overview"
+    assert session.asked == ("overview_a1b2c3_K00_M000000_G000000_P000001_V00", None)
+    assert answer["content"]["position_label"] == "K00_M000000_G000000_P000001_V00"
+    assert answer["content"]["file_stem"] == "overview_a1b2c3_K00_M000000_G000000_P000001_V00"
+
+
+def test_a_label_taken_again_in_the_run_gets_the_next_free_stem(tmp_path):
+    """A rerun never takes an earlier capture's name: the run keeps both, as a driver would.
+
+    The record is still filed under the label, so the page shows the newer
+    capture in its place; only the files on disk tell the two apart.
+    """
+    session = FakeSession()
+    instrument = Instrument(session)
+    instrument.run = tmp_path / "a-run_a1b2c3"
+    stem = "overview_a1b2c3_K00_M000000_G000000_P000001_V00"
+    data = instrument.run / "overview" / "data"
+    data.mkdir(parents=True)
+    (data / f"{stem}_T000000_C00_Z00000.ome.tiff").write_bytes(b"the first capture")
+
+    answer = instrument.acquire_answer(position_label="K00_M000000_G000000_P000001_V00", folder="overview")
+
+    assert session.asked[0] == f"{stem}_001"
+    assert answer["content"]["file_stem"] == f"{stem}_001"
+    assert answer["content"]["position_label"] == "K00_M000000_G000000_P000001_V00"
+
+
+def test_without_a_run_the_label_goes_to_the_driver_as_it_is():
+    session = FakeSession()
+
+    Instrument(session).acquire_answer(position_label="P0", folder="overview")
+
+    assert session.asked == ("P0", None)
 
 
 def test_the_viewer_is_told_where_the_drivers_projections_are(run, monkeypatch):
@@ -238,44 +263,68 @@ def test_the_view_asks_the_viewer_to_read_the_given_projections(monkeypatch, tmp
     assert body["views"]["projections_given"] is True
 
 
-def test_a_microscope_not_told_where_to_save_says_what_to_set_up(monkeypatch, tmp_path):
-    """A class driver answers where it saves and what is set up; connect names what is missing."""
-    from zmart_controller.template.zmart_driver import ZmartDriver
+class NotSetUp(ZmartDriver):
+    """A class driver whose data location is not set up yet."""
 
+    def __init__(self, connection):
+        pass
+
+    def disconnect(self):
+        pass
+
+    def get_info(self):
+        return True, ("A scope in memory. +z points up.", {
+            "limits": {"done": True, "says": "published"},
+            "data_location": {"done": False, "says": "run set_data_location.ipynb once"},
+        })
+
+    def get_actuators(self):
+        return True, tuple({"options": ["m"], "default": "m"} for _ in "xyz")
+
+    def get_xyz(self, with_actuators):
+        return True, (0.0, 0.0, 0.0, {"x": {"m": 0.0}, "y": {"m": 0.0}, "z": {"m": 0.0}},
+                      (-10.0, 10.0, -10.0, 10.0, -1.0, 1.0))
+
+
+def test_without_its_own_folder_for_runs_the_interface_refuses_to_connect(monkeypatch):
+    """The interface decides where its runs go, from ``--output-root``; it never asks the driver.
+
+    Without one, connect refuses and says how to start the interface, and
+    names what the microscope still needs set up, in its own words.
+    """
     from zmart_interface.framework.bridge import connecting
-
-    class NotSetUp(ZmartDriver):
-        def __init__(self, connection):
-            pass
-
-        def disconnect(self):
-            pass
-
-        def get_info(self):
-            return True, ("A scope in memory. +z points up.", None, {
-                "limits": {"done": True, "says": "published"},
-                "data_location": {"done": False, "says": "run set_data_location.ipynb once"},
-            })
-
-        def get_xyz(self, with_actuators):
-            return True, (0.0, 0.0, 0.0, {"x": {"m": 0.0}, "y": {"m": 0.0}, "z": {"m": 0.0}},
-                          (-10.0, 10.0, -10.0, 10.0, -1.0, 1.0))
 
     monkeypatch.setitem(connecting.offered, "not-set-up", (NotSetUp, {}))
     monkeypatch.setattr(state, "output_root", None)
 
-    with pytest.raises(RuntimeError, match="run set_data_location.ipynb once"):
+    with pytest.raises(RuntimeError, match="--output-root") as refused:
         connecting.connect({"instrument": "not-set-up"})
+    assert "run set_data_location.ipynb once" in str(refused.value)
 
 
-@pytest.mark.parametrize("installed", ["0.2.0", "0.2.7"])
-def test_a_controller_with_the_three_part_get_info_is_accepted(installed):
+def test_the_run_folder_is_made_under_the_interfaces_own_folder(monkeypatch, tmp_path):
+    from zmart_interface.framework.bridge import connecting
+
+    monkeypatch.setitem(connecting.offered, "not-set-up", (NotSetUp, {}))
+    monkeypatch.setattr(state, "output_root", str(tmp_path))
+    monkeypatch.setattr(viewer_service, "start", lambda *args, **kwargs: None)
+    try:
+        connecting.connect({"instrument": "not-set-up", "experiment": "a-test"})
+        run = state.the_run()
+        assert run.parent == tmp_path and run.name.startswith("a-test_")
+        assert state.session.run == run
+    finally:
+        connecting.close_the_last_session()
+
+
+@pytest.mark.parametrize("installed", ["0.3.0", "0.3.7"])
+def test_a_controller_whose_drivers_name_their_defaults_is_accepted(installed):
     from zmart_interface.framework.bridge import connecting
 
     connecting.accept_the_controller(installed)
 
 
-@pytest.mark.parametrize("installed", ["0.1.0", "0.3.0"])
+@pytest.mark.parametrize("installed", ["0.2.0", "0.4.0"])
 def test_an_older_or_newer_controller_is_refused_in_words(installed):
     from zmart_interface.framework.bridge import connecting
 

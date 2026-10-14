@@ -35,7 +35,7 @@ from zmart_interface.framework.bridge import (
 from zmart_interface.parts.analysis import detection, focus_score, warm
 from zmart_interface.parts.microscope.instrument import Instrument
 from zmart_interface.parts.storage import output, viewer_service
-from zmart_interface.parts.storage.output import prepare_experiment
+from zmart_interface.parts.storage.output import prepare_experiment, run_hash
 from zmart_interface.workflows.target_acquisition.bridge import (
     discovery,
     focus,
@@ -71,18 +71,23 @@ class _Enveloped:
 
 
 def _kept(acquisition_type: str, *, position_label: str) -> dict:
-    """A stub capture as the bridge keeps it: asked into its folder, and filed
-    under the interface's own acquisition type, which no driver reports."""
-    record = _Driver().acquire(
-        position_label=position_label, acquisition_settings={"folder": acquisition_type},
-    )
+    """A stub capture as the bridge keeps it: its files named by the stem the
+    bridge hands the driver, and filed under the interface's own acquisition
+    type, which no driver reports."""
+    record = _plugged(_Driver()).acquire(position_label=position_label, folder=acquisition_type)
     record["acquisition_type"] = acquisition_type
     return record
 
 
+#: The hash of the run every stub session captures into.
+RUN_HASH = "aaaaaa"
+
+
 def _plugged(stub) -> Instrument:
-    """A stub, as the bridge holds a session: behind :class:`Instrument`."""
-    return Instrument(_Enveloped(stub))
+    """A stub, as the bridge holds a session: behind :class:`Instrument`, in a run of its own."""
+    session = Instrument(_Enveloped(stub))
+    session.run = Path(tempfile.mkdtemp(prefix="zmart-run-")) / f"a-run_{RUN_HASH}"
+    return session
 
 
 def _needs_the_analysis_environment(name: str) -> None:
@@ -110,7 +115,7 @@ class _Driver:
         self.at = {"x": 0.0, "y": 0.0, "z": 0.0}
         self.drove_to: list[tuple] = []
         self.ran: list[dict] = []
-        self.captured: list[tuple] = []
+        self.captured: list[str] = []
         self.applied: list[dict] = []
         self.height_key = height_key
         self.staging = Path(tempfile.mkdtemp(prefix="zmart-driver-"))
@@ -128,15 +133,17 @@ class _Driver:
         return self.get_xyz()  # read back, the same answer as get_xyz
 
     def get_acquisition_settings(self) -> dict:
-        """The ZMART drivers all offer ``folder``, to keep one acquisition's pictures together."""
-        return {"folder": {"options": "any text", "active": ""}}
+        """How a capture is triggered, and nothing else, as the controller's contract asks."""
+        return {"trigger": {"options": ["full"], "default": "full", "active": "full"}}
 
     def acquire(self, *, position_label, acquisition_settings=None) -> dict:
-        """A focussing capture: a stack around wherever the stage is standing."""
-        folder = (acquisition_settings or {}).get("folder", "")
-        self.captured.append((folder, position_label))
-        where = self.staging / folder
-        where.mkdir(parents=True, exist_ok=True)
+        """A focussing capture: a stack around wherever the stage is standing.
+
+        ``position_label`` is the stem the bridge names the files by, as every
+        driver is given it; it is recorded as it came.
+        """
+        self.captured.append(position_label)
+        where = self.staging
         planes = []
         for index in range(5):
             path = where / f"{position_label}_Z{index:05d}.tiff"
@@ -146,7 +153,6 @@ class _Driver:
                 "x_um": self.at["x"], "y_um": self.at["y"], "z_um": self.at["z"],
             })
         return {
-            "acquisition_hash": "aaaaaa",
             "position_label": position_label,
             "files": [plane["path"] for plane in planes],
             "planes": planes,
@@ -300,7 +306,7 @@ def test_a_focus_map_runs_no_vendor_procedure(driver):
     """
     _measured({"points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}]})
     assert driver.ran == []
-    assert [kind for kind, _label in driver.captured] == ["focussing"] * 2
+    assert [stem.split("_")[0] for stem in driver.captured] == ["focussing"] * 2
 
 
 def test_a_measured_point_carries_the_curve_it_was_chosen_from(driver):
@@ -498,9 +504,7 @@ class _Capturing(_Driver):
 
     def acquire(self, *, position_label, acquisition_settings=None):
         self.asked.append((position_label, acquisition_settings))
-        where = self.staging / (acquisition_settings or {}).get("folder", "")
-        where.mkdir(parents=True, exist_ok=True)
-        path = where / f"{position_label}.tiff"
+        path = self.staging / f"{position_label}.tiff"
         path.write_bytes(b"a plane")
         return {
             "position_label": position_label,
@@ -524,9 +528,11 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
         "folder": "overview",
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
-    path = str(driver.staging / "overview" / "K00_M000001_G000000_P000007_V00.tiff")
+    stem = f"overview_{RUN_HASH}_K00_M000001_G000000_P000007_V00"
+    path = str(driver.staging / f"{stem}.tiff")
     assert answer == {"success": True, "content": {
         "position_label": "K00_M000001_G000000_P000007_V00",
+        "file_stem": stem,
         "files": [path],
         "planes": [{"t": 0, "z": 0, "c": 0, "path": path,
                     "x_um": 0.0, "y_um": 0.0, "z_um": 0.0}],
@@ -562,26 +568,11 @@ def test_the_settings_a_capture_is_given_reach_the_driver(monkeypatch):
     readings.capture({
         "folder": "targets",
         "position_label": "K00_M000002_G000001_P000003_V00",
-        "acquisition_settings": {"format": "ome-zarr"},
+        "acquisition_settings": {"trigger": "full"},
     })
     assert driver.asked[-1] == (
-        "K00_M000002_G000001_P000003_V00", {"format": "ome-zarr", "folder": "targets"},
+        f"targets_{RUN_HASH}_K00_M000002_G000001_P000003_V00", {"trigger": "full"},
     )
-
-
-def test_a_driver_without_a_folder_setting_is_not_given_one(monkeypatch):
-    """``folder`` is the interface's own grouping; a driver that does not offer
-    the setting is not sent it, and the capture still goes through."""
-
-    class NoFolder(_Capturing):
-        def get_acquisition_settings(self):
-            return {"format": {"options": ["ome-tiff"], "active": "ome-tiff"}}
-
-    driver = NoFolder()
-    monkeypatch.setattr(state, "session", _plugged(driver))
-    answer = readings.capture({"folder": "targets", "position_label": "A1"})
-    assert answer["success"] is True
-    assert driver.asked[-1] == ("A1", None)
 
 
 # --- the scan ----------------------------------------------------------------
@@ -607,9 +598,9 @@ def test_a_scan_labels_every_position_the_canonical_way(monkeypatch):
     """
     driver = _Capturing()
     scanned = _scanned(driver, [{"x": 0, "y": 0}, {"x": 10, "y": 0}], monkeypatch)
-    assert [label for label, _ in driver.asked] == [
-        "K00_M000000_G000000_P000000_V00",
-        "K00_M000000_G000000_P000001_V00",
+    assert [stem for stem, _ in driver.asked] == [
+        f"overview_{RUN_HASH}_K00_M000000_G000000_P000000_V00",
+        f"overview_{RUN_HASH}_K00_M000000_G000000_P000001_V00",
     ]
     assert scanned["done"] == 2
 
@@ -634,7 +625,7 @@ def test_a_position_says_where_on_the_plate_it_is(monkeypatch):
     """The page knows which well and which tileset; the label carries it."""
     driver = _Capturing()
     _scanned(driver, [{"x": 0, "y": 0, "compartment": 3, "group": 2}], monkeypatch)
-    assert driver.asked[-1][0] == "K00_M000003_G000002_P000000_V00"
+    assert driver.asked[-1][0] == f"overview_{RUN_HASH}_K00_M000003_G000002_P000000_V00"
 
 
 def test_a_scan_keeps_the_record_of_every_capture(monkeypatch):
@@ -699,7 +690,7 @@ def test_the_targets_are_taken_one_by_one_as_the_page_drives_them(driver, monkey
     labels = [record["position_label"] for record in state.records["targets"]]
     assert labels == ["K00_M000000_G000000_P000000_V00", "K00_M000000_G000000_P000001_V00"]
     assert kept == [(labels[0], "targets"), (labels[1], "targets")]
-    assert driver.captured == [("targets", labels[0]), ("targets", labels[1])]
+    assert driver.captured == [f"targets_{RUN_HASH}_{labels[0]}", f"targets_{RUN_HASH}_{labels[1]}"]
     assert driver.drove_to == [(10.0, 20.0, 5.0), (30.0, 40.0, 6.0)]
     first = state.records["targets"][0]
     assert first["requested_position_um"] == {"x": 10.0, "y": 20.0, "z": 5.0}
@@ -737,8 +728,8 @@ def test_a_target_is_focussed_first_when_the_page_asks(driver, monkeypatch):
     driver.at["z"] = 12.0
     _targets_taken([{"x": 10, "y": 20, "z": 12, "position_index": 0}], focus=True)
     assert driver.captured == [
-        ("target-focussing", "K00_M000000_G000000_P000000_V00"),
-        ("targets", "K00_M000000_G000000_P000000_V00"),
+        f"target-focussing_{RUN_HASH}_K00_M000000_G000000_P000000_V00",
+        f"targets_{RUN_HASH}_K00_M000000_G000000_P000000_V00",
     ]
     assert "target-focussing" in kept and kept[-1] == "targets"
     record = state.records["targets"][0]
@@ -766,11 +757,12 @@ def test_a_scan_cannot_start_while_targets_are_being_taken(driver):
 
 
 def test_a_scan_captures_under_the_kind_of_scan_it_is(monkeypatch):
-    """The kind of scan is the interface's own: offered to the driver as its
-    folder, and filed on the record from what was asked, not from the answer."""
+    """The kind of scan is the interface's own: the start of every file name
+    the driver is given, and filed on the record from what was asked, not from
+    the answer."""
     driver = _Capturing()
     scanned = _scanned(driver, [{"x": 0, "y": 0}], monkeypatch, acquisition_type="targets")
-    assert driver.asked[-1][1] == {"folder": "targets"}
+    assert driver.asked[-1] == (f"targets_{RUN_HASH}_K00_M000000_G000000_P000000_V00", None)
     assert scanned["records"][-1]["acquisition_type"] == "targets"
 
 
@@ -1088,10 +1080,10 @@ def test_the_whole_population_is_one_table_on_disk(monkeypatch):
     one column a feature, the union of what any field measured."""
     import csv
 
-    records = _an_overview_of_two_fields(monkeypatch)
+    _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
     table = state.the_run() / "overview" / "analysis" / (
-        f"overview_{records[0]['acquisition_hash']}_objects.csv"
+        f"overview_{run_hash(state.run)}_objects.csv"
     )
     rows = list(csv.DictReader(table.open(encoding="utf-8", newline="")))
     assert [row["id"] for row in rows] == ["P0_obj1", "P1_obj1"]
@@ -1106,10 +1098,10 @@ def test_the_whole_population_is_one_table_on_disk(monkeypatch):
 def test_one_field_tried_on_its_own_leaves_the_population_table_alone(monkeypatch):
     """A settings test on one field is not the population; the table of
     the last whole run stays."""
-    records = _an_overview_of_two_fields(monkeypatch)
+    _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
     table = state.the_run() / "overview" / "analysis" / (
-        f"overview_{records[0]['acquisition_hash']}_objects.csv"
+        f"overview_{run_hash(state.run)}_objects.csv"
     )
     before = table.read_text(encoding="utf-8")
     _discovered({"fields": [1], "settings": {}})
@@ -1781,7 +1773,7 @@ def test_the_components_are_computed_apart_and_handed_back_as_columns(monkeypatc
     """The page names the kind and the ids; the bridge runs the plot in a
     process of its own over the population table and answers the two
     columns an object, by id."""
-    records = _an_overview_of_two_fields(monkeypatch)
+    _an_overview_of_two_fields(monkeypatch)
     _discovered({"settings": {}})
     asked = {}
 
@@ -1796,7 +1788,7 @@ def test_the_components_are_computed_apart_and_handed_back_as_columns(monkeypatc
     assert got["error"] is None and got["kinds"] == ["pca"] and got["running"] is False
     assert got["objects"] == 2
     assert asked["kind"] == "pca" and asked["ids"] == ["P1_obj1", "P0_obj1"]
-    assert asked["table"].name == f"overview_{records[0]['acquisition_hash']}_objects.csv"
+    assert asked["table"].name == f"overview_{run_hash(state.run)}_objects.csv"
     columns = plots.plot_columns("pca")
     assert columns == {"columns": ["pca_1", "pca_2"], "ids": ["P0_obj1", "P1_obj1"],
                        "values": [[1.5, 0.5], [-2.0, 3.0]]}
@@ -1919,21 +1911,21 @@ def test_without_a_session_there_is_no_protocol_to_list_or_write(monkeypatch):
         protocols.save_protocol({"protocol": {}})
 
 
-def test_before_a_session_the_list_comes_from_the_root_the_entry_names(monkeypatch):
-    """Before connecting, only the instrument's own entry can say where runs go."""
+def test_before_a_session_the_list_comes_from_the_interfaces_own_folder(monkeypatch):
+    """Before connecting, the runs are listed from where the interface puts them, never from a driver's entry."""
     with tempfile.TemporaryDirectory() as root:
         run = Path(root) / "target-acquisition_a1b2c3"
         run.mkdir()
         (run / "protocol.json").write_text('{"version": 1}', encoding="utf-8")
         monkeypatch.setattr(state, "run", None)
-        monkeypatch.setattr(state, "output_root", None)
         monkeypatch.setattr(protocols, "PROTOCOL_LIBRARY", Path(root) / "library")
-        connection = {"client": "mock-client", "output_root": root}
-        listed = protocols.protocols(connection)["protocols"]
+        monkeypatch.setattr(state, "output_root", root)
+        listed = protocols.protocols()["protocols"]
         assert [one["id"] for one in listed] == ["target-acquisition_a1b2c3"]
         assert listed[0]["protocol"] == {"version": 1}
-        # An entry that names no folder lists only the saved ones, until connected.
-        assert protocols.protocols({**connection, "output_root": None})["protocols"] == []
+        # Without a folder of its own, only the saved ones are listed, until connected.
+        monkeypatch.setattr(state, "output_root", None)
+        assert protocols.protocols({"client": "mock-client", "output_root": root})["protocols"] == []
 
 
 def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_drivers(tmp_path):

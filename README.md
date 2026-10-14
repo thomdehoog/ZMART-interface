@@ -102,8 +102,11 @@ The interface always offers a pretend microscope, so you can walk a whole run wi
 hardware:
 
 ```bash
-zmart-interface
+zmart-interface --output-root D:/ZMART-data
 ```
+
+`--output-root` is the folder the interface keeps its runs in, one folder per run inside it.
+The interface needs one to connect; it does not ask the microscope where to put them.
 
 The window opens on the first step with **Mock** chosen. Press **Connect**; a second small
 window opens beside it, the mock's own software, where you choose the job each step is
@@ -129,8 +132,11 @@ in the interface's list under that name, beside the two pretend ones:
 
 ```bash
 pip install "zmart-interface[drivers] @ git+https://github.com/thomdehoog/ZMART-interface"
-zmart-interface
+zmart-interface --output-root D:/ZMART-data
 ```
+
+Choose a folder on the drive the microscope saves to: each capture's files are then moved
+into the run rather than copied.
 
 [Installing on a microscope](docs/install-on-a-microscope.md) walks through it on a ZMB
 workstation, including the first checks to make on a new instrument.

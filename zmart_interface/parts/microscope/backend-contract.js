@@ -132,20 +132,21 @@ export function promisesOfABackend(expect) {
       },
     },
     {
-      what: "offers a menu of what a capture may be told, and what is chosen",
+      what: "offers a menu of how a capture is triggered, its default, and what is chosen",
       async keep(backend) {
         const menu = await backend.get_acquisition_settings();
         const named = Object.entries(menu);
         expect(named.length, "the instrument offers something").toBeGreaterThan(0);
         for (const [name, spec] of named) {
           expect(spec, `${name} says what is chosen`).toHaveProperty("active");
+          expect(spec, `${name} says what the driver chose to start with`).toHaveProperty("default");
           expect(spec, `${name} says what may be chosen`).toHaveProperty("options");
-          /* Where the choices are a list, what is active has to be one of
-             them — a menu whose current value is not on it cannot be shown as
-             a chooser, and cannot be handed back to `acquire` either. */
+          /* Where the choices are a list, the default and what is active have
+             to be on it — a menu whose current value is not on it cannot be
+             shown as a chooser, and cannot be handed back to `acquire` either. */
           if (Array.isArray(spec.options)) {
-            expect(spec.options, `${name}'s active is one of its options`)
-              .toContain(spec.active);
+            expect(spec.options, `${name}'s default is one of its options`).toContain(spec.default);
+            expect(spec.options, `${name}'s active is one of its options`).toContain(spec.active);
           }
         }
       },
@@ -153,16 +154,12 @@ export function promisesOfABackend(expect) {
     {
       what: "is set to the job it was told to be set to",
       async keep(backend) {
-        /* Whatever the instrument calls its stored recipes. Every one has
-           them, and which is chosen is the setting an operator reaches for
-           before anything else. */
-        const { job } = await backend.get_acquisition_settings();
-        const other = job.options.find((one) => one !== job.active);
-        const { applied } = await backend.set_state({ job: other });
-        expect(applied.job, "the driver says it took the job").toBe(other);
-        /* And says so when asked again — an instrument that reports one job
-           and captures with another is worse than one that refuses. */
-        expect((await backend.get_acquisition_settings()).job.active).toBe(other);
+        /* Whatever the instrument calls its stored acquisitions. Which one
+           is selected is part of the state, set with `set_state`; the driver
+           answers with what it applied, read back from the instrument. */
+        const { applied } = await backend.set_state({ job: "Target" });
+        expect(applied.job, "the driver says it took the job").toBe("Target");
+        await backend.set_state({ job: "Overview" });
       },
     },
     {

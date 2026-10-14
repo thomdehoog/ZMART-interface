@@ -114,21 +114,16 @@ export const backend = {
   },
 
   /**
-   * What this pretend instrument offers for a capture, and what is chosen now.
+   * How a capture on this pretend instrument is triggered, and nothing else.
    *
-   * The controller's mock driver's own menu, said the same way — so the page
-   * meets the same shape here as it does through the bridge, and cannot come
-   * to rely on a setting only one of them has.
+   * The interface's mock microscope's own menu, said the same way — so the
+   * page meets the same shape here as it does through the bridge, and cannot
+   * come to rely on a setting only one of them has. Which job runs is the
+   * state's (`set_state`), not a capture setting.
    */
   async get_acquisition_settings() {
     await wait(120);
-    return {
-      folder: { options: "any text; empty saves straight into output_root", active: "" },
-      job: { options: [...JOBS], active: chosenJob },
-      backlash_correction: { options: [true, false], active: true },
-      format: { options: ["ome-tiff", "ome-zarr"], active: "ome-tiff" },
-      procedure: { options: ["direct", "tiled"], active: "direct" },
-    };
+    return { trigger: { options: ["full"], default: "full", active: "full" } };
   },
 
   /**
@@ -172,33 +167,33 @@ export const backend = {
   },
 
   /**
-   * Capture once where the stage is standing, answering as the controller
-   * does: `{success, content}`, the content holding `files` and `planes`.
+   * Capture once where the stage is standing, answering as the bridge does:
+   * `{success, content}`, the content holding `files` and `planes`.
    *
-   * `folder` is the page's name for the acquisition the capture belongs to;
-   * like the bridge, this pretend instrument takes it as its `folder`
-   * acquisition setting, which is where the files would go.
+   * `folder` is the page's name for the acquisition the capture belongs to.
+   * Like the bridge, this pretend instrument starts every file name with the
+   * stem `{folder}_{run hash}_{position_label}`, keeps the stem on the record
+   * as `file_stem`, and files the record under the page's own label.
    *
-   * The names are the convention's, flat and complete: which folder it was
-   * asked into, which capture it was, where on the sample, and which plane of it — so
-   * nothing has to be opened to know what it holds. A browser writes no
-   * files, so these are paths the rehearsal names and does not make; through
-   * the bridge the same names are files on disk.
+   * The names are the convention's, flat and complete: which acquisition,
+   * which run, where on the sample, and which plane of it — so nothing has to
+   * be opened to know what it holds. A browser writes no files, so these are
+   * paths the rehearsal names and does not make; through the bridge the same
+   * names are files on disk.
    */
   async acquire({ position_label, acquisition_settings = null, folder = null }) {
+    void acquisition_settings;
     await wait(240);
-    const hash6 = makeRng(where.x + where.y + captures++)()
-      .toString(36).slice(2, 8).padEnd(6, "0");
-    const into = acquisition_settings?.folder ?? folder ?? "";
-    const path = (into ? `${into}/${into}_` : "") + `${hash6}_`
-      + `${position_label}_T000000_C00_Z00000.ome.tiff`;
+    const stem = folder ? `${folder}_${PRETEND_RUN_HASH}_${position_label}` : position_label;
+    const before = taken.get(stem) ?? 0;
+    taken.set(stem, before + 1);
+    const free = before ? `${stem}_${String(before).padStart(3, "0")}` : stem;
+    const path = `${free}_T000000_C00_Z00000.ome.tiff`;
     return {
       success: true,
       content: {
-        acquisition_hash: hash6,
         position_label,
-        folder: into,
-        format: acquisition_settings?.format ?? "ome-tiff",
+        file_stem: stem,
         position: { ...where },
         files: [path],
         /* Where each plane was taken travels with it, as the real record's
@@ -247,9 +242,9 @@ export const pretendConnectionStatus = ({ instrument }) => ({
 const TRAVEL_RANGE_UM = { x: [0, TRAVEL_UM.x], y: [0, TRAVEL_UM.y], z: [-2_000, 2_000] };
 
 
-/* How many captures this instrument has taken, so two at one place still get
-   names of their own — which is what the hash is for on a real one. */
-let captures = 0;
+/* How many captures each stem has had, so a second under the same label gets
+   `_001` and never takes the first one's name, as a driver never overwrites. */
+const taken = new Map();
 
 
 
@@ -258,6 +253,8 @@ let captures = 0;
    three the controller's mock driver keeps, so the page meets one instrument
    whichever backend it is talking to. */
 const JOBS = ["Overview", "Focussing", "Target", "Target focussing"];
+/* The hash of the pretend run every capture is filed in, as a run folder's is. */
+const PRETEND_RUN_HASH = "a1b2c3";
 let chosenJob = JOBS[0];
 
 /** Where its stage is parked before anything has driven it: the corner, off

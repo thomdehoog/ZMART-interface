@@ -42,7 +42,7 @@ def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
     """``files`` names the images and the state printed beside them, as the controller's contract asks."""
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        answer = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})
+        answer = raw.acquire(position_label="P0")
     finally:
         raw.disconnect()
     assert check_acquire_answer(answer) == []
@@ -51,27 +51,65 @@ def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
     assert "images" not in content
 
 
-def test_the_folder_setting_says_where_the_files_go(mock_instrument):
-    """``folder`` groups a capture's files; left empty, they go straight into the output folder."""
+LABEL = "overview_a1b2c3_K00_M000000_G000000_P000000_V00"
+
+
+def test_every_file_name_starts_with_the_label_the_workflow_gave(mock_instrument):
+    """The workflow names the capture; the mock adds only the time point, channel and plane.
+
+    The files land straight in the output folder, the state beside them under
+    ``metadata/ZMART_state``, and a second capture under the same label never
+    overwrites the first: it gets ``_001``.
+    """
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        assert raw.get_acquisition_settings()["content"]["folder"]["active"] == ""
-        grouped = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})
-        loose = raw.acquire(position_label="P1")
+        first = raw.acquire(position_label=LABEL)["content"]
+        again = raw.acquire(position_label=LABEL)["content"]
     finally:
         raw.disconnect()
     root = os.path.realpath(mock_instrument["output_root"])
-    first = grouped["content"]["planes"][0]["path"]
-    assert os.path.realpath(first).startswith(os.path.join(root, "overview", "data") + os.sep)
-    assert os.path.dirname(os.path.realpath(loose["content"]["planes"][0]["path"])) == root
-    assert "acquisition_type" not in grouped["content"]
+    assert [os.path.basename(plane["path"]) for plane in first["planes"]] == [
+        f"{LABEL}_T000000_C{channel:02d}_Z00000.ome.tiff" for channel in range(3)
+    ]
+    assert {os.path.dirname(os.path.realpath(plane["path"])) for plane in first["planes"]} == {root}
+    assert os.path.realpath(first["metadata"][0]) == os.path.join(
+        root, "metadata", "ZMART_state", f"{LABEL}_T000000_ZMART_state.json"
+    )
+    assert os.path.basename(again["planes"][0]["path"]) == f"{LABEL}_001_T000000_C00_Z00000.ome.tiff"
+    assert "acquisition_type" not in first and "folder" not in first
+
+
+def test_the_acquisition_settings_say_only_how_to_trigger(mock_instrument):
+    """Every capture runs the selected job, the mock's stored acquisition; which job is state."""
+    raw = ZmartController(mock_microscope, mock_instrument)
+    try:
+        settings = raw.get_acquisition_settings()["content"]
+        state = raw.get_state()["content"]["changeable"]
+    finally:
+        raw.disconnect()
+    assert settings == {"trigger": {"options": ["full"], "default": "full", "active": "full"}}
+    assert state["job"] == "Overview"
+
+
+def test_the_mock_names_its_default_motor_and_says_which_one_moved(mock_instrument):
+    raw = ZmartController(mock_microscope, mock_instrument)
+    try:
+        motors = raw.get_actuators()["content"]
+        by_default = raw.get_xyz()["content"]["z"]["actuator"]
+        chosen = raw.set_xyz(0.0, 0.0, 5.0, with_actuators={"z": "piezo"})["content"]["z"]
+    finally:
+        raw.disconnect()
+    assert motors["z"] == {"options": ["motoric", "galvo", "piezo"], "default": "motoric"}
+    assert by_default == "motoric"
+    assert chosen["actuator"] == "piezo" and chosen["actuators"]["piezo"] == 5.0
 
 
 def test_a_stack_says_which_depth_and_height_each_picture_is(mock_instrument):
     """Every plane of a focus stack fits the controller's ``planes`` contract, one depth each."""
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        answer = raw.acquire(position_label="F0", acquisition_settings={"folder": "focussing"})
+        raw.set_state({"changeable": {"job": "Focussing"}})
+        answer = raw.acquire(position_label="F0")
     finally:
         raw.disconnect()
     assert check_acquire_answer(answer) == []
@@ -90,7 +128,7 @@ def test_the_canvas_holds_a_picture_taken_anywhere_the_stage_can_go(mock_instrum
     its width further, and a stack half its depth, so any smaller canvas loses
     those pictures.
     """
-    widest = max(px * um for px, um in (mock_driver.frame_of(job, "overview") for job in mock_driver.JOBS))
+    widest = max(px * um for px, um in (mock_driver.frame_of(job) for job in mock_driver.JOBS))
     stacks = [{"z_planes": 1, "z_step_um": 0.0}, *mock_driver.JOB_STACKS.values()]
     deepest = max((one["z_planes"] - 1) * one["z_step_um"] for one in stacks)
     raw = ZmartController(mock_microscope, mock_instrument)
@@ -100,7 +138,7 @@ def test_the_canvas_holds_a_picture_taken_anywhere_the_stage_can_go(mock_instrum
         raw.disconnect()
     for axis, half in (("x", widest / 2), ("y", widest / 2), ("z", deepest / 2)):
         low, high = mock_driver.TRAVEL_UM[axis]
-        assert list(report[axis]) == ["position", "unit", "actuators", "canvas"], axis
+        assert list(report[axis]) == ["position", "unit", "actuator", "actuators", "canvas"], axis
         assert report[axis]["canvas"] == [low - half, high + half], axis
     assert deepest > 0, "the mock takes stacks, so z's canvas goes past the travel"
 
@@ -119,7 +157,7 @@ def test_a_field_taken_before_the_stage_has_moved_lies_within_the_canvas(mock_in
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
         canvas = raw.get_xyz()["content"]
-        report = raw.acquire(position_label="P0", acquisition_settings={"folder": "overview"})["content"]
+        report = raw.acquire(position_label="P0")["content"]
     finally:
         raw.disconnect()
     plane = report["planes"][0]
@@ -135,8 +173,11 @@ def test_every_answer_comes_in_two_parts(mock_instrument):
     try:
         info = raw.get_info()
         assert info["success"] is True
-        assert {"output_root", "description", "connection_status"} <= set(info["content"])
-        assert list(raw.get_xyz()["content"]["x"]) == ["position", "unit", "actuators", "canvas"]
+        assert {"description", "connection_status", "setup"} <= set(info["content"])
+        assert "output_root" not in info["content"]
+        saving = info["content"]["setup"]["saving"]
+        assert saving["done"] is True and mock_instrument["output_root"] in saving["says"]
+        assert list(raw.get_xyz()["content"]["x"]) == ["position", "unit", "actuator", "actuators", "canvas"]
     finally:
         raw.disconnect()
 
@@ -204,16 +245,20 @@ def test_imaging_stack_jobs_capture_real_planes_and_return_to_single_plane(sessi
     assert len(flat["planes"]) == 3
 
 
-def test_a_focus_stack_is_half_the_side_of_an_overview_frame(session):
+def test_a_focus_stack_is_what_the_focussing_job_takes(session):
+    """The job decides the stack, as on a real instrument: the Focussing job takes
+    61 planes of 256 px of 1 um, a quarter of an overview field's width."""
+    session.set_state({"changeable": {"job": "Focussing"}})
     record = session.acquire(folder="focussing", position_label="P0")
-    assert _frame_px(record) == mock_driver._FOCUS_FRAME_PX == mock_driver._FRAME_PX // 2
-    # Every plane of the stack the same size, and the record's own size says so.
-    assert {tifffile.imread(p["path"]).shape for p in record["planes"]} == {(128, 128)}
+    assert len(record["planes"]) == 61
+    # Every plane of the stack the same size.
+    assert {tifffile.imread(p["path"]).shape for p in record["planes"]} == {(256, 256)}
 
 
 def test_the_focus_stack_is_still_centred_where_the_stage_stands(session):
     """Smaller, not moved: the store's corner is centre minus half of THIS frame."""
     session.set_xyz(20_000.0, 30_000.0, 0.0)
+    session.set_state({"changeable": {"job": "Focussing"}})
     record = session.acquire(folder="focussing", position_label="P1")
     plane = record["planes"][0]
     assert (plane["x_um"], plane["y_um"]) == (20_000.0, 30_000.0)
@@ -263,7 +308,9 @@ def test_the_settings_live_in_the_file_and_whoever_wrote_last_wins(session):
     assert mock_driver.read_instrument_settings(where)["job"] == "Target"
     mock_driver.write_instrument_settings({"job": "Focussing"}, where)
     assert session.get_state()["changeable"]["job"] == "Focussing"
-    assert session.get_acquisition_settings()["job"]["active"] == "Focussing"
+    assert session.get_acquisition_settings() == {
+        "trigger": {"options": ["full"], "default": "full", "active": "full"}
+    }
     record = session.acquire(folder="overview", position_label="P0")
     assert record["job"] == "Focussing"
     with pytest.raises(ValueError):

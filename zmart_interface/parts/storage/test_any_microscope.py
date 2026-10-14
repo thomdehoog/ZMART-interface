@@ -45,12 +45,15 @@ def capture(tmp_path, monkeypatch):
     monkeypatch.setenv("ZMART_MICROSCOPY_ROOT", str(tmp_path / "config"))
     connection = {"output_root": str(tmp_path / "staging"), "mock_timing": "instant"}
 
-    def take(label: str, **settings) -> dict:
+    def take(label: str, **stack) -> dict:
+        """One snap, or with ``stack`` (``z_planes``, ``z_step_um``) set as state, the full stack."""
         session = ZmartController(zmart_controller.mock, connection)
         try:
             session.set_xyz(100.0, 50.0, 3.0)
+            if stack:
+                session.set_state({"changeable": stack})
             answer = session.acquire(
-                position_label=label, acquisition_settings={"folder": "overview", **settings}
+                position_label=label, acquisition_settings={"trigger": "full" if stack else "snap"}
             )
         finally:
             session.disconnect()

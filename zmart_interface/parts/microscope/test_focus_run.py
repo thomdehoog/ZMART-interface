@@ -21,7 +21,7 @@ def a_stack(folder, *, centre=0.0, heights=None, sharp=1.0, label="P0"):
         path.write_bytes(b"pixels")
         planes.append({"t": 0, "z": index, "c": 0, "z_um": z, "path": str(path)})
     return {
-        "acquisition_type": "focussing", "acquisition_hash": "abc123", "position_label": label,
+        "acquisition_type": "focussing", "position_label": label, "file_stem": f"focussing_abc123_{label}",
         "files": [plane["path"] for plane in planes], "planes": planes, "sharp": sharp,
     }
 

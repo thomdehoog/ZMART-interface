@@ -60,11 +60,12 @@ def saved_connection(name: str) -> dict:
     return find_driver(name)[1]
 
 
-#: The controller versions this interface works with: 0.2.0 and later, below
-#: 0.3. From 0.2.0 a driver's get_info says where the microscope saves
-#: (``output_root``) and what is set up on it (``setup``), which connect
-#: needs; an older controller passes on only the description.
-CONTROLLER_VERSIONS = ">=0.2.0,<0.3"
+#: The controller versions this interface works with: 0.3.0 and later, below
+#: 0.4. From 0.3.0 a driver names its default motor per axis and every answer
+#: says which one moved, acquisition settings say only how to trigger, and
+#: get_info no longer says where the microscope saves: the interface decides
+#: where its own runs go.
+CONTROLLER_VERSIONS = ">=0.3.0,<0.4"
 
 
 def accept_the_controller(installed_version: str) -> None:
@@ -127,19 +128,18 @@ def connect(asked: dict) -> dict:
             state.pixels_for(float(standing["z"]["position"]))
             if state.pixels_for is not None else None
         )
-        if not info.get("output_root"):
+        if state.output_root is None:
             # What the microscope says it still needs set up, in its own words.
             missing = [
-                f"{item}: {state.get('says')}" for item, state in (info.get("setup") or {}).items()
-                if isinstance(state, dict) and not state.get("done")
+                f"{item}: {said.get('says')}" for item, said in (info.get("setup") or {}).items()
+                if isinstance(said, dict) and not said.get("done")
             ]
             raise RuntimeError(
-                f"the microscope {name!r} does not say where its pictures are to be saved "
-                "(its get_info gives no 'output_root')"
-                + (f"; not set up on it: {'; '.join(missing)}" if missing else "")
-                + "; or start the interface with --output-root to choose a folder"
+                "the interface was not told where to put its runs; start it with "
+                "--output-root and a folder, ideally on the drive the microscope saves to"
+                + (f" (not set up on {name!r}: {'; '.join(missing)})" if missing else "")
             )
-        run = prepare_experiment(info["output_root"], experiment)
+        run = prepare_experiment(state.output_root, experiment)
         if provider is not None:
             (run / "synthetic-specimen.json").write_text(
                 json.dumps(provider.recipe, indent=2), encoding="utf-8")
@@ -153,9 +153,7 @@ def connect(asked: dict) -> dict:
     state.session = session
     state.context = {**session.context, "name": name}
     state.pixel_provider = provider
-    # Stand-in pixels replace the captured ones while the capture is
-    # converted, so a session that has them keeps the conversion.
-    session.keeps_one_copy = provider is None
+    session.run = run
     state.run = run
     # A fresh session has scanned nothing. The bridge outlives the page, and
     # records carried over from the last session rebuilt its scan's pictures

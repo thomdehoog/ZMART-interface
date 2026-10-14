@@ -46,15 +46,21 @@ DUSTY = (-900.0, 0.0)
 
 @pytest.fixture
 def scope(mock_session):
-    """A connected mock microscope writing into this test's own folder."""
+    """A connected mock microscope writing into this test's own folder, on its Focussing job.
+
+    The job is what makes a capture a stack, as on a real instrument: an
+    operator records the focussing settings, and the page applies them before
+    the first stack.
+    """
+    mock_session.set_state({"changeable": {"job": "Focussing"}})
     return mock_session
 
 
 def focus_at(session, x_um: float, y_um: float, centre_um: float) -> dict:
     """Drive to (x, y), acquire the stack around *centre_um*, and score it.
 
-    The ``focussing`` folder is what tells the mock this capture is a stack rather
-    than a picture, and the stack is centred on the height driven to -- which
+    The session stands on the Focussing job, so the capture is a stack, and
+    the stack is centred on the height driven to -- which
     is the whole reason a caller drives to the middle of the range it wants
     searched rather than to the bottom of it. The heights are worked out from
     what the run did, not read off the record: no driver reports them, and the
