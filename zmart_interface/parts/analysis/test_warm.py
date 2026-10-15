@@ -7,36 +7,57 @@ import pytest
 from zmart_interface.parts.analysis import warm
 
 
-class _Engine:
-    """A stand-in engine that answers immediately and counts what it was told."""
+class FakeEngine:
+    """A stand-in engine with a job board, as the real one keeps.
 
-    def __init__(self, answers=None, failure=None, stale_failures=()):
+    Each submit gets the next id of its pipeline. A job is done (or failed)
+    once its board has been asked for ``answer_after`` times; until then it
+    is running. ``earlier`` puts jobs on the board that finished before.
+    """
+
+    def __init__(self, answers=None, failure=None, answer_after=1, earlier=()):
         self.registered: list[tuple] = []
         self.submitted: list[tuple] = []
         self.stopped = 0
-        self._answers = answers if answers is not None else {}
-        self._failure = failure
-        # Failures the pipeline had before: the engine keeps them for as
-        # long as the pipeline lives, and reports them with every status.
-        self._failures: list = list(stale_failures)
-        self._waiting: list[dict] = []
+        self.answers = answers if answers is not None else {}
+        self.failure = failure
+        self.answer_after = answer_after
+        self.boards: dict = {}
+        self.asked: dict = {}
+        for name, entry in earlier:
+            self.add(name, dict(entry))
+
+    def add(self, name, entry):
+        board = self.boards.setdefault(name, {})
+        job = len(board) + 1
+        board[job] = entry
+        return job
 
     def register(self, name, yaml_path):
         self.registered.append((name, yaml_path))
 
-    def submit(self, name, data):
-        self.submitted.append((name, data))
-        if self._failure is None:  # a job that fails produces no result
-            self._waiting.append(self._answers.get(name, {"ran": name}))
-        else:
-            self._failures.append(self._failure)
+    def outcome(self, pipeline, data):
+        """The finished entry this job will show."""
+        if self.failure is not None:
+            return {"state": "failed", "output": None, "error": self.failure}
+        return {"state": "done", "output": self.answers.get(pipeline, {"ran": pipeline})}
+
+    def submit(self, pipeline, data, scope=None, priority=None, complete=None):
+        self.submitted.append((pipeline, data))
+        entry = {"step": "step", "scope": dict(scope or {}), "state": "running", "output": None}
+        job = self.add(pipeline, entry)
+        self.asked[(pipeline, job)] = 0
+        entry["finished"] = self.outcome(pipeline, data)
+        return job
 
     def status(self, name):
-        return {"failed": len(self._failures), "failures": list(self._failures)}
-
-    def results(self, name):
-        out, self._waiting = self._waiting, []
-        return out
+        board = self.boards.get(name, {})
+        for job, entry in board.items():
+            if "finished" in entry:
+                self.asked[(name, job)] += 1
+                if self.asked[(name, job)] >= self.answer_after:
+                    entry.update(entry.pop("finished"))
+        return {job: {k: v for k, v in e.items() if k != "finished"} for job, e in board.items()}
 
     def shutdown(self, wait=True):
         self.stopped += 1
@@ -51,14 +72,14 @@ def test_the_input_reaches_the_step_as_the_step_expects_it():
     reports the input missing -- which is what happened, and only in a worker,
     where nothing in this repository could see it.
     """
-    engine = _Engine()
+    engine = FakeEngine()
     warm.Analysis(engine).run("focus", {"image_paths": ["a.tiff", "b.tiff"]})
     assert engine.submitted == [("focus", {"image_paths": ["a.tiff", "b.tiff"]})]
 
 
 def test_a_pipeline_is_registered_once_however_often_it_runs():
     """Registering parses YAML and reads every step; doing it per job is waste."""
-    engine = _Engine()
+    engine = FakeEngine()
     analysis = warm.Analysis(engine)
 
     for _ in range(3):
@@ -70,7 +91,7 @@ def test_a_pipeline_is_registered_once_however_often_it_runs():
 
 def test_two_pipelines_share_the_one_engine():
     """Object analysis is the next caller, and it needs nothing new here."""
-    engine = _Engine()
+    engine = FakeEngine()
     analysis = warm.Analysis(engine)
 
     analysis.run("focus", {"image_paths": []})
@@ -82,32 +103,46 @@ def test_two_pipelines_share_the_one_engine():
 
 def test_a_failed_pipeline_is_raised_and_not_answered_for():
     """A step that measures pixels has no sensible empty answer."""
-    analysis = warm.Analysis(_Engine(failure="the worker died"))
+    analysis = warm.Analysis(FakeEngine(failure="the worker died"))
     with pytest.raises(RuntimeError, match="the worker died"):
         analysis.run("focus", {"image_paths": []})
 
 
 def test_a_failure_from_before_the_job_is_not_the_jobs():
-    """The engine keeps every failure a pipeline ever had; a job is judged
-    only by what failed after it was submitted. The first good stack after a
-    bad one was declared lost on the bad one's error while its own score was
-    still being computed."""
-
-    class _Slow(_Engine):
-        def __init__(self):
-            super().__init__(stale_failures=["an earlier stack had one plane"])
-            self.asked = 0
-
-        def results(self, name):
-            self.asked += 1
-            return super().results(name) if self.asked > 3 else []
-
-    got = warm.Analysis(_Slow()).run("focus", {"image_paths": ["a", "b", "c"]})
+    """The board keeps every job a pipeline ever had; a job is judged only
+    by its own entry. The first good stack after a bad one was once declared
+    lost on the bad one's error while its own score was still being computed."""
+    earlier = [
+        (
+            "focus",
+            {
+                "step": "score_focus",
+                "scope": {},
+                "state": "failed",
+                "output": None,
+                "error": "an earlier stack had one plane",
+            },
+        )
+    ]
+    engine = FakeEngine(answer_after=4, earlier=earlier)
+    got = warm.Analysis(engine).run("focus", {"image_paths": ["a", "b", "c"]})
     assert got == {"ran": "focus"}
 
 
 def test_a_failure_after_an_earlier_one_is_still_raised():
-    engine = _Engine(failure="the worker died", stale_failures=["an old one"])
+    earlier = [
+        (
+            "focus",
+            {
+                "step": "score_focus",
+                "scope": {},
+                "state": "failed",
+                "output": None,
+                "error": "an old one",
+            },
+        )
+    ]
+    engine = FakeEngine(failure="the worker died", earlier=earlier)
     with pytest.raises(RuntimeError, match="the worker died") as raised:
         warm.Analysis(engine).run("focus", {"image_paths": []})
     assert "an old one" not in str(raised.value)
@@ -122,17 +157,10 @@ def test_an_answer_that_takes_its_time_is_waited_for():
     wedged worker is the operator's hand (shutdown), never a timer.
     """
 
-    class _Slow(_Engine):
-        def __init__(self):
-            super().__init__()
-            self.asked = 0
-
-        def results(self, name):
-            self.asked += 1
-            return super().results(name) if self.asked > 5 else []
-
-    got = warm.Analysis(_Slow()).run("focus", {"image_paths": []})
+    engine = FakeEngine(answer_after=6)
+    got = warm.Analysis(engine).run("focus", {"image_paths": []})
     assert got == {"ran": "focus"}
+    assert engine.asked[("focus", 1)] == 6
 
 
 def test_the_engine_is_built_with_no_per_call_clock(monkeypatch):
@@ -150,12 +178,13 @@ def test_the_engine_is_built_with_no_per_call_clock(monkeypatch):
     assert built.get("execution_timeout", "unset") is None
 
 
-def test_the_workers_are_kept_for_the_whole_session(monkeypatch):
-    """The engine's own default reaps a worker idle for 300 s; ours must not.
+def test_the_engine_is_built_with_nothing_but_the_missing_clock(monkeypatch):
+    """The workers stay for the session without asking: the engine keeps a
+    worker while its recipe is registered, and nothing here deregisters one.
 
-    The workers' imports are the cost this module exists to pay once. A press
-    six minutes after the last one found them reaped and paid it again, six
-    seconds on this PC and a silent minute on the rig.
+    The workers' imports are the cost this module exists to pay once. When
+    the engine still reaped idle workers, a press six minutes after the last
+    one paid them again, six seconds on this PC and a silent minute on the rig.
     """
     import zmart_analysis as engine_module
 
@@ -167,11 +196,11 @@ def test_the_workers_are_kept_for_the_whole_session(monkeypatch):
 
     monkeypatch.setattr(engine_module, "Engine", _Caught)
     _ = warm.Analysis().engine
-    assert built.get("idle_timeout", "unset") is None
+    assert built == {"execution_timeout": None}
 
 
 def test_the_workers_are_let_go_and_can_start_again():
-    engine = _Engine()
+    engine = FakeEngine()
     analysis = warm.Analysis(engine)
     analysis.run("focus", {"image_paths": []})
 
@@ -218,7 +247,7 @@ def test_a_new_analysis_is_handed_out_while_the_old_one_is_still_being_put_down(
     """
     import threading
 
-    class _SlowEngine(_Engine):
+    class _SlowEngine(FakeEngine):
         def __init__(self):
             super().__init__()
             self.shutting_down = threading.Event()
@@ -246,43 +275,34 @@ def test_a_new_analysis_is_handed_out_while_the_old_one_is_still_being_put_down(
     warm._analysis = None
 
 
-class _Wide(_Engine):
-    """A stand-in that answers in its own time and echoes each job's input,
-    as the real engine does, so an answer can be told from the others."""
+class WideEngine(FakeEngine):
+    """A stand-in that answers in its own time, fails the keys it is told
+    to, and counts how many jobs were in flight at once."""
 
     def __init__(self, *, fail=(), answer_after=1):
-        super().__init__()
-        self.scopes: list[dict] = []
-        self.in_flight = 0
+        super().__init__(answer_after=answer_after)
+        self.fail = set(fail)
         self.widest = 0
-        self._fail = set(fail)
-        self._answer_after = answer_after
-        self._polls = 0
 
-    def submit(self, name, data, scope=None):
-        self.submitted.append((name, data))
-        self.scopes.append(dict(scope or {}))
-        self.in_flight += 1
-        self.widest = max(self.widest, self.in_flight)
-        key = data["warm_key"]
-        if key in self._fail:
-            self._failures.append({"scope": dict(scope or {}), "step": "detect", "error": f"field {key} choked"})
-            self.in_flight -= 1
-        else:
-            self._waiting.append({"input": dict(data), "ran": name})
+    def outcome(self, pipeline, data):
+        if data.get("key") in self.fail:
+            return {"state": "failed", "output": None, "error": f"field {data['key']} choked"}
+        return {"state": "done", "output": {"input": dict(data), "ran": pipeline}}
 
-    def results(self, name):
-        self._polls += 1
-        if self._polls < self._answer_after:
-            return []
-        out, self._waiting = self._waiting, []
-        self.in_flight -= len(out)
-        return out
+    def submit(self, pipeline, data, scope=None, priority=None, complete=None):
+        job = super().submit(pipeline, data, scope=scope)
+        running = sum(e["state"] == "running" for e in self.boards[pipeline].values())
+        self.widest = max(self.widest, running)
+        return job
 
 
 def test_run_each_submits_up_to_the_width_at_once_and_answers_by_key():
-    engine = _Wide()
-    got = dict(warm.Analysis(engine).run_each("object_analysis_fast", {3: {"a": 3}, 7: {"a": 7}, 9: {"a": 9}}, at_once=2))
+    engine = WideEngine()
+    got = dict(
+        warm.Analysis(engine).run_each(
+            "object_analysis_fast", {3: {"a": 3}, 7: {"a": 7}, 9: {"a": 9}}, at_once=2
+        )
+    )
     assert set(got) == {3, 7, 9}
     assert got[7]["input"]["a"] == 7
     assert engine.widest == 2
@@ -290,17 +310,23 @@ def test_run_each_submits_up_to_the_width_at_once_and_answers_by_key():
 
 
 def test_run_each_files_a_failure_under_its_own_key_and_goes_on():
-    engine = _Wide(fail={7})
-    got = dict(warm.Analysis(engine).run_each("object_analysis_fast", {3: {}, 7: {}, 9: {}}, at_once=3))
+    engine = WideEngine(fail={7})
+    got = dict(
+        warm.Analysis(engine).run_each(
+            "object_analysis_fast", {3: {"key": 3}, 7: {"key": 7}, 9: {"key": 9}}, at_once=3
+        )
+    )
     assert isinstance(got[7], RuntimeError) and "choked" in str(got[7])
     assert got[3]["ran"] == "object_analysis_fast" and got[9]["ran"] == "object_analysis_fast"
 
 
 def test_run_each_stops_submitting_when_asked_and_drains_what_is_in_flight():
-    engine = _Wide(answer_after=2)
+    engine = WideEngine(answer_after=2)
     asked = {"stop": False}
     seen = []
-    for key, _outcome in warm.Analysis(engine).run_each("focus", {n: {} for n in range(6)}, at_once=2, until=lambda: asked["stop"]):
+    for key, _outcome in warm.Analysis(engine).run_each(
+        "focus", {n: {} for n in range(6)}, at_once=2, until=lambda: asked["stop"]
+    ):
         seen.append(key)
         asked["stop"] = True
     assert len(engine.submitted) <= 3

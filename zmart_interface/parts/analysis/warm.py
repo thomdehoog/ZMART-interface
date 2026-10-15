@@ -63,12 +63,10 @@ class Analysis:
             # genuinely wedged is reached by the operator's hand instead:
             # :meth:`shutdown` puts it down, and nothing else may.
             #
-            # And the workers stay for the session. The engine's other
-            # default reaps one idle for 300 s, so a press six minutes after
-            # the last paid every spawn and import again -- six seconds on
-            # a desk PC, a silent minute on the rig -- which is the one cost
-            # this module exists to pay once.
-            self._engine = Engine(execution_timeout=None, idle_timeout=None)
+            # The workers stay for the session on their own: the engine
+            # keeps a worker for as long as a recipe that needs it is
+            # registered, and nothing here deregisters one.
+            self._engine = Engine(execution_timeout=None)
         return self._engine
 
     def run(self, pipeline: str, given: dict) -> dict:
@@ -92,21 +90,15 @@ class Analysis:
             engine.register(pipeline, str(pipeline_yaml(pipeline)))
             self._registered.add(pipeline)
 
-        # The engine keeps every failure a pipeline ever had, results are
-        # drained. A failure from before this job is not this job's: judged
-        # on it, the first good stack after a bad one was declared lost while
-        # its score was still being computed.
-        failed_before = len(engine.status(pipeline).get("failures") or ())
-        engine.submit(pipeline, given)
+        # The job's own id is what is followed on the board, so another
+        # job's failure, earlier or at the same time, is never this one's.
+        job = engine.submit(pipeline=pipeline, data=given)
         while True:
-            status = engine.status(pipeline)
-            for result in engine.results(pipeline):
-                return result
-            failures = status.get("failures") or []
-            if len(failures) > failed_before:
-                raise RuntimeError(
-                    f"the {pipeline!r} pipeline failed: {failures[failed_before:]}"
-                )
+            outcome = outcome_of(pipeline, engine.status(pipeline)[job])
+            if isinstance(outcome, RuntimeError):
+                raise outcome
+            if outcome is not None:
+                return outcome
             time.sleep(_LOOK_EVERY_S)
 
     def run_each(self, pipeline: str, givens: dict, *, at_once: int, until=None):
@@ -119,41 +111,30 @@ class Analysis:
         each submission -- once it answers true no more are submitted, and
         what is in flight is still drained.
 
-        The engine echoes a job's input in its result and its scope in a
-        failure, which is how an answer is told from the others: every
-        input carries its key under ``warm_key``, and every submission is
-        scoped by the same.
+        Every submission's job id is kept against its key, and each job is
+        followed on the board by that id.
         """
         engine = self.engine
         if pipeline not in self._registered:
             engine.register(pipeline, str(pipeline_yaml(pipeline)))
             self._registered.add(pipeline)
-        failed_before = len(engine.status(pipeline).get("failures") or ())
         waiting = list(givens.items())
-        in_flight: set = set()
+        in_flight: dict = {}  # job id -> key
         while waiting or in_flight:
             while waiting and len(in_flight) < at_once and not (until and until()):
                 key, given = waiting.pop(0)
-                engine.submit(pipeline, {**given, "warm_key": key}, scope={"warm_key": key})
-                in_flight.add(key)
+                in_flight[engine.submit(pipeline=pipeline, data=given)] = key
             if until and until():
                 waiting = []
             if not in_flight:
                 break
+            board = engine.status(pipeline)
             landed = False
-            for result in engine.results(pipeline):
-                key = (result.get("input") or {}).get("warm_key")
-                if key in in_flight:
-                    in_flight.discard(key)
+            for job in list(in_flight):
+                outcome = outcome_of(pipeline, board[job])
+                if outcome is not None:
                     landed = True
-                    yield key, result
-            failures = (engine.status(pipeline).get("failures") or [])[failed_before:]
-            for failure in failures:
-                key = (failure.get("scope") or {}).get("warm_key")
-                if key in in_flight:
-                    in_flight.discard(key)
-                    landed = True
-                    yield key, RuntimeError(f"the {pipeline!r} pipeline failed: {failure}")
+                    yield in_flight.pop(job), outcome
             if not landed:
                 time.sleep(_LOOK_EVERY_S)
 
@@ -169,6 +150,16 @@ class Analysis:
             self._engine.shutdown(wait=False)
         self._engine = None
         self._registered.clear()
+
+
+def outcome_of(pipeline: str, entry: dict):
+    """A finished job's output, or the error that ended it; None while it runs."""
+    if entry["state"] == "done":
+        return entry["output"]
+    if entry["state"] in ("failed", "cancelled"):
+        why = entry.get("error") or entry["state"]
+        return RuntimeError(f"the {pipeline!r} pipeline {entry['state']} at {entry['step']}: {why}")
+    return None
 
 
 _analysis: Analysis | None = None
