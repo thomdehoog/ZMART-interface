@@ -17,6 +17,7 @@ class FakeEngine:
 
     def __init__(self, answers=None, failure=None, answer_after=1, earlier=()):
         self.registered: list[tuple] = []
+        self.outputs: list = []
         self.submitted: list[tuple] = []
         self.stopped = 0
         self.answers = answers if answers is not None else {}
@@ -33,8 +34,9 @@ class FakeEngine:
         board[job] = entry
         return job
 
-    def register(self, name, yaml_path):
+    def register(self, name, yaml_path, output):
         self.registered.append((name, yaml_path))
+        self.outputs.append(output)
 
     def outcome(self, pipeline, data):
         """The finished entry this job will show."""
@@ -73,14 +75,14 @@ def test_the_input_reaches_the_step_as_the_step_expects_it():
     where nothing in this repository could see it.
     """
     engine = FakeEngine()
-    warm.Analysis(engine).run("focus", {"image_paths": ["a.tiff", "b.tiff"]})
+    warm.Analysis(engine, output="run").run("focus", {"image_paths": ["a.tiff", "b.tiff"]})
     assert engine.submitted == [("focus", {"image_paths": ["a.tiff", "b.tiff"]})]
 
 
 def test_a_pipeline_is_registered_once_however_often_it_runs():
     """Registering parses YAML and reads every step; doing it per job is waste."""
     engine = FakeEngine()
-    analysis = warm.Analysis(engine)
+    analysis = warm.Analysis(engine, output="run")
 
     for _ in range(3):
         analysis.run("focus", {"image_paths": []})
@@ -92,7 +94,7 @@ def test_a_pipeline_is_registered_once_however_often_it_runs():
 def test_two_pipelines_share_the_one_engine():
     """Object analysis is the next caller, and it needs nothing new here."""
     engine = FakeEngine()
-    analysis = warm.Analysis(engine)
+    analysis = warm.Analysis(engine, output="run")
 
     analysis.run("focus", {"image_paths": []})
     analysis.run("object_analysis", {"image_paths": []})
@@ -103,7 +105,7 @@ def test_two_pipelines_share_the_one_engine():
 
 def test_a_failed_pipeline_is_raised_and_not_answered_for():
     """A step that measures pixels has no sensible empty answer."""
-    analysis = warm.Analysis(FakeEngine(failure="the worker died"))
+    analysis = warm.Analysis(FakeEngine(failure="the worker died"), output="run")
     with pytest.raises(RuntimeError, match="the worker died"):
         analysis.run("focus", {"image_paths": []})
 
@@ -125,7 +127,7 @@ def test_a_failure_from_before_the_job_is_not_the_jobs():
         )
     ]
     engine = FakeEngine(answer_after=4, earlier=earlier)
-    got = warm.Analysis(engine).run("focus", {"image_paths": ["a", "b", "c"]})
+    got = warm.Analysis(engine, output="run").run("focus", {"image_paths": ["a", "b", "c"]})
     assert got == {"ran": "focus"}
 
 
@@ -144,7 +146,7 @@ def test_a_failure_after_an_earlier_one_is_still_raised():
     ]
     engine = FakeEngine(failure="the worker died", earlier=earlier)
     with pytest.raises(RuntimeError, match="the worker died") as raised:
-        warm.Analysis(engine).run("focus", {"image_paths": []})
+        warm.Analysis(engine, output="run").run("focus", {"image_paths": []})
     assert "an old one" not in str(raised.value)
 
 
@@ -158,7 +160,7 @@ def test_an_answer_that_takes_its_time_is_waited_for():
     """
 
     engine = FakeEngine(answer_after=6)
-    got = warm.Analysis(engine).run("focus", {"image_paths": []})
+    got = warm.Analysis(engine, output="run").run("focus", {"image_paths": []})
     assert got == {"ran": "focus"}
     assert engine.asked[("focus", 1)] == 6
 
@@ -201,7 +203,7 @@ def test_the_engine_is_built_with_nothing_but_the_missing_clock(monkeypatch):
 
 def test_the_workers_are_let_go_and_can_start_again():
     engine = FakeEngine()
-    analysis = warm.Analysis(engine)
+    analysis = warm.Analysis(engine, output="run")
     analysis.run("focus", {"image_paths": []})
 
     analysis.shutdown()
@@ -299,7 +301,7 @@ class WideEngine(FakeEngine):
 def test_run_each_submits_up_to_the_width_at_once_and_answers_by_key():
     engine = WideEngine()
     got = dict(
-        warm.Analysis(engine).run_each(
+        warm.Analysis(engine, output="run").run_each(
             "object_analysis_fast", {3: {"a": 3}, 7: {"a": 7}, 9: {"a": 9}}, at_once=2
         )
     )
@@ -312,7 +314,7 @@ def test_run_each_submits_up_to_the_width_at_once_and_answers_by_key():
 def test_run_each_files_a_failure_under_its_own_key_and_goes_on():
     engine = WideEngine(fail={7})
     got = dict(
-        warm.Analysis(engine).run_each(
+        warm.Analysis(engine, output="run").run_each(
             "object_analysis_fast", {3: {"key": 3}, 7: {"key": 7}, 9: {"key": 9}}, at_once=3
         )
     )
@@ -324,10 +326,41 @@ def test_run_each_stops_submitting_when_asked_and_drains_what_is_in_flight():
     engine = WideEngine(answer_after=2)
     asked = {"stop": False}
     seen = []
-    for key, _outcome in warm.Analysis(engine).run_each(
+    for key, _outcome in warm.Analysis(engine, output="run").run_each(
         "focus", {n: {} for n in range(6)}, at_once=2, until=lambda: asked["stop"]
     ):
         seen.append(key)
         asked["stop"] = True
     assert len(engine.submitted) <= 3
     assert seen and len(seen) <= 3
+
+
+def test_every_pipeline_is_registered_into_the_run_folder():
+    engine = FakeEngine()
+    analysis = warm.Analysis(engine, output="D:/runs/exp_abc123")
+    analysis.run("focus", {"image_paths": []})
+    analysis.run("object_analysis", {"image_paths": []})
+    assert engine.outputs == ["D:/runs/exp_abc123", "D:/runs/exp_abc123"]
+
+
+def test_an_analysis_without_a_run_folder_says_to_connect():
+    with pytest.raises(RuntimeError, match="connect"):
+        warm.Analysis(FakeEngine()).run("focus", {"image_paths": []})
+
+
+def test_open_hands_the_run_folder_on_and_a_new_run_puts_the_old_analysis_down():
+    warm._analysis = None
+    warm.open("D:/runs/first")
+    first = warm.the_analysis()
+    engine = first._engine = FakeEngine()
+    assert first.output == "D:/runs/first"
+
+    warm.open("D:/runs/first")
+    assert warm.the_analysis() is first
+
+    warm.open("D:/runs/second")
+    assert engine.stopped == 1
+    second = warm.the_analysis()
+    assert second is not first and second.output == "D:/runs/second"
+    warm._analysis = None
+    warm.run_folder = None

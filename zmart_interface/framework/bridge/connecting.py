@@ -155,6 +155,8 @@ def connect(asked: dict) -> dict:
     state.pixel_provider = provider
     session.run = run
     state.run = run
+    # The analysis writes its records and files into this run.
+    warm.open(run)
     # A fresh session has scanned nothing. The bridge outlives the page, and
     # records carried over from the last session rebuilt its scan's pictures
     # into this run's view -- a just-connected canvas showed a scan nobody

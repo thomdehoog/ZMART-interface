@@ -1717,6 +1717,9 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     # conversion failed on the path alone.
     monkeypatch.setattr(state, "run", Path(tempfile.mkdtemp(prefix="zmt-")) / "run")
     state.run.mkdir()
+    # What connect does: the analysis writes into this run.
+    monkeypatch.setattr(warm, "run_folder", None)
+    warm.open(state.run)
     # The real scorer, through the warm analysis: this test is about the
     # whole route, and the fake one reads a height the mock does not write.
     monkeypatch.setattr(focus, "score_a_stack", lambda: focus_score.through(warm.the_analysis()))
@@ -1836,10 +1839,12 @@ def test_a_stopped_plot_says_so_and_a_failed_one_says_why(monkeypatch):
     assert got["error"] == "only 2 objects; a plot needs at least 10"
 
 
-def test_the_components_are_really_computed_over_a_detected_population(monkeypatch):
+def test_the_components_are_really_computed_over_a_detected_population(monkeypatch, tmp_path):
     """The whole route through the analysis, on the table discovery wrote:
     twelve objects, the components landing by id."""
     _needs_the_analysis_environment("ZMART--object_analysis--umap")
+    monkeypatch.setattr(warm, "run_folder", None)
+    warm.open(tmp_path)
     records = [
         _kept("overview", position_label=f"P{i}") for i in range(12)
     ]

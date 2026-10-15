@@ -15,7 +15,11 @@ on first use, and handed to whoever asks.
 
     from zmart_interface.parts.analysis import warm
 
+    warm.open(run)                      # at connect: the session's run folder
     scored = warm.the_analysis().run("focus", {"image_paths": [...]})
+
+Every pipeline is registered with that run folder, so its record and files
+go into ``<run>/analysis/<pipeline>/``.
 
 The engine is ZMART-analysis's (installed as the ``zmart_analysis`` package);
 the pipelines it runs are found in a ZMART-analysis checkout, as
@@ -46,9 +50,11 @@ class Analysis:
     exposes unchanged.
     """
 
-    def __init__(self, engine: Any = None) -> None:
+    def __init__(self, engine: Any = None, output: str | None = None) -> None:
         self._engine = engine
         self._registered: set[str] = set()
+        #: The run folder every pipeline writes into.
+        self.output = output
 
     @property
     def engine(self) -> Any:
@@ -64,10 +70,20 @@ class Analysis:
             # :meth:`shutdown` puts it down, and nothing else may.
             #
             # The workers stay for the session on their own: the engine
-            # keeps a worker for as long as a recipe that needs it is
+            # keeps a worker for as long as a pipeline that needs it is
             # registered, and nothing here deregisters one.
             self._engine = Engine(execution_timeout=None)
         return self._engine
+
+    def ready(self, pipeline: str) -> Any:
+        """The engine, with *pipeline* registered into the run folder."""
+        if self.output is None:
+            raise RuntimeError("the analysis has no run folder yet: connect to a microscope first")
+        engine = self.engine
+        if pipeline not in self._registered:
+            engine.register(pipeline, str(pipeline_yaml(pipeline)), self.output)
+            self._registered.add(pipeline)
+        return engine
 
     def run(self, pipeline: str, given: dict) -> dict:
         """Run one job through *pipeline* and return its result.
@@ -85,10 +101,7 @@ class Analysis:
         ever chose to "know" a job had hung was a legitimate one for some
         field, and cutting real work is the worse failure.
         """
-        engine = self.engine
-        if pipeline not in self._registered:
-            engine.register(pipeline, str(pipeline_yaml(pipeline)))
-            self._registered.add(pipeline)
+        engine = self.ready(pipeline)
 
         # The job's own id is what is followed on the board, so another
         # job's failure, earlier or at the same time, is never this one's.
@@ -114,10 +127,7 @@ class Analysis:
         Every submission's job id is kept against its key, and each job is
         followed on the board by that id.
         """
-        engine = self.engine
-        if pipeline not in self._registered:
-            engine.register(pipeline, str(pipeline_yaml(pipeline)))
-            self._registered.add(pipeline)
+        engine = self.ready(pipeline)
         waiting = list(givens.items())
         in_flight: dict = {}  # job id -> key
         while waiting or in_flight:
@@ -164,12 +174,27 @@ def outcome_of(pipeline: str, entry: dict):
 
 _analysis: Analysis | None = None
 
+#: The session's run folder, given by :func:`open`.
+run_folder: str | None = None
+
+
+def open(run) -> None:  # noqa: A001 -- the pair of close()
+    """Give the analysis the session's run folder.
+
+    An analysis still writing into another run is put down first, as a
+    disconnect would.
+    """
+    global run_folder
+    if _analysis is not None and _analysis.output != str(run):
+        close()
+    run_folder = str(run)
+
 
 def the_analysis() -> Analysis:
     """The one analysis this process talks to, built on first use."""
     global _analysis
     if _analysis is None:
-        _analysis = Analysis()
+        _analysis = Analysis(output=run_folder)
     return _analysis
 
 
