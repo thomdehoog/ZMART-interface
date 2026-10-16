@@ -179,15 +179,15 @@ run_folder: str | None = None
 
 
 def open(run) -> None:  # noqa: A001 -- the pair of close()
-    """Give the analysis the session's run folder.
+    """Give the analysis the session's run folder, or None when there is none.
 
-    An analysis still writing into another run is put down first, as a
+    An analysis still writing into another run is put down, as a
     disconnect would.
     """
     global run_folder
-    if _analysis is not None and _analysis.output != str(run):
+    run_folder = None if run is None else str(run)
+    if _analysis is not None and _analysis.output != run_folder:
         close()
-    run_folder = str(run)
 
 
 def the_analysis() -> Analysis:

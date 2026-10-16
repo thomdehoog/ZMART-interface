@@ -1719,6 +1719,7 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     state.run.mkdir()
     # What connect does: the analysis writes into this run.
     monkeypatch.setattr(warm, "run_folder", None)
+    monkeypatch.setattr(warm, "_analysis", None)
     warm.open(state.run)
     # The real scorer, through the warm analysis: this test is about the
     # whole route, and the fake one reads a height the mock does not write.
@@ -1844,6 +1845,7 @@ def test_the_components_are_really_computed_over_a_detected_population(monkeypat
     twelve objects, the components landing by id."""
     _needs_the_analysis_environment("ZMART--object_analysis--umap")
     monkeypatch.setattr(warm, "run_folder", None)
+    monkeypatch.setattr(warm, "_analysis", None)
     warm.open(tmp_path)
     records = [
         _kept("overview", position_label=f"P{i}") for i in range(12)

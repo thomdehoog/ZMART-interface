@@ -243,6 +243,7 @@ def disconnect() -> dict:
     # The workers outlive a focus map on purpose, but not the session: a
     # disconnected page is not about to measure anything.
     warm.close()
+    warm.open(None)
     # The picture server belongs to the session's run, and goes with it.
     viewer_service.stop()
     return {"closed": True}

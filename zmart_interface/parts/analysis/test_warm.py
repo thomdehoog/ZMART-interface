@@ -348,8 +348,9 @@ def test_an_analysis_without_a_run_folder_says_to_connect():
         warm.Analysis(FakeEngine()).run("focus", {"image_paths": []})
 
 
-def test_open_hands_the_run_folder_on_and_a_new_run_puts_the_old_analysis_down():
-    warm._analysis = None
+def test_open_hands_the_run_folder_on_and_a_new_run_puts_the_old_analysis_down(monkeypatch):
+    monkeypatch.setattr(warm, "_analysis", None)
+    monkeypatch.setattr(warm, "run_folder", None)
     warm.open("D:/runs/first")
     first = warm.the_analysis()
     engine = first._engine = FakeEngine()
@@ -362,5 +363,6 @@ def test_open_hands_the_run_folder_on_and_a_new_run_puts_the_old_analysis_down()
     assert engine.stopped == 1
     second = warm.the_analysis()
     assert second is not first and second.output == "D:/runs/second"
-    warm._analysis = None
-    warm.run_folder = None
+
+    warm.open(None)
+    assert warm.run_folder is None and warm._analysis is None
