@@ -12,18 +12,16 @@ from zmart_interface.parts.analysis import workflows
 
 @pytest.fixture(autouse=True)
 def _forget_what_was_loaded():
-    workflows.shared_module.cache_clear()
     workflows.step_module.cache_clear()
     yield
-    workflows.shared_module.cache_clear()
     workflows.step_module.cache_clear()
 
 
 def _a_checkout(root):
-    (root / "workflows" / "focus" / "pipelines").mkdir(parents=True)
-    (root / "workflows" / "focus" / "pipelines" / "focus.yaml").write_text("steps: []\n")
-    (root / "workflows" / "shared").mkdir()
-    (root / "workflows" / "shared" / "image_io.py").write_text("WHERE = 'the checkout'\n")
+    (root / "workflows" / "alignment" / "pipelines").mkdir(parents=True)
+    (root / "workflows" / "alignment" / "pipelines" / "focus.yaml").write_text("steps: []\n")
+    (root / "workflows" / "object_analysis" / "steps").mkdir(parents=True)
+    (root / "workflows" / "object_analysis" / "steps" / "read_images.py").write_text("WHERE = 'the checkout'\n")
     return root
 
 
@@ -34,7 +32,7 @@ def test_the_environment_variable_names_the_checkout_or_its_workflows(tmp_path, 
     monkeypatch.setenv(workflows.ENV, str(checkout / "workflows"))
     assert workflows.workflows_root() == (checkout / "workflows").resolve()
     assert workflows.pipeline_yaml("focus").name == "focus.yaml"
-    assert workflows.shared_module("image_io").WHERE == "the checkout"
+    assert workflows.step_module("object_analysis", "read_images").WHERE == "the checkout"
 
 
 def test_a_folder_without_workflows_is_said_plainly(tmp_path, monkeypatch):
@@ -56,8 +54,8 @@ def test_without_the_variable_the_workflows_beside_the_engine_are_used(monkeypat
     root = workflows.workflows_root()
     assert root.name == "workflows"
     # The pipelines the interface runs: focus, detection both ways, and the plots.
-    for name in ("focus", "object_analysis", "object_analysis_fast", "population_plots"):
+    for name in ("focus", "object_analysis_cellpose", "object_analysis_watershed", "reduce_dimensions"):
         assert workflows.pipeline_yaml(name).is_file(), name
-    assert callable(workflows.shared_module("image_io").load_plane)
+    assert callable(workflows.step_module("object_analysis", "read_images").load_plane)
     with pytest.raises(FileNotFoundError, match="no workflow under"):
         workflows.pipeline_yaml("no_such_pipeline")

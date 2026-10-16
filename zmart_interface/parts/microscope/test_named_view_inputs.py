@@ -16,7 +16,8 @@ from zmart_interface.parts.storage import jpeg_tiles
 from zmart_interface.parts.storage.test_zarr_positions import a_z_stack
 from zmart_interface.parts.storage.zarr_positions import position_store_from_record
 
-detect_objects = step_module("object_analysis", "detect_objects")
+read_images = step_module("object_analysis", "read_images")
+segment_watershed = step_module("object_analysis", "segment_watershed")
 
 
 def test_simulator_refusal_propagates_out_of_ingestion(tmp_path, monkeypatch):
@@ -49,7 +50,7 @@ def test_preview_uses_the_same_canonical_mip_as_detection(tmp_path, monkeypatch)
         record["position_label"],
         [{"c": 0, "visible": True, "window": [0, 40000], "color": "#ff0000"}],
     )
-    expected = detect_objects.load_plane(record["zarr"], t=0, c=0, z="max")[0]
+    expected = read_images.load_plane(record["zarr"], t=0, c=0, z="max")[0]
     np.testing.assert_allclose(shown[..., 0], expected.astype("float32") / 40000 * 255)
     assert expected.max() > 0
     assert np.count_nonzero(shown[..., 1:]) == 0
@@ -79,19 +80,20 @@ def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
         "output_dir": str(tmp_path / "analysis"),
         "synthetic_pixels": SimulatorPixels.recipe,
     }
-    result = detect_objects.run({"input": inp}, {})
-    # The step publishes the channels it read under its own name, the extra
-    # channel last, so the feature step can measure in every colour.
-    np.testing.assert_array_equal(result["detect_objects"]["image"][..., 1], 900)
-    assert result["detect_objects"]["n_objects"] > 0
+    read = read_images.run({"input": inp, "metadata": {"verbose": 0}}, {})
+    # The extra channel is read as a maximum projection too, for the features.
+    np.testing.assert_array_equal(read["read_images"]["extra_channels"][0], 900)
+    result = segment_watershed.run(read, {})
+    assert result["segment_watershed"]["n_objects"] > 0
     checkpoint = json.loads(
         next((tmp_path / "analysis").rglob("detection_checkpoint.json")).read_text()
     )
     assert checkpoint["synthetic_pixels"] == SimulatorPixels.recipe
-    params = detect_objects.segmentation_params(inp, {})
-    assert detect_objects.segmentation_params_hash(
-        params
-    ) != detect_objects.segmentation_params_hash({**params, "z_selection": "mid"})
+    assert result["segment_watershed"]["segmentation_params"]["z_selection"] == "max"
+    # The projection is part of the segmentation's identity
+    middle = read_images.run({"input": {**inp, "z_selection": "mid"}, "metadata": {"verbose": 0}}, {})
+    middle = segment_watershed.run(middle, {})["segment_watershed"]
+    assert middle["segmentation_params_hash"] != result["segment_watershed"]["segmentation_params_hash"]
 
 
 def test_target_area_and_radius_use_captured_calibration(tmp_path):

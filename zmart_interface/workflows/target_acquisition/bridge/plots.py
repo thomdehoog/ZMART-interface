@@ -31,7 +31,7 @@ def the_population_table() -> Path:
 
 #: The ZMART-analysis pipeline that draws a multidimensional plot of the
 #: population, and the two plots it draws with the columns each lands as.
-PLOTS_PIPELINE = "population_plots"
+PLOTS_PIPELINE = "reduce_dimensions"
 
 
 PLOT_KINDS = {"pca": ("pca_1", "pca_2"), "umap": ("umap_1", "umap_2")}
@@ -73,7 +73,7 @@ def compute_plot(asked: dict) -> dict:
 def plot_through_the_analysis(kind: str, table: Path, ids: list[str] | None) -> dict:
     """One plot through the warm analysis: what the step published."""
     given = {"table": str(table), "kind": kind, "ids": ids}
-    return warm.the_analysis().run(PLOTS_PIPELINE, given)["plot_population"]
+    return warm.the_analysis().run(PLOTS_PIPELINE, given)["reduce_dimensions"]
 
 
 def plot_worker(kind: str, table: Path, ids: list[str] | None) -> None:

@@ -116,9 +116,9 @@ def test_through_runs_the_object_pipeline_once_per_field():
             self.asked.append((pipeline, given))
             # The shape the engine hands back: the whole pipeline_data, the
             # table under the pipeline's name and the detection step's own
-            # record beside it (its arrays stripped, its device kept).
+            # record beside it (its masks stripped, its device kept).
             return {
-                "detect_objects": {"detector_params": {"device": "cuda", "used_gpu": True}},
+                "segment_cellpose": {"detector_params": {"device": "cuda", "used_gpu": True}},
                 "object_analysis": {"objects": {"n_objects": 1, "properties": {
                     "object_id": ["overview_r000_c000_obj0001"], "label": [7],
                     "stage_x_um": [1.0], "stage_y_um": [2.0], "area": [4], "intensity_mean": [9.0],
@@ -128,14 +128,14 @@ def test_through_runs_the_object_pipeline_once_per_field():
     analysis = Analysis()
     find = detection.through(analysis, pixel_um=4.0)
     found = find(_record(), field=0, settings={"diameter": 20.0, "cellprob": 0.0})
-    assert analysis.asked[0][0] == "object_analysis"
+    assert analysis.asked[0][0] == "object_analysis_cellpose"
     # The fast way goes through the pipeline that never spawns the vision
     # environment: a cold press paid the torch worker for a watershed.
     find(_record(), field=0, settings={"method": "fast", "diameter": 20.0})
-    assert analysis.asked[1][0] == "object_analysis_fast"
+    assert analysis.asked[1][0] == "object_analysis_watershed"
     assert analysis.asked[1][1]["method"] == "fast"
     find(_record(), field=0, settings={"method": "robust", "diameter": 20.0})
-    assert analysis.asked[2][0] == "object_analysis"
+    assert analysis.asked[2][0] == "object_analysis_cellpose"
     assert analysis.asked[0][1]["diameter"] == 5.0
     targets = found["cells"]
     assert targets[0]["x"] == 1.0 and targets[0]["area"] == 64.0
@@ -261,7 +261,7 @@ def test_through_finds_many_fields_at_once_and_says_which_is_which():
                     yield field, RuntimeError("field 1 choked")
                     continue
                 yield field, {
-                    "detect_objects": {"detector_params": {"device": "cpu"}},
+                    "segment_watershed": {"detector_params": {"device": "cpu"}},
                     "object_analysis": {"objects": {"n_objects": 1, "properties": {
                         "object_id": [f"overview_r00{field}_c000_obj0001"], "label": [1],
                         "stage_x_um": [float(field)], "stage_y_um": [0.0], "area": [4], "intensity_mean": [1.0],
@@ -272,7 +272,7 @@ def test_through_finds_many_fields_at_once_and_says_which_is_which():
     find = detection.through(analysis, pixel_um=4.0)
     records = {field: _record() for field in (0, 1, 2)}
     outcomes = dict(find.each(records, settings={"method": "fast"}, at_once=3))
-    assert analysis.asked == [("object_analysis_fast", [0, 1, 2], 3)]
+    assert analysis.asked == [("object_analysis_watershed", [0, 1, 2], 3)]
     assert outcomes[0]["cells"][0]["x"] == 0.0 and outcomes[0]["device"] == "cpu"
     assert outcomes[2]["cells"][0]["id"] == "overview_r002_c000_obj0001"
     assert isinstance(outcomes[1], RuntimeError)

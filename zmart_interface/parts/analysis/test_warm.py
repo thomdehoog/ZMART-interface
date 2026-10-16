@@ -97,10 +97,10 @@ def test_two_pipelines_share_the_one_engine():
     analysis = warm.Analysis(engine, output="run")
 
     analysis.run("focus", {"image_paths": []})
-    analysis.run("object_analysis", {"image_paths": []})
+    analysis.run("object_analysis_cellpose", {"image_paths": []})
 
-    assert [name for name, _path in engine.registered] == ["focus", "object_analysis"]
-    assert engine.registered[1][1].endswith("object_analysis.yaml")
+    assert [name for name, _path in engine.registered] == ["focus", "object_analysis_cellpose"]
+    assert engine.registered[1][1].endswith("object_analysis_cellpose.yaml")
 
 
 def test_a_failed_pipeline_is_raised_and_not_answered_for():
@@ -226,12 +226,12 @@ def test_the_process_shares_one_analysis():
 
 def test_a_pipeline_is_found_by_its_name_under_whichever_workflow_has_it():
     assert warm.pipeline_yaml("focus").is_file()
-    assert warm.pipeline_yaml("object_analysis").is_file()
-    # A workflow's second pipeline: the same steps, one of them placed in
-    # another environment.
-    fast = warm.pipeline_yaml("object_analysis_fast")
-    assert fast.is_file()
-    assert fast.parent == warm.pipeline_yaml("object_analysis").parent
+    assert warm.pipeline_yaml("focus").parent.parent.name == "alignment"
+    assert warm.pipeline_yaml("object_analysis_cellpose").is_file()
+    # A workflow's second pipeline: the same steps, the segmentation done another way.
+    watershed = warm.pipeline_yaml("object_analysis_watershed")
+    assert watershed.is_file()
+    assert watershed.parent == warm.pipeline_yaml("object_analysis_cellpose").parent
 
 
 def test_a_pipeline_nobody_has_is_said_so():
@@ -302,24 +302,24 @@ def test_run_each_submits_up_to_the_width_at_once_and_answers_by_key():
     engine = WideEngine()
     got = dict(
         warm.Analysis(engine, output="run").run_each(
-            "object_analysis_fast", {3: {"a": 3}, 7: {"a": 7}, 9: {"a": 9}}, at_once=2
+            "object_analysis_watershed", {3: {"a": 3}, 7: {"a": 7}, 9: {"a": 9}}, at_once=2
         )
     )
     assert set(got) == {3, 7, 9}
     assert got[7]["input"]["a"] == 7
     assert engine.widest == 2
-    assert [name for name, _ in engine.registered] == ["object_analysis_fast"]
+    assert [name for name, _ in engine.registered] == ["object_analysis_watershed"]
 
 
 def test_run_each_files_a_failure_under_its_own_key_and_goes_on():
     engine = WideEngine(fail={7})
     got = dict(
         warm.Analysis(engine, output="run").run_each(
-            "object_analysis_fast", {3: {"key": 3}, 7: {"key": 7}, 9: {"key": 9}}, at_once=3
+            "object_analysis_watershed", {3: {"key": 3}, 7: {"key": 7}, 9: {"key": 9}}, at_once=3
         )
     )
     assert isinstance(got[7], RuntimeError) and "choked" in str(got[7])
-    assert got[3]["ran"] == "object_analysis_fast" and got[9]["ran"] == "object_analysis_fast"
+    assert got[3]["ran"] == "object_analysis_watershed" and got[9]["ran"] == "object_analysis_watershed"
 
 
 def test_run_each_stops_submitting_when_asked_and_drains_what_is_in_flight():
@@ -339,7 +339,7 @@ def test_every_pipeline_is_registered_into_the_run_folder():
     engine = FakeEngine()
     analysis = warm.Analysis(engine, output="D:/runs/exp_abc123")
     analysis.run("focus", {"image_paths": []})
-    analysis.run("object_analysis", {"image_paths": []})
+    analysis.run("object_analysis_cellpose", {"image_paths": []})
     assert engine.outputs == ["D:/runs/exp_abc123", "D:/runs/exp_abc123"]
 
 

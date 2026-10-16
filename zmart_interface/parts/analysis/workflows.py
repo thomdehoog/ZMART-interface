@@ -2,7 +2,7 @@
 
 ZMART-analysis is installed as a package (``zmart_analysis``: it starts each
 analysis step in its own conda environment and keeps it warm), but its workflows --
-the pipelines in YAML, the step files, the shared image reader -- are not
+the pipelines in YAML and the step files -- are not
 part of the package. They stay in a checkout of the ZMART-analysis
 repository, with the conda environments each workflow creates for itself.
 So the interface has to be told where that checkout is.
@@ -71,9 +71,8 @@ def workflows_root() -> Path:
 def pipeline_yaml(name: str) -> Path:
     """Where a pipeline's YAML is, by its name, under whichever workflow has it.
 
-    A workflow's main pipeline carries the workflow's own name; its variants
-    carry that name and a suffix (``object_analysis_fast``), and some live in
-    a workflow of another name (``population_plots``, in ``object_analysis``).
+    A pipeline's name does not say its workflow: ``focus`` lives in
+    ``alignment``, ``object_analysis_watershed`` in ``object_analysis``.
     """
     root = workflows_root()
     found = sorted(root.glob(f"*/pipelines/{name}.yaml"))
@@ -94,9 +93,10 @@ def step_file(workflow: str, step: str) -> Path:
 def step_module(workflow: str, step: str) -> ModuleType:
     """One step of a workflow, loaded from its file, the way the engine's worker loads it.
 
-    For running a step in this process rather than in its own environment:
-    scoring one stack where numpy and scipy are already loaded. A step file
-    finds its workflow's shared modules by itself.
+    For using a step's code in this process: the previews read a position
+    with ``load_plane`` from object_analysis's ``read_images``, the reader
+    detection uses, so the two can never read a stack differently. A step
+    file finds the other steps of its workflow by itself.
     """
     path = step_file(workflow, step)
     spec = importlib.util.spec_from_file_location(f"zmart_analysis_step_{workflow}_{step}", path)
@@ -104,21 +104,3 @@ def step_module(workflow: str, step: str) -> ModuleType:
     spec.loader.exec_module(module)
     return module
 
-
-@cache
-def shared_module(name: str) -> ModuleType:
-    """One of the workflows' shared modules (``workflows/shared/<name>.py``), loaded by path.
-
-    The image reader the analysis steps use (``image_io``) is also how the
-    interface reads a plane of a position for the pictures beside the canvas,
-    so the two can never read a stack differently. It is loaded from its file
-    under a name of its own, because the ``workflows`` folder is not an
-    installed package, and nothing is added to Python's search path.
-    """
-    path = workflows_root() / "shared" / f"{name}.py"
-    if not path.is_file():
-        raise FileNotFoundError(f"the ZMART-analysis workflows have no shared module {name!r} at {path}")
-    spec = importlib.util.spec_from_file_location(f"zmart_analysis_shared_{name}", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module

@@ -6,6 +6,7 @@ import pytest
 from PIL import Image
 
 from zmart_interface.parts.analysis import focus_score
+from zmart_interface.parts.analysis.workflows import step_module
 from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels
 from zmart_interface.parts.storage import jpeg_tiles
 from zmart_interface.parts.storage.test_zarr_positions import a_z_stack
@@ -44,7 +45,11 @@ def test_focus_and_preview_use_canonical_kidney_not_vendor_tiffs(tmp_path, monke
     hashes = {p["path"]:hashlib.sha256(Path(p["path"]).read_bytes()).hexdigest() for p in record["planes"]}
     record["zarr"] = str(position_store_from_record(record, tmp_path / "positions", pixel_provider=KidneyPixels(focus_z_um=focus)))
     assert focus_score.what_was_captured(record) == {"image_path":record["zarr"]}
-    found = focus_score.in_process(skip_ends=1)(record)
+    read = step_module("alignment", "read_images").run(
+        {"input": focus_score.what_was_captured(record), "metadata": {"verbose": 0}}, {}
+    )
+    scored = step_module("alignment", "score_focus").run(read, {}, skip_ends=1)["score_focus"]
+    found = focus_score.as_a_measurement(scored)
     assert found["z_um"] == pytest.approx(focus, abs=1)
     assert len(set(p["s"] for p in found["traces"]["brenner"]["samples"])) > 5
     # Forbid a vendor TIFF read after canonical ingestion.

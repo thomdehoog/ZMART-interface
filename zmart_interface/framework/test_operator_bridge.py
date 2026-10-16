@@ -1709,7 +1709,7 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     """The target run with focussing on, with nothing stood in for: the
     mock driver through the controller, the focussing stack filed under its
     own acquisition and scored, the target taken at the peak."""
-    _needs_the_analysis_environment("ZMART--focus--main")
+    _needs_the_analysis_environment("ZMART--alignment--main")
     session = _a_mock_session({**mock_instrument, "output_root": str(tmp_path)})
     monkeypatch.setattr(state, "session", session)
     # A short run folder: under pytest's own, named after this test, the

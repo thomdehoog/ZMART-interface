@@ -2,8 +2,8 @@
 
 The same shape as :mod:`focus_score`: what a capture becomes as the step's
 input, what the step's answer becomes in the run's own terms, and a finder
-that goes through a warm analysis. The pipeline is ``object_analysis`` in
-ZMART-analysis; nothing about detecting is done here.
+that goes through a warm analysis. The pipelines are in ZMART-analysis's
+``object_analysis`` workflow; nothing about detecting is done here.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -17,10 +17,13 @@ from pathlib import Path
 from typing import Any
 
 #: The ZMART-analysis pipeline that finds the objects in one field, by how the
-#: page asked for them to be found. Both are the same three steps and answer
-#: under the same name; the fast one places detection in the classical
-#: environment, so a watershed never pays the torch worker's spawn.
-PIPELINES = {"robust": "object_analysis", "fast": "object_analysis_fast"}
+#: page asked for them to be found. Both answer under the same name; the
+#: watershed one runs in the classical environment, so it never pays the torch
+#: worker's spawn.
+PIPELINES = {"robust": "object_analysis_cellpose", "fast": "object_analysis_watershed"}
+
+#: Where each pipeline's segmentation step leaves its record, with the device it ran on.
+SEGMENTATION_STEPS = ("segment_cellpose", "segment_watershed")
 
 #: Which way the image's axes point on the stage: a column to the right is
 #: +x, a row down is +y. The mock cuts its frames straight from the sample, so
@@ -189,10 +192,10 @@ def through(analysis: Any, *, pixel_um: float) -> Callable[[dict, int, dict], di
     """
 
     def found_in(result: dict, given: dict, field: int) -> dict:
-        # The table stands under the pipeline's name; the detection step's
+        # The table stands under the pipeline's name; the segmentation step's
         # own record stands beside it, stripped of its arrays, and that is
         # where the device it ran on is written.
-        detection = result.get("detect_objects") or {}
+        detection = next((result[step] for step in SEGMENTATION_STEPS if step in result), {})
         device = (detection.get("detector_params") or {}).get("device")
         return {
             "cells": as_targets(result["object_analysis"], field=field,

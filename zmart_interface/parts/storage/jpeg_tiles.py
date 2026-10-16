@@ -354,9 +354,9 @@ def picture_as_displayed(
 
     channels: dict[int, Any] = {}
     if store is not None:
-        from zmart_interface.parts.analysis.workflows import shared_module  # noqa: PLC0415
+        from zmart_interface.parts.analysis.workflows import step_module  # noqa: PLC0415
 
-        load_plane = shared_module("image_io").load_plane
+        load_plane = step_module("object_analysis", "read_images").load_plane
 
         # Canonical positions pack channels and time from zero, just as detection reads them.
         channels = {c: np.asarray(load_plane(store, t=0, c=c, z="max")[0])
@@ -530,9 +530,9 @@ def make_slice_copies(
     into = Path(into)
     into.mkdir(parents=True, exist_ok=True)
     if store is not None:
-        from zmart_interface.parts.analysis.workflows import shared_module  # noqa: PLC0415
+        from zmart_interface.parts.analysis.workflows import step_module  # noqa: PLC0415
 
-        load_plane = shared_module("image_io").load_plane
+        load_plane = step_module("object_analysis", "read_images").load_plane
 
         first, metadata = load_plane(store, t=0, c=0, z=0)
         sizes = dict(zip(metadata["axes"], metadata["shape"], strict=True))

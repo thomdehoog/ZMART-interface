@@ -84,7 +84,7 @@ the environments its workflows need, and tell the interface where it is:
 
 ```bash
 git clone https://github.com/thomdehoog/ZMART-analysis
-python ZMART-analysis/workflows/focus/environments/setup_env.py --step main
+python ZMART-analysis/workflows/alignment/environments/setup_env.py --step main
 python ZMART-analysis/workflows/object_analysis/environments/setup_env.py --step classical
 setx ZMART_ANALYSIS_WORKFLOWS C:\path\to\ZMART-analysis
 ```

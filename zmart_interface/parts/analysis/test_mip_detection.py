@@ -7,7 +7,16 @@ from zmart_interface.parts.analysis.workflows import step_module
 from zmart_interface.parts.storage.test_zarr_positions import a_z_stack
 from zmart_interface.parts.storage.zarr_positions import position_store_from_record
 
-detect_objects = step_module("object_analysis", "detect_objects")
+read_images = step_module("object_analysis", "read_images")
+segment_watershed = step_module("object_analysis", "segment_watershed")
+
+
+def segmented(path, z):
+    """The position through read_images and segment_watershed: the detection, and the image read."""
+    given = {"image_path": path, "channels": [0], "z_selection": z}
+    data = read_images.run({"input": given, "metadata": {"verbose": 0}}, {})
+    found = segment_watershed.run(data, {}, threshold=100, diameter=14)["segment_watershed"]
+    return {**found, "image": data["read_images"]["image"]}
 
 
 def test_capture_channels_match_first_timepoint_reader(tmp_path):
@@ -42,9 +51,8 @@ def test_real_detector_sees_objects_outside_middle_plane(tmp_path, depth):
     assert given["tile_z_um"] is None
     assert given["diameter"] == 14  # stored 1 um/px, not the instrument-now 0.1
     assert given["border_margin_px"] == 2
-    args = dict(method="fast", channels=[0], threshold=100, diameter=14, gpu=False)
-    old = detect_objects.segment_position(record["zarr"], {}, z="mid", **args)
-    result = detect_objects.segment_position(record["zarr"], {}, z=given["z_selection"], **args)
+    old = segmented(record["zarr"], "mid")
+    result = segmented(record["zarr"], given["z_selection"])
     assert old["n_objects"] == 0
     assert result["masks"][20, 20] > 0
     assert result["masks"][44, 44] > 0
@@ -60,6 +68,6 @@ def test_real_detector_sees_objects_outside_middle_plane(tmp_path, depth):
             image[(xx - 32) ** 2 + (yy - 32) ** 2 < 7**2] = 15000
         tifffile.imwrite(plane["path"], image)
     assert str(position_store_from_record(record, tmp_path / "positions")) == record["zarr"]
-    rewritten = detect_objects.segment_position(record["zarr"], {}, z="max", **args)
+    rewritten = segmented(record["zarr"], "max")
     assert rewritten["masks"][32, 32] > 0
     assert rewritten["masks"][20, 20] == rewritten["masks"][44, 44] == 0

@@ -7,7 +7,7 @@ takes, with no mock-shaped branch anywhere in it:
     set_xyz    drive to the centre of the range to search
     acquire    the job's z-stack, one 2-D plane per file
     get_state  the stack the job took, so the plane heights are known
-    score_focus  sharpness of every plane, and the height it peaks at
+    read_images, score_focus  the planes, then their sharpness and the height it peaks at
 
 What makes it a test rather than a rehearsal is that the mock's sample is a
 tilted sheet whose sharp height is a *different number* at every (x, y), and
@@ -27,9 +27,10 @@ from zmart_interface.mock_microscope import driver as mock_driver
 from zmart_interface.parts.analysis.focus_score import what_was_captured
 from zmart_interface.parts.analysis.workflows import step_module
 
-#: The focus step, loaded from the ZMART-analysis workflows the way the
-#: engine's worker loads it, and run here in this process.
-score_focus = step_module("focus", "score_focus").run
+#: The focus pipeline's two steps, loaded from the ZMART-analysis workflows the
+#: way the engine's worker loads them, and run here in this process.
+read_images = step_module("alignment", "read_images").run
+score_focus = step_module("alignment", "score_focus").run
 
 #: How close the recovered height must be to the sample's own. The stack steps
 #: just over a micrometre, and the parabola refines between planes, so a chain
@@ -69,13 +70,8 @@ def focus_at(session, x_um: float, y_um: float, centre_um: float) -> dict:
     session.set_xyz(x_um, y_um, centre_um)
     record = session.acquire(folder="focussing", position_label="K00_P000000")
 
-    scored = score_focus(
-        {
-            "input": what_was_captured(record),
-            "metadata": {"verbose": 0},
-        },
-        {},
-    )["score_focus"]
+    read = read_images({"input": what_was_captured(record), "metadata": {"verbose": 0}}, {})
+    scored = score_focus(read, {})["score_focus"]
     return scored
 
 

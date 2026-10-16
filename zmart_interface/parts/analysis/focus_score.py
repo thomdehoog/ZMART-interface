@@ -8,17 +8,10 @@ that is what lets the operator page's bridge run on a microscope PC with
 nothing installed on it -- while scoring pixels needs numpy, scipy, and an
 environment to run them in.
 
-There are two ways to reach the same step, and which one a caller wants depends
-on what it can afford:
-
-* :func:`in_process` imports the step and runs it here. A caller that already
-  has numpy and scipy loaded pays one import rather than a subprocess.
-* :func:`through` sends it to the warm analysis, which keeps a worker alive
-  per environment with its modules already imported. That is the one the
-  operator page wants: a focus map is one job per point, and paying a conda
-  spawn per point would make the map slower than the stage.
-
-Either way the answer is the same shape, because it is the same step.
+:func:`through` sends each stack to the warm analysis, which keeps a worker
+alive per environment with its modules already imported: a focus map is one
+job per point, and paying a conda spawn per point would make the map slower
+than the stage.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -98,23 +91,7 @@ def as_a_measurement(scored: dict, *, metric: str = DEFAULT_METRIC) -> dict:
     }
 
 
-def in_process(*, metric: str = DEFAULT_METRIC, **params: Any) -> Callable[[dict], dict]:
-    """Score each stack here, in this process. For callers that already have numpy."""
-
-    def score(record: dict) -> dict:
-        run = _the_step()
-        scored = run(
-            {"input": what_was_captured(record), "metadata": {"verbose": 0}},
-            {},
-            metric=metric,
-            **params,
-        )["score_focus"]
-        return as_a_measurement(scored, metric=metric)
-
-    return score
-
-
-#: The ZMART-analysis workflow that scores a stack.
+#: The ZMART-analysis pipeline that scores a stack.
 PIPELINE = "focus"
 
 
@@ -133,13 +110,3 @@ def through(analysis: Any, *, metric: str = DEFAULT_METRIC) -> Callable[[dict], 
 
     return score
 
-
-def _the_step() -> Callable:
-    """``score_focus.run``, loaded from the ZMART-analysis workflows.
-
-    Loaded when first asked for rather than at import, so that a caller who
-    only wants :func:`through` -- the bridge -- never pays for scipy here.
-    """
-    from zmart_interface.parts.analysis.workflows import step_module  # noqa: PLC0415
-
-    return step_module("focus", "score_focus").run
