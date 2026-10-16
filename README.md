@@ -7,8 +7,8 @@
 
 <img src="docs/zmart-interface-icon.png" align="left" width="150" alt="ZMART interface">
 
-The **ZMART interface** is the operator window for smart microscopy: it walks you through a run step by step and draws the sample as it is acquired.
-It drives the microscope only through the [ZMART Controller](https://github.com/ZMB-UZH/ZMART-controller), so it works on any microscope with a ZMART driver.
+The **ZMART interface** provides a visual way to setup and control your smart microscopy workflow. It drives the microscope through  through the [ZMART Controller](https://github.com/ZMB-UZH/ZMART-controller), so it works on any microscope with a ZMART driver. The image analysis engine is provided by the ZMART Analysis pipeline engine.
+
 It is part of [**ZMART**](https://github.com/ZMB-UZH/ZMART-microscopy) (ZMB's Microscopy-Agnostic Research Toolkit), the tools we use for smart microscopy at the Center for Microscopy and Image Analysis (ZMB), University of Zurich.
 <br clear="left"/>
 
