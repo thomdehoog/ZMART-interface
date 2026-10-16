@@ -31,7 +31,11 @@ The ZMART interface provides a unified interactive framework and playground that
 This is a release candidate, 0.1.0rc1. We are currently are in the process of testing it on the Leica Stellaris
 
 ## Try it yourself
-Install it and test it
+Install it and test it:
+
+- [Install and run the interface with its dependencies](docs/install-on-a-microscope.md)
+- [The target acquisition workflow](zmart_interface/workflows/target_acquisition)
+- [Write a new workflow](docs/writing-a-workflow.md)
 
 ## Author
 Thom de Hoog, Center for Microscopy and Image Analysis (ZMB), University of
