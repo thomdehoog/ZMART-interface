@@ -21,6 +21,8 @@ A smart microscopy workflow becomes easily very complex and can be hard to fine 
 ## The Solution
 The ZMART interface provides a unified interactive framework and playground that allows you to easily simulate, fine tune and automate your workflow. We are currently testing it on the leica stellaris, but it can easily adapted to any microscope because it build on top of the ZMART controller. 
 
+![The operator window, scanning the overview](docs/operator-window.png)
+
 <br>
 
 ## Status
