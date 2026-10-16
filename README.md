@@ -55,6 +55,8 @@ clicked) can fill the slot. Three engines ship with the interface today (two bui
 and deck.gl, one on neuroglancer). [The viewer slot](docs/viewer-slot.md) writes down what
 an engine must offer, so that another viewer can be put in its place.
 
+![The operator window, scanning the overview](docs/operator-window.png)
+
 ## Try it yourself
 
 ### Install
