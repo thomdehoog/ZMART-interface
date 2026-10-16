@@ -96,6 +96,10 @@ start the interface.
 (Installing ZMART-analysis from that checkout with `pip install -e ZMART-analysis` does the
 same without the variable.)
 
+Each analysis writes into the folder of the run it belongs to: `<run>/analysis/<pipeline>/`
+holds a copy of the pipeline used and its run record, `run.jsonl`, with every image that was
+analysed and how.
+
 ### Run it with the mock microscope
 
 The interface always offers a pretend microscope, so you can walk a whole run without
