@@ -1,0 +1,607 @@
+# How this is put together
+
+The interface has two halves that meet over HTTP. The **page** runs in the
+window (it is a web page, drawn by WebView2 on Windows) and is written in
+JavaScript. The **bridge** runs in Python beside it, and is the only part that
+talks to the microscope -- through the ZMART Controller -- and to the two ZMART
+parts that plug into the interface's sides:
+
+```
+   the page (JavaScript)            the bridge (Python)              beside it
+   ---------------------            -------------------              ---------
+   steps, panels, canvas  --HTTP-->  framework/bridge/    --------->  ZMART Controller --> driver --> microscope
+   parts/microscope/live.js          parts/microscope/instrument.py      (any ZMART driver, or the mock)
+                                     parts/storage/      ----------->  ZMART-viewer (serves the run's pictures)
+   parts/canvas/engines/  <--HTTP--  (the viewer's own server)
+                                     parts/analysis/warm.py -------->  ZMART-analysis (focus, detection, plots)
+```
+
+- **The controller.** Every command the bridge sends (`get_xyz`, `set_xyz`,
+  `get_state`, `set_state`, `acquire`, `get_info`, ...) answers
+  `{"success": ..., "content": ...}`. `parts/microscope/instrument.py` reads those
+  answers once for everyone: it hands back the content, and turns
+  `success: False` into `InstrumentDeclined`, a sentence the page shows where
+  the operator pressed. A capture is the exception the page sees: `/api/acquire`
+  passes the controller's answer on untouched, so the page reads the content's
+  `files` and `planes` (each plane's file, its channel, depth and moment `c`,
+  `z`, `t`, and the stage position `x_um`, `y_um`, `z_um`) exactly as a Python
+  script would, and nothing in the interface reads a driver's file names.
+  Which acquisition a capture belongs to (overview, focussing, targets, ...) is
+  the interface's own business, not the controller's: the interface passes the
+  name to the driver as its `folder` acquisition setting when the driver offers
+  one, and files the capture under that name itself, never reading it back from
+  the driver's answer. A driver is a folder with a `zmart_driver.json`,
+  which gives its name and connection, and its code -- a `ZmartDriver` class
+  with one method per command, or, as the interface's mock, a module with
+  one function per command -- installed once on a computer with
+  `zmart_controller.register_driver`. The bridge offers the interface's own
+  mock (as `interface-mock`, plugged in by its module) and then every name
+  `zmart_controller.get_instruments()` lists, the controller's own mock
+  `mock` first, and connects by opening a `ZmartController(name, connection)`
+  of its own: the driver's own connection plus the password the operator
+  typed. The area the page and the viewer lay
+  the stage out on is `get_xyz`'s `canvas`: everywhere a picture can show,
+  which is the travel widened by half a field. The travel itself stays in the
+  driver; the page lets fields be drawn over the whole canvas, and a move past
+  the travel is refused by the driver with a sentence the operator sees,
+  rather than the page guessing where the travel ends. `get_xyz` and
+  `set_xyz` answer the same thing: for each axis its `position` in
+  micrometres from the origin, the `unit`, the raw reading of every motor
+  under `actuators`, and the `canvas`. A drive therefore keeps the answer
+  `set_xyz` gives, read back after the stage arrived, instead of asking the
+  stage a second time.
+- **ZMART-viewer.** Every capture is converted the moment it lands into one
+  OME-Zarr image per position (`parts/storage/zarr_positions.py`, declared by
+  the small writer in `zmart_interface/zmart_storage/`). The viewer's server,
+  started beside the run by `parts/storage/viewer_service.py`, links each
+  acquisition's positions into one live picture and serves it to the page's
+  drawing engine.
+- **ZMART-analysis.** Focus scoring, object detection and the population plots
+  run as ZMART-analysis pipelines, each step in its own conda environment.
+  `parts/analysis/warm.py` keeps one engine running for the whole session, and
+  `parts/analysis/workflows.py` finds the pipelines in a ZMART-analysis
+  checkout.
+- **The mock microscope** (`zmart_interface/mock_microscope/`) is a complete
+  ZMART driver with no hardware: the package itself holds one function per
+  command, so it plugs into the controller like any other driver, and it is
+  what every test runs on.
+
+The page itself has five parts, each with one job. If you know which part your
+change belongs to, you know which file to open.
+
+```
+zmart_interface/
+  framework/        the engine. It knows how to run any workflow and none in particular:
+                    nothing under it names a step, a workflow or an instrument, and two
+                    unit tests (`framework/knows-no-workflow.test.js` for the page,
+                    `framework/test_the_bridge_knows_no_workflow.py` for the bridge)
+                    keep it so.
+    window/     what the operator sees: the rail, the chooser, the panels, the
+                channel, the press, the runner, and the framework's half of the
+                run document.
+    rules/      what the engine enforces: step ordering and readiness, and how
+                workflow folders are found and assembled for the chooser.
+    bridge/     the Python half: the HTTP door the page reaches the controller through.
+                It connects, drives the stage, reads and applies settings,
+                captures and serves the pictures. A workflow plugs its own runs
+                in through `hooks.py` and its own routes under `/api/<folder>/`.
+    fixtures/   the framework's own test workflow, `three_steps/`, which knows
+                nothing about a microscope. Not under `workflows/`, so the
+                chooser never offers it.
+  parts/        what a workflow is built from. A part knows nothing about any
+                workflow: hand it what to do and it does it.
+    canvas/     the picture the operator pans, zooms and draws on.
+    microscope/ the seam where the instrument goes: the verbs every workflow
+                shares (`mock.js` for the rehearsal, `live.js` for the bridge), the
+                synthetic specimen the rehearsal images in `pretend-sample/`,
+                and — in Python, on the other side of the same seam — the
+                procedures that drive the instrument through the controller.
+    analysis/, storage/   the analysis seam and the storage of what a run captures.
+  workflows/    what plugs into the engine. One folder per workflow, and the
+                folder's name is the chooser's entry: `target_acquisition`
+                appears as "Target acquisition".
+    <name>/flow.js   the workflow's front door: its steps, in order, a sentence
+                     for the chooser, its panels, and how it wires itself to
+                     the page (`install`), which backend it speaks to
+                     (`backendFor`) and what a run of it holds (`freshState`).
+    <name>/steps/    one folder per step, named for it — `connect/` to
+                     `run_protocol/` — each holding the step's declaration,
+                     its run, its controls, and what it draws on the picture.
+    <name>/shared/   what several steps of that ONE workflow use: the carrier
+                     geometry, the scan-field arithmetic, the layers the run
+                     draws, the workflow's half of the run document
+                     (`run-document.js`) and the protocol file's settings
+                     (`protocol.js`).
+    <name>/backend/  the workflow's own verbs, live and pretend, which
+                     `flow.js` puts together with the shared ones.
+    <name>/bridge/   the workflow's Python half: its runs on the bridge, its
+                     routes under `/api/<name>/`, and what it tells the
+                     bridge through `hooks.py`.
+```
+
+The rule between the three: what several workflows share belongs in `parts/`
+or the framework; what several steps of one workflow share belongs in that
+workflow's `shared/`. The framework and the parts could as well run an
+e-learning course or an image-analysis pipeline as a microscope: no code in
+the framework names a workflow's step or reads a key of its run, and a test
+keeps it so (its comments still use the microscope as the example, since it
+is the one workflow there is to point at). That is what lets a workflow be written in
+another repository and installed on a machine that has the framework and the
+parts, without the page being rebuilt; `docs/writing-a-workflow.md` says how.
+
+`zmart_interface/workflows/README.md` walks through the arrangement in more detail.
+
+## How the page is composed
+
+`framework/window/main.js` builds one object, `page`, and composes the page
+from it, naming no workflow. In order:
+
+1. The workflows are assembled from the folders under `workflows/`
+   (`framework/rules/finding-workflows.js`), and later from the packages
+   installed on the machine (`framework/window/installed-workflows.js`).
+2. The run document is made: the framework's keys, and beside them whatever
+   the open workflow's `freshState` answers (`run-state.js`). The backend is
+   whatever the open workflow's `backendFor` answers for the page's own
+   address, or an empty object for a workflow that drives nothing.
+3. One panel element is built per panel any workflow declared
+   (`panels.js`); the workflow fills it through the panel's own `build`.
+4. The framework's modules are installed on the page: the rail, the press,
+   the runner, the tabs, the channel.
+5. The open workflow's `install(page, { folder })` runs. This is where a
+   workflow wires what it needs wired once -- target acquisition opens its
+   canvas and lends its steps' functions to the page -- and where it pushes
+   to the page's hook lists. Another workflow's `install` runs the first
+   time the operator chooses it, once a run of it is in place.
+6. The page renders on the first step.
+7. The workflows installed on the machine as packages are asked for and
+   loaded, and each joins the chooser.
+
+The hook lists are how the framework calls back into a workflow without
+knowing it. Each is an array on `page` that a workflow's `install` pushes a
+function to. They are called for every workflow's run, so a hook that reads
+its own workflow's keys of the run document first checks that its workflow
+is the one open (`page.run.wf === folder`):
+
+| list | called | what target acquisition puts there |
+| --- | --- | --- |
+| `onRender` | after every full render | the canvas's framing presses, the fixture's card line |
+| `onPanelShown(step, key)` | whenever a panel is drawn | which picture the live overview shows |
+| `onReset` | when the run starts over (Disconnect, or another workflow chosen) | stop the stage clock, ask for the instruments again, refit the picture |
+| `onChannelMounted(host, channel)` | after a step's controls were mounted in the channel | the protocol's progress bar over them |
+| `onThemeChanged` | when the page's theme switches | redraw the stage, the trace, the detection card, the gating plot |
+
+Two more things a workflow declares take the place of names the framework
+used to know. A step that walks the other steps in turn says `runsTheOthers`,
+and the framework finds it by that word: an edit above it leaves it neither
+done nor orange, and its `brake` is what the walk's Interrupt presses. And a
+panel that draws something of its own answers `shown()` when it comes on
+screen or changes size, which is how the canvas re-measures itself when the
+channel beside it is dragged or folded.
+
+## The rule that keeps it honest
+
+**One owner per fact.** Sample geometry belongs to `pretend-sample/sample.js`;
+nothing re-derives it. Peak rules belong to `pretend-sample/sweep.js`; nothing
+else decides what
+counts as too narrow. If a constant or a rule has to appear in two files, the
+split was wrong — merge them back rather than keeping both in step.
+
+## The seam: `parts/microscope/`
+
+Nothing above this line knows which microscope it is talking to. A step never
+calls `setTimeout`, never reaches for a synthetic sample, and never touches
+hardware: it calls the backend and awaits. Every call the page makes to an
+instrument lives behind this seam.
+
+There are two backends with the same shape. `live.js` is what the page uses:
+each call is an HTTP request to the bridge (the package
+`zmart_interface/framework/bridge/`), which speaks to the ZMART Controller,
+which speaks to whichever driver was chosen at Connect, the interface's own
+mock microscope included. `mock.js` pretends in the browser alone, for
+working on the page without a bridge. They hold the verbs every workflow
+shares, as `live.js` has them today:
+
+```js
+export const backend = {
+  // the session; `experiment` is what the workflow calls its runs on disk
+  async instruments(), async connect(session, { experiment, … }), async disconnect(), async info(),
+  // the stage and the instrument's settings, in the controller's own words
+  async get_xyz(), async set_xyz({ x, y, z }),
+  async get_acquisition_settings(), async set_state(settings), async readSetting(type),
+  async acquire(…),
+  // the pictures
+  viewOf(acquisitionType), async viewerSources(onStatus),
+};
+```
+
+A workflow's own verbs live with the workflow. Target acquisition's are in
+`workflows/target_acquisition/backend/` (`live.js` speaking to its Python
+half under `/api/target_acquisition/`, `pretend.js` its rehearsal):
+
+```js
+export const targetAcquisition = {
+  // the runs, each followed by polling and stopped by the operator's Interrupt
+  async measureFocus(points, { metric, onPoint, … }), async stopFocusMeasure(),
+  async scanOverview({ positions, onProgress, … }), async stopScan(),
+  async discoverTargets({ fields, settings, onField, … }), async stopTargets(),
+  async acquireTargets({ positions, focus, zOffsetUm, … }), async stopAcquireTargets(),
+  async computePlot(…), async stopPlot(), async raiseTarget(label),
+  // protocols
+  async protocols(), async saveProtocol(protocol), async saveProtocolAs(protocol, name),
+};
+```
+
+`parts/microscope/backend-contract.js` lists the promises the shared verbs
+keep, and the workflow's `backend/backend-contract.js` its own; each test
+holds the pretend side to them on every change and a running bridge to them
+when asked.
+
+Which backend a run speaks to is the workflow's to say: its `flow.js` exports
+`backendFor(search)`, which puts the shared verbs and its own together, live,
+or pretend when the page's address asks for `?backend=pretend`. The
+framework asks and never imports either. If wiring a microscope means editing
+a step's controls, the seam leaked and wants fixing first.
+
+## Channels
+
+A step's controls are its channel: the column beside the canvas. A channel
+owns that column and nothing else. It never imports another step's channel
+and never advances the flow; it lives beside its step, in `channel.js`.
+
+```js
+export const focusChannel = {
+  id: "focus",
+  label: "Focus strategy",
+  mount(host, page, { locked }) {
+    // build the controls inside host
+  },
+  // rebuildsOnEveryRender: true,   // only for a channel that cannot keep its state
+};
+```
+
+`page` is what the workflow's steps share: the run (`page.run`), the backend
+(`page.backend`), the canvas, and the functions the steps lend one another
+(see `workflows/README.md`). `locked` is true while something runs. The
+framework mounts a channel once for each combination of step and `locked`, so
+a channel keeps its own state and redraws itself as the run changes; it does
+not hand the framework a function to call on every change.
+
+**The canvas is the base from step 3 on.** It is the microscope's own limits
+drawn to scale, so it exists from *reaching* the carrier step, not from
+finishing it. Before that there is no frame to draw and the step's own panel
+holds the right-hand side alone — and walking back to one of those steps
+returns to exactly that, because the session and the instrument are not on the
+stage.
+
+Every step declares the panel it wants — `connect`, `optics`, `focus`, … — and
+it shows only while that step is selected, so walking back to Connect brings
+the session and its checks with it. The canvas is no exception: it belongs to
+the steps that happen inside it, which is why the tab set is a question about
+the step being looked at rather than about how far the run has got. Planning
+surfaces are not acquired data and get their own widgets.
+
+A panel need not be a tab. Something that *is* the canvas rather than an
+alternative to it takes the channel beside it instead: see the carrier below.
+
+**The channel belongs to the step standing in it.** Three steps own one — the
+carrier is what the canvas is drawing, the scan fields are what is being drawn
+on it, the focus map is what the run knows about it — and all three dock into
+the same column, with the heading saying whose it is. One column rather than
+two, because a second would take width from the picture to show controls for a
+step nobody is on. A step with no side widget gives the canvas the whole width.
+
+Focus is the case that shows why this is worth insisting on. It used to be a
+tab with a map of its own, its own camera and its own fit — which meant two
+answers to where a well is, and the operator holding both. It now draws onto the
+canvas with the canvas's projection and puts its controls in the channel. **If a
+step is about the sample on the stage, it belongs on the canvas; a tab is for
+something that is not the stage at all** (a scatter plot, a gallery, a form).
+
+## Steps and workflows
+
+A step is data. It says what it is called, why it is there, which modules it
+wants on screen, what it still needs before it may run, and which piece of work
+the page should carry out for it:
+
+```js
+{
+  id: "focus",
+  title: "Focus strategy",
+  why: "Choose how this run keeps every image sharp across the sample.",
+  btn: "Apply strategy",            // no btn means there is nothing to press
+  panels: ["focus"],                // the modules this step wants beside it
+  mode: "focus",                    // what kind of work it is, for the layers
+  ready: (run) => null,             // null = go; a phrase = what is missing
+  run: runFocus,                    // what it does, in its own run.js
+  finished: focusFinished,          // what it files once it has run
+  channel: focusChannel,            // its controls beside the canvas
+}
+```
+
+Every field is written out in `workflows/README.md`. A step is declared in
+its own folder, under the workflow that owns it — `steps/focus_strategy/step.js`
+— and other workflows share it by importing it; the point is to mix and match,
+not to retype. A workflow that wants a shared step to say something different
+wraps it in `reworded()` (from `framework/rules/steps.js`), which changes the
+wording and nothing else.
+
+A workflow is a folder with a `flow.js` in it: the folder's name is the
+chooser's entry, and the flow is the list of steps in order plus a blurb.
+Numbering is derived from position, so reordering costs nothing; a step may set
+its own `n` if two halves of one job should read as `3a` and `3b`.
+
+**The folders under `workflows/` are the only place the workflows are
+written down.** The framework finds every folder holding a `flow.js`
+(`framework/rules/finding-workflows.js` says how), and the unit tests read the same
+folders through the same assembly, which is what makes a test about a workflow
+a test about the page. The browser suite checks the other half: it reads the
+folders and then reads the running page, and fails if the chooser and the rail
+disagree with them.
+
+Readiness belongs to the step. Only the focus step knows what it is waiting
+for, and `framework/rules/steps.js` only asks. That is what lets a new workflow be a list rather than another condition
+added to the shell.
+
+Which panels a step gets is `panelsFor` in `framework/rules/steps.js`. A step names the
+modules it wants of its own and gets those; most name nothing, because most steps
+happen on the stage and the picture of the stage is enough. The canvas itself
+appears at the step that first asks for it — the carrier, in every workflow that
+drives a microscope — and stays for the rest of the run, because from that point
+on everything happens on a stage. A workflow where nothing asks for the canvas
+never shows one (the canvas demonstration, since removed, was one).
+Which modules a step wants is the step's business; how they are laid out is the
+shell's.
+
+Adding a workflow should mean writing one list that uses existing steps. If it
+means editing the framework, the framework is missing something.
+
+**Adding the canvas demonstration tested that claim, and at first it did not
+hold.** Writing the workflow was indeed a list, but four things had to be added
+before the operator could reach it. Three were real gaps in the shell and are now
+filled; the other was a duplication, and it has since been taken out:
+
+- the workflow had to be **declared twice**, once in the declaration file and
+  once in `main.js`, because `main.js` carried its own copy. Fixed: the page
+  assembles the workflows from the folders on disk, and the copy is gone. This was the first time anybody
+  paid for that duplication, and it was worth recording because either half
+  looked entirely convincing on its own — the tests went green against a list the
+  page did not offer, and the page offered a list no test had ever seen.
+- the step rules gave every step the canvas whether or not it asked, so a step
+  wanting only its own module could not be written. `panels` above is the fix.
+- a panel that builds a picture of its own — rather than drawing on one of the
+  page's canvases — had no way to learn that it was on screen. The canvas
+  handle now offers `whenShown()` (`parts/canvas/viewer.js`), which a step
+  awaits before it draws.
+- **every step held up every step after it.** That is right for a run, where each
+  step produces something the next one needs, and wrong for a step that only
+  shows the operator something: such a step produces nothing, so there is nothing
+  to wait for, and there is nothing for the operator to do to finish it either —
+  which left the demonstration's second step greyed out for ever. A step may now
+  say `nothingWaitsOnThis`, and the step rules skip it when working out how far
+  the run has got. Nothing in a real workflow says it, and a unit test keeps it
+  that way.
+
+None of those is about the canvas in particular. Each is something the shell
+needed before *any* step could bring a module of its own, or before any two steps
+could stand side by side without one gating the other.
+
+## What the framework owns, and what it never gives away
+
+The framework keeps: the run state, step ordering and reachability, the tab bar,
+the action bar, and the mount lifecycle. Widgets and workflows only ever
+*declare*.
+
+This is deliberate, and it is the boundary to protect if workflows are ever
+composed by an agent: something assembling a run from a registry of widgets and
+a catalogue of steps cannot break the shell. Something emitting widget code
+can.
+
+## Where this stands, and what is deliberately not done yet
+
+The layers above are the target. Some of them are built and used, some are
+built and waiting, and one gap is a live hazard. Read this before assuming the
+tree matches the picture.
+
+In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`.
+
+| part | state |
+|---|---|
+| `ta/shared/carriers.js` | built, unit-tested, **used by the app, the carrier widget and the scan-field grid** |
+| `ta/shared/scanfields.js` | built, unit-tested, **used by the scan-area widget** |
+| `parts/microscope/instruments.js` | used by the app |
+| `parts/microscope/pretend-sample/` | built, unit-tested, **used by the app** (the focus sweep and the surface fit) |
+| `parts/microscope/mock.js` | built, used by the app only with `?backend=pretend`, for the page's own tests |
+| `framework/rules/steps.js` | built, unit-tested, **used by the app** — numbering, ordering, readiness and panels |
+| `framework/rules/finding-workflows.js` | built, unit-tested, **used by the app: turns the workflow folders into the chooser's list** |
+| `workflows/*/flow.js` | built, unit-tested, **used by the app: the only declaration of the workflows** |
+| `ta/steps/define_carrier/carrier-panel.js` | built, used — the first widget, and the shape the rest should follow |
+| `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |
+| `ta/steps/scan_the_overview/overview.js` | built, used by the app when it is given a run to watch (`?overview=`); its browser tests stayed in ZMART-microscopy with the demo run they need |
+| `parts/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
+| `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares, installs the framework's parts, then calls every workflow's own `install`; it names no workflow, backend or panel |
+| `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: its half of the run document, the rail, the step's press, running a step, the panels, the channel |
+| `framework/fixtures/three_steps/flow.js` | the framework's own test workflow, with no microscope, no Python and no canvas; assembled by the unit tests and installed from a built package by the installed-workflow test |
+| `ta/the-canvas.js`, `ta/on-the-page.js` | the workflow's side of the page: what it puts on its canvas, and the functions its steps lend the page |
+| `ta/steps/*/run.js`, `ta/steps/*/channel.js` | each step's own run and controls, beside its declaration |
+
+**Widget extraction has started, from the outside in.** The carrier widget is
+the first: it is handed a configuration and a callback and knows nothing about
+run state. It lives beside its step in `steps/define_carrier/`, and its
+geometry lives in `shared/carriers.js`, so nothing can disagree about where a
+well is.
+
+It also shows the second shape a widget can take. A panel is not always a tab:
+the carrier is *what the canvas is drawing*, so its controls dock in a channel
+beside the picture (`#canvas-side`) and it exports `drawOn(ctx, …)` to put the
+carrier on the stage itself. Controls and drawing are in the one file because
+they are one subject — change what a carrier is and a single place follows.
+
+The channel belongs to whichever step owns it, and the scan-area widget is
+the second to. It stops being editable once something has been **imaged**
+against it — the overview scan — rather than once any later step has been done.
+The focus map sits in between and does not depend on the plan: a fitted surface
+is a statement about the plate, so walking back past it and moving a field is
+safe. Tiles are different, because a tile does not know where it should have
+been.
+
+That is the general rule for a step that can be walked back to: **editable
+while nothing has consumed its output, locked once something has.** There is
+deliberately no held-and-applied edit, and no per-step accepted snapshot. Two
+copies of the plan — the one on screen and the one the run would use — is the
+one-owner rule broken in the way that fails silently, and the window where it
+would help is empty anyway: before the scan there is no downstream answer to go
+stale, and after it there is nothing left to change. Undo and redo cover
+getting back to a previous state within a step, which is what actually gets
+reached for.
+
+One rule it establishes, which the next widget should keep: **a widget redraws
+itself.** Asking the framework to rebuild the panel on every change destroys the
+field being typed into — the defect this page has produced twice.
+`define_carrier/carrier-panel.js` writes new values into the controls that already exist and skips the focused
+one.
+
+Every step's controls now live beside the step, in its `channel.js`, and
+its run in its `run.js`; `main.js` only composes the page. The framework
+holds its half of the run document (`run-state.js`: which workflow is open,
+which step is active, what is done, what is running, how the page is
+arranged), the rail, the press, the runner, the panels and the channel, one
+file each, and knows no step by name: it asks each step's declaration what
+to do. The other half of the run document -- for target acquisition the
+session, the carrier, the focus map, the targets -- is the workflow's, in its
+`shared/run-document.js`, and the framework lays it beside its own keys
+without reading it.
+
+**The hazard used to be three facts defined twice, and two of them are closed.**
+Surface fitting and the sweep-and-peak rules now have one owner each —
+`microscope/pretend-sample/surface.js` and `sweep.js` — imported by the page and
+read by the unit tests, so the arithmetic the trace draws is the arithmetic the
+suite measures. The workflow declarations went the same way earlier: the folders
+under `workflows/` are the only place the workflows are written down, and
+the page assembles its list from them.
+
+The synthetic sample is behind the seam, in `pretend-sample/`, fed to
+`mock.js` and its tests; the page itself never reaches for it.
+
+The runner went the same way as readiness. `framework/window/runner.js` knows
+only how a run begins and ends -- running, finished, stopped by hand, failed
+-- and each step carries its own `run(page, step)` and `finished(page,
+step)`, in its folder, which call the backend. Adding a step to a workflow
+means writing those beside its declaration, and nothing in the framework
+changes.
+
+## The canvas: `parts/canvas/`
+
+The scan step's own `overview.js` draws the overview inside that step, with Viv
+wired in directly. The canvas is the next thing along and a different arrangement: one
+viewer written more than once, once for each drawing engine worth considering,
+every version behind the same small interface so that they can be compared and
+swapped. The engines live in `parts/canvas/engines/`, and the interface they
+share -- the viewer slot -- is written out in `docs/viewer-slot.md`.
+
+It is a **part**, not the workflow's: it takes a list of layers and knows
+nothing about what any of them mean. What target acquisition draws on it is the
+workflow's, and mostly its steps' — each step's `layers.js` says what it draws
+and what a press on it means. `shared/stage.js` keeps only the picture's own
+furniture (the page's surface, the travel, where the stage is, the scale bar)
+and the order the stack is drawn in, which is the one thing no step can know
+because it interleaves them.
+
+```
+parts/canvas/
+  engines/      the drawing engines themselves, one folder each
+  engines.js    which engines this page can open, and what each one is
+  viewer.js     opening one on a run, changing engine, and the layer buttons
+  layers-above.js   the stack drawn over the picture, faded and cut through
+  panel.js      the canvas as a panel a workflow declares, and its markup
+```
+
+The two gestures are not in this list, and that is deliberate. Dragging and the
+wheel used to be arranged by this page, on the box the picture sits in. They now
+come with the canvas: every engine attaches the same shared piece of code for
+them when it opens. This page therefore does nothing about them at all, which is
+what you want — if each engine had interpreted a drag for itself, a difference in
+how two of them felt might have been the engine or might have been somebody's
+idea of how far a wheel notch should zoom, with no way to tell which.
+
+Two rules hold this together and both are load-bearing.
+
+**The canvas is never told which step it is in.** It is handed a run to draw
+and, when the page wants them, two functions to draw with — one for beneath the
+picture and one for above it. It learns nothing else. A picture that has taken
+on the shape of one workflow cannot be moved into the next one without being
+taken apart again, and being movable is the whole reason it was built behind an
+interface. If wiring it into a future step seems to want a piece of run state
+passed in, the interface is where the answer belongs.
+
+**Everything about how a picture is drawn stays behind that interface.** Nothing
+in this page imports Viv or deck.gl on the canvas's behalf; it calls
+`openViewer` and drives the handle that comes back. That is what makes a
+difference between two engines a difference in the engines, rather than a
+difference in how somebody happened to wire one of them up.
+
+**One engine changes what the build produces.** Neuroglancer, the third of the
+three, hands the fetching and unpacking of image pieces to background programs,
+and a browser will only start one of those from a file of its own. So the build
+is no longer one file: it is `index.html` with everything else folded into it,
+and those two programs beside it. That was accepted after the alternative was
+tried and measured; `docs/building-the-page.md` records what was tried,
+`neuroglancer-workers.mjs` compiles the two programs, and `vite.config.js`
+places them.
+
+It has one consequence that reaches into this folder. A page opened straight off
+the disk rather than served over HTTP has no address of its own, and a browser
+will not start a background program for it — so neuroglancer cannot draw there
+however well it was built. `engines.js` therefore has two lists: what the page
+was built with, and what it can actually open where it is now. Only the second is
+put in front of an operator. A button that draws nothing would be the worst of
+the available behaviours, because an empty box looks exactly like one that is
+still loading.
+
+## Acquired data: the scan step's `overview.js`
+
+Everything else on this page is a rehearsal — a synthetic sample, a stage that
+moves on a timer. `steps/scan_the_overview/overview.js` is not: given the
+address of a run, it draws
+the OME-Zarr images the microscope is writing, and reads them again as tiles
+land, so the scan step shows the overview appearing rather than a count.
+
+It is drawn by Viv's layers on deck.gl, deliberately not by Viv's ready-made
+React viewers: those own the whole drawing surface and the whole layout, which is
+the opposite of what a panel inside this page can allow. Several acquisitions can
+be drawn at once — a survey underneath, the target scan over it — which is the
+shape the writer already produces, one image per acquisition type.
+
+Two properties of it are worth knowing before changing anything, and both are
+written out at length in the file:
+
+- **Nothing on disk announces a saved tile.** The images are declared at their
+  full size before any of them exists, so their description never changes. The
+  picture is told by the scan step, and it re-reads the run rather than waiting
+  to be notified.
+- **Viv draws an unimaged part of the canvas as solid black**, not as nothing.
+  A shader extension in the same file makes the dark parts see-through, which is
+  what allows an acquisition to be a layer over anything else.
+
+## Tests
+
+Every test stands beside what it tests.
+
+- `*.test.js` -- vitest, on the page's pure modules. Fast, no browser. This is
+  where behaviour that can be stated as a number belongs.
+- `test_*.py` -- pytest, on the bridge, the storage, the analysis seam and the
+  mock microscope. The stubs answer in the controller's two-part shape, and the
+  tests that need a whole microscope plug in the mock through the controller.
+- `*.spec.js` -- Playwright, driving the real page. A smoke net, not a
+  specification: the page is nearly all canvas, and driving it has repeatedly
+  caught what reading the source did not. `workflows/target_acquisition/walk.spec.js`
+  walks all ten steps on the built page through the real bridge.
+  `framework/installed-workflow.spec.js` builds the framework's fixture
+  workflow into a package, installs it on a ZMART folder of its own, and
+  drives the built page served by a bridge on that folder: the workflow is
+  offered, walked and left, and target acquisition is still there.
+
+The Playwright tests need a Chromium and will not run without one;
+`playwright.config.js` honours `PLAYWRIGHT_CHROMIUM` and `PLAYWRIGHT_BROWSERS_PATH`.
+Playwright fails rather than skipping when it cannot find a browser, which is
+the behaviour to want: a suite that quietly skips the tests which look at
+pixels and then reports success is worse than no suite at all.

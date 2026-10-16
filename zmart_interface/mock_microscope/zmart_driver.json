@@ -1,0 +1,5 @@
+{
+  "name": "interface-mock",
+  "driver": "zmart_controller_plugin.py",
+  "connection": {"client": "mock-client"}
+}

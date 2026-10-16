@@ -1,0 +1,20 @@
+__pycache__/
+*.egg-info/
+# What setuptools leaves at the top of the checkout while it makes a wheel. Only
+# the top-level folder: the built page in zmart_interface/framework/window/build/
+# is committed.
+/build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# The page's build tools, and what the browser tests leave behind
+node_modules/
+test-results/
+playwright-report/
+
+# A run the mock microscope writes when it is given nowhere else to write
+mock-output/
+
+# The built page lives in zmart_interface/framework/window/build/ and IS
+# committed: the microscope PC cannot build it.

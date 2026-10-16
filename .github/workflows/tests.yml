@@ -1,0 +1,129 @@
+# The interface's tests on Linux and Windows: the page's unit tests (vitest),
+# the Python tests (pytest), and a check that the committed page in
+# zmart_interface/framework/window/build is exactly what `npm run build` makes.
+#
+# None of these needs a microscope: they run on the mock. The two Python tests
+# that run an analysis step in its own conda environment skip themselves here,
+# because those environments are large and are created on a microscope PC
+# (see docs/install-on-a-microscope.md); the in-process analysis tests run.
+#
+# The browser walk of all ten steps (walk.spec.js) is run by hand, on a
+# machine with the analysis environments: it drives the focus map and the
+# detection through them. The "browser" job below runs the browser tests that
+# need no analysis environment, when started by hand.
+name: tests
+
+on:
+  push:
+    branches: [main, release-candidate]
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    name: the Python reads as ruff is configured (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The version the dev extra pins, so this job and a developer's
+      # `ruff check .` agree.
+      - run: python -m pip install "ruff==0.12.12"
+      - run: ruff check .
+
+  page-unit:
+    name: page unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run test:unit
+
+  python:
+    name: python tests (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+    env:
+      # The ZMART-analysis workflows the focus and detection tests run, in a
+      # checkout beside this one.
+      ZMART_ANALYSIS_WORKFLOWS: ${{ github.workspace }}/ZMART-analysis
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ZMB-UZH/ZMART-analysis
+          path: ZMART-analysis
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest -q -p no:cacheprovider
+
+  build:
+    name: the committed page is what the build makes (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      # The build reads neuroglancer's patches from the installed viewer.
+      - run: python -m pip install -e ".[dev]"
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      # Builds the page twice into a temporary folder and compares both, file
+      # by file, with the committed one. The Python jobs skip this test,
+      # because they do not run `npm ci`.
+      - run: python -m pytest -q -p no:cacheprovider zmart_interface/framework/test_the_built_page.py
+
+  browser:
+    name: browser tests without analysis (ubuntu, by hand)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: python -m pip install -e .
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+        env:
+          PYTHON: python
+      - run: >-
+          npx playwright test
+          zmart_interface/framework/the-built-page.spec.js
+          zmart_interface/parts
+        env:
+          PYTHON: python
