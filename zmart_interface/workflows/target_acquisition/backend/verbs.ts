@@ -11,7 +11,7 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import type { Acquisition } from "../canvas/engines/neuroglancer-under/viewer.ts";
+import type { ChannelSpec } from "../canvas/engines/neuroglancer-under/viewer.ts";
 import type { Reading } from "../microscope/settings.ts";
 import type { Sample } from "../microscope/pretend-sample/sweep.ts";
 
@@ -152,9 +152,23 @@ export interface WrittenProtocol {
   [more: string]: unknown;
 }
 
+/**
+ * An acquisition as ZMART Viewer lists it. A published one names its stores
+ * on its channels and not always beside itself, so it may have no `url`: the
+ * page works out what to draw from it, and leaves out what has nothing to draw.
+ */
+export interface PublishedAcquisition {
+  name: string;
+  url?: string;
+  channels?: ChannelSpec[];
+  opaque?: boolean;
+  embeddingUrl?: string;
+  [more: string]: unknown;
+}
+
 /** What ZMART Viewer holds of this run, and how far each acquisition is published. */
 export interface ViewerStatus {
-  acquisitions?: Acquisition[];
+  acquisitions?: PublishedAcquisition[];
   sources?: Record<string, { url: string; name: string }[]>;
   publications?: Record<string, { acquired?: number; published?: number; state?: string }>;
   error?: string;
@@ -213,7 +227,7 @@ export interface TargetFocus {
  */
 export interface Backend {
   viewOf(acquisitionType: string): string | null;
-  viewerSources(onStatus?: (status: ViewerStatus) => void): Promise<Acquisition[] | null>;
+  viewerSources(onStatus?: (status: ViewerStatus) => void): Promise<PublishedAcquisition[] | null>;
   instruments(): Promise<string[]>;
   connect(session: Opening | null | undefined, connecting?: Connecting): Promise<{ info: Record<string, unknown> }>;
   disconnect(): Promise<void>;

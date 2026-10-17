@@ -34,9 +34,8 @@
 import { atBridge } from "../../../api/index.ts";
 import { PENDING, isFailed } from "../microscope/connection-status.ts";
 import { findCandidates, pickPeak } from "../shared/focus-curves.ts";
-import type { Acquisition } from "../canvas/engines/neuroglancer-under/viewer.ts";
 import type {
-  Backend, CaptureRecord, Connecting, ControllerAnswer, FocusAsk, FocusPoint, FoundField, Opening, Place, PlotColumns,
+  Backend, CaptureRecord, Connecting, ControllerAnswer, FocusAsk, FocusPoint, FoundField, Opening, Place, PlotColumns, PublishedAcquisition,
   Reading, RunProgress, ScanPosition, TargetFocus, TargetPosition, Traces, ViewerStatus, WrittenProtocol, XyzReading,
 } from "./verbs.ts";
 
@@ -149,7 +148,7 @@ export const backend: Backend = {
    * draws exactly as it always has.  The `sources` fallback keeps this page
    * able to speak to an older bridge during a rolling update.
    */
-  async viewerSources(onStatus?: (status: ViewerStatus) => void): Promise<Acquisition[] | null> {
+  async viewerSources(onStatus?: (status: ViewerStatus) => void): Promise<PublishedAcquisition[] | null> {
     try {
       // A successful status response can contain both available images and a
       // failed acquisition. Its error must not discard the available images.

@@ -23,6 +23,7 @@ import { openerFor } from "../../canvas/engines.ts";
 import type { Acquisition, ChannelSpec, EngineViewer } from "../../canvas/engines/neuroglancer-under/viewer.ts";
 import type { View } from "../../canvas/engines/opening-view.ts";
 import type { MountedPanel, PanelState, PanelViewer } from "../../canvas/viewer-panel.ts";
+import type { PublishedAcquisition } from "../../backend/verbs.ts";
 import type { ThePicture } from "../../types.ts";
 
 /** What the page hands the watcher: the box, the projection the plan is drawn in, and whom to tell. */
@@ -30,7 +31,7 @@ export interface WatchContext {
   /** The box the picture is drawn in. */
   pictureHost: HTMLElement;
   /** The run's OME-Zarr sources as the viewer beside the bridge publishes them; `null` while there are none. */
-  viewerSources?: () => Acquisition[] | null | Promise<Acquisition[] | null>;
+  viewerSources?: () => PublishedAcquisition[] | null | Promise<PublishedAcquisition[] | null>;
   /** Whether a session is open. */
   connected?: () => boolean;
   /** The page's colour lookup. */
@@ -96,7 +97,7 @@ export function watchTheRun(ctx: WatchContext): { thePicture: ThePicture } {
     let viewer: EngineViewer | null = null;
     let opening = false;
     let checkingForGrowth = false;
-    let latestSources: Acquisition[] | null = null;
+    let latestSources: PublishedAcquisition[] | null = null;
     let readingSources: Promise<void> | null = null;
     let applyingSources: Promise<void> | null = null;
     let updateRequested = false;
@@ -173,20 +174,23 @@ export function watchTheRun(ctx: WatchContext): { thePicture: ThePicture } {
           embeddingUrl = url;
         }
         hasProducts = sources.some(acquisition => acquisition.channels?.some(c => c.view));
-        const selectedSources = sources.map(acquisition => {
-          if (!acquisition.channels?.some(c => c.view)) return acquisition;
+        /* What the engine is handed always has an address to draw from. An
+           acquisition whose projection is not published yet has none: it is
+           left out, and joins the picture when the product lands. Handed on
+           without one, the engine read an address that was not there and the
+           whole picture failed to update. */
+        const selectedSources = sources.flatMap((acquisition): Acquisition[] => {
+          if (!acquisition.channels?.some(c => c.view)) {
+            return acquisition.url ? [{ ...acquisition, url: acquisition.url }] : [];
+          }
           const layers = acquisition.channels.map(c => ({ ...c, group: acquisition.name }));
           /* Loaded above, from the first acquisition that has a product. */
           const choice = embedding!.viewChoices(layers)[0];
-          /* An acquisition whose projection is not published yet has nothing
-             to draw; it joins the picture when the product lands. The
-             engine's `Acquisition` always names a url, so its missing one is
-             said in the type. */
-          if (!choice.keys.includes(THE_VIEWERS_PRODUCT)) return { ...acquisition, channels: [], url: undefined as string | undefined as string };
+          if (!choice.keys.includes(THE_VIEWERS_PRODUCT)) return [];
           const selected = embedding!.selectedViews(layers, { [choice.id]: THE_VIEWERS_PRODUCT });
           const channels = layers.filter(row => embedding!.inSelectedView(row, selected));
-          /* A published product's row always names its stores. */
-          return { ...acquisition, channels, url: channels[0]?.sources![0] };
+          const url = channels[0]?.sources?.[0];
+          return url ? [{ ...acquisition, channels, url }] : [];
         });
         /* The engine draws acquisitions in the order supplied, first at the
            bottom. The overview is the base map and focussing is the local

@@ -122,9 +122,9 @@ test("the projection is the one product drawn, for every acquisition, now and la
     export const inSelectedView=(row,wanted)=>(row.view.method??row.view.type)===wanted.a;`;
   const embeddingUrl = `data:text/javascript,${encodeURIComponent(api)}`;
   const names = ["overview", "focussing"];
-  /* Published sources as the viewer's server sends them: no url of their own, which the engine's type asks for. */
+  /* Published sources as the viewer's server sends them: no url of their own. */
   ctx.viewerSources = async () => names.map(name => ({ name, embeddingUrl,
-    channels: [{ view: { acquisition: name, type: "projection", method: "max" }, sources: [`/${name}/max`] }] })) as unknown as Acquisition[];
+    channels: [{ view: { acquisition: name, type: "projection", method: "max" }, sources: [`/${name}/max`] }] }));
   const element: Partial<ViewerPanelElement> & { setViewMode?: unknown } = {};
   mocks.mountPanel.mockResolvedValue({ element, destroy: vi.fn(), sourcesChanged: async () => true });
   const viewer = {
@@ -140,4 +140,30 @@ test("the projection is the one product drawn, for every acquisition, now and la
   names.push("targets");
   await run.thePicture.reopenIfTheRunGrew();
   expect(viewer.addSources.mock.lastCall![0].map(a => a.channels![0].view!.method)).toEqual(["max", "max", "max"]);
+});
+
+test("an acquisition whose projection is not published yet is left out until it is", async () => {
+  const api = `export const EMBEDDING_API_VERSION=1;
+    export const viewChoices=rows=>[{id:'a',keys:rows.map(r=>r.view.method??r.view.type)}];
+    export const selectedViews=(rows,wanted)=>wanted;
+    export const inSelectedView=(row,wanted)=>(row.view.method??row.view.type)===wanted.a;`;
+  const embeddingUrl = `data:text/javascript,${encodeURIComponent(api)}`;
+  const published = (name: string, method: string) => ({ name, embeddingUrl,
+    channels: [{ view: { acquisition: name, type: "projection", method }, sources: [`/${name}/${method}`] }] });
+  /* The overview's projection is out; the targets' is not yet -- only its
+     raw planes are. Handed on with no address, the engine read one anyway
+     and the whole picture failed to update. */
+  ctx.viewerSources = async () => [published("overview", "max"), published("targets", "raw")];
+  mocks.mountPanel.mockResolvedValue({ element: {}, destroy: vi.fn(), sourcesChanged: async () => true });
+  const viewer = {
+    destroy: vi.fn(), setView: vi.fn(),
+    addSources: vi.fn<(acquisitions: Acquisition[]) => Promise<boolean>>(async () => true),
+  };
+  const open = vi.fn<(host: unknown, how: { acquisitions: Acquisition[] }) => Promise<typeof viewer>>(async () => viewer);
+  mocks.opener.mockResolvedValue(open);
+  watchTheRun(ctx);
+  await vi.dynamicImportSettled(); await settle();
+  const drawn = open.mock.lastCall![1].acquisitions;
+  expect(drawn.map((a) => a.name)).toEqual(["overview"]);
+  expect(drawn.every((a) => typeof a.url === "string")).toBe(true);
 });
