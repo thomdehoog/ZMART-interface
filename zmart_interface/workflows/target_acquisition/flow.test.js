@@ -9,8 +9,8 @@
 import { describe, it, expect } from "vitest";
 import {
   firstIncomplete, isReachable, blockedBecause, panelsFor, editedAt, staleSteps,
-} from "../../framework/rules/steps.js";
-import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
+} from "../../framework/rules/steps.ts";
+import { assembleWorkflows } from "../../framework/rules/finding-workflows.ts";
 import { freshRun, startOver } from "../../framework/window/run-state.js";
 import { emptySlot, withRecording } from "./microscope/recordings.js";
 import { sampleReading } from "./microscope/settings.js";

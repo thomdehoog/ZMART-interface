@@ -19,7 +19,7 @@
  * rather than building them anew.
  */
 
-import { panelsFor } from "../rules/steps.js";
+import { panelsFor } from "../rules/steps.ts";
 import { installActionBar } from "./action-bar.js";
 import { el } from "./dom.js";
 import { buildThePanels } from "./panels.js";

@@ -20,7 +20,7 @@
  */
 
 import { status } from "./status.js";
-import { editedAt } from "../rules/steps.js";
+import { editedAt } from "../rules/steps.ts";
 
 /** Put the runner on the page: `runStep(i, options)` and `interruptWalk()`. */
 export function installRunner(page) {

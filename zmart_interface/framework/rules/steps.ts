@@ -22,9 +22,17 @@
  * does that at the moment; the ability is kept because it is the kind of thing a
  * workflow wants as soon as a step turns out to be two.
  */
-export function numbered(steps) {
+/** What the rules read of a step. */
+export interface StepShape {
+  id: string;
+  n?: string;
+  panels?: string[];
+  nothingWaitsOnThis?: boolean;
+}
+
+export function numbered<S extends { id: string; n?: string }>(steps: S[]): (S & { n: string })[] {
   let counter = 0;
-  const explicit = new Set(steps.filter((s) => s.n).map((s) => s.n[0]));
+  const explicit = new Set(steps.flatMap((s) => (s.n ? [s.n[0]] : [])));
   return steps.map((s) => {
     if (s.n) return { ...s, n: s.n };
     counter += 1;
@@ -47,11 +55,11 @@ export function numbered(steps) {
  * `nothingWaitsOnThis: true` in the catalogue and the operator may walk straight
  * past it, or come back to it later, in whichever order suits them.
  */
-const theRunHasToWaitHere = (step, done) =>
+const theRunHasToWaitHere = (step: StepShape, done: Set<string>) =>
   !done.has(step.id) && !step.nothingWaitsOnThis;
 
 /** The first step that has not completed — the only one the operator may reach. */
-export function firstIncomplete(steps, done) {
+export function firstIncomplete(steps: StepShape[], done: Set<string>): number {
   const i = steps.findIndex((s) => theRunHasToWaitHere(s, done));
   return i === -1 ? steps.length - 1 : i;
 }
@@ -66,7 +74,7 @@ export function firstIncomplete(steps, done) {
  * itself is not stale: the operator just settled it. Steps that are not done
  * have nothing to be stale about and are left alone.
  */
-export function editedAt(steps, done, stale, id) {
+export function editedAt(steps: StepShape[], done: Set<string>, stale: Set<string>, id: string): Set<string> {
   const at = steps.findIndex((s) => s.id === id);
   const next = new Set(stale);
   next.delete(id);
@@ -76,19 +84,12 @@ export function editedAt(steps, done, stale, id) {
   return next;
 }
 
-/**
- * The stale steps in rail order — a step not done is never stale.
- * @template {{ id: string }} S
- * @param {S[]} steps
- * @param {Set<string>} done
- * @param {Set<string>} stale
- * @returns {S[]}
- */
-export const staleSteps = (steps, done, stale) =>
+/** The stale steps in rail order — a step not done is never stale. */
+export const staleSteps = <S extends { id: string }>(steps: S[], done: Set<string>, stale: Set<string>): S[] =>
   steps.filter((s) => done.has(s.id) && stale.has(s.id));
 
 /** A step is reachable once everything before it is done. */
-export const isReachable = (steps, done, index) =>
+export const isReachable = (steps: StepShape[], done: Set<string>, index: number): boolean =>
   index <= firstIncomplete(steps, done);
 
 /**
@@ -104,7 +105,9 @@ export const isReachable = (steps, done, index) =>
  * Whether something else is already running is a separate question, and the
  * shell answers it: every button is disabled while any step is working.
  */
-export function blockedBecause(step, run, page) {
+export function blockedBecause<R, P>(
+  step: { id: string; ready?(run: R, page: P): string | null } | null | undefined, run: R, page: P,
+): string | null {
   return step?.ready ? step.ready(run, page) : null;
 }
 
@@ -130,7 +133,7 @@ export function blockedBecause(step, run, page) {
  * Saying which panels it wants is the step's business; which of them stay is
  * the workflow's; how wide they are and which is on top is the shell's.
  */
-export function panelsFor(steps, index, staying = []) {
+export function panelsFor(steps: StepShape[], index: number, staying: string[] = []): string[] {
   const own = (steps[index]?.panels ?? []).filter((p) => !staying.includes(p));
   const stays = staying.filter((key) => {
     const from = steps.findIndex((s) => s.panels?.includes(key));

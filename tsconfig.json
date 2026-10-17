@@ -10,6 +10,8 @@
     "moduleResolution": "bundler",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "strict": true,
+    // A name nobody reads is dead code: in the TypeScript files, the checker says so.
+    "noUnusedLocals": true,
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,

@@ -2,7 +2,7 @@
  * The panels on the right, the tabs that name them, and the render that
  * brings the whole page up to date.
  *
- * Which panels a step gets is `panelsFor` in `../rules/steps.js`, and the
+ * Which panels a step gets is `panelsFor` in `../rules/steps.ts`, and the
  * reason it lives there rather than here is that it is a rule about steps
  * rather than about this page. What it comes to for the workflows on offer:
  *

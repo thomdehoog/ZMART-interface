@@ -15,17 +15,18 @@
  * disagree about what a folder full of workflows means.
  */
 
-import { numbered } from "./steps.js";
+import type { AssembledWorkflow, Flow } from "../types.ts";
+import { numbered } from "./steps.ts";
 
 /** The name the chooser shows for a workflow folder: underscores become
  * spaces, and the first letter is capitalised. */
-function workflowName(folder) {
+function workflowName(folder: string): string {
   const words = folder.replaceAll("_", " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** The folder a flow was found in, out of the path it was found under. */
-const folderOf = (path) => path.match(/([^/]+)\/flow\.[jt]s$/)?.[1];
+const folderOf = (path: string) => path.match(/([^/]+)\/flow\.[jt]s$/)?.[1];
 
 /**
  * Turn a set of found flow files into the workflows the page offers.
@@ -36,15 +37,18 @@ const folderOf = (path) => path.match(/([^/]+)\/flow\.[jt]s$/)?.[1];
  * `opensFirst` is listed first and opened first; the rest follow in alphabetical
  * order of their folder names.
  */
-export function assembleWorkflows(flowFiles) {
+export function assembleWorkflows(flowFiles: Record<string, Flow<any>>): {
+  WORKFLOWS: Record<string, AssembledWorkflow<any>>;
+  DEFAULT_WORKFLOW: string | undefined;
+} {
   const found = Object.entries(flowFiles)
     .map(([path, flow]) => ({ folder: folderOf(path), flow }))
-    .filter(({ folder }) => folder)
+    .filter((one): one is { folder: string; flow: Flow<any> } => Boolean(one.folder))
     .sort((a, b) =>
       (b.flow.opensFirst ? 1 : 0) - (a.flow.opensFirst ? 1 : 0)
       || a.folder.localeCompare(b.folder));
 
-  const WORKFLOWS = {};
+  const WORKFLOWS: Record<string, AssembledWorkflow<any>> = {};
   for (const { folder, flow } of found) {
     WORKFLOWS[folder] = {
       /* The folder's name, unless the flow says otherwise. A flow speaks up

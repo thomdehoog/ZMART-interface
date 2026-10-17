@@ -28,19 +28,22 @@
  */
 
 /** The three numbers of a version, the tag dropped; null for something that is not one. */
-export function parseVersion(text) {
+export function parseVersion(text: unknown): [number, number, number] | null {
   const m = /^\s*v?(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?\s*$/.exec(String(text ?? ""));
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 }
 
-const compare = (a, b) => {
+type Version = [number, number, number];
+
+const compare = (a: Version, b: Version): number => {
   for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
   return 0;
 };
 
 /* One clause of a range, as a test of a parsed version. */
-function clause(text) {
+function clause(text: string): ((v: Version) => boolean) | null {
   const m = /^(\^|~|>=|<=|>|<|=)?\s*(.+)$/.exec(text);
+  if (!m) return null;
   const op = m[1] ?? "=";
   const at = parseVersion(m[2]);
   if (!at) return null;
@@ -52,7 +55,7 @@ function clause(text) {
     case "<": return (v) => compare(v, at) < 0;
     case "~": return (v) => compare(v, at) >= 0 && compare(v, [at[0], at[1] + 1, 0]) < 0;
     case "^": {
-      const ceiling = at[0] > 0 ? [at[0] + 1, 0, 0] : [0, at[1] + 1, 0];
+      const ceiling: Version = at[0] > 0 ? [at[0] + 1, 0, 0] : [0, at[1] + 1, 0];
       return (v) => compare(v, at) >= 0 && compare(v, ceiling) < 0;
     }
     default: return null;
@@ -65,11 +68,11 @@ function clause(text) {
  * than letting it in; a version nobody can read is satisfied by nothing
  * but `*`.
  */
-export function satisfies(version, range) {
+export function satisfies(version: unknown, range: unknown): boolean {
   /* A sign standing alone is joined to the version after it, so `>= 1.2.3`
      reads as `>=1.2.3`. */
   const words = String(range ?? "").trim().split(/\s+/).filter(Boolean)
-    .reduce((joined, word) => {
+    .reduce<string[]>((joined, word) => {
       const last = joined[joined.length - 1];
       if (last !== undefined && /^(\^|~|>=|<=|>|<|=)$/.test(last)) joined[joined.length - 1] = last + word;
       else joined.push(word);
@@ -80,5 +83,5 @@ export function satisfies(version, range) {
   if (!v) return false;
   const tests = words.map(clause);
   if (tests.some((t) => t === null)) return false;
-  return tests.every((t) => t(v));
+  return tests.every((t) => t !== null && t(v));
 }

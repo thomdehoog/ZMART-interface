@@ -9,10 +9,10 @@
  * and beside its press, never here.
  *
  * The rules themselves -- which step is reachable, what goes stale when a
- * step is edited -- live in `../rules/steps.js`, and this only asks them.
+ * step is edited -- live in `../rules/steps.ts`, and this only asks them.
  */
 
-import { blockedBecause, editedAt, isReachable } from "../rules/steps.js";
+import { blockedBecause, editedAt, isReachable } from "../rules/steps.ts";
 import { el } from "./dom.js";
 import { startOver } from "./run-state.js";
 

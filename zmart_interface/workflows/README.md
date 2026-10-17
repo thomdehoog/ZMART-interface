@@ -8,7 +8,7 @@ rule would come out wrong may say its own name instead (`export const name`),
 for an acronym the rule would lower-case. Adding a workflow means adding a
 folder with a `flow.js` in it; nothing else in the interface has to change,
 because the framework finds these folders by looking
-(`../framework/rules/finding-workflows.js` says how).
+(`../framework/rules/finding-workflows.ts` says how).
 
 There is one built into the page today:
 
@@ -82,7 +82,7 @@ fields, all optional except the first two.
 - `id` — the short name the page files this step's result under.
 - `title` — what the step is called in the rail down the left.
 - `panels` — which modules the step wants on screen, named. An empty list means
-  "nothing of my own"; see `../framework/rules/steps.js`, which decides what that
+  "nothing of my own"; see `../framework/rules/steps.ts`, which decides what that
   comes to once the canvas is in play.
 - `btn` — the words on the button that carries the step out. A step with no
   `btn` has nothing to press: some steps are completed by doing the thing they
@@ -154,7 +154,7 @@ fields, all optional except the first two.
   walked in order because each step usually produces something the next one
   needs; a step that only shows the operator something produces nothing to wait
   for, and saying so here lets them walk straight past it. See
-  `../framework/rules/steps.js`, which is where the rule lives.
+  `../framework/rules/steps.ts`, which is where the rule lives.
 
 ## What a step's run is handed: the page
 

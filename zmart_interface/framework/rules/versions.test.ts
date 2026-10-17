@@ -1,7 +1,7 @@
 /* The version check a workflow package meets before the page loads it. */
 
 import { describe, it, expect } from "vitest";
-import { parseVersion, satisfies } from "./versions.js";
+import { parseVersion, satisfies } from "./versions.ts";
 
 describe("reading a version", () => {
   it("reads the three numbers and drops the tag", () => {

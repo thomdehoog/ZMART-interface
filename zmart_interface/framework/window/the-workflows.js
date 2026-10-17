@@ -11,7 +11,7 @@
  * imported the frame's stylesheet, so each workflow's stylesheet follows it.
  */
 
-import { assembleWorkflows } from "../rules/finding-workflows.js";
+import { assembleWorkflows } from "../rules/finding-workflows.ts";
 
 export const { WORKFLOWS, DEFAULT_WORKFLOW } = assembleWorkflows(
   import.meta.glob("../../workflows/*/flow.{js,ts}", { eager: true }),

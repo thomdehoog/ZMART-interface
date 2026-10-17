@@ -9,7 +9,7 @@
    workflow made up here, so they need no microscope. */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { assembleWorkflows } from "../rules/finding-workflows.js";
+import { assembleWorkflows } from "../rules/finding-workflows.ts";
 import * as threeSteps from "../fixtures/three_steps/flow.ts";
 import { composeThePages } from "./pages.js";
 

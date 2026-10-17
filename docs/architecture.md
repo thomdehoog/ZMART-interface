@@ -143,7 +143,7 @@ workflows to `framework/window/pages.js`, which composes the page, naming no
 workflow. In order:
 
 1. The workflows are assembled from the folders under `workflows/`
-   (`framework/rules/finding-workflows.js`).
+   (`framework/rules/finding-workflows.ts`).
 2. The run document is made: the framework's keys, and beside them whatever
    the open workflow's `freshState` answers (`run-state.js`). It is one
    object, shared by every workflow's page and started over in place when
@@ -323,17 +323,17 @@ its own `n` if two halves of one job should read as `3a` and `3b`.
 
 **The folders under `workflows/` are the only place the workflows are
 written down.** The framework finds every folder holding a `flow.js`
-(`framework/rules/finding-workflows.js` says how), and the unit tests read the same
+(`framework/rules/finding-workflows.ts` says how), and the unit tests read the same
 folders through the same assembly, which is what makes a test about a workflow
 a test about the page. The browser suite checks the other half: it reads the
 folders and then reads the running page, and fails if the chooser and the rail
 disagree with them.
 
 Readiness belongs to the step. Only the focus step knows what it is waiting
-for, and `framework/rules/steps.js` only asks. That is what lets a new workflow be a list rather than another condition
+for, and `framework/rules/steps.ts` only asks. That is what lets a new workflow be a list rather than another condition
 added to the shell.
 
-Which panels a step gets is `panelsFor` in `framework/rules/steps.js`. A step names the
+Which panels a step gets is `panelsFor` in `framework/rules/steps.ts`. A step names the
 modules it wants of its own and gets those; most name nothing, because most steps
 happen on the stage and the picture of the stage is enough. The canvas itself
 appears at the step that first asks for it — the carrier, in every workflow that
@@ -402,8 +402,8 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `workflows/target_acquisition/microscope/instruments.js` | used by the app |
 | `ta/microscope/pretend-sample/` | built, unit-tested, **used by the app** (the focus sweep and the surface fit) |
 | `workflows/target_acquisition/backend/pretend.js` | built, used by the app only with `?backend=pretend`, for the page's own tests |
-| `framework/rules/steps.js` | built, unit-tested, **used by the app** — numbering, ordering, readiness and panels |
-| `framework/rules/finding-workflows.js` | built, unit-tested, **used by the app: turns the workflow folders into the chooser's list** |
+| `framework/rules/steps.ts` | built, unit-tested, **used by the app** — numbering, ordering, readiness and panels |
+| `framework/rules/finding-workflows.ts` | built, unit-tested, **used by the app: turns the workflow folders into the chooser's list** |
 | `workflows/*/flow.js` | built, unit-tested, **used by the app: the only declaration of the workflows** |
 | `ta/shared/carrier-panel.js` | built, used — the first widget, and the shape the rest should follow |
 | `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |

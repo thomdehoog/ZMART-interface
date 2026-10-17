@@ -15,7 +15,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { satisfies } from "../zmart_interface/framework/rules/versions.js";
+import { satisfies } from "../zmart_interface/framework/rules/versions.ts";
 
 /** What is wrong with each workflow folder under `workflows`, in sentences; empty when every one fits `apiVersion`. */
 export function workflowsThatDoNotFit(apiVersion, workflows) {

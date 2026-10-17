@@ -8,8 +8,8 @@
 import { describe, it, expect } from "vitest";
 import {
   numbered, firstIncomplete, isReachable, panelsFor, editedAt, staleSteps, blockedBecause,
-} from "./steps.js";
-import { assembleWorkflows } from "./finding-workflows.js";
+} from "./steps.ts";
+import { assembleWorkflows } from "./finding-workflows.ts";
 
 const { WORKFLOWS } = assembleWorkflows(
   import.meta.glob("../../workflows/*/flow.{js,ts}", { eager: true }),
@@ -102,8 +102,8 @@ describe("what a step still waits for", () => {
   it("asks the step's own rule, with the run and the page", () => {
     const page = { steps: () => [] };
     const run = { done: new Set() };
-    let asked = null;
-    const step = { id: "x", ready: (r, p) => { asked = [r, p]; return "not yet"; } };
+    let asked: unknown[] = [];
+    const step = { id: "x", ready: (r: unknown, p: unknown) => { asked = [r, p]; return "not yet"; } };
     expect(blockedBecause(step, run, page)).toBe("not yet");
     expect(asked[0]).toBe(run);
     expect(asked[1]).toBe(page);
@@ -145,9 +145,9 @@ describe("panels follow the step", () => {
 describe("finding a workflow's folder", () => {
   it("finds a flow written in JavaScript or in TypeScript", () => {
     const { WORKFLOWS } = assembleWorkflows({
-      "workflows/in_js/flow.js": { steps: [{ id: "a" }] },
-      "workflows/in_ts/flow.ts": { steps: [{ id: "b" }] },
-      "workflows/neither/flow.css": { steps: [{ id: "c" }] },
+      "workflows/in_js/flow.js": { blurb: "", steps: [{ id: "a", title: "A" }] },
+      "workflows/in_ts/flow.ts": { blurb: "", steps: [{ id: "b", title: "B" }] },
+      "workflows/neither/flow.css": { blurb: "", steps: [{ id: "c", title: "C" }] },
     });
     expect(Object.keys(WORKFLOWS)).toEqual(["in_js", "in_ts"]);
   });
