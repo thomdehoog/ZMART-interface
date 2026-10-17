@@ -206,10 +206,7 @@
   background: var(--screen);
   display: flex; flex-direction: column; gap: 9px;
 }
-.wf-label {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ink-3);
-}
+
 .wf-row { display: flex; gap: 8px; align-items: center; }
 /* The chooser takes whatever room the rail has and no more. Left to itself a
    dropdown is as wide as its longest choice, and the rail is a fixed column.
@@ -223,8 +220,7 @@ select.wf-select {
   border: 1px solid var(--line-strong); border-radius: 8px;
   padding: 7px 9px; cursor: pointer;
 }
-.wf-meta { font-size: 12.5px; color: var(--ink-3); }
-.wf-meta.locked { color: var(--warn-ink); }
+
 button.ghost {
   font: inherit; font-size: 13px; font-weight: 600;
   color: var(--ink-2); background: var(--surface-3);
@@ -389,39 +385,12 @@ button.run:disabled { opacity: 0.4; cursor: default; }
 .panel { position: relative; min-width: 0; min-height: 0; display: none; }
 .panel.on { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
 
-.toolbar {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--screen);
-  font-size: 12.5px; color: var(--ink-2); min-height: 43px;
-}
 .param .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
-
-/* The canvas demonstration needs two rows: which engine is drawing, and which
-   of the three layers are on. */
-.viewer-toolbar { grid-template-rows: 28px auto; row-gap: 6px; }
-/* The row of layer buttons carries an explanation beside it, and an engine that
-   cannot draw beneath the picture explains that in three or four lines. So this
-   is the one row here that wraps rather than running off the side: a reason an
-   operator cannot read is no better than no reason at all.
-
-   Its height is reserved whether or not there is anything to say, because a
-   sentence appearing when a button is pressed would otherwise push the picture
-   down under the operator's cursor. */
-.viewer-toolbar .layer-row {
-  white-space: normal; overflow: visible; align-items: flex-start; padding-top: 4px;
-}
-.viewer-toolbar .layer-row .seg { flex: none; }
-.layer-why {
-  flex: 1 1 240px; min-width: 0; min-height: 3.2em; white-space: normal; line-height: 1.35;
-}
 
 button.ghost.tiny { padding: 2px 7px; font-size: 11px; line-height: 1.4; }
 
-.toolbar .group { display: flex; align-items: center; gap: 9px; }
-.toolbar label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
-.toolbar input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
 .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-.sep { width: 1px; height: 16px; background: var(--line); }
+
 /* The readout shrinks rather than wrapping: a toolbar that changes height
    moves the canvas under the cursor, and points get placed where they were
    not clicked. */
@@ -467,25 +436,6 @@ button.ghost.tiny { padding: 2px 7px; font-size: 11px; line-height: 1.4; }
 .param select { width: auto; font-family: var(--sans); font-weight: 600; }
 .param .hint { color: var(--ink-3); }
 
-.side-head {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ink-3); padding: 9px 12px 7px; border-bottom: 1px solid var(--line);
-  display: flex; align-items: baseline; gap: 8px;
-}
-.side-head span { font-family: var(--mono); font-size: 11px; letter-spacing: 0; text-transform: none; color: var(--ink-2); }
-
-/* Read from the left, like every other number in this channel. Centred, it
-   was the one figure on the page that did not start where its neighbours
-   start. */
-.anchor-count { text-align: left; }
-
-.detect-bar {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 10px 12px 12px; border-bottom: 1px solid var(--line);
-}
-.detect-bar .seg { width: 100%; }
-.detect-bar .seg button { flex: 1; min-width: 0; }
-
 /* The try and the run share one row, fill it half-and-half, and stand
    the same height: two presses of different builds must not read as
    different weights of control. */
@@ -498,13 +448,6 @@ button.run.running::after {
   animation: press-turning 0.9s linear infinite;
 }
 @keyframes press-turning { to { transform: rotate(360deg); } }
-
-/* a button in a heading keeps its own case */
-.side-head .ghost.tiny { margin-left: auto; letter-spacing: normal; text-transform: none; }
-
-.side-head .readout {
-  margin: 0 0 0 auto; letter-spacing: normal; text-transform: none; font-weight: 400;
-}
 
 .plot-host { position: relative; min-height: 0; }
 canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
@@ -553,83 +496,9 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
    one following is the only arrangement in which the two cannot disagree. */
 .picturecv { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 
-/* The box the canvas draws in, on the step that is nothing but the canvas. It
-   holds nothing of its own: whatever drawing surfaces the chosen engine needs
-   are made inside it, sized to fill it, and taken away again when the panel
-   closes.
-
-   The colour is here as well as in the panel, and the two have to match. The
-   panel tells the engine this same colour so that no seam shows between one
-   drawing surface and the next; the box is painted with it because an engine is
-   fetched when the step is first opened, and until it arrives the box would be
-   page-white — a second or two of blank white where a dark, empty microscope
-   image belongs, which reads as something having gone wrong. Change this and
-   change `THE_COLOUR_BEHIND_THE_PICTURE` in `src/workflows/target_acquisition/shared/canvas/viewer.js` with it. */
-.viewer-box { position: absolute; inset: 0; background: #05070d; }
-
-/* The viewer: one picture, taking the whole panel.
-
-   This held two columns until the operator page stopped being a place to compare
-   engines; comparing them side by side is what the rig in `viz_studio/options/`
-   is for. `min-width: 0` stays and is not decoration — without it a canvas
-   refuses to shrink below the width of what it has put inside itself, so the
-   picture pushes the panel wider instead of fitting it.
-
-   A panel is ordinarily a toolbar, its content and a foot. This one has no
-   toolbar of its own — the viewer carries its own buttons — so it is two rows,
-   and the picture takes everything that is left. */
-.one-viewer {
-  position: relative; min-width: 0; min-height: 0; padding: 8px;
-  display: flex; flex-direction: column; gap: 5px;
-}
-/* The box is the only part that grows, and it grows from nothing — `flex: 1 1 0`
-   rather than `auto`, so its height comes from the room left over rather than
-   from whatever the engine put inside it. With `auto` a canvas sizes the box and
-   the box sizes the column, and two engines with two ideas about how large a
-   canvas should be give two differently sized pictures. */
-.one-viewer .viewer-box { position: relative; inset: auto; flex: 1 1 0; min-height: 0; }
-
 /* `hidden` is an attribute and `display: flex` is a rule, and the rule wins, so a
    row of buttons the page has hidden would otherwise still be on the screen. */
 .seg[hidden] { display: none; }
-/* Where in the stack the picture comes from. A row rather than a column so it
-   costs one line of the picture's height, and the reading sits beside the slider
-   because "plane 417 of 833" is what an operator is actually navigating by. */
-.through-the-stack {
-  display: flex; align-items: center; gap: 8px; min-width: 0;
-  font-size: 10.5px; color: var(--ink-2);
-}
-.through-the-stack input[type="range"] { flex: 1 1 auto; min-width: 0; }
-.through-the-stack .readout { flex: 0 0 auto; white-space: nowrap; }
-
-.one-viewer .live-note { bottom: 8px; max-width: calc(100% - 16px); }
-.viewer-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.viewer-name {
-  font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--ink-2);
-  white-space: nowrap;
-}
-.viewer-head .readout { margin-left: auto; font-size: 10.5px; }
-/* Reserved whether or not there is anything to say, so that a sentence appearing
-   when a button is pressed cannot shove the picture down under the cursor.
-
-   `flex: 0 0 auto` is the important part and it is easy to lose. The rule this
-   inherits from was written for the engine's sentence sitting *beside* its
-   buttons in a horizontal toolbar, where `flex: 1 1 240px` means "take the rest
-   of the row". Here the column runs downwards, so the same rule means "take the
-   rest of the height" — and it did: measured, it grew to 475px and left the
-   picture 235px at the bottom of a 774px column.
-
-   A fixed height rather than a minimum, so that changing engine cannot resize the
-   picture: one of them has a paragraph to say about what it cannot draw and the
-   other has a line, and a picture that jumped every time the button was pressed
-   would make the two impossible to compare by flicking between them. Three lines
-   holds the sentence that matters; the whole of it is on the element's `title`,
-   which is where hovering finds it. */
-.one-viewer .layer-why {
-  flex: 0 0 auto;
-  height: 3.9em; overflow: hidden;
-  font-size: 10.5px; line-height: 1.3; white-space: normal;
-}
 
 /* What the picture is doing, said quietly in the corner of it: which run is
    open, or why it could not be. */
@@ -652,8 +521,6 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
 .tip.on { opacity: 1; }
 .tip b { color: var(--ink-3); font-weight: 500; }
 
-/* gallery */
-.gallery-wrap { overflow-y: auto; padding: 14px; }
 /* One pair per row, however wide the channel, so the eye moves straight
    down from overview context to the high-resolution target frame. */
 .pairs { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -716,8 +583,6 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
 .field input { font-family: var(--mono); letter-spacing: 0.08em; }
 .field select:disabled, .field input:disabled { opacity: 0.55; }
 
-.session-hint { font-size: 12.5px; color: var(--ink-3); }
-
 /* An explicit display beats the hidden attribute, so say so. */
 
 /* ---- the two header bars line up --------------------------------------
@@ -761,20 +626,6 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
   font-size: 15px; font-weight: 400; letter-spacing: 0.01em;
   color: var(--ink-3); line-height: 1;
 }
-
-.session-hint.bad { color: var(--bad); }
-
-/* The dot is the colour the preset is drawn in on the stage, so the canvas
-   needs no legend. It sits in the name's column rather than a column of its
-   own: only some kinds of recording are drawn anywhere. */
-.rec-dot {
-  width: 8px; height: 8px; border-radius: 50%; flex: none;
-  display: inline-block; margin-right: 7px; vertical-align: 1px;
-}
-
-/* An empty hint still claimed a grid row, so the open bar sat taller than it
-   looked and its contents rode high in the box. */
-.session-hint:empty { display: none; }
 
 /* Settings of one kind sit close; one kind and the next stand apart. */
 /* ---- the carrier configuration panel ------------------------------------
@@ -863,8 +714,6 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
    a plate's rows and its size were separate answers. */
 .carrier-sizes { gap: 8px; }
 
-.carrier-reset { padding: 0 12px; }
-
 /* A box of controls in the channel, wherever the channel is: the scan fields
    use it, and so does the focus preset in the focus step, because a
    recording taken there is the same kind of thing as one taken here and
@@ -892,20 +741,6 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
   padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--screen);
 }
-
-.edit-count { color: var(--edit-ink); }
-
-/* The one thing the scan step decides for itself: drive to the surface the map
-   fitted, or focus at every tile. Greyed, with the mark unticked, when this
-   preset has no map to drive to. */
-.scan-focus {
-  display: flex; align-items: center; gap: 8px; height: var(--control);
-  font-size: 13px; color: var(--ink);
-}
-.scan-focus input { accent-color: var(--accent); margin: 0; }
-.scan-focus:has(input:disabled) { color: var(--ink-3); }
-
-.sf-row { display: flex; gap: 6px; }
 
 /* The fade and the lock, in a strip beside the row of layer buttons.
    Separate from that row on purpose: the buttons are a joined set of switches
@@ -1025,9 +860,7 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
 .canvas-strip .run.strip-first { border-radius: 7px 0 0 7px; }
 .canvas-strip .run.strip-first.strip-last { border-radius: 7px; }
 .canvas-strip .run.strip-last { border-radius: 0 7px 7px 0; border-left: none; }
-/* Between the picker and the channels, square-cornered, flush on both sides. */
-.canvas-strip .strip-mid { border-radius: 0; border-left: none; }
-.canvas-strip .strip-mid.strip-last { border-radius: 0 7px 7px 0; }
+
 .canvas-strip .run.switch[aria-pressed="true"] {
   background: var(--accent-tint); border-color: var(--line-strong); box-shadow: none;
 }
