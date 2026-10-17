@@ -46,8 +46,7 @@ npm run check:unused    # exports, files and packages nothing uses (knip, knip.j
 ```
 
 `npm test` runs the types with the unit and browser tests, and so does CI. CI
-fails on a wrong import too; the unused code is reported as a warning until the
-dead code the module map lists is gone.
+fails on a wrong import and on code nothing uses, too.
 
 ## What the build produces, and why it is three files rather than one
 

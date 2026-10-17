@@ -70,10 +70,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: npm run check:imports
-      # Reported, not yet enforced: it fails the run once the dead code the
-      # module map lists is gone (docs/building-the-page.md).
       - run: npm run check:unused
-        continue-on-error: true
 
   python:
     name: python tests (${{ matrix.os }}, py${{ matrix.python-version }})
