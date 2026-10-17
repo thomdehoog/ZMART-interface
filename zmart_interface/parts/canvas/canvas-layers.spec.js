@@ -27,9 +27,9 @@ const A_PAGE_WITH_ONLY_A_CANVAS = `
   #layers{display:flex;gap:4px;align-items:center;padding:6px}
   #box{position:relative;width:640px;height:420px;background:#05070d}
 </style>
-<div id="head"><span id="name"></span><span id="readout"></span></div>
-<div id="chooser"></div><div id="layers"></div><div id="why"></div>
-<div id="box"></div><div id="note" hidden></div>
+<div id="head"><span id="readout"></span></div>
+<div id="layers"></div>
+<div id="box"></div>
 <script type="module">
 const el = (id) => document.getElementById(id);
 const { putTheCanvasIn } = await import("/zmart_interface/parts/canvas/viewer.js");
@@ -48,11 +48,12 @@ const aSquare = (colour, x, y, side) => ({
 
 window.__touched = [];
 window.__drag = [];
+window.__moved = [];
 window.__armed = false;
 window.__canvas = await putTheCanvasIn({
-  box: el("box"), note: el("note"), chooser: el("chooser"), layers: el("layers"),
-  why: el("why"), readout: el("readout"), name: el("name"),
-  acquisitions: [], engine: "jpeg-under",
+  box: el("box"), layers: el("layers"), readout: el("readout"),
+  // Until the canvas has a surface of its own (phase 6, step a2b).
+  engine: "jpeg-under", acquisitions: [],
   layersAbove: [
     { key: "carrier", label: "Carrier", ...aSquare("rgb(30,80,190)", 0, 0, 300) },
     { key: "tiles", label: "Tiles", ...aSquare("rgb(240,160,30)", 60, 60, 180) },
@@ -70,6 +71,7 @@ window.__canvas = await putTheCanvasIn({
       } },
   ],
   onTouched: ({ layer, at }) => window.__touched.push({ key: layer.key, at }),
+  onViewMoved: (where) => window.__moved.push({ centre: { ...where.centre }, zoom: where.zoom }),
 });
 await window.__canvas.whenShown();
 window.__ready = true;
@@ -354,12 +356,9 @@ test("alt and a drag pans even while a tool is armed", async ({ page }) => {
   expect(after.centre.x, "alt+drag did not pan").not.toBeCloseTo(before.centre.x, 3);
 });
 
-test("a host that offers no chooser and no commentary still gets a canvas", async ({ page }) => {
-  /* The operator's window shows one engine and never asks which. A canvas that
-     insisted on somewhere to put a chooser, and somewhere to write a sentence
-     about what the picture is doing, would make every host carry furniture it
-     had decided not to show. Only the box and the layer buttons are required —
-     a canvas with nowhere to draw, or no way to turn a layer off, is not one. */
+test("a host that gives only a box and a place for the buttons still gets a canvas", async ({ page }) => {
+  /* Only the box and the layer buttons are required — a canvas with nowhere
+     to draw, or no way to turn a layer off, is not one. */
   const buttons = await page.evaluate(async () => {
     const { putTheCanvasIn } = await import("/zmart_interface/parts/canvas/viewer.js");
     const box = document.createElement("div");
@@ -367,7 +366,9 @@ test("a host that offers no chooser and no commentary still gets a canvas", asyn
     const layers = document.createElement("div");
     document.body.append(box, layers);
     const bare = putTheCanvasIn({
-      box, layers, acquisitions: [], engine: "jpeg-under",
+      box, layers,
+      // Until the canvas has a surface of its own (phase 6, step a2b).
+      engine: "jpeg-under", acquisitions: [],
       layersAbove: [{
         key: "only", label: "Only", shown: true,
         paint: ({ context }) => {
@@ -445,4 +446,131 @@ test("chrome goes with the thing it is chrome for", async ({ page }) => {
   expect(await howMuchIs(page, [30, 80, 190]), "the shape stayed").toBeLessThan(0.002);
   expect(await howMuchIs(page, [240, 160, 30]),
     "the handles were left behind by the thing they belong to").toBeLessThan(0.002);
+});
+
+/* ---------------------------------------------------------------------------
+   Moving around, and the picture beneath
+
+   The canvas owns the two gestures, and everything registered to it — the
+   run's picture in the middle, the workflow's drawings around it — follows
+   the view it reports. These pin what an operator feels: where a wheel zooms,
+   how far a drag goes, and that whoever follows hears the view as it is now,
+   not as it was a moment ago.
+   --------------------------------------------------------------------------- */
+
+/** The place on the sample under a point in the box, as the canvas works it out. */
+const underThePoint = (page, x, y) => page.evaluate(([px, py]) => {
+  const box = document.getElementById("box").getBoundingClientRect();
+  return window.__canvas.unproject(px - box.left, py - box.top);
+}, [x, y]);
+
+test("the wheel zooms about the place under the pointer", async ({ page }) => {
+  const box = await page.locator("#box").boundingBox();
+  const pointer = { x: box.x + box.width * 0.3, y: box.y + box.height * 0.7 };
+  const before = await underThePoint(page, pointer.x, pointer.y);
+  const zoomBefore = (await page.evaluate(() => window.__canvas.view)).zoom;
+
+  await page.mouse.move(pointer.x, pointer.y);
+  await page.mouse.wheel(0, -240);
+  await page.waitForTimeout(200);
+
+  const zoomAfter = (await page.evaluate(() => window.__canvas.view)).zoom;
+  expect(zoomAfter, "the wheel did not magnify").toBeLessThan(zoomBefore);
+  const after = await underThePoint(page, pointer.x, pointer.y);
+  expect(after.x).toBeCloseTo(before.x, 3);
+  expect(after.y).toBeCloseTo(before.y, 3);
+});
+
+test("a drag moves the picture exactly as far as the hand went", async ({ page }) => {
+  const before = await page.evaluate(() => window.__canvas.view);
+  const box = await page.locator("#box").boundingBox();
+  const from = { x: box.x + 40, y: box.y + box.height - 40 };   // empty ground
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 120, from.y - 50, { steps: 6 });
+  await page.mouse.up();
+  const after = await page.evaluate(() => window.__canvas.view);
+  expect(after.zoom).toBeCloseTo(before.zoom, 9);
+  expect(after.centre.x).toBeCloseTo(before.centre.x - 120 * before.zoom, 3);
+  expect(after.centre.y).toBeCloseTo(before.centre.y + 50 * before.zoom, 3);
+});
+
+test("lookAt puts the view where it is asked", async ({ page }) => {
+  const view = await page.evaluate(() => {
+    window.__canvas.lookAt({ centre: { x: 150, y: -40 }, zoom: 0.5 });
+    return window.__canvas.view;
+  });
+  expect(view).toEqual({ centre: { x: 150, y: -40 }, zoom: 0.5 });
+});
+
+test("whoever follows the view hears it as it is now, not a moment ago", async ({ page }) => {
+  /* The run's picture follows the canvas through onViewMoved. A follower told
+     the view from before the move draws one wheel tick behind the layers. */
+  const box = await page.locator("#box").boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -120);
+  await page.waitForTimeout(150);
+  await page.mouse.move(box.x + 50, box.y + box.height - 50);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 140, box.y + box.height - 90, { steps: 4 });
+  await page.mouse.up();
+  const { last, now } = await page.evaluate(() => ({
+    last: window.__moved.at(-1), now: window.__canvas.view,
+  }));
+  expect(last).toEqual(now);
+});
+
+test("the picture sits between the layers below its place in the stack and those above", async ({ page }) => {
+  /* A workflow marks where the run's picture goes in its stack with a layer
+     keyed "picture", and hands the picture's element in as pictureHost. What
+     is listed before the marker is drawn under the picture, what comes after
+     it over the picture. */
+  const shares = await page.evaluate(async () => {
+    const { putTheCanvasIn } = await import("/zmart_interface/parts/canvas/viewer.js");
+    document.body.textContent = "";
+    const box = document.createElement("div");
+    box.id = "stacked";
+    box.style.cssText = "position:relative;width:300px;height:200px";
+    const layers = document.createElement("div");
+    const picture = document.createElement("div");
+    picture.style.cssText = "position:absolute;left:0;top:0;width:150px;height:200px;background:rgb(200,20,20)";
+    document.body.append(layers, box);
+    const fill = (colour) => ({ context, width, height }) => {
+      context.fillStyle = colour;
+      context.fillRect(0, 0, width, height);
+    };
+    const canvas = putTheCanvasIn({
+      box, layers, pictureHost: picture,
+      // Until the canvas has a surface of its own (phase 6, step a2b).
+      engine: "jpeg-under", acquisitions: [],
+      layersAbove: [
+        { key: "below", label: "Below", shown: true, paint: fill("rgb(20,20,200)") },
+        { key: "picture", label: "Picture", shown: true },
+        { key: "above", label: "Above", shown: true, staysSolid: true,
+          paint: ({ context, width, height }) => {
+            context.fillStyle = "rgb(20,200,20)";
+            context.fillRect(0, 0, width, height / 2);
+          } },
+      ],
+    });
+    await canvas.whenShown();
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    return true;
+  });
+  expect(shares).toBe(true);
+  const shot = await page.locator("#stacked").screenshot();
+  const { readPng } = await import("../testing/pixels.js");
+  const pixels = readPng(shot);
+  const at = (x, y) => {
+    const i = (y * pixels.width + x) * pixels.channels;
+    return [pixels.data[i], pixels.data[i + 1], pixels.data[i + 2]];
+  };
+  const near = (a, b) => a.every((v, k) => Math.abs(v - b[k]) < 40);
+  /* Top half, both sides: the layer above covers everything. */
+  expect(near(at(40, 40), [20, 200, 20]), `above, over the picture: ${at(40, 40)}`).toBe(true);
+  expect(near(at(240, 40), [20, 200, 20]), `above, beside it: ${at(240, 40)}`).toBe(true);
+  /* Bottom half: the picture hides the layer below it where it is, and the layer
+     below shows where it is not. */
+  expect(near(at(40, 160), [200, 20, 20]), `the picture: ${at(40, 160)}`).toBe(true);
+  expect(near(at(240, 160), [20, 20, 200]), `below, beside the picture: ${at(240, 160)}`).toBe(true);
 });
