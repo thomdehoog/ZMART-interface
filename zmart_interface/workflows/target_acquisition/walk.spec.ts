@@ -278,7 +278,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       /* The viewer's press comes right before the acquisitions strip, and left
          of it whenever the two share a row. A narrow canvas, or a machine with
          wider fonts, wraps the strip onto its own row; that is allowed (see
-         toolbar.spec.js), so only the same row is held to left-of. */
+         toolbar.spec.ts), so only the same row is held to left-of. */
       expect(await page.locator("#viewer-pick").evaluate((press) => {
         const strip = press.nextElementSibling;
         if (strip?.id !== "acquisition-pick") return false;

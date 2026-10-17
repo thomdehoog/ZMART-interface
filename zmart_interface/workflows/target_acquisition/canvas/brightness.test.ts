@@ -3,7 +3,7 @@
  * `engines/brightness.ts` answers that by reading the picture rather
  * than guessing at the camera, and what is checked here is the part of it that
  * needs no store and no server: what window it makes of a patch of pixels. Which
- * plane that patch comes from is the other half and is `planes.test.js`, because
+ * plane that patch comes from is the other half and is `planes.test.ts`, because
  * the answer is shared with the options themselves. It is tested from here
  * because this is where the project's JavaScript test runner lives; the module
  * belongs to the options and is shared by all of them.

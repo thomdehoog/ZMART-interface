@@ -22,7 +22,7 @@
  * page served over HTTP; the `zmart-interface` window serves it. And whether the
  * two programs were copied along with the page cannot be checked here: if they
  * are missing the box stays black, and what catches that is a photograph of the
- * built page, in `workflows/target_acquisition/the-built-page.spec.js`.
+ * built page, in `workflows/target_acquisition/the-built-page.spec.ts`.
  */
 
 /** An engine's one export. */

@@ -398,7 +398,7 @@ const viewerChannelKey = (row: Pick<PanelRow, "acquisition" | "within" | "name">
  * either of them the owner of the controls.
  *
  * @public — the browser specs take it by the page's address, which knip
- * cannot follow (`workflows/target_acquisition/testing/page-addresses.test.js` holds them to it).
+ * cannot follow (`workflows/target_acquisition/testing/page-addresses.test.ts` holds them to it).
  */
 export function createViewerPanelState(): PanelState {
   return {
