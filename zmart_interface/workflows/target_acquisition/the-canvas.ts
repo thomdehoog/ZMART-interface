@@ -62,6 +62,8 @@ interface TheStageCanvas {
   lookAt(where: { centre?: { x: number; y: number }; zoom?: number }): void;
   carrierOriginUm(): [number, number];
   focusZAt(x: number, y: number): unknown;
+  /** Where the stage mark stands: what `whereTheStageIs` answers. */
+  stageAt(): StageAt | null;
 }
 
 declare global {
@@ -274,6 +276,7 @@ export function installTheCanvas(page: TaPage): CanvasOnThePage {
        display plane. Evidence that publishes positions through the bridge
        must ask the same measured surface the real Step 5 Run path asks. */
     focusZAt: (x, y) => page.surfaceZAt(x, y),
+    stageAt: () => stage.whereTheStageIs(),
   };
 
   /* The canvas's three framing presses -- carrier, tile set, tile -- are

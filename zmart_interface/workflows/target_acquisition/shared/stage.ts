@@ -339,7 +339,7 @@ function forgetTheCanvas() {
 
 /** The stage mark: where the watch reads the stage, in micrometres. */
 function takeThePosition(at: StageAt | null | undefined) {
-  if (!at || Number.isNaN(at.x) || Number.isNaN(at.y)) return;
+  if (!at || ![at.x, at.y, at.z].every(Number.isFinite)) return;
   stageReported = at;
   drawStage();
 }

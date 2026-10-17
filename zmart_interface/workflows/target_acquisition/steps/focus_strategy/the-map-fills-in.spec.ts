@@ -57,6 +57,7 @@ test("points appear in the list one at a time while the map is measured", async 
      that are counted, sampled while the run goes. */
   const counts = new Set<number>();
   const selected = new Set<string>();
+  const marks: unknown[] = [];
   const until = Date.now() + 120_000;
   do {
     const rows = await page.locator("#focus-traces .point-row").allTextContents();
@@ -65,6 +66,10 @@ test("points appear in the list one at a time while the map is measured", async 
     const lit = await page.locator('#focus-traces .point-row[aria-current="true"]').first()
       .textContent().catch(() => "");
     if (lit) selected.add(lit.trim().slice(0, 12));
+    /* The stage mark moves with the run too, and wherever it stands it is a
+       place with a height: the tip under it prints all three, and running
+       the map again from the stage begins at that height. */
+    marks.push(await page.evaluate(() => window.__theStageCanvas!.stageAt()));
     /* The class, not the label: what the button says changes with what
        pressing it means ("working…", "Interrupt"), and a sentinel read off
        prose broke the day the prose improved. */
@@ -80,4 +85,9 @@ test("points appear in the list one at a time while the map is measured", async 
   expect(seen.slice(0, 3), "the first points were shown one at a time").toEqual([0, 1, 2]);
   console.log(`rows seen selected while measuring: ${selected.size}`);
   expect(selected.size, "the selection did not follow the points as they landed").toBeGreaterThan(2);
+  const placeless = marks.filter((at) => {
+    const { x, y, z } = (at ?? {}) as { x?: unknown; y?: unknown; z?: unknown };
+    return ![x, y, z].every(Number.isFinite);
+  });
+  expect(placeless, "the stage mark stood somewhere with no x, y or height").toEqual([]);
 });

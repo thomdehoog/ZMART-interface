@@ -57,7 +57,7 @@ interface FocusStage {
   whereTheStageIs(): StageAt | null;
   toStage<P extends XY>(p: P): P;
   toCarrier<P extends XY>(p: P): P;
-  /** Where the stage mark goes. The map hands it a place and no height. */
+  /** Where the stage mark goes: a place, and the height last reported. */
   takeThePosition(at: StageAt | null | undefined): void;
 }
 
@@ -1991,8 +1991,7 @@ theButton("fp-runnew").addEventListener("click", (e) => {
         /* The mark and the row lead here too: this is the point being
            measured, so it is the one lit and marked while the stage works. */
         f.selected = at;
-        const dest = stage.toStage(point);
-        stage.takeThePosition({ x: dest.x, y: dest.y } as StageAt);
+        leadTheMarkTo(point);
         stage.draw(); renderPointList(); drawTrace();
         await rerunOne(f, at, point);
         stage.draw(); renderPointList(); drawTrace();
@@ -2043,6 +2042,23 @@ theButton("fp-runnew").addEventListener("click", (e) => {
  * and nothing said so; and the one-point rerun, which had its own copy of the
  * reading, kept doing exactly that after the map had stopped.
  */
+/**
+ * Put the stage mark on the point the run is driving to, before the stage
+ * reports it is there: the mark and the lit row lead the stage rather than
+ * trail it.
+ *
+ * Only the place leads. The height stays the one the instrument last
+ * reported, until its next reading replaces the whole mark: a height made
+ * up for a place the stage has not reached is the kind that once centred a
+ * stack millimetres from focus. Before any reading there is no mark to move.
+ */
+function leadTheMarkTo(point: XY) {
+  const here = stage.whereTheStageIs();
+  if (!here) return;
+  const going = stage.toStage(point);
+  stage.takeThePosition({ x: going.x, y: going.y, z: here.z });
+}
+
 function settled(p: MapPoint): MapPoint {
   const curve = p.traces?.[run.focus.metric];
   if (curve?.samples?.length) {
@@ -2062,8 +2078,7 @@ async function remeasure({ from = null }: { from?: "stage" | "map" | null } = {}
      run. The mark and the first row lead the stage from the first drive. */
   settleTheRoute();
   f.selected = 0;
-  const first = stage.toStage(f.points[0]);
-  stage.takeThePosition({ x: first.x, y: first.y } as StageAt);
+  leadTheMarkTo(f.points[0]);
   renderPointList(); drawTrace(); stage.draw();
   const stageZ = () => stage.whereTheStageIs()?.z;
   const beginsAt = (p: MapPoint) => {
@@ -2125,12 +2140,10 @@ async function remeasure({ from = null }: { from?: "stage" | "map" | null } = {}
          both, and the run ends where the stage ends. */
       const heading = f.points[index + 1];
       if (heading) {
-        const at = stage.toStage(heading);
-        stage.takeThePosition({ x: at.x, y: at.y } as StageAt);
+        leadTheMarkTo(heading);
         f.selected = index + 1;
       } else {
-        /* Read off the point as the backend answered it, whether or not it names these. */
-        stage.takeThePosition({ x: measured.x_um, y: measured.y_um } as StageAt);
+        leadTheMarkTo(f.points[index]);
         f.selected = index;
       }
       focusProgress.say({ done: index + 1, of: asked.length });
