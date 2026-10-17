@@ -82,7 +82,7 @@ def the_run() -> Path:
 # --- what every run captured, and the pictures made from it ------------------
 #
 # How far a workflow's own runs have got (a scan, a focus map) is that
-# workflow's ledger, kept in its Python half; see ``hooks.py``.
+# run's ledger; see ``ledgers.py``.
 
 #: What every scan captured, by the kind of scan. The kind -- ``acquisition_type``
 #: throughout the bridge -- is the interface's own name for an acquisition

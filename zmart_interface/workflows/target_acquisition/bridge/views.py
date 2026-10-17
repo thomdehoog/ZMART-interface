@@ -1,10 +1,7 @@
-"""The pictures only Target acquisition draws: a focus stack's slices and a field's detection masks.
+"""A focus stack's slice copies, made as each point lands for the focus panel's eye.
 
-The bridge's general part serves every picture under ``/view/<kind>/<name>``.
-These are the ones this workflow makes for its own panels, and it tells the
-bridge about them when it plugs in (see ``workflows/target_acquisition/bridge/hooks.py``): the
-focussing kind's view folder is served as it is, and names ending in
-``.mask.png`` or ``.labels.png`` are drawn here on request.
+They are written into the focussing kind's view folder, which ``pictures``
+serves as it is.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -13,7 +10,7 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 from ..microscope.focus_run import FOCUSSING
-from . import pictures, state
+from . import pictures
 
 
 def the_slice_copies_of(planes: list, *, store=None) -> list:
@@ -35,23 +32,3 @@ def the_slice_copies_of(planes: list, *, store=None) -> list:
 
         logging.getLogger(__name__).warning("no slice copies for a focus point: %s", why)
         return []
-
-
-def the_mask_view_for(kind: str, label: str):
-    """The colorized mask PNG for the *kind* field labelled *label*, or None."""
-    from ..analysis.mask_view import mask_view_of
-
-    for record in state.records.get(kind, []):
-        if record.get("position_label") == label:
-            return mask_view_of(record, label)
-    return None
-
-
-def the_label_map_for(kind: str, label: str):
-    """The raw label-mask PNG for the *kind* field labelled *label*, or None."""
-    from ..analysis.mask_view import label_map_of
-
-    for record in state.records.get(kind, []):
-        if record.get("position_label") == label:
-            return label_map_of(record, label)
-    return None

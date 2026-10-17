@@ -63,7 +63,13 @@ plots_stop = {"asked": False}
 
 
 def a_run_has_the_stage() -> bool:
-    """Whether a focus map, a scan, discovery or a target run is under way."""
+    """Whether a focus map, a scan, discovery or a target run is under way.
+
+    For as long as one is, its own record of where it sent the stage is the
+    stage's clock, even between two sites when the instrument's turn is
+    free: a position read right after a move can still report the site
+    before, and the mark jumped back and forth on that stale answer.
+    """
     return any(run.get("running") for run in (focus, scan, targets, acquired))
 
 

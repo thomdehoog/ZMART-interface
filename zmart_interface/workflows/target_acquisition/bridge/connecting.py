@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from importlib.metadata import version
 
 from zmart_controller import ZmartController
@@ -23,7 +24,7 @@ from ..analysis import warm
 from ..microscope.instrument import Instrument
 from ..storage import viewer_service
 from ..storage.output import checked_name, prepare_experiment
-from . import hooks, state
+from . import discovery, ledgers, scan, state
 
 #: The microscopes whoever started the bridge offers beside the controller's
 #: list, by name: ``{name: (driver, connection)}``, where ``driver`` is what
@@ -163,8 +164,8 @@ def connect(asked: dict) -> dict:
     state.records.clear()
     state.view_built.clear()
     state.displayed_pictures.clear()
-    # And every workflow forgets how far its own runs had got.
-    hooks.forget()
+    # And forgets how far its own runs had got.
+    ledgers.forget()
     # The picture server, beside the run: the viewer links each acquisition's
     # positions into one live picture and serves it to the page's own engine.
     # An optional guest -- a machine without it still scans, and still draws
@@ -201,16 +202,35 @@ def the_viewers_area(reading: dict) -> dict[str, list[float]]:
     return area
 
 
-def let_the_last_session_go(wait_s: float | None = None) -> None:
-    """Stop what the workflows run on their own before another session is opened.
+#: How long letting the last session go waits for the running scan to finish
+#: the field it is capturing. A field is never cut off halfway, and one slow
+#: field (a deep stack) can take minutes; beyond this the operator is told to
+#: try again.
+WAIT_FOR_THE_LAST_SCAN_S = 600.0
 
-    A workflow's runs (an overview scan, say) run in the bridge's own threads
-    and outlive the page that started them. Each workflow is asked to stop
-    them between two fields, as the operator's Interrupt does, and to wait
-    until it has (see ``hooks.py``). It must be called without holding the
+
+def let_the_last_session_go(wait_s: float | None = None) -> None:
+    """Stop the scan and discovery between two fields, and wait until they have.
+
+    Both run in the bridge's own threads and outlive the page that started
+    them, so another session must not open beneath them; they are stopped as
+    the operator's Interrupt stops them. The focus map and the target run are
+    driven by the page itself, so a reloaded page has already let them go;
+    connecting forgets their records. It must be called without holding the
     instrument's turn, because a run needs that turn to finish its field.
     """
-    hooks.let_go(wait_s)
+    if ledgers.scan["running"]:
+        scan.stop_scan()
+    if ledgers.targets["running"]:
+        discovery.stop_targets()
+    limit = time.monotonic() + (WAIT_FOR_THE_LAST_SCAN_S if wait_s is None else wait_s)
+    while ledgers.scan["running"] or ledgers.targets["running"]:
+        if time.monotonic() > limit:
+            raise RuntimeError(
+                "the scan that was running has not stopped yet; it finishes the field it is "
+                "capturing first, so wait a moment and connect again"
+            )
+        time.sleep(0.05)
 
 
 def close_the_last_session() -> None:

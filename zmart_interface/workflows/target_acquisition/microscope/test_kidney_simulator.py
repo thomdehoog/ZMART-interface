@@ -73,7 +73,7 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
     import json
 
     from .. import mock_microscope
-    from ..bridge import connecting, hooks, starting, state
+    from ..bridge import connecting, starting, state
     from ..storage import viewer_service
 
     class Session:
@@ -107,8 +107,6 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         monkeypatch.setattr(state, name, None)
     for name in ("context", "records", "view_built", "displayed_pictures"):
         monkeypatch.setattr(state, name, {})
-    # No workflow plugged in: connecting has nobody's runs to forget.
-    monkeypatch.setattr(hooks, "plugged", {})
     connecting.connect({"instrument": mock_microscope.NAME})
     first = state.pixel_provider
     if enabled:

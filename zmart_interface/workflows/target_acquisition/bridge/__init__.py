@@ -23,9 +23,10 @@ the microscope lives here:
 
 Its routes are registered by :func:`routes` under ``/api/target_acquisition/``,
 the way every workflow's are (``framework/bridge/workflows.py``).
-Importing this package plugs its runs into ``hooks.py``: they may hold the
-stage, they are let go before another session opens and forgotten when a
-fresh one does, and some pictures are drawn on request.
+How far each of its own runs has got is kept in ``ledgers``: while one
+runs, the stage's clock answers with where it sent the stage; before
+another session opens, ``connecting`` stops them between two fields and
+forgets them.
 
 Its routes, and what they are made of
 -------------------------------------
@@ -117,16 +118,13 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-import time
 import urllib.parse
 
-from ..microscope.focus_run import FOCUSSING
 from ..storage import viewer_service
 from . import (
     connecting,
     discovery,
     focus,
-    hooks,
     ledgers,
     pictures,
     plots,
@@ -136,51 +134,11 @@ from . import (
     stage,
     state,
     targets,
-    views,
 )
 from .starting import add_arguments, close, start
 
 #: What the bridge asks of this half (``framework/bridge/api.py``).
 __all__ = ["add_arguments", "close", "routes", "start"]
-
-#: How long letting the last session go waits for the running scan to finish
-#: the field it is capturing. A field is never cut off halfway, and one slow
-#: field (a deep stack) can take minutes; beyond this the operator is told to
-#: try again.
-WAIT_FOR_THE_LAST_SCAN_S = 600.0
-
-
-def let_go(wait_s: float | None = None) -> None:
-    """Stop the scan and discovery between two fields, and wait until they have.
-
-    Both run in the bridge's own threads and outlive the page that started
-    them, so another session must not open beneath them. The focus map and
-    the target run are driven by the page itself, so a reloaded page has
-    already let them go; connecting forgets their records.
-    """
-    if ledgers.scan["running"]:
-        scan.stop_scan()
-    if ledgers.targets["running"]:
-        discovery.stop_targets()
-    limit = time.monotonic() + (WAIT_FOR_THE_LAST_SCAN_S if wait_s is None else wait_s)
-    while ledgers.scan["running"] or ledgers.targets["running"]:
-        if time.monotonic() > limit:
-            raise RuntimeError(
-                "the scan that was running has not stopped yet; it finishes the field it is "
-                "capturing first, so wait a moment and connect again"
-            )
-        time.sleep(0.05)
-
-
-hooks.plug(
-    "target_acquisition",
-    holds_the_stage=ledgers.a_run_has_the_stage,
-    let_go=let_go,
-    forget=ledgers.forget,
-    raw_kinds={FOCUSSING},
-    picture_endings={".mask.png": views.the_mask_view_for, ".labels.png": views.the_label_map_for},
-)
-
 
 def connect(asked: dict) -> dict:
     """Open a session, after the last one's runs have let go of the stage.

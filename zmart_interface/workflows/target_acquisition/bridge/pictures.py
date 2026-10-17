@@ -5,9 +5,9 @@ Every capture is converted the moment it lands into one OME-Zarr position
 one live picture. The small JPEG copies the page's panels show and the
 copies drawn with the canvas's own display settings are made from the
 records here, on request, under the run's ``view`` folders, and handed out
-by :func:`a_picture` at ``/api/target_acquisition/view/<kind>/<name>``.
-Pictures drawn on request (a focus stack's slices, a field's detection
-masks) are plugged in through ``hooks.py``.
+by :func:`a_picture` at ``/api/target_acquisition/view/<kind>/<name>``. A
+focus stack's slices are served as they were written; a field's detection
+masks are drawn on request.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -22,9 +22,10 @@ from pathlib import Path
 
 from zmart_interface.framework.bridge.api import Bytes, Refusal
 
+from ..microscope.focus_run import FOCUSSING
 from ..storage import output, viewer_service
 from ..storage.zarr_positions import frame_um_of, position_store_from_record
-from . import hooks, stage, state
+from . import ledgers, state
 
 
 def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
@@ -207,7 +208,7 @@ def a_picture(asked: dict, query: str, rest: str) -> Bytes:
     if not kind or not name or name != Path(name).name or wanted is None:
         raise Refusal(f"no picture {rest!r}", status=404)
     display = the_display_asked_for(query)
-    raw = hooks.is_raw(kind)
+    raw = kind == FOCUSSING
     if display is not None and name.endswith(".jpg") and not raw:
         # The copy drawn with the picture's own display settings: what the
         # page's canvas shows, not the scan-wide stretch the small copies
@@ -216,7 +217,7 @@ def a_picture(asked: dict, query: str, rest: str) -> Bytes:
         if body is None:
             raise Refusal(f"nothing has been imaged at {rest}", status=404)
         return Bytes(body, wanted)
-    drawn = hooks.drawing_for(name)
+    drawn = next(((ending, draw) for ending, draw in DRAWN.items() if name.endswith(ending)), None)
     if drawn is not None:
         # A picture drawn on request (a field's detection mask, say), asked
         # for by the field's label; one that cannot be drawn answers 404
@@ -224,8 +225,8 @@ def a_picture(asked: dict, query: str, rest: str) -> Bytes:
         ending, draw = drawn
         where = draw(kind, name[: -len(ending)])
     elif raw:
-        # A kind whose files are written into its view folder as they land
-        # (a focus stack's slices), served as they are.
+        # The focus stack's slices, written into its view folder as each
+        # point lands, served as they are.
         where = view_of(kind) / name
     else:
         note = the_view_of(kind)
@@ -233,6 +234,31 @@ def a_picture(asked: dict, query: str, rest: str) -> Bytes:
     if where is None or not where.is_file():
         raise Refusal(f"nothing has been imaged at {rest}", status=404)
     return Bytes(where.read_bytes(), wanted)
+
+
+def the_mask_view_for(kind: str, label: str):
+    """The colorized mask PNG for the *kind* field labelled *label*, or None."""
+    from ..analysis.mask_view import mask_view_of
+
+    for record in state.records.get(kind, []):
+        if record.get("position_label") == label:
+            return mask_view_of(record, label)
+    return None
+
+
+def the_label_map_for(kind: str, label: str):
+    """The raw label-mask PNG for the *kind* field labelled *label*, or None."""
+    from ..analysis.mask_view import label_map_of
+
+    for record in state.records.get(kind, []):
+        if record.get("position_label") == label:
+            return label_map_of(record, label)
+    return None
+
+
+#: The pictures drawn on request, by the end of their name: each draws the
+#: file to send for ``(kind, label)``, or None for 404.
+DRAWN = {".mask.png": the_mask_view_for, ".labels.png": the_label_map_for}
 
 
 def the_middle_of(record: dict) -> tuple:
@@ -275,7 +301,7 @@ def replace_the_acquisition(acquisition_type: str, keeping: set[str] = frozenset
     # A store half-written when something crashed is in the shared staging
     # folder beside the positions; swept only while nothing is writing there.
     leftovers = [view_of(acquisition_type)]
-    if not stage.a_run_has_the_stage():
+    if not ledgers.a_run_has_the_stage():
         leftovers.append(positions.parent / ".writing")
     for leftover in leftovers:
         shutil.rmtree(leftover, ignore_errors=True)

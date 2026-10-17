@@ -12,7 +12,7 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-from . import hooks, state
+from . import ledgers, state
 
 
 def where_the_stage_is() -> dict:
@@ -26,7 +26,7 @@ def where_the_stage_is() -> dict:
     its next turn. The panel froze and the run crawled, over a mark that only
     needs to know where the stage was last.
     """
-    if not a_run_has_the_stage() and state.the_instruments_turn.acquire(blocking=False):
+    if not ledgers.a_run_has_the_stage() and state.the_instruments_turn.acquire(blocking=False):
         try:
             state.last_xyz = state.require_session().get_xyz()
             return state.last_xyz
@@ -35,17 +35,6 @@ def where_the_stage_is() -> dict:
     if state.last_xyz is None:
         raise RuntimeError("the instrument is busy and has not yet said where the stage is")
     return {**state.last_xyz, "busy": True}
-
-
-def a_run_has_the_stage() -> bool:
-    """Whether a workflow's run is driving the stage, as the workflows say (see ``hooks.py``).
-
-    For as long as one is, its own record of where it sent the stage is the
-    answer, even between two sites when the instrument's turn is free: a
-    position read right after a move can still report the site before, and
-    the mark jumped back and forth on that stale answer.
-    """
-    return hooks.a_run_has_the_stage()
 
 
 def the_stage_was_sent_to(x: float, y: float, z: float) -> None:

@@ -38,7 +38,7 @@ def begin_target_run(asked: dict) -> dict:
     stop is its own decision; nothing runs here on its own. Refused while a
     scan, a map or another run has the stage.
     """
-    if stage.a_run_has_the_stage():
+    if ledgers.a_run_has_the_stage():
         raise RuntimeError("the instrument is driving a run; the targets cannot begin now")
     positions = asked.get("positions", [])
     if asked.get("append"):

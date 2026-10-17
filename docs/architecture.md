@@ -81,24 +81,17 @@ zmart_interface/
                 run document.
     rules/      what the engine enforces: step ordering and readiness, and how
                 workflow folders are found and assembled for the chooser.
-    bridge/     the Python half: the HTTP door the page reaches the controller through.
-                It connects, drives the stage, reads and applies settings,
-                captures and serves the pictures. A workflow plugs its own runs
-                in through `hooks.py` and its own routes under `/api/<folder>/`.
+    bridge/     the Python half: the HTTP door the page reaches each workflow's
+                Python half through. It serves the page and dispatches the
+                routes; it knows no workflow and no instrument. A workflow's
+                half registers its routes under `/api/<folder>/` and imports
+                of the framework only `bridge/api.py`.
     fixtures/   the framework's own test workflow, `three_steps/`, which knows
                 nothing about a microscope. Not under `workflows/`, so the
                 chooser never offers it.
-  parts/        what a workflow is built from. A part knows nothing about any
-                workflow: hand it what to do and it does it.
-    canvas/     the picture the operator pans, zooms and draws on.
-    microscope/ the seam where the instrument goes: the verbs every workflow
-                shares (`mock.js` for the rehearsal, `live.js` for the bridge), the
-                synthetic specimen the rehearsal images in `pretend-sample/`,
-                and — in Python, on the other side of the same seam — the
-                procedures that drive the instrument through the controller.
-    analysis/, storage/   the analysis seam and the storage of what a run captures.
-    testing/    what the browser tests share: measuring a screenshot, and
-                starting the interface's Python.
+  parts/        what more than one workflow is built from. Empty today: a
+                piece starts in the workflow that needs it and moves here
+                when a second workflow needs it too (`parts/README.md`).
   workflows/    what plugs into the engine. One folder per workflow, and the
                 folder's name is the chooser's entry: `target_acquisition`
                 appears as "Target acquisition".
@@ -114,11 +107,18 @@ zmart_interface/
                      draws, the workflow's half of the run document
                      (`run-document.js`) and the protocol file's settings
                      (`protocol.js`).
-    <name>/backend/  the workflow's own verbs, live and pretend, which
-                     `flow.js` puts together with the shared ones.
-    <name>/bridge/   the workflow's Python half: its runs on the bridge, its
-                     routes under `/api/<name>/`, and what it tells the
-                     bridge through `hooks.py`.
+    <name>/backend/  the workflow's microscope seam: every verb its steps
+                     call, `live.js` over the bridge and `pretend.js` in the
+                     browser, held to one list of promises.
+    <name>/bridge/   the workflow's Python half: its routes under
+                     `/api/<name>/`, the session through the ZMART Controller,
+                     the stage, the captures and the pictures, and its runs.
+    target_acquisition/ also holds what only it uses: `canvas/` (the picture
+                     the operator pans, zooms and draws on), `microscope/`
+                     (the instruments it offers, the pretend sample, and in
+                     Python the reading of the controller's answers),
+                     `mock_microscope/`, `storage/`, `analysis/`, and
+                     `testing/` (what its browser tests share).
     <name>/style.css the workflow's own look, after the frame's.
     <name>/*.test.js, *.spec.js   its tests, beside what they test; a
                      workflow's folder holds everything that is about it.

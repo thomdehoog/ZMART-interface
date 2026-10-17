@@ -37,7 +37,7 @@ def begin_focus(asked: dict) -> dict:
     decides, and a stop is its own decision; nothing runs here on its own.
     Refused while a scan or a map has the stage.
     """
-    if stage.a_run_has_the_stage():
+    if ledgers.a_run_has_the_stage():
         raise RuntimeError("the instrument is driving a run; a focus map cannot begin now")
     of = int(asked.get("of", 0))
     # Measuring the map again replaces the map: the stacks of the last run
