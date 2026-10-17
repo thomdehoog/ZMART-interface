@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  numbered, firstIncomplete, isReachable, panelsFor, editedAt, staleSteps,
+  numbered, firstIncomplete, isReachable, panelsFor, editedAt, staleSteps, blockedBecause,
 } from "./steps.js";
 import { assembleWorkflows } from "./finding-workflows.js";
 
@@ -98,6 +98,22 @@ describe("ordering", () => {
   });
 });
 
+describe("what a step still waits for", () => {
+  it("asks the step's own rule, with the run and the page", () => {
+    const page = { steps: () => [] };
+    const run = { done: new Set() };
+    let asked = null;
+    const step = { id: "x", ready: (r, p) => { asked = [r, p]; return "not yet"; } };
+    expect(blockedBecause(step, run, page)).toBe("not yet");
+    expect(asked[0]).toBe(run);
+    expect(asked[1]).toBe(page);
+  });
+
+  it("is nothing for a step without a rule", () => {
+    expect(blockedBecause({ id: "x" }, {}, {})).toBe(null);
+  });
+});
+
 describe("panels follow the step", () => {
   /* Which panels stay once asked for is the workflow's own declaration: the
      rule is handed the keys and knows nothing about what any of them draws. */
@@ -182,15 +198,15 @@ describe("a workflow that knows nothing about a microscope", () => {
     expect(typeof count.run).toBe("function");
     expect(typeof count.brake).toBe("function");
     expect(finish.btn).toBe("Finish");
-    expect(finish.runsTheOthers).toBeUndefined();
+    expect(finish.walks).toBeUndefined();
     /* Walked in order: nothing in it may be skipped. */
     expect(firstIncomplete(three.steps, new Set())).toBe(0);
     expect(firstIncomplete(three.steps, new Set(["begin"]))).toBe(1);
     expect(isReachable(three.steps, new Set(["begin"]), 2)).toBe(false);
   });
 
-  it("names the step that runs the others only where there is one", () => {
-    expect(three.steps.filter((s) => s.runsTheOthers)).toEqual([]);
+  it("names the step that walks the others only where there is one", () => {
+    expect(three.steps.filter((s) => s.walks)).toEqual([]);
   });
 });
 

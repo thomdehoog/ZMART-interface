@@ -17,8 +17,9 @@
  * `run.js` walks the steps; `channel.js` holds the box.
  */
 
+import { staleSteps } from "../../../../framework/rules/steps.js";
 import { protocolChannel } from "./channel.js";
-import { afterTheProtocolPress, interruptProtocol, runProtocol } from "./run.js";
+import { afterTheProtocolPress, protocolBlockers, runProtocol } from "./run.js";
 
 export const runProtocolStep = {
   id: "protocol",
@@ -27,25 +28,20 @@ export const runProtocolStep = {
   panels: [],
   ms: 0,
   mode: "protocol",
-  ready: (run) => {
-    const stale = run.staleSteps?.() ?? [];
+  ready: (run, page) => {
+    const stale = staleSteps(page.steps(), run.done, run.stale);
     if (stale.length) return `confirm ${stale.map((s) => s.title).join(", ")} first`;
     /* And what a later step would stop on: said now, not at step 8. */
-    const blockers = run.protocolBlockers?.() ?? [];
+    const blockers = protocolBlockers(page);
     return blockers.length ? blockers[0] : null;
   },
-  /* This step runs the others, so it is not run through the page like
-     them: its press walks the steps itself, it says for itself when it is
-     running, and its brake is how the walk's Interrupt stops it. Saying
-     `runsTheOthers` is what tells the framework that an edit above this
-     step leaves it neither done nor orange -- it has no settings of its own
-     to confirm -- and whose brake the walk's Interrupt presses. */
-  runsTheOthers: true,
-  pressed: runProtocol,
-  running: (run) => run.protocol.running,
-  brake: interruptProtocol,
-  /* Said beside the walk's Interrupt, in whichever step's box the walk stands. */
-  whileWalking: "running the protocol",
+  /* This step walks the others, so it is not run through the page like
+     them: its press walks the steps itself (`run.walk` says while it does),
+     and the walk's Interrupt is the framework's. Saying `walks` is also what
+     tells the framework that an edit above this step leaves it neither done
+     nor orange -- it has no settings of its own to confirm. `whileWalking`
+     is said beside the walk's Interrupt, in whichever step's box it stands. */
+  walks: { press: runProtocol, whileWalking: "running the protocol" },
   again: "Rerun protocol",
   afterThePress: afterTheProtocolPress,
   /* The protocol's box says what the run came to in its own line. */

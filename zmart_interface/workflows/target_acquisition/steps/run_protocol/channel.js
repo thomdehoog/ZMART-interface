@@ -10,6 +10,7 @@
 import { burst } from "./confetti.js";
 import { css } from "../../../../framework/window/dom.js";
 import { sideGroup } from "../../../../framework/window/panels.js";
+import { staleSteps } from "../../../../framework/rules/steps.js";
 import { protocolFrom } from "../../shared/protocol.js";
 
 /** The operator looked at every orange step and agrees with them as they
@@ -29,8 +30,8 @@ export const protocolChannel = {
     const pad = document.createElement("div");
     pad.className = "side-pad-around";
     const { group, body } = sideGroup("Run protocol");
-    const stale = state.staleSteps();
-    if (stale.length && !state.running && !state.protocol.running) {
+    const stale = staleSteps(page.steps(), state.done, state.stale);
+    if (stale.length && !state.running && !state.walk.running) {
       const accept = document.createElement("button");
       accept.type = "button";
       accept.className = "run confirm";
@@ -42,7 +43,7 @@ export const protocolChannel = {
     /* What the run came to, once it has: the numbers, and for a run that
        finished, a small burst over them -- once, and again on the press. */
     const summary = state.protocol.summary;
-    if (summary && !state.protocol.running) {
+    if (summary && !state.walk.running) {
       const stats = document.createElement("div");
       stats.className = "protocol-stats";
       stats.id = "protocol-stats";
@@ -77,7 +78,7 @@ export const protocolChannel = {
           stop = burst(cv, colours);
           return true;
         };
-        state.protocol.playBurst = play;
+        page.shown.playBurst = play;
         /* The box is built again more than once in the moments after the
            run ends; the burst belongs to those three seconds, on whichever
            canvas is on screen then. */
@@ -106,7 +107,7 @@ export const protocolChannel = {
     savePress.className = "sf-flat sf-doing";
     savePress.id = "protocol-save";
     savePress.textContent = "Save";
-    savePress.disabled = !!state.running || state.protocol.running || !page.backend.saveProtocolAs;
+    savePress.disabled = !!state.running || state.walk.running || !page.backend.saveProtocolAs;
     saveRow.append(saveName, savePress);
     const exportRow = document.createElement("div");
     exportRow.className = "side-act";
@@ -115,7 +116,7 @@ export const protocolChannel = {
     exportPress.className = "run";
     exportPress.id = "protocol-export";
     exportPress.textContent = "Export to run folder";
-    exportPress.disabled = !state.done.has("connect") || !!state.running || state.protocol.running || !page.backend.saveProtocol;
+    exportPress.disabled = !state.done.has("connect") || !!state.running || state.walk.running || !page.backend.saveProtocol;
     const exportNote = document.createElement("span");
     exportNote.className = "action-hint";
     exportNote.id = "protocol-export-note";
@@ -161,7 +162,7 @@ export function renderProtocolProgress(page) {
   const host = page.panels[page.shownPanel()]?.channel;
   if (!host) return;
   let box = host.querySelector("#protocol-progress-box");
-  if (!state.protocol.running) { box?.remove(); return; }
+  if (!state.walk.running) { box?.remove(); return; }
   if (!box) {
     const made = sideGroup("Protocol progress");
     box = made.group;

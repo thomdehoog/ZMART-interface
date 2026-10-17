@@ -10,9 +10,9 @@
  * What the press says and does comes from the step's own declaration, and
  * this only asks it: `btn` is the words on it, `again` what it says once the
  * step has run, `brake` how a running step is stopped, `rerunCurrent` the
- * extra press that takes one item again, `pressed` what a press does when
- * the step does not run through the page at all, `beside` the sentence next
- * to the press, and `noHint` that nothing stands beside it. The fields are
+ * extra press that takes one item again, `walks` for a step whose press
+ * walks the others rather than running through the page, `beside` the
+ * sentence next to the press, and `noHint` that nothing stands beside it. The fields are
  * written out in `workflows/README.md`.
  */
 
@@ -42,24 +42,23 @@ export function installActionBar(page) {
     const done = state.done.has(s.id);
     const running = state.running === s.id;
     const blocked = page.readiness(s);
-    /* The walk's own Interrupt, while a step that runs the others is
+    /* The walk's own Interrupt, while a step that walks the others is
        walking them: shown in whichever step's box the walk is standing in,
        latching the walk to end after the step in hand, and stopping that
-       step where it has a brake. How the walk is stopped is the walking
-       step's own `brake`; the framework only finds that step. */
-    if (state.protocol.running) {
-      const walker = page.steps().find((one) => one.runsTheOthers);
+       step where it has a brake (`page.interruptWalk`). */
+    if (state.walk.running) {
+      const walker = page.steps().find((one) => one.walks);
       const stop = document.createElement("button");
       stop.className = "run step-run running";
       stop.type = "button";
-      stop.textContent = state.protocol.interrupted ? "stopping…" : "Interrupt";
-      stop.disabled = state.protocol.interrupted;
-      stop.addEventListener("click", () => walker?.brake?.(page));
+      stop.textContent = state.walk.interrupted ? "stopping…" : "Interrupt";
+      stop.disabled = state.walk.interrupted;
+      stop.addEventListener("click", () => page.interruptWalk());
       host.append(stop);
       const hint = document.createElement("span");
       hint.className = "action-hint";
-      /* In the walking step's own words (`whileWalking`), or its title. */
-      hint.textContent = walker?.whileWalking ?? (walker ? `running ${walker.title}` : "running the steps");
+      /* In the walking step's own words (`walks.whileWalking`), or its title. */
+      hint.textContent = walker?.walks.whileWalking ?? (walker ? `running ${walker.title}` : "running the steps");
       host.append(hint);
       return;
     }
@@ -101,7 +100,7 @@ export function installActionBar(page) {
         ? "working…"
         : (state.ran.has(s.id) ? (s.again ?? "Run again") : s.btn);
       run.disabled = !!state.running || !!blocked;
-      run.addEventListener("click", () => (s.pressed ? s.pressed(page) : page.runStep(i)));
+      run.addEventListener("click", () => (s.walks ? s.walks.press(page) : page.runStep(i)));
     }
     host.append(run);
     /* Anything the step puts beside its press once it has run. */

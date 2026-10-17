@@ -108,7 +108,7 @@ export const scanfieldsChannel = {
         page.renderAll();
       },
       activated: () => {
-        state.editor?.setPreset(activePreset(page));
+        page.shown.editor?.setPreset(activePreset(page));
         scanfieldsSettled(page);
         page.stateEdited("scanfields");
         page.drawStage();
@@ -117,7 +117,7 @@ export const scanfieldsChannel = {
     };
     renderRecordingSlot(el("sf-preset"), page.recordingOptions(presetSlot));
 
-    state.editor = scanfieldsWidget.render(host, {
+    page.shown.editor = scanfieldsWidget.render(host, {
       fields: state.fields,
       carrier: state.carrier,
       preset: activePreset(page),
@@ -159,5 +159,12 @@ export const scanfieldsChannel = {
       },
       redraw: () => page.drawStage(),
     });
+    /* The editor is put away when the channel changes hands. */
+    return {
+      destroy() {
+        page.shown.editor?.destroy?.();
+        page.shown.editor = null;
+      },
+    };
   },
 };

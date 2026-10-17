@@ -11,7 +11,7 @@
  * step is edited -- live in `../rules/steps.js`, and this only asks them.
  */
 
-import { blockedBecause, editedAt, isReachable, staleSteps } from "../rules/steps.js";
+import { blockedBecause, editedAt, isReachable } from "../rules/steps.js";
 import { el } from "./dom.js";
 import { startOver } from "./run-state.js";
 
@@ -88,8 +88,8 @@ export function installRail(page) {
       const stale = done && state.stale.has(s.id);
       const active = i === state.activeIdx;
       /* A step is running while the page runs it -- or, for a step that
-         runs the others, while it says so itself. */
-      const running = state.running === s.id || Boolean(s.running?.(state));
+         walks the others, while the walk goes. */
+      const running = state.running === s.id || (Boolean(s.walks) && state.walk.running);
       const reachable = isReachable(steps(), state.done, i);
 
       const b = document.createElement("button");
@@ -115,7 +115,7 @@ export function installRail(page) {
          second, worse copy of the run. */
 
       b.addEventListener("click", () => {
-        if (state.running || state.protocol.running || !reachable) return;
+        if (state.running || state.walk.running || !reachable) return;
         state.activeIdx = i;
         /* Some steps are settled by being stood on -- the carrier by being
            configured, the scan fields by being drawn, the gates by being
@@ -131,14 +131,9 @@ export function installRail(page) {
 
   /* What this step still needs before it may run, and what to say when it is
      not met. The step itself holds the rule — see the step's own `step.js` file
-     under `workflows/` — and this only asks it, which is why adding a workflow
-     never means adding a condition here. The server would enforce the same list. */
-  const readiness = (s) => blockedBecause(s, state);
-
-  /* The steps standing orange, in rail order, for the step that asks: Run
-     protocol waits on every one of them. Kept on the state so a step's own
-     `ready` rule can read it without knowing the list of steps. */
-  state.staleSteps = () => staleSteps(steps(), state.done, state.stale);
+     under `workflows/` — and this only asks it, with the run and the page,
+     which is why adding a workflow never means adding a condition here. */
+  const readiness = (s) => blockedBecause(s, state, page);
 
   /**
    * The operator edited a step: its settings, or its result by running it
@@ -148,13 +143,13 @@ export function installRail(page) {
    * by the protocol, whose whole point is to make everything afresh.
    */
   function stateEdited(id) {
-    if (state.protocol.running) return;
+    if (state.walk.running) return;
     state.stale = editedAt(steps(), state.done, state.stale, id);
-    /* A step that runs the others has no settings to confirm: an edit
+    /* A step that walks the others has no settings to confirm: an edit
        above it means it has not run on what stands now, which is what its
        press is for. So it is neither orange nor done, whichever step it is;
-       the step says it is such a step with `runsTheOthers`. */
-    for (const s of steps().filter((one) => one.runsTheOthers)) {
+       the step says it is such a step with `walks`. */
+    for (const s of steps().filter((one) => one.walks)) {
       state.stale.delete(s.id);
       state.done.delete(s.id);
     }

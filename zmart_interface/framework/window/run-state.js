@@ -21,17 +21,13 @@
 
 /** The walk of the steps in turn, as it stands before one has been started.
 
-    A step that runs the others -- target acquisition's Run protocol -- walks
-    them through this: `running` while it does, `interrupted` once the
-    operator's hand has asked it to stop after the step in hand, `at` of `of`
-    for the bar, `within` for the step in hand's own progress, and `summary`
-    for what the walk came to. The framework reads `running` to lock the
-    rail, the press and the channel while the walk goes; the rest is the
-    walking step's own. The key keeps the name it was given when the one
-    such step was Run protocol. */
-const newWalk = () => ({
-  running: false, interrupted: false, at: 0, of: 0, within: null, summary: null,
-});
+    A step that walks the others -- target acquisition's Run protocol --
+    sets `running` while it does, and the operator's Interrupt sets
+    `interrupted` (`page.interruptWalk`), which the walking step reads to end
+    after the step in hand. The framework reads `running` to lock the rail,
+    the press and the channel while the walk goes. How far the walk has got,
+    and what it came to, is the walking workflow's own. */
+const newWalk = () => ({ running: false, interrupted: false });
 
 /**
  * A fresh run, for the workflow named, the backend it will speak to, and the
@@ -62,10 +58,10 @@ export function freshRun({ workflow, backend, flow }) {
     running: null,
     interrupting: null,
     failed: null,
-    /* The walk of the steps in turn -- a step that runs the others walking
-       them -- and the operator's Interrupt of it, latched so a step without
-       a brake of its own ends the walk at its next look. */
-    protocol: newWalk(),
+    /* The walk of the steps in turn -- a step that walks the others -- and
+       the operator's Interrupt of it, latched so a step without a brake of
+       its own ends the walk at its next look. */
+    walk: newWalk(),
     /* What each step came to, by id: the sentence beside its press. */
     notes: {},
     tabs: [],             // worked out from the step, before anything is drawn
@@ -73,9 +69,6 @@ export function freshRun({ workflow, backend, flow }) {
     /* Which step's controls the channel holds now, so a step is mounted
        once rather than on every render. */
     sideMounted: null,
-    /* An editor a step put in the channel while its step is on screen, so
-       it can be put away cleanly when the channel changes hands. */
-    editor: null,
     /* Whether the column is folded away to the right, the canvas taking its
        room. A page preference too. */
     sideFolded: false,
@@ -85,7 +78,7 @@ export function freshRun({ workflow, backend, flow }) {
 /* What survives a disconnect or a change of workflow, of the framework's
    own keys: which workflow is open and how the page was arranged. The
    workflow names its own survivors in `keptAcrossSessions`. */
-const KEPT_ACROSS_SESSIONS = ["wf", "editor", "sideFolded"];
+const KEPT_ACROSS_SESSIONS = ["wf", "sideFolded"];
 
 /**
  * Put the run back to the beginning, keeping only what outlives a session.
@@ -109,10 +102,10 @@ export function startOver(state, backend, flow) {
   }
   /* What the previous workflow kept on the document and this one does not
      name goes too: a workflow chosen after a microscope run must not find
-     that run's carrier and cells where it expected nothing. Functions the
-     page attached to the document stay, since they are the page's. */
+     that run's carrier and cells where it expected nothing. The document is
+     plain data, so nothing on it is the page's to keep. */
   for (const key of Object.keys(state)) {
-    if (!(key in fresh) && !kept.has(key) && typeof state[key] !== "function") delete state[key];
+    if (!(key in fresh) && !kept.has(key)) delete state[key];
   }
 }
 
@@ -132,7 +125,7 @@ export function exposeTheRunForTests(state, flow) {
     return JSON.parse(JSON.stringify({
       running: state.running, failed: state.failed, notes: state.notes,
       activeIdx: state.activeIdx, done: [...state.done], ran: [...state.ran],
-      stale: [...state.stale], protocol: state.protocol,
+      stale: [...state.stale], walk: state.walk,
       ...(current?.forTests?.(state) ?? {}),
     }));
   };

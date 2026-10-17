@@ -15,6 +15,11 @@
 export function installSide(page) {
   const { run: state, panels: thePanels, step } = page;
 
+  /* What the step's controls answered when they were mounted: a `destroy`
+     to call when the channel changes hands, so an editor a step put there
+     is put away cleanly. */
+  let mounted = null;
+
   /* A step's channel: the controls the step declared, or none. */
   const sideWidget = () => step(state.activeIdx)?.channel ?? null;
 
@@ -48,17 +53,17 @@ export function installSide(page) {
     /* Only while something runs. Settings used to lock once a later step had
        imaged against them; now they stay editable and the later steps go
        orange, since every result is read against the plan as it was scanned. */
-    const locked = !!state.running || state.protocol.running;
+    const locked = !!state.running || state.walk.running;
     const key = widget && `${widget.id}:${locked}`;
     /* A channel that rebuilds on every render says so; the rest keep their
        state and mount once per key. */
     if (state.sideMounted === key && !widget?.rebuildsOnEveryRender) return;
     state.sideMounted = key;
-    state.editor?.destroy?.();
-    state.editor = null;
+    mounted?.destroy?.();
+    mounted = null;
     host.textContent = "";
     if (!widget) return;
-    widget.mount(host, page, { locked });
+    mounted = widget.mount(host, page, { locked }) ?? null;
     /* What a workflow puts over every step's controls -- the progress of a
        walk through its steps, say -- it adds here, once the step's own
        controls are in. */

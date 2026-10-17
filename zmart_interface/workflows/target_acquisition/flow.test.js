@@ -84,7 +84,7 @@ describe("ordering", () => {
   });
 
   it("names the step that runs the others", () => {
-    expect(WORKFLOWS.target_acquisition.steps.filter((s) => s.runsTheOthers).map((s) => s.id)).toEqual(["protocol"]);
+    expect(WORKFLOWS.target_acquisition.steps.filter((s) => s.walks).map((s) => s.id)).toEqual(["protocol"]);
   });
 });
 
@@ -280,13 +280,10 @@ describe("a run of target acquisition", () => {
   it("takes the previous workflow's keys off the document when another is chosen", () => {
     const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
     run.carrier.kind = "slide"; run.cells.set(1, {});
-    run.staleSteps = () => [];
     run.wf = "three_steps";
     startOver(run, NO_BACKEND, threeSteps);
     for (const key of A_MICROSCOPES_KEYS) expect(run, key).not.toHaveProperty(key);
     expect(run.counted).toBe(0);
-    /* What the page attached stays: it is the page's, not a workflow's. */
-    expect(typeof run.staleSteps).toBe("function");
     expect(run.wf).toBe("three_steps");
   });
 

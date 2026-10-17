@@ -113,16 +113,16 @@ fields, all optional except the first two.
 - `rerunCurrent(page)` — for a step that can take one item again: answers a
   function that gives `run` its `options`, or `null` when there is nothing
   current. The page then offers a "Rerun current" press before the main one.
-- `pressed(page)` — what the press does for a step that does not run through
-  the page at all, because it runs the other steps: Run protocol.
-- `running(run)` — whether such a step is running, for the rail's spinner.
-- `runsTheOthers` — this step walks the other steps in turn (Run protocol is
-  the one today). The framework keeps the walk's own state in
-  `page.run.protocol` and reads whether it is running; a step that says this
-  is never left orange or done by an edit above it, since it has no settings
-  of its own to confirm, and its `brake` is what the walk's Interrupt
-  presses. `whileWalking` is the sentence beside that Interrupt ("running the
-  protocol"); without it the page says "running" and the step's title.
+- `walks` — this step walks the other steps in turn (Run protocol is the one
+  today): `{ press(page), whileWalking }`. Its press calls `press` instead of
+  running through the page; while the walk goes it sets `page.run.walk.running`,
+  and reads `page.run.walk.interrupted` to end after the step in hand. The
+  walk's Interrupt is the framework's (`page.interruptWalk()`): it latches
+  `interrupted` and presses the step in hand's `brake`. A step that walks the
+  others is never left orange or done by an edit above it, since it has no
+  settings of its own to confirm. `whileWalking` is the sentence beside that
+  Interrupt ("running the protocol"); without it the page says "running" and
+  the step's title.
 - `beside(run, { done })` — the sentence beside the press once nothing blocks
   it, instead of the step's note.
 - `noHint` — nothing stands beside the press: what the step waits for and
@@ -131,13 +131,17 @@ fields, all optional except the first two.
 - `channel` — the step's controls in the column beside the canvas:
   `{ id, label, mount(host, page, { locked }) }`. Mounted once per step and
   kept, so a field being typed into is never destroyed; a channel that
-  `rebuildsOnEveryRender` says so.
+  `rebuildsOnEveryRender` says so. `mount` may answer `{ destroy() }`, called
+  when the channel changes hands, to put away what it holds outside the
+  column (an editor drawing on the canvas, say).
 - `arrived(page)` — what the step does to the picture when the operator
   arrives on it: which layers to show, which acquisition to hide.
 - `settledByStanding(page)` — for a step with no press: standing on it is
   what settles it, and this says what that means.
-- `ready` — what the step still needs before it may be carried out. It is
-  handed the run so far and answers either `null`, meaning go ahead, or a short
+- `ready(run, page)` — what the step still needs before it may be carried
+  out. It is handed the run so far, and the page for a rule that needs the
+  other steps (`staleSteps(page.steps(), run.done, run.stale)`, say), and
+  answers either `null`, meaning go ahead, or a short
   phrase saying what is missing, which the page shows beside the greyed-out
   button. A step with no rule is always ready. Readiness belongs to the step
   rather than the page around it: only the focus step knows what a focus map

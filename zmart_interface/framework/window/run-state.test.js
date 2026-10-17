@@ -14,7 +14,7 @@ const NO_BACKEND = Object.freeze({});
    workflow. A new key the framework reads belongs in this list. */
 const THE_FRAMEWORKS_KEYS = [
   "wf", "activeIdx", "done", "stale", "ran", "running", "interrupting", "failed",
-  "protocol", "notes", "tabs", "tab", "sideMounted", "editor", "sideFolded",
+  "walk", "notes", "tabs", "tab", "sideMounted", "sideFolded",
 ];
 
 /* A few of a microscope workflow's, as the keys a run of the fixture must
@@ -29,7 +29,12 @@ describe("a fresh run", () => {
     expect(run.stopAsked).toBe(false);
     for (const key of A_MICROSCOPES_KEYS) expect(run, key).not.toHaveProperty(key);
     expect(run.wf).toBe("three_steps");
-    expect(run.protocol.running).toBe(false);
+    expect(run.walk).toEqual({ running: false, interrupted: false });
+  });
+
+  it("is plain data: it holds no function and survives a copy as JSON", () => {
+    const run = freshRun({ workflow: "three_steps", backend: NO_BACKEND, flow: threeSteps });
+    for (const [key, value] of Object.entries(run)) expect(typeof value, key).not.toBe("function");
   });
 
   it("holds only the framework's keys for a flow with no state of its own", () => {
@@ -49,12 +54,11 @@ describe("starting over", () => {
   it("keeps the workflow and the page's arrangement, and what the flow names", () => {
     const flow = { ...threeSteps, keptAcrossSessions: ["counted"] };
     const run = freshRun({ workflow: "three_steps", backend: NO_BACKEND, flow });
-    run.counted = 3; run.stopAsked = true; run.sideFolded = true; run.editor = "an editor";
+    run.counted = 3; run.stopAsked = true; run.sideFolded = true;
     run.done.add("begin"); run.activeIdx = 2; run.notes.count = "counted to 3";
     startOver(run, NO_BACKEND, flow);
     expect(run.wf).toBe("three_steps");
     expect(run.sideFolded).toBe(true);
-    expect(run.editor).toBe("an editor");
     expect(run.counted).toBe(3);
     expect(run.stopAsked).toBe(false);
     expect(run.done.size).toBe(0);
@@ -67,6 +71,14 @@ describe("starting over", () => {
     run.counted = 2;
     startOver(run, NO_BACKEND, threeSteps);
     expect(run.counted).toBe(0);
+  });
+
+  it("takes off what neither the framework nor the flow names, functions too", () => {
+    const run = freshRun({ workflow: "three_steps", backend: NO_BACKEND, flow: threeSteps });
+    run.leftOver = "a carrier"; run.alsoLeftOver = () => "a handle";
+    startOver(run, NO_BACKEND, threeSteps);
+    expect(run).not.toHaveProperty("leftOver");
+    expect(run).not.toHaveProperty("alsoLeftOver");
   });
 
 });

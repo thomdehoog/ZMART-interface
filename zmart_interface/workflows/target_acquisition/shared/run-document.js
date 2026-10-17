@@ -133,6 +133,10 @@ export function freshState({ backend }) {
        sentence the Protocol box shows about it; and whether the steps after
        the focus map are still waiting to appear from the file. */
     protocols: [],
+    /* How far a walk of Run protocol has got -- which step of how many, and
+       that step's own progress -- and what it came to. Whether one is
+       walking is the framework's (`run.walk`). */
+    protocol: { at: 0, of: 0, within: null, summary: null },
     protocolChosen: null,
     protocolNote: "",
     protocolPending: false,

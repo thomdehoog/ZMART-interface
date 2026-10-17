@@ -6,8 +6,7 @@
  * their first argument. This is where they are lent to the page
  * (`page.pictureOf(...)` is `pictureOf(page, ...)`), and where the parts
  * that need wiring once at the start -- the canvas, the focus map, the
- * carrier's keyboard, the protocol's blockers -- are installed, in the
- * order they need one another.
+ * carrier's keyboard -- are installed, in the order they need one another.
  */
 
 import { installTheCanvas } from "./the-canvas.js";
@@ -24,7 +23,7 @@ import { testTilesChanged } from "./steps/scan_the_overview/channel.js";
 import { overviewGoesGreyForTheMasks } from "./steps/discover_targets/channel.js";
 import { selectTarget, targetAt, targetPressed } from "./steps/acquire_targets/channel.js";
 import { renderProtocolProgress } from "./steps/run_protocol/channel.js";
-import { installProtocol, interruptProtocol, protocolWithin } from "./steps/run_protocol/run.js";
+import { protocolWithin } from "./steps/run_protocol/run.js";
 
 /** Lend functions that take the page first to the page, under their own names. */
 function lend(page, functions) {
@@ -51,7 +50,7 @@ export function installTargetAcquisition(page, { folder } = {}) {
     testTilesChanged,
     overviewGoesGreyForTheMasks,
     selectTarget, targetAt, targetPressed,
-    protocolWithin, interruptProtocol, renderProtocolProgress,
+    protocolWithin, renderProtocolProgress,
   });
   page.focusFitWord = focusFitWord;
   /* The clock reading where the stage is while a session is open, set by
@@ -61,7 +60,6 @@ export function installTargetAcquisition(page, { folder } = {}) {
   Object.assign(page, installTheCanvas(page, { isOpen }));
   Object.assign(page, installFocus(page));
   Object.assign(page, installCarrier(page));
-  Object.assign(page, installProtocol(page));
 
   /* What this workflow does when the run starts over -- on Disconnect, or
      when another workflow is chosen: the stage's clock is stopped and the

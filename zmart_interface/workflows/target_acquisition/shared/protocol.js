@@ -15,7 +15,7 @@
  * settings. It is this workflow's: which keys of the run are settings is a
  * question about a microscope run, so the file lives beside the run document
  * that names them (`run-document.js`) and not in the framework, which keeps
- * only the walk of the steps in turn (`page.run.protocol`).
+ * only the walk of the steps in turn (`page.run.walk`, `page.run.protocol`).
  */
 
 const PROTOCOL_VERSION = 1;

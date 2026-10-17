@@ -19,7 +19,7 @@ const MARQUEE_MIN_PX = 6;
 
 export function overviewLayers(theRun) {
   const { run, css, drawnIn, shown, indexOfStep, testTilesChanged, step } = theRun;
-  const onTheScanStep = () => step(run.activeIdx).mode === "scan" && !run.running && !run.protocol?.running;
+  const onTheScanStep = () => step(run.activeIdx).mode === "scan" && !run.running && !run.walk.running;
   return {
     /* The tiles the overview is rehearsed on, pressed green over the plan:
        drawn from the scan step on, and only while any are green. */

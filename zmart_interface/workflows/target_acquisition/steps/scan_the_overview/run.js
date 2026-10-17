@@ -22,7 +22,7 @@ export function runScan(page, s) {
      the protocol, whose run is the real one. Kept as the plan that was
      scanned, so every result is read against these tiles in this order,
      which is how the bridge numbers the fields it sends back. */
-  const chosen = !state.protocol.running && state.testTiles.size
+  const chosen = !state.walk.running && state.testTiles.size
     ? [...state.testTiles].sort((a, b) => a - b) : state.plan.map((_, i) => i);
   state.scanned = { plan: chosen.map((i) => state.plan[i]), fields: chosen };
   scanProgress?.say({ start: true, of: chosen.length, doing: "starting the scan…" });

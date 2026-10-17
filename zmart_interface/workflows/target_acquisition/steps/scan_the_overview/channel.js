@@ -74,7 +74,7 @@ export const scanChannel = {
       summary.append(key, val);
     };
     /* The protocol takes the whole plan whatever is green. */
-    const testing = state.testTiles.size && !state.protocol.running;
+    const testing = state.testTiles.size && !state.walk.running;
     row("Positions", testing
       ? `${state.testTiles.size} of ${state.plan.length} (test tiles)` : String(state.plan.length));
     const frameUm = state.plan[0]?.frameUm;
@@ -106,7 +106,7 @@ export const scanChannel = {
     const random = document.createElement("button");
     random.type = "button"; random.className = "sf-flat sf-doing"; random.id = "test-random";
     random.textContent = "Select tiles";
-    random.disabled = !!state.running || state.protocol.running || !state.plan.length;
+    random.disabled = !!state.running || state.walk.running || !state.plan.length;
     random.addEventListener("click", () => {
       const asked = Math.max(1, Number(n.value) || 1);
       state.testTiles = new Set(testTilesPerTileset(state, asked));
@@ -115,7 +115,7 @@ export const scanChannel = {
     const clear = document.createElement("button");
     clear.type = "button"; clear.className = "sf-flat"; clear.id = "test-clear";
     clear.textContent = "Clear all";
-    clear.disabled = !!state.running || state.protocol.running || !state.testTiles.size;
+    clear.disabled = !!state.running || state.walk.running || !state.testTiles.size;
     clear.addEventListener("click", () => { state.testTiles = new Set(); testTilesChanged(page); });
     lay.append(n, random);
     draw.append(lay, clear);

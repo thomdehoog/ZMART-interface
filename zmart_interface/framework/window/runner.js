@@ -22,7 +22,7 @@
 import { status } from "./status.js";
 import { editedAt } from "../rules/steps.js";
 
-/** Put the runner on the page: `runStep(i, options)`. */
+/** Put the runner on the page: `runStep(i, options)` and `interruptWalk()`. */
 export function installRunner(page) {
   const { run: state, steps, step } = page;
 
@@ -69,7 +69,7 @@ export function installRunner(page) {
          from what it was before, so that goes orange. Not under the
          protocol, which makes every step afresh in turn. */
       state.stale.delete(s.id);
-      if (!state.protocol.running) state.stale = editedAt(steps(), state.done, state.stale, s.id);
+      if (!state.walk.running) state.stale = editedAt(steps(), state.done, state.stale, s.id);
       /* What the step came to, filed by the step itself. */
       s.finished?.(page, s);
       /* Finishing a run never moves the operator. The gallery is still being
@@ -117,5 +117,21 @@ export function installRunner(page) {
     }
   }
 
-  return { runStep };
+  /**
+   * The operator's Interrupt of a walk through the steps: the walk is
+   * latched to end after the step in hand, and that step is braked where it
+   * has a brake. What was done stands. Nothing happens while no walk runs.
+   */
+  function interruptWalk() {
+    if (!state.walk.running) return;
+    state.walk.interrupted = true;
+    const inHand = step(state.activeIdx);
+    if (inHand && state.running === inHand.id && inHand.brake) {
+      state.interrupting = inHand.id;
+      inHand.brake(page);
+    }
+    page.renderActionBar();
+  }
+
+  return { runStep, interruptWalk };
 }

@@ -88,15 +88,17 @@ export const isReachable = (steps, done, index) =>
  * What this step still needs before it may be carried out, as a short phrase to
  * show the operator, or `null` when there is nothing left to wait for.
  *
- * The step decides and the framework only asks, which is what keeps the shell free
- * of any particular workflow's meaning: nothing here knows that fitting a
- * surface takes three points. A step with no rule of its own is always ready.
+ * The step decides and the framework only asks, with the run and the page,
+ * which is what keeps the shell free of any particular workflow's meaning:
+ * nothing here knows that fitting a surface takes three points. A rule that
+ * needs the other steps -- the ones standing orange, say -- asks the page
+ * for them. A step with no rule of its own is always ready.
  *
  * Whether something else is already running is a separate question, and the
  * shell answers it: every button is disabled while any step is working.
  */
-export function blockedBecause(step, run) {
-  return step?.ready ? step.ready(run) : null;
+export function blockedBecause(step, run, page) {
+  return step?.ready ? step.ready(run, page) : null;
 }
 
 /**

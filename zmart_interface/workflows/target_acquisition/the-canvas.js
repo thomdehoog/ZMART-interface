@@ -131,6 +131,8 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
     legend: theCanvas.parts.legend,
     css, sizeCanvas, el,
     run: state,
+    /* The boxes the steps put on screen; the scan-field editor among them. */
+    shown: page.shown,
     carrierWidget, scanfieldsWidget,
     stepLayers: [carrierLayers, scanAreaLayers, focusLayers, overviewLayers, targetLayers, acquiredLayers],
     maskRainbow: MASK_RAINBOW,

@@ -710,7 +710,7 @@ function drawStage() {
   if (ctx.tilesetButton) ctx.tilesetButton.disabled = !run.plan.length;
   legendSettles();
 
-  const editing = sideWidget()?.id === "scanfields" ? run.editor : null;
+  const editing = sideWidget()?.id === "scanfields" ? ctx.shown.editor : null;
   const stack = theStageLayers({
     shown: Math.max(run.tilesShown, 0),
     /* Which channels are mixed is a question about a picture, and the
@@ -855,9 +855,9 @@ function editorTook(kind, e) {
   /* Locked, nothing can be drawn or moved by accident. Panning and zooming
      are untouched — the lock is about picking, not about looking. */
   if (layersLocked()) return false;
-  if (sideWidget()?.id !== "scanfields" || !run.editor) return false;
+  if (sideWidget()?.id !== "scanfields" || !ctx.shown.editor) return false;
   const { x, y } = pointerInCarrier(e.offsetX, e.offsetY);
-  const took = run.editor.pointer(kind, { x, y, shift: e.shiftKey, scale: view.scale });
+  const took = ctx.shown.editor.pointer(kind, { x, y, shift: e.shiftKey, scale: view.scale });
   // the redraw is also what puts the cursor right, and it has to happen after
   // the editor has been told, or the answer is for where the pointer was
   if (took) drawStage();
@@ -952,7 +952,7 @@ function theRunWasPressed({ screen }) {
    already says which tile is under the pointer. A Shift-drag over several
    is the layer's own gesture. */
 function testTilePressed() {
-  if (step(run.activeIdx).mode !== "scan" || run.running || run.protocol?.running) return false;
+  if (step(run.activeIdx).mode !== "scan" || run.running || run.walk.running) return false;
   const over = run.testHovered ?? -1;
   if (over < 0) return false;
   if (run.testTiles.has(over)) run.testTiles.delete(over); else run.testTiles.add(over);
@@ -987,7 +987,7 @@ stageBox.addEventListener("pointermove", (e) => {
 
   /* A tile under the pointer on the scan step is one press from being a
      test tile, or from ceasing to be one: the hand says so. */
-  if (step(run.activeIdx).mode === "scan" && !run.running && !run.protocol?.running) {
+  if (step(run.activeIdx).mode === "scan" && !run.running && !run.walk.running) {
     let overTile = -1;
     for (let i = 0; i < run.plan.length; i++) {
       const t = run.plan[i];

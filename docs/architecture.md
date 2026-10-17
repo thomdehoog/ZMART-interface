@@ -172,9 +172,10 @@ is the one open (`page.run.wf === folder`):
 | `onChannelMounted(host, channel)` | after a step's controls were mounted in the channel | the protocol's progress bar over them |
 
 Two more things a workflow declares take the place of names the framework
-used to know. A step that walks the other steps in turn says `runsTheOthers`,
-and the framework finds it by that word: an edit above it leaves it neither
-done nor orange, and its `brake` is what the walk's Interrupt presses. And a
+used to know. A step that walks the other steps in turn says `walks`, and the
+framework finds it by that word: an edit above it leaves it neither done nor
+orange, and the walk's Interrupt (`page.interruptWalk`) brakes the step in
+hand. And a
 panel that draws something of its own answers `shown()` when it comes on
 screen or changes size, which is how the canvas re-measures itself when the
 channel beside it is dragged or folded.

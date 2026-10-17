@@ -6,8 +6,9 @@
  * protocol.
  *
  * This step does not run through the page's runner like the others: it is
- * the one that runs them. So its press calls `runProtocol` directly, and
- * `run.protocol` says whether it is running.
+ * the one that runs them. So its press calls `runProtocol` directly;
+ * `run.walk` says whether it is walking (the framework reads it), and
+ * `run.protocol` how far it has got and what it came to.
  */
 
 import { protocolFrom } from "../../shared/protocol.js";
@@ -19,13 +20,12 @@ const PROTOCOL_STEPS = ["focus", "scan", "detect", "gate", "select", "acquire"];
 export async function runProtocol(page) {
   const state = page.run;
   const { step, indexOfStep } = page;
-  if (state.running || state.protocol.running) return;
+  if (state.running || state.walk.running) return;
   /* Which steps the run will take: the focus map only when there is none
      measured on this sample yet; the gate is applied by the discovery. */
   const walk = PROTOCOL_STEPS.filter((id) => !(id === "focus" && state.focus.applied) && id !== "gate");
-  state.protocol = {
-    running: true, interrupted: false, at: 0, of: walk.length, within: null, summary: null,
-  };
+  state.walk = { running: true, interrupted: false };
+  state.protocol = { at: 0, of: walk.length, within: null, summary: null };
   state.failed = null;
   /* Grey until reached: the rail says what the run has done, not what
      the rehearsal did. Each step turns green as its own finish puts it
@@ -34,7 +34,7 @@ export async function runProtocol(page) {
   const startedAt = performance.now();
   let ended = "finished";
   for (const id of PROTOCOL_STEPS) {
-    if (state.protocol.interrupted) { ended = "stopped"; break; }
+    if (state.walk.interrupted) { ended = "stopped"; break; }
     const i = indexOfStep(id);
     if (walk.includes(id)) { state.protocol.at += 1; state.protocol.within = null; }
     state.activeIdx = i;
@@ -62,7 +62,7 @@ export async function runProtocol(page) {
     const { outcome } = await page.runStep(i);
     if (outcome !== "finished") { ended = outcome; break; }
   }
-  state.protocol.running = false;
+  state.walk.running = false;
   state.protocol.summary = {
     ended,
     tiles: state.scanned?.plan.length ?? 0,
@@ -95,7 +95,7 @@ export async function runProtocol(page) {
 /** A step's own progress, handed to the protocol's bar while it runs. */
 export function protocolWithin(page, done, of) {
   const state = page.run;
-  if (!state.protocol.running) return;
+  if (!state.walk.running) return;
   state.protocol.within = { done, of };
   page.renderProtocolProgress();
 }
@@ -105,11 +105,11 @@ export function protocolWithin(page, done, of) {
    The steps' own `ready` rules cannot be asked here for what an earlier
    step of the run produces (gated objects, target tiles), so this asks
    for the settings only. */
-function protocolBlockers(page) {
+export function protocolBlockers(page) {
   const state = page.run;
   const blockers = [];
   const focus = page.step(page.indexOfStep("focus"));
-  if (!state.focus.applied && focus.ready?.(state)) blockers.push(`Focus strategy: ${focus.ready(state)}`);
+  if (!state.focus.applied && focus.ready?.(state, page)) blockers.push(`Focus strategy: ${focus.ready(state, page)}`);
   if (!hasRecording(state.overviewPreset)) blockers.push("Overview scan area: import the optical configuration first");
   if (!state.plan.length) blockers.push("Overview scan area: nothing to scan yet");
   if (!state.gates.length) blockers.push("Discover Targets: draw a gate first");
@@ -118,32 +118,15 @@ function protocolBlockers(page) {
   return blockers;
 }
 
-/** The operator's hand on the protocol run: the step in hand is braked
-    where it can be, and the walk ends after it either way. */
-export function interruptProtocol(page) {
-  const state = page.run;
-  state.protocol.interrupted = true;
-  const s = page.step(state.activeIdx);
-  if (state.running === s.id) { state.interrupting = s.id; s.brake?.(page); }
-  page.renderActionBar();
-}
-
 /** After a run that finished, the burst can be brought back, at the right
     of the press (Thom, 2026-09-28). */
 export function afterTheProtocolPress(host, page) {
   const state = page.run;
-  if (state.protocol.summary?.ended === "finished" && state.protocol.playBurst) {
+  if (state.protocol.summary?.ended === "finished" && page.shown.playBurst) {
     const again = document.createElement("button");
     again.type = "button"; again.className = "run"; again.id = "protocol-again";
     again.textContent = "Rerun confetti";
-    again.addEventListener("click", () => state.protocol.playBurst());
+    again.addEventListener("click", () => page.shown.playBurst());
     host.append(again);
   }
-}
-
-/** Put the protocol's blockers where its `ready` rule can read them, on
-    the run itself, so the rule needs no list of steps. */
-export function installProtocol(page) {
-  page.run.protocolBlockers = () => protocolBlockers(page);
-  return {};
 }
