@@ -5,7 +5,7 @@
  * done when the run failed on the instrument.
  */
 
-import { METRICS } from "../../shared/focus-curves.js";
+import { METRICS } from "../../shared/focus-curves.ts";
 
 /** Measure every point of the map; the focus map's own `remeasure` drives
     the stage, and the answer says whether the operator's hand stopped it.

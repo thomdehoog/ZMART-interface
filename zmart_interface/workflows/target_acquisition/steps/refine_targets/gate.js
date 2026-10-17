@@ -17,7 +17,7 @@
 import { rgbOf, stampDots } from "./dots.js";
 import {
   cellFeature, cellsInAllGates, featureNames, gateForPair, hasFeature, insidePolygon,
-} from "../../shared/gating.js";
+} from "../../shared/gating.ts";
 import { sideGroup } from "../../../../api/index.ts";
 
 /** Room for the axes, in pixels. */

@@ -35,7 +35,7 @@
  * Pure, so every rule is pinned without a page.
  */
 
-import { tiles as tilesOver } from "../../shared/scanfields.js";
+import { tiles as tilesOver } from "../../shared/scanfields.ts";
 
 /** Micrometres per pixel for one object: its area is known in both. */
 function pixelUmOf(cell) {

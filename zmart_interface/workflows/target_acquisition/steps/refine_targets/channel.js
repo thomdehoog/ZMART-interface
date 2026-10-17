@@ -7,7 +7,7 @@
  */
 
 import { css, sizeCanvas } from "../../../../api/index.ts";
-import { cellsInAllGates } from "../../shared/gating.js";
+import { cellsInAllGates } from "../../shared/gating.ts";
 import gatingPanel from "./gate.js";
 
 /** The gates have no press: looking at them applies them to the objects

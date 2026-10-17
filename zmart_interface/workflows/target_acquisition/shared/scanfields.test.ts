@@ -2,17 +2,21 @@ import { describe, it, expect } from "vitest";
 import {
   block, bounds, boxesOverlap, centroid, contains, edges, handles, isPointLike,
   normalise, rotatePoint, segmentHitsBox, sharePoints, snapSpan, tiles,
-  topCentre, withoutTrailingDuplicate,
-} from "./scanfields.js";
-import { carrierType, centres, fromPreset, geometry } from "./carriers.js";
+  topCentre, withoutTrailingDuplicate, type RectangleField, type XY,
+} from "./scanfields.ts";
+import { carrierType, centres, fromPreset, geometry } from "./carriers.ts";
 
 /* The plate, named rather than taken from whatever a fresh run happens to
    start on: these are about a grid of areas with gaps between them, which is
    what a plate is and what the default carrier is not. */
 const PLATE = fromPreset("wellplate",
-  carrierType("wellplate").presets.find((p) => p.label.startsWith("96-well")));
+  carrierType("wellplate").presets.find((p) => p.label.startsWith("96-well"))!);
 
-const rect = (x, y, w, h, rotation = 0) => ({ type: "rectangle", x, y, w, h, rotation });
+const rect = (x: number, y: number, w: number, h: number, rotation = 0): RectangleField =>
+  ({ type: "rectangle", x, y, w, h, rotation });
+
+/** A position and the frame imaged there. */
+type Framed = XY & { frameUm: number };
 
 describe("a field knows where it is, rotated or not", () => {
   it("holds a point inside a rectangle and refuses one outside", () => {
@@ -29,13 +33,13 @@ describe("a field knows where it is, rotated or not", () => {
   });
 
   it("measures an ellipse by its own radii", () => {
-    const e = { type: "ellipse", cx: 0, cy: 0, rx: 100, ry: 50, rotation: 0 };
+    const e = { type: "ellipse" as const, cx: 0, cy: 0, rx: 100, ry: 50, rotation: 0 };
     expect(contains(99, 0, e)).toBe(true);
     expect(contains(0, 51, e)).toBe(false);
   });
 
   it("a rotated ellipse's box touches where its tangent turns level", () => {
-    const e = { type: "ellipse", cx: 0, cy: 0, rx: 100, ry: 50, rotation: Math.PI / 2 };
+    const e = { type: "ellipse" as const, cx: 0, cy: 0, rx: 100, ry: 50, rotation: Math.PI / 2 };
     const b = bounds(e);
     // the quarter turn swaps the half-widths exactly; the rotated corners of
     // the unturned box would have claimed 100 in both directions
@@ -44,7 +48,7 @@ describe("a field knows where it is, rotated or not", () => {
   });
 
   it("a circle arrives as an ellipse, so nothing downstream needs both", () => {
-    const c = normalise({ type: "circle", cx: 5, cy: 6, r: 7 });
+    const c = normalise({ type: "circle" as const, cx: 5, cy: 6, r: 7 });
     expect(c.type).toBe("ellipse");
     expect([c.rx, c.ry]).toEqual([7, 7]);
     expect(contains(11, 6, c)).toBe(true);
@@ -79,7 +83,7 @@ describe("tiles cover what the field touches, not only what it centres on", () =
   });
 
   it("a point is one position and needs no covering", () => {
-    expect(tiles({ type: "point", x: 12, y: 34 }, 1000)).toEqual([{ x: 12, y: 34 }]);
+    expect(tiles({ type: "point" as const, x: 12, y: 34 }, 1000)).toEqual([{ x: 12, y: 34 }]);
     expect(isPointLike("point")).toBe(true);
   });
 
@@ -133,14 +137,14 @@ describe("the grid block is centred on what it is given", () => {
 describe("the grips a field offers", () => {
   it("gives a rectangle eight, an ellipse four, a polygon one per vertex", () => {
     expect(handles(rect(0, 0, 10, 10))).toHaveLength(8);
-    expect(handles({ type: "ellipse", cx: 0, cy: 0, rx: 5, ry: 5 })).toHaveLength(4);
-    const poly = { type: "polygon", points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] };
+    expect(handles({ type: "ellipse" as const, cx: 0, cy: 0, rx: 5, ry: 5 })).toHaveLength(4);
+    const poly = { type: "polygon" as const, points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] };
     expect(handles(poly)).toHaveLength(3);
     expect(handles(poly)[2].index).toBe(2);
   });
 
   it("hangs the rotation grip off the highest vertex, not above the centroid", () => {
-    const poly = { type: "polygon", points: [{ x: 0, y: 40 }, { x: 30, y: 0 }, { x: 60, y: 40 }] };
+    const poly = { type: "polygon" as const, points: [{ x: 0, y: 40 }, { x: 30, y: 0 }, { x: 60, y: 40 }] };
     expect(topCentre(poly)).toEqual({ x: 30, y: 0 });
     expect(centroid(poly).y).toBeCloseTo(80 / 3, 6);
   });
@@ -149,7 +153,7 @@ describe("the grips a field offers", () => {
     /* A square with four extra vertices along its top edge: the mean of
        the vertices sits near that edge, and a shape turned about it swung
        around the corner the grip hangs from -- the operator saw it. */
-    const crowded = { type: "polygon", points: [
+    const crowded = { type: "polygon" as const, points: [
       { x: 0, y: 0 }, { x: 25, y: 0 }, { x: 50, y: 0 }, { x: 75, y: 0 }, { x: 100, y: 0 },
       { x: 100, y: 100 }, { x: 0, y: 100 },
     ] };
@@ -161,7 +165,7 @@ describe("the grips a field offers", () => {
     expect(turned.yMin).toBeCloseTo(0, 6); expect(turned.yMax).toBeCloseTo(100, 6);
     /* Two vertices on top of each other, or a line: no area to speak of,
        so the mean of the vertices stands in. */
-    const line = { type: "polygon", points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }] };
+    const line = { type: "polygon" as const, points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }] };
     expect(centroid(line)).toEqual({ x: 10, y: 0 });
   });
 });
@@ -238,7 +242,7 @@ describe("a region is sized in whole frames", () => {
 
   it("is what the tiles then fill, edge to edge", () => {
     const w = snapSpan(9000, FRAME), h = snapSpan(6000, FRAME);
-    const f = { id: "f", type: "rectangle", rotation: 0, x: 4000, y: 3000, w, h };
+    const f = { id: "f", type: "rectangle" as const, rotation: 0, x: 4000, y: 3000, w, h };
     const laid = tiles(f, FRAME, 0);
     const half = FRAME / 2;
     expect(Math.min(...laid.map((t) => t.x)) - half).toBeCloseTo(f.x, 6);
@@ -253,7 +257,7 @@ describe("focus points take an equal share of the field each", () => {
   /* A field of 6 x 4 positions, 100 µm apart: the numbers are easy to read
      back, and the shape is wide enough that a good split cuts it into columns
      before it cuts it into rows. */
-  const grid = [];
+  const grid: XY[] = [];
   for (let row = 0; row < 4; row++) {
     for (let col = 0; col < 6; col++) grid.push({ x: col * 100, y: row * 100 });
   }
@@ -405,7 +409,7 @@ describe("the points settle into the shape, not into its bounding box", () => {
   /* A triangle of positions: a wide bottom row narrowing to a single position
      at the top, which is the case equal rectangular shares get wrong — a share
      cut from the corner of the box holds almost nothing. */
-  const triangle = [];
+  const triangle: XY[] = [];
   for (let row = 0; row < 5; row++) {
     const wide = 9 - row * 2;
     for (let col = 0; col < wide; col++) {
@@ -414,7 +418,7 @@ describe("the points settle into the shape, not into its bounding box", () => {
   }
 
   /** How far each position is from the nearest point measured, at worst. */
-  const worstDistance = (points) => Math.max(...triangle.map((t) =>
+  const worstDistance = (points: XY[]) => Math.max(...triangle.map((t) =>
     Math.min(...points.map((p) => Math.hypot(t.x - p.x, t.y - p.y)))));
 
   it("gives every point a share of the positions to stand for", () => {
@@ -464,13 +468,13 @@ describe("the points settle into the shape, not into its bounding box", () => {
  */
 describe("points shared over tilesets that do not touch", () => {
   const FRAME = 500;
-  const block = (x0, y0) => [0, 1].flatMap((r) => [0, 1]
+  const block = (x0: number, y0: number): Framed[] => [0, 1].flatMap((r) => [0, 1]
     .map((c) => ({ x: x0 + c * FRAME, y: y0 + r * FRAME, frameUm: FRAME })));
   /* Two two-by-two blocks with a wide gap between them, as two tilesets drawn
      at either end of the same well. */
   const twoBlocks = [...block(0, 0), ...block(9000, 0)];
 
-  const inAFrame = (tiles, p) => tiles.some((t) =>
+  const inAFrame = (tiles: Framed[], p: XY) => tiles.some((t) =>
     Math.abs(t.x - p.x) <= t.frameUm / 2 && Math.abs(t.y - p.y) <= t.frameUm / 2);
 
   it("puts a single point on one of the blocks, not in the gap", () => {
@@ -501,10 +505,10 @@ describe("points shared over tilesets that do not touch", () => {
  */
 describe("points over a plate of identical wells", () => {
   const F = 500, ACROSS = 9000;
-  const wells = [];
+  const wells: { centre: XY; tiles: Framed[] }[] = [];
   for (let r = 0; r < 2; r++) {
     for (let c = 0; c < 3; c++) {
-      const x0 = c * ACROSS, y0 = r * ACROSS, tiles = [];
+      const x0 = c * ACROSS, y0 = r * ACROSS, tiles: Framed[] = [];
       for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
         tiles.push({ x: x0 + j * F, y: y0 + i * F, frameUm: F });
       }
@@ -512,9 +516,9 @@ describe("points over a plate of identical wells", () => {
     }
   }
   const all = wells.flatMap((w) => w.tiles);
-  const wellOf = (p) => wells.reduce((a, z) =>
+  const wellOf = (p: XY) => wells.reduce((a, z) =>
     (Math.hypot(z.centre.x - p.x, z.centre.y - p.y) < Math.hypot(a.centre.x - p.x, a.centre.y - p.y) ? z : a));
-  const whereInItsWell = (p) => {
+  const whereInItsWell = (p: XY) => {
     const w = wellOf(p);
     return `${Math.round(p.x - w.centre.x)},${Math.round(p.y - w.centre.y)}`;
   };
@@ -555,10 +559,10 @@ describe("points over a plate of identical wells", () => {
  */
 describe("points over a plate with much more glass than sample", () => {
   const F = 700, PITCH = 9000, COLS = 12, ROWS = 8;
-  const wells = [];
+  const wells: { r: number; c: number; centre: XY; tiles: Framed[] }[] = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      const x0 = c * PITCH, y0 = r * PITCH, tiles = [];
+      const x0 = c * PITCH, y0 = r * PITCH, tiles: Framed[] = [];
       for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
         tiles.push({ x: x0 + j * F, y: y0 + i * F, frameUm: F });
       }
@@ -566,7 +570,7 @@ describe("points over a plate with much more glass than sample", () => {
     }
   }
   const all = wells.flatMap((w) => w.tiles);
-  const wellOf = (p) => wells.reduce((a, z) =>
+  const wellOf = (p: XY) => wells.reduce((a, z) =>
     (Math.hypot(z.centre.x - p.x, z.centre.y - p.y) < Math.hypot(a.centre.x - p.x, a.centre.y - p.y) ? z : a));
   const twelve = () => sharePoints(all, 12, { vary: true });
 
@@ -610,20 +614,20 @@ describe("points over a plate with much more glass than sample", () => {
  */
 describe("one tileset on its own", () => {
   const F = 100, N = 5;
-  const block = [];
+  const block: Framed[] = [];
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
     block.push({ x: c * F, y: r * F, frameUm: F });
   }
   /* The ground the block covers, finely, to judge an arrangement by. */
   const LO = -F / 2, HI = (N - 1) * F + F / 2;
-  const everywhere = [];
+  const everywhere: XY[] = [];
   for (let i = 0; i <= 60; i++) for (let j = 0; j <= 60; j++) {
     everywhere.push({ x: LO + (i / 60) * (HI - LO), y: LO + (j / 60) * (HI - LO) });
   }
   /* How far the worst-served piece of ground is from the nearest point: the
      measure of an even spread, since it counts the gap to a border as well as
      the gaps between points. */
-  const covering = (pts) => Math.max(...everywhere
+  const covering = (pts: XY[]) => Math.max(...everywhere
     .map((g) => Math.min(...pts.map((p) => Math.hypot(p.x - g.x, p.y - g.y)))));
 
   it("spreads four as evenly as four can be spread", () => {
@@ -660,15 +664,15 @@ describe("one tileset on its own", () => {
  */
 describe("points over a plan holding separate pieces", () => {
   const F = 700;
-  const tiles = [];
+  const tiles: Framed[] = [];
   for (const [from, to, row] of [[0, 3, 0], [0, 4, 1], [0, 6, 2], [1, 6, 3], [1, 5, 4]]) {
     for (let c = from; c < to; c++) tiles.push({ x: c * F, y: row * F, frameUm: F });
   }
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
     tiles.push({ x: 12000 + c * F, y: 1000 + r * F, frameUm: F });
   }
-  const onTheBlock = (p) => p.x > 11000;
-  const share = (n) => {
+  const onTheBlock = (p: XY) => p.x > 11000;
+  const share = (n: number) => {
     const pts = sharePoints(tiles, n, { vary: true });
     return { all: pts.length, block: pts.filter(onTheBlock).length };
   };

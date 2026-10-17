@@ -19,10 +19,19 @@
     by 175 µm, and a point snapped at the neighbouring well by millimetres. */
 export const ANCHORS_AGREE_WITHIN_UM = 200;
 
+/** An alignment point: a place on the carrier drawing, which landmark it is,
+    and, once snapped, where the stage stood when it was. */
+export interface Anchor {
+  x: number;
+  y: number;
+  at?: string | null;
+  stage?: { x: number; y: number; z?: number } | null;
+}
+
 /** The farthest any snapped point's shift lies from the average shift, in
     micrometres, or null while fewer than two points have been snapped. */
-export function anchorDisagreementUm(anchors) {
-  const snapped = anchors.filter((a) => a.stage);
+export function anchorDisagreementUm(anchors: Anchor[]): number | null {
+  const snapped = anchors.filter((a): a is Anchor & { stage: { x: number; y: number } } => !!a.stage);
   if (snapped.length < 2) return null;
   const shifts = snapped.map((a) => [a.stage.x - a.x, a.stage.y - a.y]);
   const mean = [0, 1].map((k) => shifts.reduce((sum, s) => sum + s[k], 0) / shifts.length);
@@ -30,7 +39,7 @@ export function anchorDisagreementUm(anchors) {
 }
 
 /** The sentence the operator reads when the points disagree, or null. */
-export function anchorWarning(anchors) {
+export function anchorWarning(anchors: Anchor[]): string | null {
   const apart = anchorDisagreementUm(anchors);
   if (apart === null || apart <= ANCHORS_AGREE_WITHIN_UM) return null;
   const said = apart >= 1000 ? `${(apart / 1000).toFixed(1)} mm` : `${Math.round(apart)} µm`;

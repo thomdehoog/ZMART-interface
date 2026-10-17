@@ -8,15 +8,17 @@
 import { describe, expect, it } from "vitest";
 import {
   cellFeature, cellsInAllGates, featureNames, gateForPair, hasFeature, insidePolygon,
-  keptUnderCeiling, sursDraw,
-} from "./gating.js";
+  keptUnderCeiling, sursDraw, type Gate,
+} from "./gating.ts";
 
-const cell = (id, features, more = {}) => ({
+type Point = [number, number];
+
+const cell = (id: string, features: Record<string, number>, more = {}) => ({
   id, area: features.area ?? 1, intensity: features.intensity ?? 1,
   features, ...more,
 });
 
-const square = (fx, fy, lo, hi) => ({
+const square = (fx: string, fy: string, lo: number, hi: number): Gate => ({
   fx, fy,
   vertices: [[lo, lo], [hi, lo], [hi, hi], [lo, hi]],
 });
@@ -27,7 +29,7 @@ describe("a feature some objects do not have", () => {
      it and no gate drawn there can take them. */
   const placed = { id: "p", features: { pca_1: 0.1, pca_2: 0.1 } };
   const unplaced = { id: "u", features: { area: 5 } };
-  const box = { fx: "pca_1", fy: "pca_2", vertices: [[-1, -1], [1, -1], [1, 1], [-1, 1]] };
+  const box: Gate = { fx: "pca_1", fy: "pca_2", vertices: [[-1, -1], [1, -1], [1, 1], [-1, 1]] };
 
   it("is had only by the objects that carry it", () => {
     expect(hasFeature(placed, "pca_1")).toBe(true);
@@ -42,14 +44,14 @@ describe("a feature some objects do not have", () => {
 
 describe("the gating rules", () => {
   it("a polygon knows its inside, edges and winding regardless", () => {
-    const poly = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const poly: Point[] = [[0, 0], [10, 0], [10, 10], [0, 10]];
     expect(insidePolygon(5, 5, poly)).toBe(true);
     expect(insidePolygon(15, 5, poly)).toBe(false);
     expect(insidePolygon(5, 5, [...poly].reverse())).toBe(true);
   });
 
   it("a concave polygon keeps its notch outside", () => {
-    const notched = [[0, 0], [10, 0], [10, 10], [5, 3], [0, 10]];
+    const notched: Point[] = [[0, 0], [10, 0], [10, 10], [5, 3], [0, 10]];
     expect(insidePolygon(5, 8, notched)).toBe(false);
     expect(insidePolygon(2, 2, notched)).toBe(true);
   });
@@ -90,7 +92,7 @@ describe("the gating rules", () => {
     /* 100 cells on a 10x10 lattice; a fixed random start makes the draw
        deterministic. 25 asked for: every quadrant must contribute its share,
        which a shuffle cannot promise and SURS does by construction. */
-    const lattice = [];
+    const lattice: { id: string; x: number; y: number }[] = [];
     for (let gx = 0; gx < 10; gx++) {
       for (let gy = 0; gy < 10; gy++) {
         lattice.push({ id: `c${gx}-${gy}`, x: gx * 10, y: gy * 10 });
@@ -99,9 +101,9 @@ describe("the gating rules", () => {
     const drawn = sursDraw(lattice, 25, () => 0.5);
     expect(drawn).toHaveLength(25);
     expect(new Set(drawn).size).toBe(25);
-    const counts = { nw: 0, ne: 0, sw: 0, se: 0 };
+    const counts: Record<string, number> = { nw: 0, ne: 0, sw: 0, se: 0 };
     for (const id of drawn) {
-      const cell = lattice.find((c) => c.id === id);
+      const cell = lattice.find((c) => c.id === id)!;
       const key = `${cell.y < 45 ? "n" : "s"}${cell.x < 45 ? "w" : "e"}`;
       counts[key] += 1;
     }
@@ -120,7 +122,7 @@ describe("the gating rules", () => {
     for (const start of [0.05, 0.5, 0.95]) {
       const drawn = sursDraw(row, 10, () => start);
       expect(drawn).toHaveLength(10);
-      const xs = drawn.map((id) => row.find((c) => c.id === id).x);
+      const xs = drawn.map((id) => row.find((c) => c.id === id)!.x);
       expect(Math.max(...xs), `random start ${start}`).toBeGreaterThanOrEqual(270);
       expect(Math.min(...xs), `random start ${start}`).toBeLessThanOrEqual(20);
     }
@@ -155,10 +157,10 @@ describe("the gating rules", () => {
 });
 
 describe("the ceiling, applied by the Restrict press", () => {
-  const spread = (tileset, n) => Array.from({ length: n }, (_, i) => ({
+  const spread = (tileset: string, n: number) => Array.from({ length: n }, (_, i) => ({
     id: `${tileset}-${i}`, x: (i * 37) % 100, y: (i * 53) % 100, field: tileset,
   }));
-  const tilesetOf = (field) => field;
+  const tilesetOf = (field: string) => field;
 
   it("keeps at most the ceiling in every tileset, drawn from the gated cells alone", () => {
     const cells = [...spread("A", 12), ...spread("B", 3), ...spread("C", 9)];

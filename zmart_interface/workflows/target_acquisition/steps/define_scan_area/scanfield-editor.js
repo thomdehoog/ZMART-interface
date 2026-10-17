@@ -28,12 +28,12 @@
 import { sideGroup } from "../../../../api/index.ts";
 import {
   centres, geometry, frameFitsArea, frameSeat, insideArea, nearestArea, scanBox,
-} from "../../shared/carriers.js";
+} from "../../shared/carriers.ts";
 import {
   block, bounds, boxesOverlap, centroid, contains, covers, edges, handles,
   isPointLike, normalise, rotatePoint, snapSpan, tiles, topCentre,
   withoutTrailingDuplicate,
-} from "../../shared/scanfields.js";
+} from "../../shared/scanfields.ts";
 
 const MM_UM = 1000;
 

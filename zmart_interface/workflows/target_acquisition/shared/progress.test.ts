@@ -5,16 +5,16 @@
    pinned once. */
 
 import { describe, it, expect } from "vitest";
-import { progressBox } from "./progress.js";
+import { progressBox, type ProgressBox } from "./progress.ts";
 
 const box = () => {
   let t = 0;
   const built = progressBox("Acquisition progress", { now: () => t });
-  return { ...built, tick: (ms) => { t += ms; } };
+  return { ...built, tick: (ms: number) => { t += ms; } };
 };
-const words = (b) => [b.doing.textContent, b.count.textContent];
-const bar = (b) => b.group.querySelector(".progress-bar");
-const fill = (b) => b.group.querySelector(".progress-fill").style.width;
+const words = (b: ProgressBox) => [b.doing.textContent, b.count.textContent];
+const bar = (b: ProgressBox) => b.group.querySelector(".progress-bar")!;
+const fill = (b: ProgressBox) => b.group.querySelector<HTMLElement>(".progress-fill")!.style.width;
 
 describe("a progress box", () => {
   it("is hidden until the run starts, then sweeps with nothing counted", () => {

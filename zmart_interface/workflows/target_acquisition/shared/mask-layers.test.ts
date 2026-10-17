@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   maskLayerName, maskLayersOn, newMaskLayer, replaceMaskLayer,
-} from "./mask-layers.js";
+} from "./mask-layers.ts";
 
 describe("a mask layer is named by what it outlines and how it was made", () => {
   it("names the fast detector's masks nuclei and Cellpose's cells", () => {

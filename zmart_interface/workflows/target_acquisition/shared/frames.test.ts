@@ -9,9 +9,11 @@
 import { describe, expect, it } from "vitest";
 
 /* The converters as stage.js writes them, over an origin a test can set. */
-function converters(origin) {
-  const toStage = (p) => ({ ...p, x: p.x + origin[0], y: p.y + origin[1] });
-  const toCarrier = (p) => ({ ...p, x: p.x - origin[0], y: p.y - origin[1] });
+type Point = { x: number; y: number; [more: string]: unknown };
+
+function converters(origin: [number, number]) {
+  const toStage = (p: Point) => ({ ...p, x: p.x + origin[0], y: p.y + origin[1] });
+  const toCarrier = (p: Point) => ({ ...p, x: p.x - origin[0], y: p.y - origin[1] });
   return { toStage, toCarrier };
 }
 

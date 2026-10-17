@@ -11,7 +11,7 @@
  * `run.protocol` how far it has got and what it came to.
  */
 
-import { protocolFrom } from "../../shared/protocol.js";
+import { protocolFrom } from "../../shared/protocol.ts";
 import { hasRecording } from "../../microscope/recordings.ts";
 
 /* The steps the protocol walks, in order. */

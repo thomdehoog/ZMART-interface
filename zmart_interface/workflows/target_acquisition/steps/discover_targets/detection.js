@@ -42,8 +42,8 @@ const labelColour = (n, alpha = 1) =>
   `hsla(${(n * 137.508) % 360}, 68%, 58%, ${alpha})`;
 
 import { dressTheMask } from "./mask-dress.js";
-import { progressBox } from "../../shared/progress.js";
-import { previewMessage } from "../../shared/preview-message.js";
+import { progressBox } from "../../shared/progress.ts";
+import { previewMessage } from "../../shared/preview-message.ts";
 import { sideGroup } from "../../../../api/index.ts";
 
 export default {

@@ -8,15 +8,25 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { protocolFrom, applyProtocol, protocolFits } from "./protocol.js";
+import { protocolFrom, applyProtocol, protocolFits } from "./protocol.ts";
 import { emptySlot, withRecording } from "../microscope/recordings.ts";
+import type { Reading } from "../microscope/settings.ts";
+import type { TaRun } from "../types.ts";
+import type { Protocol } from "./protocol.ts";
 
-const reading = (frame) => ({
-  summary: "10x · 2 ch", detail: {}, frameUm: frame, kind: null,
+const reading = (frame: number): Reading => ({
+  summary: "10x · 2 ch", detail: [], frameUm: frame, kind: null,
   changeable: { objective: "10x" },
 });
 
-const settled = () => ({
+/* A run as the protocol reads it: only the keys it is about, filled in by
+   hand, standing in for the whole document. */
+const asRun = (state: object): TaRun => state as TaRun;
+
+/* The slots a protocol carries and does not bring back. */
+const SLOTS = ["overviewPreset", "focusPreset", "targetType", "targetFocus"] as const;
+
+const settled = () => asRun({
   session: { microscope: "mock", api: "mock", password: "x" },
   carrier: { kind: "plate", rows: 2, cols: 3, wellMm: 6 },
   anchors: [
@@ -53,7 +63,7 @@ const settled = () => ({
   cells: new Map([["c1", {}]]),
 });
 
-const fresh = () => ({
+const fresh = () => asRun({
   session: { microscope: "mock", api: "mock", password: "" },
   carrier: {}, anchors: [], fields: [], plan: [],
   overviewPreset: emptySlot("acquisition"), focusPreset: emptySlot("autofocus"),
@@ -67,7 +77,7 @@ const fresh = () => ({
   testTiles: new Set(),
 });
 
-const throughAFile = (protocol) => {
+const throughAFile = (protocol: Protocol): Protocol => {
   const dir = mkdtempSync(join(tmpdir(), "zmart-protocol-"));
   const path = join(dir, "protocol.json");
   writeFileSync(path, JSON.stringify(protocol, null, 2));
@@ -139,7 +149,7 @@ describe("read into a fresh session, the settings are back", () => {
   });
 
   it("brings no reading back: each is imported afresh on this session", () => {
-    for (const key of ["overviewPreset", "focusPreset", "targetType", "targetFocus"]) {
+    for (const key of SLOTS) {
       expect(s[key].records, key).toEqual([]);
       expect(s[key].active, key).toBeNull();
     }
@@ -156,11 +166,10 @@ describe("read into a fresh session, the settings are back", () => {
   });
 
   it("writes the same protocol again, bar the readings it did not bring back", () => {
-    const again = protocolFrom({ ...s, plan: [1, 2, 3, 4] });
-    for (const key of ["overviewPreset", "focusPreset", "targetType", "targetFocus"]) {
-      delete again[key]; delete p[key];
-    }
-    expect(again).toEqual(p);
+    const again = protocolFrom(asRun({ ...s, plan: [1, 2, 3, 4] }));
+    const withoutReadings = (one: Protocol) => Object.fromEntries(
+      Object.entries(one).filter(([key]) => !(SLOTS as readonly string[]).includes(key)));
+    expect(withoutReadings(again)).toEqual(withoutReadings(p));
   });
 });
 

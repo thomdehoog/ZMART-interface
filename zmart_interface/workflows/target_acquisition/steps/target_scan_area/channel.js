@@ -8,7 +8,7 @@
  */
 
 import { activeRecording } from "../../microscope/recordings.ts";
-import { renderRecordingSlot } from "../../shared/recording-slot.js";
+import { renderRecordingSlot } from "../../shared/recording-slot.ts";
 import { selectionPanel } from "./selection-panel.js";
 
 export const selectionChannel = {

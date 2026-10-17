@@ -16,8 +16,31 @@
 
 import { sideGroup } from "../../../api/index.ts";
 import {
-  nextReadingIndex, withActive, withRecording, withoutRecording,
+  nextReadingIndex, withActive, withRecording, type Recording, type Slot,
 } from "../microscope/recordings.ts";
+import type { Reading } from "../microscope/settings.ts";
+
+/** What a row's titles say, where the step wants other words than the plain ones. */
+interface About {
+  active?: string;
+  idle?: string;
+  fold?: string;
+}
+
+/** What a step tells its recording slot. */
+export interface SlotOptions {
+  label: string;
+  slot: () => Slot;
+  setSlot: (next: Slot) => void;
+  running: () => unknown;
+  readSetting: (type: string, how?: { nth?: number }) => Promise<Reading>;
+  changed: () => void;
+  activated?: () => void;
+  unnamed?: boolean;
+  takes?: string | null;
+  retakes?: string | null;
+  warn?: (record: Recording) => string | null;
+}
 
 /* Which recordings are unfolded, by id. As many at once as the operator
    wants open: comparing two readings means reading both, and folding one
@@ -25,11 +48,11 @@ import {
    rather than on the record itself — it is a fact about this screen, not
    about what the instrument reported, and the rows are redrawn from the
    run's state whenever anything around them moves. */
-const unfolded = new Set();
+const unfolded = new Set<string>();
 
 /* The name being typed for the next reading, per slot, for the same reason.
    A name half typed has to survive a field being laid beside it. */
-const draftNames = {};
+const draftNames: Record<string, string> = {};
 
 /* The summary is the headline; the detail is what the controller actually
    read. Folded away by default, because a recording should stay a line —
@@ -39,10 +62,12 @@ const draftNames = {};
    `active` is whether this is the one the step is taken with and `choose`
    makes it so; `ink` is the colour it is drawn in wherever the step draws
    it. */
-function renderRecordedBar(record, {
-  rerender, choose, hostId, running, locked = false, active = false,
-  about = {}, unnamed = false,
-}) {
+function renderRecordedBar(record: Recording, {
+  rerender, choose, running, active = false, about = {}, unnamed = false,
+}: {
+  rerender: () => void; choose: () => void; running: () => unknown;
+  active?: boolean; about?: About; unnamed?: boolean;
+}): DocumentFragment {
   const wrap = document.createDocumentFragment();
 
   const row = document.createElement("div");
@@ -61,14 +86,14 @@ function renderRecordedBar(record, {
   /* A reading that nobody named says what it is instead of what it is called.
      The name was only ever a handle for telling two readings apart, and where
      there is one reading at a time the handle is a word doing no work. */
-  row.querySelector(".rec-name").textContent = unnamed ? "" : record.name;
-  row.querySelector(".rec-state").textContent = record.summary;
+  row.querySelector(".rec-name")!.textContent = unnamed ? "" : record.name;
+  row.querySelector(".rec-state")!.textContent = record.summary;
 
   /* The row activates the recording, and activating is the whole of using
      it: everything the step produces is taken with the active one. A list of
      recordings beside a list of buttons for choosing between them was the
      same list written twice, and the copy is the one that goes stale. */
-  const pick = row.querySelector(".rec-pick");
+  const pick = row.querySelector<HTMLButtonElement>(".rec-pick")!;
   pick.setAttribute("aria-pressed", String(active));
   pick.title = active
     ? (about.active ?? "active — this step is taken with it")
@@ -80,7 +105,7 @@ function renderRecordedBar(record, {
      mark with nothing to distinguish when there is one. */
 
   const expanded = unfolded.has(record.id);
-  const fold = row.querySelector(".rec-fold");
+  const fold = row.querySelector<HTMLButtonElement>(".rec-fold")!;
   fold.textContent = "▸";
   fold.title = expanded ? "fold away" : (about.fold ?? "show everything recorded");
   fold.setAttribute("aria-expanded", String(expanded));
@@ -113,7 +138,11 @@ function renderRecordedBar(record, {
    as it is typed, so a redraw finds it again. */
 function renderOpenBar({
   type, nth, name, onName, recorded, running, readSetting, unnamed, says, again,
-}) {
+}: {
+  type: string; nth: number; name: string; onName: (name: string) => void;
+  recorded: (name: string, reading: Reading) => void; running: () => unknown;
+  readSetting: SlotOptions["readSetting"]; unnamed: boolean; says?: string | null; again: boolean;
+}): HTMLElement {
   const row = document.createElement("div");
   /* Nothing to fill in, so nothing to lay a field out against: the button is
      the whole bar. With no reading yet it stands at the left, where the reading
@@ -158,7 +187,7 @@ function renderOpenBar({
     /* A readout off the instrument, never a procedure: the state as it is
        set now, through the backend. Nothing on the instrument moves. */
     readSetting(type, { nth })
-      .then((reading) => recorded(box.value, reading), (why) => {
+      .then((reading) => recorded(box.value, reading), (why: Error) => {
         /* The instrument's side said no. The button comes back and says so --
            it read "reading…" forever, disabled, with the sentence lost to an
            unhandled rejection. */
@@ -186,10 +215,10 @@ function renderOpenBar({
    run does when the slot's contents change; `activated` when the contents
    stand and another record becomes the one in use — a lighter answer,
    because nothing has to be built again to say so. */
-export function renderRecordingSlot(host, opts) {
+export function renderRecordingSlot(host: HTMLElement | null, opts: SlotOptions): void {
   const {
     label, slot: theSlot, setSlot, running, readSetting,
-    changed, activated = changed, locked = false, ink = null,
+    changed, activated = changed,
     /* A slot whose readings need no name of the operator's: the button is the
        whole bar, and says the act rather than the word "Record". `takes` is
        what it says with nothing recorded yet, `retakes` once there is. */
@@ -286,7 +315,7 @@ export function renderRecordingSlot(host, opts) {
     done.className = active ? "setting-box done active" : "setting-box done";
     done.append(renderRecordedBar(record, {
       unnamed,
-      rerender, locked, active, hostId, running,
+      rerender, active, running,
       choose: () => {
         setSlot(withActive(slot, record.id));
         rerender();
@@ -322,18 +351,3 @@ export function renderRecordingSlot(host, opts) {
     body.append(list);
   }
 }
-
-/* The carrier is what the canvas is drawing, so its controls sit beside the
-   drawing and stay there. Not a menu that appears for one step: the frame is
-   a property of the run, readable whenever the canvas is, and only editable
-   until it has been applied.
-
-   Mounted once per lock state rather than on every render, because the widget
-   keeps its own and rebuilding it would throw away the number being typed. */
-/* The carrier is settled by being configured, so there is nothing to press:
-   it always holds a valid one, and the operator either accepts what is there
-   or edits it. Standing on the step is the whole of it. Completing is not
-   advancing — the rail still waits for a click to move on.
-
-   It stays editable until something has been done inside the frame, at which
-   point changing it would invalidate what was done. */

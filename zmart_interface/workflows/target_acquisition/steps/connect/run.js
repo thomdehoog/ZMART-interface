@@ -9,7 +9,7 @@
  */
 
 import { isFailed } from "../../microscope/connection-status.ts";
-import { watchStagePosition } from "../../shared/stage-position.js";
+import { watchStagePosition } from "../../shared/stage-position.ts";
 
 /** Open the session; answers when it is open, or `{ failed }` once the
     failure has been written into the card's checks. */

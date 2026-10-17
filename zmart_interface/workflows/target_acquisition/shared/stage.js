@@ -23,7 +23,7 @@
 
 import { putTheCanvasIn } from "../canvas/viewer.js";
 import { theCanvasOf } from "../microscope/canvas.ts";
-import { maskLayersOn } from "./mask-layers.js";
+import { maskLayersOn } from "./mask-layers.ts";
 import { mountChannelBox } from "../canvas/channel-box.js";
 
 /**

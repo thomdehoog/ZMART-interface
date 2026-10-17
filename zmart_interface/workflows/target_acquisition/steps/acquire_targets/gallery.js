@@ -16,7 +16,7 @@
 /** The side of one picture, in pixels. */
 const CROP_PX = 132;
 
-import { previewMessage } from "../../shared/preview-message.js";
+import { previewMessage } from "../../shared/preview-message.ts";
 
 /**
  * One small picture: the viewer's copy at `src`, drawn by `draw(paint, img,
@@ -125,7 +125,7 @@ function targetFrame(src, field) {
   return cv;
 }
 
-import { progressBox } from "../../shared/progress.js";
+import { progressBox } from "../../shared/progress.ts";
 import { sideGroup } from "../../../../api/index.ts";
 
 export default {

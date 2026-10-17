@@ -82,8 +82,8 @@ export interface FocusAsk {
   [more: string]: unknown;
 }
 
-/** A focus point as asked for and as measured. */
-export interface FocusPoint {
+/** A focus point as a map keeps it: placed, and once measured, what was found there. */
+export interface FocusSpot {
   x: number;
   y: number;
   z: number | null;
@@ -93,10 +93,15 @@ export interface FocusPoint {
   refused?: string;
   manual?: boolean;
   stale?: boolean;
-  traces: Traces | null;
+  traces?: Traces | null;
   cost_s?: Record<string, number>;
   slices?: unknown[];
   [more: string]: unknown;
+}
+
+/** A focus point as measured: the spot, with its curves. */
+export interface FocusPoint extends FocusSpot {
+  traces: Traces | null;
 }
 
 /** A scan's or a target run's progress, as the poll reads it. */
@@ -110,12 +115,15 @@ export interface RunProgress<R = CaptureRecord> {
   [more: string]: unknown;
 }
 
-/** One object found in a field. */
-interface FoundObject {
+/** One object found in a field: its id, its field, where it is, and what was measured of it. */
+export interface FoundObject {
   id: string;
   field: number;
   x: number;
   y: number;
+  features?: Record<string, number>;
+  area?: number;
+  intensity?: number;
   [more: string]: unknown;
 }
 

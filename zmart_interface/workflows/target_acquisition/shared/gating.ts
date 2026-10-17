@@ -9,27 +9,52 @@
  * wrong axes would be a lie drawn in accent colour.
  *
  * Everything here is geometry and bookkeeping a canvas never touches, which
- * is what lets `gating.test.js` pin the rules without one.
+ * is what lets `gating.test.ts` pin the rules without one.
  */
+
+/** A gate: one polygon on one feature pair, `fx` across and `fy` up, in feature units. */
+export interface Gate {
+  fx: string;
+  fy: string;
+  vertices: [number, number][];
+}
+
+/** An object's id: what discovery named it. */
+type Id = string;
+
+/** What gating reads of an object: what was measured of it, in its own row
+    or, for the two the detector always reports, beside it. */
+export interface Measured {
+  features?: Record<string, number>;
+  [more: string]: unknown;
+}
+
+/** An object that can be placed: its id, and where it lies. */
+interface Placed {
+  id: Id;
+  x: number;
+  y: number;
+}
 
 /** Whether a cell carries a value for a named feature at all: a plot
     computed over part of the population gives its columns to that part
     only. */
-export function hasFeature(cell, name) {
+export function hasFeature(cell: Measured, name: string): boolean {
   return Number.isFinite(cell.features?.[name]) || Number.isFinite(cell[name]);
 }
 
 /** A cell's value for a named feature: its own row first, the two the
     detector always reports -- area, intensity -- as the fallback. */
-export function cellFeature(cell, name) {
+export function cellFeature(cell: Measured, name: string): number {
   const row = cell.features;
   if (row && Number.isFinite(row[name])) return row[name];
-  return Number.isFinite(cell[name]) ? cell[name] : 0;
+  const own = cell[name];
+  return typeof own === "number" && Number.isFinite(own) ? own : 0;
 }
 
 /** Every feature the cells can offer an axis: the union of their rows, with
     the legacy pair always present, sorted so the pickers read steadily. */
-export function featureNames(cells) {
+export function featureNames(cells: Iterable<Measured>): string[] {
   const names = new Set(["area", "intensity"]);
   for (const cell of cells) {
     for (const name of Object.keys(cell.features ?? {})) names.add(name);
@@ -39,7 +64,7 @@ export function featureNames(cells) {
 
 /** Whether (x, y) lies inside the polygon, by ray casting: winding-agnostic,
     and an edge hit counts as inside -- a cell on the line was pointed at. */
-export function insidePolygon(x, y, vertices) {
+export function insidePolygon(x: number, y: number, vertices: [number, number][]): boolean {
   let inside = false;
   for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
     const [xi, yi] = vertices[i];
@@ -52,7 +77,7 @@ export function insidePolygon(x, y, vertices) {
 
 /** The gate drawn on exactly this pair, or undefined. Axes are ordered --
     a gate on (size, glow) says nothing about a (glow, size) plot. */
-export function gateForPair(gates, fx, fy) {
+export function gateForPair(gates: Gate[], fx: string, fy: string): Gate | undefined {
   return gates.find((gate) => gate.fx === fx && gate.fy === fy);
 }
 
@@ -61,8 +86,8 @@ export function gateForPair(gates, fx, fy) {
  * everything: an operator who has drawn no gate has chosen no cells, and a
  * step that quietly took the whole population acquired at every target.
  */
-export function cellsInAllGates(cells, gates) {
-  const taken = new Set();
+export function cellsInAllGates(cells: Iterable<Measured & { id: Id }>, gates: Gate[]): Set<Id> {
+  const taken = new Set<Id>();
   if (!gates.length) return taken;
   for (const cell of cells) {
     const inEvery = gates.every((gate) =>
@@ -91,7 +116,7 @@ export function cellsInAllGates(cells, gates) {
  * `rand` is the source of the random start, injectable so a test can pin
  * the draw. Fewer cells than asked for returns them all.
  */
-export function sursDraw(cells, n, rand = Math.random) {
+export function sursDraw(cells: Placed[], n: number, rand = Math.random): Id[] {
   if (cells.length <= n) return cells.map((c) => c.id);
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const c of cells) {
@@ -102,7 +127,7 @@ export function sursDraw(cells, n, rand = Math.random) {
   const h = (y1 - y0) || 1;
   /* The curve: x and y quantised to 16 bits each and their bits interleaved,
      so cells near each other on the sample are near each other in the order. */
-  const spread = (v) => {
+  const spread = (v: number) => {
     let b = v & 0xffff;
     b = (b | (b << 8)) & 0x00ff00ff;
     b = (b | (b << 4)) & 0x0f0f0f0f;
@@ -118,7 +143,7 @@ export function sursDraw(cells, n, rand = Math.random) {
   keyed.sort((a, b) => a.key - b.key || String(a.id).localeCompare(String(b.id)));
   const k = keyed.length / n;
   const start = rand() * k;
-  const chosen = [];
+  const chosen: Id[] = [];
   for (let i = 0; i < n; i++) {
     const at = Math.min(keyed.length - 1, Math.floor(start + i * k));
     chosen.push(keyed[at].id);
@@ -137,15 +162,17 @@ export function sursDraw(cells, n, rand = Math.random) {
  * `tilesetOf` names the tileset a cell's field belongs to; `rand` is the
  * draw's random start, injectable so a test can pin it.
  */
-export function keptUnderCeiling(cells, gated, max, tilesetOf, rand = Math.random) {
-  const byTileset = new Map();
+export function keptUnderCeiling<F>(
+  cells: Iterable<Placed & { field: F }>, gated: Set<Id>, max: number, tilesetOf: (field: F) => unknown, rand = Math.random,
+): Set<Id> {
+  const byTileset = new Map<unknown, Placed[]>();
   for (const c of cells) {
     if (!gated.has(c.id)) continue;
     const key = tilesetOf(c.field);
     if (!byTileset.has(key)) byTileset.set(key, []);
-    byTileset.get(key).push(c);
+    byTileset.get(key)!.push(c);
   }
-  const kept = new Set();
+  const kept = new Set<Id>();
   for (const pool of byTileset.values()) {
     for (const id of sursDraw(pool, max, rand)) kept.add(id);
   }

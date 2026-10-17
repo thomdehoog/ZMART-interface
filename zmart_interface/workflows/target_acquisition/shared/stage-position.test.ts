@@ -4,11 +4,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EVERY_MS, PATIENCE_MS, watchStagePosition }
-  from "./stage-position.js";
+import { EVERY_MS, PATIENCE_MS, watchStagePosition, type StageAt, type StageReading }
+  from "./stage-position.ts";
 
 /* One get_xyz answer, in the controller's shape: each axis says its position. */
-const xyz = (x, y, z = 0) => ({ x: { position: x }, y: { position: y }, z: { position: z } });
+const xyz = (x: number, y: number, z = 0): StageReading => ({ x: { position: x }, y: { position: y }, z: { position: z } });
 
 describe("watchStagePosition", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -17,7 +17,7 @@ describe("watchStagePosition", () => {
   it("reads at once, then every five seconds", async () => {
     let at = xyz(1, 2);
     const backend = { get_xyz: vi.fn(async () => at) };
-    const seen = [];
+    const seen: StageAt[] = [];
     const watch = watchStagePosition(backend, (p) => seen.push(p));
     await vi.advanceTimersByTimeAsync(0);
     expect(seen).toEqual([{ x: 1, y: 2, z: 0 }]);
@@ -31,7 +31,7 @@ describe("watchStagePosition", () => {
   it("refreshes at once after a move, without waiting for the clock", async () => {
     let at = xyz(0, 0);
     const backend = { get_xyz: vi.fn(async () => at) };
-    const seen = [];
+    const seen: StageAt[] = [];
     const watch = watchStagePosition(backend, (p) => seen.push(p));
     await vi.advanceTimersByTimeAsync(0);
     at = xyz(500, 0);
@@ -42,9 +42,9 @@ describe("watchStagePosition", () => {
   });
 
   it("delivers nothing after stop, even from a read that was in flight", async () => {
-    let release;
-    const backend = { get_xyz: vi.fn(() => new Promise((resolve) => { release = resolve; })) };
-    const seen = [];
+    let release: (reading: StageReading) => void = () => {};
+    const backend = { get_xyz: vi.fn(() => new Promise<StageReading>((resolve) => { release = resolve; })) };
+    const seen: StageAt[] = [];
     const watch = watchStagePosition(backend, (p) => seen.push(p));
     watch.stop();
     release(xyz(9, 9));
@@ -63,13 +63,13 @@ describe("watchStagePosition", () => {
     let answered = 0;
     const backend = {
       get_xyz: vi.fn(() => (answered++ === 0
-        ? new Promise(() => {})            // the read that hangs
+        ? new Promise<StageReading>(() => {})            // the read that hangs
         : Promise.resolve(xyz(7, 8, 9)))),
     };
-    const seen = [];
-    const errors = [];
+    const seen: StageAt[] = [];
+    const errors: string[] = [];
     const watch = watchStagePosition(backend, (p) => seen.push(p), {
-      onError: (e) => errors.push(e.message),
+      onError: (e) => errors.push((e as Error).message),
     });
     await vi.advanceTimersByTimeAsync(PATIENCE_MS + 1);
     expect(errors.length).toBe(1);
@@ -84,10 +84,10 @@ describe("watchStagePosition", () => {
     let hang = true;
     const backend = {
       get_xyz: vi.fn(() => (hang
-        ? new Promise(() => {})
+        ? new Promise<StageReading>(() => {})
         : Promise.resolve(xyz(500, 600)))),
     };
-    const seen = [];
+    const seen: StageAt[] = [];
     const watch = watchStagePosition(backend, (p) => seen.push(p));
     await vi.advanceTimersByTimeAsync(0);
     expect(seen).toEqual([]);                    // the first read is hanging
@@ -104,9 +104,9 @@ describe("watchStagePosition", () => {
   it("reports a failed read and keeps going", async () => {
     let fail = true;
     const backend = { get_xyz: vi.fn(async () => { if (fail) throw new Error("no answer"); return xyz(4, 4); }) };
-    const errors = [];
-    const seen = [];
-    const watch = watchStagePosition(backend, (p) => seen.push(p), { onError: (e) => errors.push(e.message) });
+    const errors: string[] = [];
+    const seen: StageAt[] = [];
+    const watch = watchStagePosition(backend, (p) => seen.push(p), { onError: (e) => errors.push((e as Error).message) });
     await vi.advanceTimersByTimeAsync(0);
     expect(errors).toEqual(["no answer"]);
     fail = false;

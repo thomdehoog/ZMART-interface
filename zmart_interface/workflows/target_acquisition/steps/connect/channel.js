@@ -9,8 +9,8 @@
  * render, so nothing in it goes stale.
  */
 
-import { applyProtocol, protocolFits } from "../../shared/protocol.js";
-import { freshSettings } from "../../shared/run-document.js";
+import { applyProtocol, protocolFits } from "../../shared/protocol.ts";
+import { freshSettings } from "../../shared/run-document.ts";
 import { choicesFrom, theMockAmong } from "../../microscope/instruments.ts";
 import { activeRecording } from "../../microscope/recordings.ts";
 import { renderSessionCard } from "./session-card.js";

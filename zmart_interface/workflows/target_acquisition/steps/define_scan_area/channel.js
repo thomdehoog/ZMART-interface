@@ -10,7 +10,7 @@
 
 import { el } from "../../../../api/index.ts";
 import { hasRecording } from "../../microscope/recordings.ts";
-import { renderRecordingSlot } from "../../shared/recording-slot.js";
+import { renderRecordingSlot } from "../../shared/recording-slot.ts";
 import scanfieldsWidget, { presetInk } from "./scanfield-editor.js";
 
 /* Every preset recorded beside the fields, in the order taken — which is

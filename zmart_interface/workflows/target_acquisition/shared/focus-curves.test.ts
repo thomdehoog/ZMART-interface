@@ -1,23 +1,23 @@
 /** Reading a focus curve: the peaks in it, and which one is the tissue. */
 
 import { describe, it, expect } from "vitest";
-import { findCandidates, pickPeak, MIN_TISSUE_WIDTH_UM, METRIC_KEYS } from "./focus-curves.js";
+import { findCandidates, pickPeak, MIN_TISSUE_WIDTH_UM, METRIC_KEYS } from "./focus-curves.ts";
 import { sweep, debrisAt } from "../microscope/pretend-sample/sweep.ts";
 
 const FOCUS_Z = -412;
 
 /** An index the generator gives a speck to, and one it does not. */
-const withDebris = [...Array(40).keys()].find((i) => debrisAt(i));
-const withoutDebris = [...Array(40).keys()].find((i) => !debrisAt(i));
+const withDebris = [...Array(40).keys()].find((i) => debrisAt(i))!;
+const withoutDebris = [...Array(40).keys()].find((i) => !debrisAt(i))!;
 
 /** The peaks of a swept curve, found the way the page finds them. */
-const peaksOf = (index, metric = "brenner") =>
+const peaksOf = (index: number, metric = "brenner") =>
   findCandidates(sweep({ focusZ: FOCUS_Z, index, metric }).samples);
 
 describe("finding the peaks", () => {
   it("peaks near the true focus when nothing is in the way", () => {
     for (const metric of METRIC_KEYS) {
-      expect(Math.abs(pickPeak(peaksOf(withoutDebris, metric)).z - FOCUS_Z)).toBeLessThan(3);
+      expect(Math.abs(pickPeak(peaksOf(withoutDebris, metric))!.z - FOCUS_Z)).toBeLessThan(3);
     }
   });
 
@@ -48,7 +48,7 @@ describe("debris is the failure the rule exists for", () => {
   });
 
   it("pickPeak refuses it and takes the tissue instead", () => {
-    const chosen = pickPeak(peaksOf(withDebris));
+    const chosen = pickPeak(peaksOf(withDebris))!;
     expect(chosen.narrow).toBe(false);
     expect(chosen.width).toBeGreaterThanOrEqual(MIN_TISSUE_WIDTH_UM);
     expect(Math.abs(chosen.z - FOCUS_Z)).toBeLessThan(4);
@@ -56,6 +56,6 @@ describe("debris is the failure the rule exists for", () => {
 
   it("still answers when every peak is narrow, but flags it", () => {
     const spike = Array.from({ length: 21 }, (_, i) => ({ z: i, s: i === 10 ? 1 : 0.02 }));
-    expect(pickPeak(findCandidates(spike)).narrow).toBe(true);
+    expect(pickPeak(findCandidates(spike))!.narrow).toBe(true);
   });
 });

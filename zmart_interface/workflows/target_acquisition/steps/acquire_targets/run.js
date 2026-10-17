@@ -11,7 +11,7 @@
 
 import { status } from "../../../../api/index.ts";
 import { activeRecording } from "../../microscope/recordings.ts";
-import carrierWidget from "../../shared/carrier-panel.js";
+import carrierWidget from "../../shared/carrier-panel.ts";
 
 /* The pause before the picture moves on to the tile being taken, which
    gives the pair that just landed a moment in view. */

@@ -8,7 +8,7 @@
  */
 
 import { emptySlot, activeRecording } from "../../microscope/recordings.ts";
-import { renderRecordingSlot } from "../../shared/recording-slot.js";
+import { renderRecordingSlot } from "../../shared/recording-slot.ts";
 import galleryWidget from "./gallery.js";
 import { stopFollowingTheRun } from "./run.js";
 

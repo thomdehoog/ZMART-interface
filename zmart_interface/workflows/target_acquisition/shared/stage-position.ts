@@ -39,6 +39,27 @@ export const EVERY_MS = 5000;
  */
 export const PATIENCE_MS = 2500;
 
+/** Where the stage stands, in micrometres. */
+export interface StageAt {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** A stage reading as `get_xyz` answers it: each axis's position, in micrometres. */
+export type StageReading = { x?: { position: number }; y?: { position: number }; z?: { position: number } } | null;
+
+/** The one verb the watch asks of a backend. */
+interface ReadsTheStage {
+  get_xyz(): Promise<StageReading>;
+}
+
+/** The running watch: read now, or end it. */
+export interface StageWatch {
+  refresh(): Promise<StageAt | null>;
+  stop(): void;
+}
+
 /**
  * Start watching. `backend.get_xyz()` answers the controller's reading, one
  * entry per axis with its `position` in micrometres; `onPosition({x, y, z})`
@@ -47,17 +68,17 @@ export const PATIENCE_MS = 2500;
  * the watch — after which no more positions arrive, even from a read that was
  * still in flight.
  */
-export function watchStagePosition(backend, onPosition, {
+export function watchStagePosition(backend: ReadsTheStage, onPosition: (at: StageAt) => void, {
   every = EVERY_MS, patience = PATIENCE_MS, onError,
-} = {}) {
+}: { every?: number; patience?: number; onError?: (why: unknown) => void } = {}): StageWatch {
   let stopped = false;
-  let timer = null;
-  let inFlight = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let inFlight: Promise<StageAt | null> | null = null;
 
   /** One reading, abandoned if it takes longer than the instrument should. */
-  const ask = () => {
-    let waiting = null;
-    const tooLong = new Promise((_, giveUp) => {
+  const ask = (): Promise<StageAt | null> => {
+    let waiting: ReturnType<typeof setTimeout> | undefined;
+    const tooLong = new Promise<never>((_, giveUp) => {
       waiting = setTimeout(
         () => giveUp(new Error(`the stage did not say where it is within ${patience} ms`)),
         patience,
@@ -81,7 +102,7 @@ export function watchStagePosition(backend, onPosition, {
    * The reading the clock takes. One at a time: a second turn of the clock
    * while the first is still out waits for it rather than asking again.
    */
-  const read = () => {
+  const read = (): Promise<StageAt | null> => {
     if (stopped) return Promise.resolve(null);
     inFlight ??= ask().finally(() => { inFlight = null; });
     return inFlight;
@@ -109,7 +130,7 @@ export function watchStagePosition(backend, onPosition, {
     stop: () => {
       stopped = true;
       clearTimeout(timer);
-      timer = null;
+      timer = undefined;
     },
   };
 }

@@ -10,8 +10,8 @@
  */
 
 import { sideGroup } from "../../../../api/index.ts";
-import { progressBox } from "../../shared/progress.js";
-import { sharePoints } from "../../shared/scanfields.js";
+import { progressBox } from "../../shared/progress.ts";
+import { sharePoints } from "../../shared/scanfields.ts";
 
 /* So many tiles in each tileset, spread over it the way Step 4 spreads its
    focus points: the ground is shared out by `sharePoints`, and each share

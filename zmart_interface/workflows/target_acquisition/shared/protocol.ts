@@ -14,16 +14,44 @@
  * owns the state and the bridge the file; this knows which fields are
  * settings. It is this workflow's: which keys of the run are settings is a
  * question about a microscope run, so the file lives beside the run document
- * that names them (`run-document.js`) and not in the framework, which keeps
+ * that names them (`run-document.ts`) and not in the framework, which keeps
  * only the walk of the steps in turn (`page.run.walk`, `page.run.protocol`).
  */
 
+import type { Slot } from "../microscope/recordings.ts";
+import type { TaRun } from "../types.ts";
+import type { Anchor } from "./alignment.ts";
+import type { Carrier } from "./carriers.ts";
+import type { Gate } from "./gating.ts";
+import type { Field, XY } from "./scanfields.ts";
+
 const PROTOCOL_VERSION = 1;
+
+/** A protocol as written: the run's settings, and nothing measured. */
+export interface Protocol {
+  version: number;
+  session?: { microscope?: string | null; api?: string | null };
+  carrier: Carrier;
+  anchors: Anchor[];
+  fields: Field[];
+  overviewPreset: Slot;
+  focusPreset: Slot;
+  targetType: Slot;
+  targetFocusOn: boolean;
+  targetFocus: Slot;
+  targetZOffsetUm: number;
+  /** An older file may carry more: a fixed height, a run to reuse. */
+  focus: { strategy: string; metric: string; perField: number; perCarrier: number; points: XY[]; [older: string]: unknown };
+  detect: { algo: string; diameter: number; cellprob: number; threshold: number; border: number; binning: number };
+  gates: Gate[];
+  placing: TaRun["placing"];
+  testTiles?: { tiles: number[]; of: number };
+}
 
 const AUTOMATABLE_GATE = /^(?!pca_|umap_)/;
 
 /** The settings-only copy of a recording slot: the whole slot is settings. */
-const slot = (s) => JSON.parse(JSON.stringify(s));
+const slot = (s: Slot): Slot => JSON.parse(JSON.stringify(s));
 
 /**
  * The run's settings, picked out of the state.
@@ -34,7 +62,7 @@ const slot = (s) => JSON.parse(JSON.stringify(s));
  * drawing, without the stage readings taken at them, which belong to the
  * mount they were taken on.
  */
-export function protocolFrom(state) {
+export function protocolFrom(state: TaRun): Protocol {
   const f = state.focus;
   const d = state.detect;
   return {
@@ -69,7 +97,7 @@ export function protocolFrom(state) {
     },
     gates: state.gates
       .filter((g) => AUTOMATABLE_GATE.test(g.fx) && AUTOMATABLE_GATE.test(g.fy))
-      .map((g) => ({ fx: g.fx, fy: g.fy, vertices: g.vertices.map(([x, y]) => [x, y]) })),
+      .map((g) => ({ fx: g.fx, fy: g.fy, vertices: g.vertices.map(([x, y]): [number, number] => [x, y]) })),
     placing: { ...state.placing },
     testTiles: { tiles: [...(state.testTiles ?? [])].sort((a, b) => a - b), of: state.plan.length },
   };
@@ -81,7 +109,7 @@ export function protocolFrom(state) {
  * that instrument's states; applied on another they would name objectives
  * and channels that are not there.
  */
-export function protocolFits(state, protocol) {
+export function protocolFits(state: TaRun, protocol: Protocol): string | null {
   if (protocol.version > PROTOCOL_VERSION) {
     return `written by a newer page (version ${protocol.version})`;
   }
@@ -106,7 +134,7 @@ export function protocolFits(state, protocol) {
  * the state had it — fresh, when the caller made it so — because a protocol
  * carries no results and must not invent any.
  */
-export function applyProtocol(state, protocol) {
+export function applyProtocol(state: TaRun, protocol: Protocol): TaRun {
   state.carrier = { ...protocol.carrier };
   state.anchors = protocol.anchors.map(({ x, y, at }) => ({ x, y, at }));
   state.fields = JSON.parse(JSON.stringify(protocol.fields));
@@ -132,7 +160,7 @@ export function applyProtocol(state, protocol) {
     points: protocol.focus.points.map(({ x, y }) => ({ x, y, z: null })),
   });
   Object.assign(state.detect, protocol.detect);
-  state.gates = protocol.gates.map((g) => ({ fx: g.fx, fy: g.fy, vertices: g.vertices.map(([x, y]) => [x, y]) }));
+  state.gates = protocol.gates.map((g) => ({ fx: g.fx, fy: g.fy, vertices: g.vertices.map(([x, y]): [number, number] => [x, y]) }));
   state.placing = { ...protocol.placing };
   state.testTiles = new Set(protocol.testTiles?.tiles ?? []);
   return state;

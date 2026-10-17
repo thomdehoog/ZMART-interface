@@ -9,7 +9,7 @@
 
 import { burst } from "./confetti.js";
 import { css, sideGroup, staleSteps } from "../../../../api/index.ts";
-import { protocolFrom } from "../../shared/protocol.js";
+import { protocolFrom } from "../../shared/protocol.ts";
 
 /** The operator looked at every orange step and agrees with them as they
     stand: one press, in Step 10's box, there only while something is

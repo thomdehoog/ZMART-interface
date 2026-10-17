@@ -10,5 +10,6 @@
   ],
   "project": ["zmart_interface/**/*.{js,mjs,ts}", "tools/*.mjs", "!zmart_interface/build/**"],
   "ignoreDependencies": ["zmart-viewer"],
-  "ignoreUnresolved": ["^/zmart_interface/"]
+  "ignoreUnresolved": ["^/zmart_interface/"],
+  "ignoreExportsUsedInFile": { "interface": true, "type": true }
 }

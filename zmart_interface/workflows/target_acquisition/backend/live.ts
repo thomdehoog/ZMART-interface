@@ -33,7 +33,7 @@
    the vite server holds the page instead. */
 import { atBridge } from "../../../api/index.ts";
 import { PENDING, isFailed } from "../microscope/connection-status.ts";
-import { findCandidates, pickPeak } from "../shared/focus-curves.js";
+import { findCandidates, pickPeak } from "../shared/focus-curves.ts";
 import type {
   Backend, CaptureRecord, Connecting, ControllerAnswer, FocusAsk, FocusPoint, FoundField, Opening, Place, PlotColumns,
   Reading, RunProgress, ScanPosition, TargetFocus, TargetPosition, Traces, ViewerStatus, WrittenProtocol, XyzReading,

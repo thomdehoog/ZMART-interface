@@ -1,5 +1,5 @@
 /** Keep a failed preview distinguishable from an image with no signal. */
-export function previewMessage(paint, width, height, message) {
+export function previewMessage(paint: CanvasRenderingContext2D, width: number, height: number, message: string) {
   paint.save();
   paint.fillStyle = "#05090e";
   paint.fillRect(0, 0, width, height);

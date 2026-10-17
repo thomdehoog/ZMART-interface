@@ -8,7 +8,7 @@
  */
 
 import { activeRecording } from "../../microscope/recordings.ts";
-import { keptUnderCeiling } from "../../shared/gating.js";
+import { keptUnderCeiling } from "../../shared/gating.ts";
 import { planScanAreas } from "./scan-areas.js";
 
 /* Scan areas over the sampled targets, by the optimisation in

@@ -4,8 +4,8 @@
  */
 
 import { status } from "../../../../api/index.ts";
-import { newMaskLayer, replaceMaskLayer } from "../../shared/mask-layers.js";
-import { cellsInAllGates } from "../../shared/gating.js";
+import { newMaskLayer, replaceMaskLayer } from "../../shared/mask-layers.ts";
+import { cellsInAllGates } from "../../shared/gating.ts";
 import { settingsFor } from "./detection.js";
 import { forgetTheMasks } from "./layers.js";
 

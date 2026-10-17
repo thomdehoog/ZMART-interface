@@ -10,11 +10,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { ANCHORS_AGREE_WITHIN_UM, anchorDisagreementUm, anchorWarning } from "./alignment.js";
+import { ANCHORS_AGREE_WITHIN_UM, anchorDisagreementUm, anchorWarning } from "./alignment.ts";
 
 /* A point on the drawing at (x, y), snapped where the stage stood: the
    carrier's zero is at (1000, 2000) on the stage, plus whatever `off` adds. */
-const snapped = (x, y, off = [0, 0]) => ({ x, y, stage: { x: 1000 + x + off[0], y: 2000 + y + off[1] } });
+const snapped = (x: number, y: number, off = [0, 0]) => ({ x, y, stage: { x: 1000 + x + off[0], y: 2000 + y + off[1] } });
 
 describe("how far the alignment points disagree", () => {
   it("is nothing to say with fewer than two points snapped", () => {

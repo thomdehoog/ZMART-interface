@@ -10,8 +10,8 @@
  * them.
  */
 
-import carrierWidget from "../../shared/carrier-panel.js";
-import { describeCarrier } from "../../shared/carriers.js";
+import carrierWidget from "../../shared/carrier-panel.ts";
+import { describeCarrier } from "../../shared/carriers.ts";
 
 /** Standing on the step settles it: the carrier is whatever is configured. */
 export function carrierSettled(page) {

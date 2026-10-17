@@ -4,10 +4,10 @@ import {
   maxRadius, DEFAULT_CARRIER,
   depthMm, describeCarrier,
   centres, areaLabels, nearestArea, frameFitsArea, frameSeat, insideArea, scanBox,
-} from "./carriers.js";
+} from "./carriers.ts";
 
-const preset = (typeId, label) =>
-  carrierType(typeId).presets.find((p) => p.label.startsWith(label));
+const preset = (typeId: string, label: string) =>
+  carrierType(typeId).presets.find((p) => p.label.startsWith(label)!)!;
 
 describe("a carrier is a grid, whatever it is called", () => {
   it("measures a 96-well plate the way the catalogue does", () => {
@@ -159,7 +159,7 @@ describe("what the objective sees has to be inside an area", () => {
   /* A 96-well plate: wells 6.58 mm across, round, 9 mm apart. The overview
      preset sees 2.662 mm of sample at a time. */
   const plate = fromPreset("wellplate",
-    carrierType("wellplate").presets.find((p) => p.label.startsWith("96-well")));
+    carrierType("wellplate").presets.find((p) => p.label.startsWith("96-well"))!);
   const FRAME = 2.662;
   const well = centres(plate)[0];
 
@@ -176,7 +176,7 @@ describe("what the objective sees has to be inside an area", () => {
   });
 
   it("the well nearest a point is the one it would be imaged in", () => {
-    const next = centres(plate).find((c) => c.row === 0 && c.col === 1);
+    const next = centres(plate).find((c) => c.row === 0 && c.col === 1)!;
     expect(nearestArea(plate, well.x + 5.0, well.y).col).toBe(next.col);
     expect(nearestArea(plate, well.x + 4.0, well.y).col).toBe(well.col);
   });
@@ -201,7 +201,7 @@ describe("what the objective sees has to be inside an area", () => {
   it("cuts a softened corner back to its chord, and nothing more", () => {
     // a chamber, which really is softened at the corners
     const chamber = fromPreset("chamber",
-      carrierType("chamber").presets.find((p) => p.label.startsWith("1-chamber")));
+      carrierType("chamber").presets.find((p) => p.label.startsWith("1-chamber"))!);
     const { corner } = geometry(chamber);
     const cut = corner - corner / Math.SQRT2;
     expect(scanBox(chamber).halfW).toBeCloseTo(45.05 / 2 - cut, 9);
@@ -210,12 +210,12 @@ describe("what the objective sees has to be inside an area", () => {
 
   it("images an area to its own edges, having no corners to cut", () => {
     const slide = fromPreset("slide",
-      carrierType("slide").presets.find((p) => p.label === "75 × 25 mm slide"));
+      carrierType("slide").presets.find((p) => p.label === "75 × 25 mm slide")!);
     expect(scanBox(slide)).toEqual({ halfW: 36.5, halfH: 11.5 });
   });
 
   it("seats a frame that does not fit by sliding it in towards the middle", () => {
-    const seat = frameSeat(plate, well.x + 2.6, well.y, FRAME);
+    const seat = frameSeat(plate, well.x + 2.6, well.y, FRAME)!;
     expect(frameFitsArea(plate, seat.x, seat.y, FRAME)).toBe(true);
     // straight in: same y, and no further in than it had to come
     expect(seat.y).toBeCloseTo(well.y, 6);
@@ -229,7 +229,7 @@ describe("what the objective sees has to be inside an area", () => {
   });
 
   it("moves one dropped on the plastic into the well it was nearest", () => {
-    const seat = frameSeat(plate, well.x + 4.5, well.y, FRAME);
+    const seat = frameSeat(plate, well.x + 4.5, well.y, FRAME)!;
     expect(frameFitsArea(plate, seat.x, seat.y, FRAME)).toBe(true);
   });
 
@@ -239,11 +239,11 @@ describe("what the objective sees has to be inside an area", () => {
 
   it("holds a slide to its one area, corners and all", () => {
     const slide = fromPreset("slide",
-      carrierType("slide").presets.find((p) => p.label === "75 × 25 mm slide"));
+      carrierType("slide").presets.find((p) => p.label === "75 × 25 mm slide")!);
     expect(frameFitsArea(slide, 36.5, 11.5, FRAME)).toBe(true);
     expect(frameFitsArea(slide, 0.5, 11.5, FRAME)).toBe(false);
     // in from the left edge by the corner it was cut back to, plus half a frame
     const edge = 36.5 - scanBox(slide).halfW;
-    expect(frameSeat(slide, 0.5, 11.5, FRAME).x).toBeCloseTo(edge + FRAME / 2, 3);
+    expect(frameSeat(slide, 0.5, 11.5, FRAME)!.x).toBeCloseTo(edge + FRAME / 2, 3);
   });
 });

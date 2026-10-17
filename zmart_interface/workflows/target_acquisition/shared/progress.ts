@@ -25,7 +25,7 @@
 import { sideGroup } from "../../../api/index.ts";
 
 /** A duration in the box's own words. */
-const saySpan = (s) => (s >= 90
+const saySpan = (s: number): string => (s >= 90
   ? `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, "0")} s`
   : `${s >= 10 ? Math.round(s) : Math.max(0.1, s).toFixed(1)} s`);
 
@@ -33,7 +33,25 @@ const saySpan = (s) => (s >= 90
  * The box, hidden until the run starts. `now` is the clock the pace is
  * measured on, the page's own unless a test hands in one it can move.
  */
-export function progressBox(title, { now = () => performance.now() } = {}) {
+/** One thing the run says: that it started, how far it is, what it is doing, or that it ended. */
+export interface Snap {
+  start?: boolean;
+  doing?: string | null;
+  done?: number | null;
+  of?: number | null;
+  ended?: boolean;
+  note?: string;
+}
+
+/** The box: its group, what it is told, and the two halves of its line. */
+export interface ProgressBox {
+  group: HTMLElement;
+  say(snap: Snap): void;
+  doing: HTMLElement;
+  count: HTMLElement;
+}
+
+export function progressBox(title: string, { now = () => performance.now() }: { now?: () => number } = {}): ProgressBox {
   const box = sideGroup(title);
   box.group.style.display = "none";
   const bar = document.createElement("div");
@@ -53,20 +71,20 @@ export function progressBox(title, { now = () => performance.now() } = {}) {
   /* When the run under way began, for the pace the count line projects.
      Cleared when the run ends; restarted if the box was rebuilt mid-run,
      which loses the early pace but never shows a stale one. */
-  let ranSince = null;
+  let ranSince: number | null = null;
   /* Where the count stands, for the line to settle on when the run ends:
      an estimate of time left is no word for a run that has stopped. */
-  let stood = null;
+  let stood: string | null = null;
   /* Seconds an item took, on average, in the last run that finished: what
      the next run is projected from until it has a pace of its own. A first
      run projects nothing until its first item lands. */
-  let lastPer = null;
+  let lastPer: number | null = null;
   let landed = 0;
 
-  const projected = (done, of, per) => `${done} of ${of}`
+  const projected = (done: number, of: number, per: number | null): string => `${done} of ${of}`
     + (per !== null && of > done ? ` · ≈ ${saySpan(per * (of - done))} left` : "");
 
-  function say(snap) {
+  function say(snap: Snap) {
     box.group.style.display = "";
     if (snap.start) {
       ranSince = now();
@@ -92,7 +110,7 @@ export function progressBox(title, { now = () => performance.now() } = {}) {
     }
     if (snap.ended) {
       bar.classList.remove("busy");
-      doing.textContent = snap.note;
+      doing.textContent = snap.note ?? "";
       if (stood !== null) count.textContent = stood;
       if (ranSince !== null && landed > 0) lastPer = (now() - ranSince) / 1000 / landed;
       ranSince = null;

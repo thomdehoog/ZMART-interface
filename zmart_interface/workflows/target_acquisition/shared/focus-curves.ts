@@ -10,7 +10,26 @@
 
 /** The two sharpness measures, by the key a curve is filed under: the name
     the page shows, and the colour token its line is drawn in. */
-export const METRICS = {
+import type { Sample } from "../microscope/pretend-sample/sweep.ts";
+
+/** A sharpness measure as the page names and draws it. */
+export interface Metric {
+  label: string;
+  short: string;
+  token: string;
+}
+
+/** A peak in a curve: its refined height and score, its half-height width,
+    the three samples it was refined from, and whether it is too narrow to be tissue. */
+export interface Candidate {
+  z: number;
+  s: number;
+  width: number;
+  used: [Sample, Sample, Sample];
+  narrow: boolean;
+}
+
+export const METRICS: Record<string, Metric> = {
   brenner: { label: "Gradient-based", short: "Gradient-based", token: "--m-brenner" },
   dct: { label: "Entropy-based", short: "Entropy-based", token: "--m-dct" },
 };
@@ -24,10 +43,10 @@ export const MIN_TISSUE_WIDTH_UM = 4.5;
  * Every local maximum, refined by a parabola through its three samples, with
  * the half-height width that tells tissue from a speck.
  */
-export function findCandidates(samples) {
+export function findCandidates(samples: Sample[]): Candidate[] {
   const stepUm = samples[1].z - samples[0].z;
   const floor = Math.min(...samples.map((q) => q.s));
-  const out = [];
+  const out: Candidate[] = [];
 
   for (let i = 1; i < samples.length - 1; i++) {
     if (!(samples[i].s >= samples[i - 1].s && samples[i].s > samples[i + 1].s)) continue;
@@ -62,7 +81,7 @@ export function findCandidates(samples) {
  * `narrow`, because refusing to answer helps nobody — but the caller, and the
  * operator, get to see that it is suspect.
  */
-export function pickPeak(candidates) {
+export function pickPeak(candidates: Candidate[]): Candidate | null {
   /* Nothing rose anywhere in the sweep, so there is nothing to pick. Reachable
      once a search can be told where to begin: start it far enough from the
      tissue and the objective travels its whole range without ever seeing it. */

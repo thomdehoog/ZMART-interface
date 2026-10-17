@@ -21,22 +21,22 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { anchorsUm, howManyAnchorsFit }
-  from "./carrier-panel.js";
-import { carrierType, centres, fromPreset, geometry }
-  from "./carriers.js";
+import { anchorsUm, howManyAnchorsFit, type Mark }
+  from "./carrier-panel.ts";
+import { carrierType, centres, fromPreset, geometry, type Area, type Carrier }
+  from "./carriers.ts";
 
 const MM_UM = 1000;
 
 /* The mark's own area: the nearest one, in both axes at once. Matching on the
    single axis the mark is centred in is not enough — every area in a column
    shares that centre line, and the first of them is rarely the right one. */
-const areaUnder = (config, mark) => centres(config).reduce((best, a) => {
-  const far = (c) => (c.x * MM_UM - mark.x) ** 2 + (c.y * MM_UM - mark.y) ** 2;
+const areaUnder = (config: Carrier, mark: Mark) => centres(config).reduce((best, a) => {
+  const far = (c: Area) => (c.x * MM_UM - mark.x) ** 2 + (c.y * MM_UM - mark.y) ** 2;
   return far(a) < far(best) ? a : best;
 });
 
-const by = (marks) => Object.fromEntries(marks.map((m) => [m.at, m]));
+const by = (marks: Mark[]) => Object.fromEntries(marks.map((m) => [m.at, m]));
 
 /* The ibidi 8-chamber, taken from the presets rather than written out here:
    two rows deep and four columns across, so every outermost row and column is
@@ -44,8 +44,8 @@ const by = (marks) => Object.fromEntries(marks.map((m) => [m.at, m]));
    `fromPreset` because that is the only thing that turns a preset into the
    config the rest of the code reads — a hand-written one silently produces
    NaN pitches and no areas at all. */
-const preset = (typeId, label) =>
-  fromPreset(typeId, carrierType(typeId).presets.find((p) => p.label === label));
+const preset = (typeId: string, label: string) =>
+  fromPreset(typeId, carrierType(typeId).presets.find((p) => p.label === label)!);
 const eightChambers = preset("chamber", "8-well · ibidi µ-Slide");
 
 describe("a full round of four alignment points", () => {
@@ -74,7 +74,7 @@ describe("a full round of four alignment points", () => {
 
   it("leans each mark a quarter turn on, so the four land on four areas", () => {
     const m = by(anchorsUm(eightChambers, 4));
-    const chose = (k) => areaUnder(eightChambers, m[k]);
+    const chose = (k: string) => areaUnder(eightChambers, m[k]);
     const [top, right, bottom, left] = ["top", "right", "bottom", "left"].map(chose);
 
     /* All four turn the same way round the carrier: on a two-by-four the left
@@ -108,15 +108,15 @@ describe("a full round of four alignment points", () => {
  * sitting to that side of where it really is.
  */
 describe("what the four leave behind", () => {
-  const everyPreset = ["chamber", "wellplate", "dish", "area"]
-    .flatMap((type) => (carrierType(type)?.presets ?? [])
+  const everyPreset = ["chamber", "wellplate", "dish", "slide"]
+    .flatMap((type) => carrierType(type).presets
       .filter((p) => p.label !== "Custom")
-      .map((p) => [`${type} · ${p.label}`, fromPreset(type, p)]));
+      .map((p): [string, Carrier] => [`${type} · ${p.label}`, fromPreset(type, p)]));
 
   it.each(everyPreset)("centres %s on the middle of its own marks", (_name, config) => {
     const marks = anchorsUm(config, 4);
     const g = geometry(config);
-    const mean = (f) => marks.reduce((sum, m) => sum + f(m), 0) / marks.length;
+    const mean = (f: (m: Mark) => number) => marks.reduce((sum, m) => sum + f(m), 0) / marks.length;
     expect(mean((m) => m.x)).toBeCloseTo((g.width / 2) * MM_UM, 6);
     expect(mean((m) => m.y)).toBeCloseTo((g.height / 2) * MM_UM, 6);
   });

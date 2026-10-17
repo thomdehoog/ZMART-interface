@@ -3,7 +3,7 @@
  * document.
  *
  * The page keeps one plain object for the whole run, `page.run`. The
- * framework's `run-state.js` writes the keys every workflow has -- which
+ * framework's `run-state.ts` writes the keys every workflow has -- which
  * step is active, which are done, what is running -- and asks the workflow
  * for the rest. This file is the answer for target acquisition: everything
  * the operator settles or measures while driving a microscope, from the
@@ -16,10 +16,102 @@
  * `page.run` by this workflow's own steps.
  */
 
-import { DEFAULT_SESSION } from "../microscope/instruments.ts";
+import type { Backend, FocusSpot, FoundObject, WrittenProtocol } from "../backend/verbs.ts";
+import { DEFAULT_SESSION, type Choice, type Session } from "../microscope/instruments.ts";
 import { emptySlot } from "../microscope/recordings.ts";
-import { DEFAULT_CARRIER } from "./carriers.js";
-import { targetsDress, tilesDress } from "./mask-layers.js";
+import type { Anchor } from "./alignment.ts";
+import { DEFAULT_CARRIER, type Carrier } from "./carriers.ts";
+import type { Gate } from "./gating.ts";
+import { targetsDress, tilesDress, type MaskLayer } from "./mask-layers.ts";
+import type { Field, XY } from "./scanfields.ts";
+import type { TaRun } from "../types.ts";
+
+/** A position of the overview's plan: where, how wide a frame, and which field, tileset, compartment and group it is of. */
+export interface PlanTile extends XY {
+  frameUm: number;
+  fieldId?: string | number;
+  tileset: string;
+  compartment: number;
+  group: number;
+}
+
+/** The plan as it was scanned, and which plan index each scanned field was. */
+export interface Scanned {
+  plan: PlanTile[];
+  fields: number[];
+}
+
+/** A tile laid round chosen targets: where, how wide, which targets it covers, and which overview tileset they came from. */
+export interface TargetTile extends XY {
+  id: string;
+  targetId?: string;
+  frameUm: number;
+  covers: string[];
+  overviewTileset?: unknown;
+  positionIndex?: number;
+  key?: string;
+  [more: string]: unknown;
+}
+
+/** What placing the target tiles came to. */
+export interface TilePlan {
+  placed: TargetTile[];
+  uncovered: string[];
+  leftOut: string[];
+  notes: string[];
+}
+
+/** A target tile as it was acquired: where, how wide the capture is, its label and its focussing. */
+export interface AcquiredTile extends XY {
+  frameUm: number | null;
+  label?: string;
+  taken: unknown;
+  focus: unknown;
+  positionIndex: number;
+  tile: TargetTile;
+}
+
+/** One of the connection's checks: what is asked, and the driver's answer once it has one. */
+export interface Check {
+  label: string;
+  result: string | null;
+}
+
+/** A protocol as the Protocol box lists it: written on this machine, or read from a file. */
+export interface ListedProtocol extends WrittenProtocol {
+  written?: number;
+  fromFile?: boolean;
+}
+
+/** What a walk of Run protocol came to. */
+export interface ProtocolSummary {
+  ended: string;
+  tiles: number;
+  objects: number;
+  gated: number;
+  targets: number;
+  seconds: number;
+  stoppedAt: string | null;
+  endedAt: number;
+}
+
+/** How far a walk of Run protocol has got. */
+export interface ProtocolWalk {
+  at: number;
+  of: number;
+  within: { done: number; of: number } | null;
+  summary: ProtocolSummary | null;
+}
+
+/** The surface fitted through a focus map's heights. */
+export interface Surface {
+  kind: string;
+  model: string;
+  [more: string]: unknown;
+}
+
+/** A focus point on a map: placed, then measured, and how far the fitted surface misses it. */
+export type MapPoint = FocusSpot & { residual?: number | null };
 
 /* The focus strategy is its own little document: which approach, that
    approach's parameters, and whatever it has produced so far.
@@ -39,16 +131,16 @@ export function newFocus() {
   return {
     strategy: "plane",
     metric: "brenner",   // which sharpness score the sweep is scored with
-    points: [],          // picked positions, plane strategy only
+    points: [] as MapPoint[], // picked positions, plane strategy only
     perField: 1,         // how many Place lays in each tileset
     perCarrier: 4,       // and how many it lays over the whole carrier
     selected: 0,         // which point's trace is charted
-    picked: new Set(),   // which are held, for moving or taking away together
+    picked: new Set<number>(), // which are held, for moving or taking away together
     hovered: -1,         // which one the pointer has found, if any
     placing: false,      // whether the crosshair is armed for a press
     applied: false,
-    surface: null,       // constant | plane | spline, chosen by geometry
-    residual: null,
+    surface: null as Surface | null, // constant | plane | spline, chosen by geometry
+    residual: null as number | null,
     worst: -1,
   };
 }
@@ -64,15 +156,18 @@ function newDetect() {
     border: 0,       // µm from the field's edge inside which a cell is dropped
     binning: 1,      // segment on a copy this many times smaller each side
     maskShow: "fill", // how the test view wears the masks: fill | line | off
-    maskColour: null, // one colour for every object, or null for each its own
+    maskColour: null as string | null, // one colour for every object, or null for each its own
     maskAlpha: 0.65,  // how strongly the masks sit on the image (0..1)
     tile: 0,         // the current field of the plan: framed by Tile, tested
     targetTile: 0,   // the current target tile, on the steps about the targets
     hovered: -1,     // the tile under the pointer, a press from being tested
     tested: false,
-    tried: [],
+    tried: [] as number[],
   };
 }
+
+/** A focus map: where to measure, what was measured, and the surface fitted to it. */
+export type FocusMap = ReturnType<typeof newFocus>;
 
 /** The placing levers as a run starts, as `scan-areas.js` reads them. */
 const newPlacing = () => ({ margin: 1, objectsMax: 50, minimise: true, overlapMin: 0.2 });
@@ -85,13 +180,13 @@ const newPlacing = () => ({ margin: 1, objectsMax: 50, minimise: true, overlapMi
  * its own keys when it makes a fresh run (`freshRun` in
  * `framework/window/run-state.ts`), so a step finds both on `page.run`.
  */
-export function freshState({ backend }) {
+export function freshState({ backend }: { backend: Pick<Backend, "viewOf"> }) {
   return {
-    session: { ...DEFAULT_SESSION },
+    session: { ...DEFAULT_SESSION } as Session,
     /* What can be connected to, as the interface lists it (`/api/instruments`),
        grouped for the card: microscopes, each with its drivers. Loaded once
        the backend is known; empty until then. */
-    instruments: [],
+    instruments: [] as Choice[],
     overviewPreset: emptySlot("acquisition"),
     focusPreset: emptySlot("autofocus"),
     /* Read from further along the instrument's list than the overview: what
@@ -107,37 +202,37 @@ export function freshState({ backend }) {
     targetZOffsetUm: 0,
     /* How wide each acquired frame is on the sample, from the target
        recording; known once one has been taken or placed. */
-    targetFrameUm: null,
-    carrier: { ...DEFAULT_CARRIER },
+    targetFrameUm: null as number | null,
+    carrier: { ...DEFAULT_CARRIER } as Carrier,
     /* Points put on the carrier drawing, in the carrier's own coordinates, to
        be driven to on the microscope. Placed the way focus points are: the
        button arms, and the next press on the canvas puts one down. Which one
        is pressed, and which one the pointer rests on in the list. */
-    anchors: [],
+    anchors: [] as Anchor[],
     anchoring: false,
     anchorPicked: -1,
     anchorLit: -1,
     /* The scan fields the operator drew, and the plan -- the positions the
        stage will visit -- worked out from them and the active preset. */
-    fields: [],
-    plan: [],
+    fields: [] as Field[],
+    plan: [] as PlanTile[],
     /* The connection checks, one row per question the driver answers. */
-    checks: [],
+    checks: [] as Check[],
     /* The tiles the overview is rehearsed on: plan indices pressed green in
        Step 5. Empty means the whole plan. And how many the box offers to
        pick per tileset. */
-    testTiles: new Set(),
+    testTiles: new Set<number>(),
     testN: 3,
     /* The protocols this machine has written, listed after connecting; the
        one this run was opened on, or null for a run from scratch; the
        sentence the Protocol box shows about it; and whether the steps after
        the focus map are still waiting to appear from the file. */
-    protocols: [],
+    protocols: [] as ListedProtocol[],
     /* How far a walk of Run protocol has got -- which step of how many, and
        that step's own progress -- and what it came to. Whether one is
        walking is the framework's (`run.walk`). */
-    protocol: { at: 0, of: 0, within: null, summary: null },
-    protocolChosen: null,
+    protocol: { at: 0, of: 0, within: null, summary: null } as ProtocolWalk,
+    protocolChosen: null as string | null,
     protocolNote: "",
     protocolPending: false,
     /* The plan as it was scanned -- the tiles sent, in the order sent -- and
@@ -145,64 +240,64 @@ export function freshState({ backend }) {
        through `plan`, so a field's picture stays where it was taken when the
        plan is edited afterwards, and a scan of a few tiles numbers its
        fields the way the bridge does: by their place in what was sent. */
-    scanned: null,
+    scanned: null as Scanned | null,
     tilesShown: 0,
     focus: newFocus(),
     /* A focus map apiece: the points measured under one focussing preset are
        not the points measured under another, and switching between them is
        switching between two maps rather than editing one. Kept by the
        recording's id, with `focusFor` saying whose map `focus` currently is. */
-    focusMaps: {},
-    focusFor: null,
+    focusMaps: {} as Record<string, FocusMap>,
+    focusFor: null as string | null,
     detect: newDetect(),
     /* What discovery found, by id, and the label of the field each came
        from, which is where its picture is. */
-    cells: new Map(),
-    fieldLabels: {},
+    cells: new Map<string, FoundObject>(),
+    fieldLabels: {} as Record<number, string>,
     /* The fields the run's own discovery has examined: the masks the canvas
        shows are theirs alone, never a tile test's left on disk. */
-    examined: new Set(),
+    examined: new Set<number>(),
     /* The mask layers detection has laid, one per picture it ran on: what
        the masks bar draws and whose dress the canvas wears. */
-    masks: [],
+    masks: [] as MaskLayer[],
     /* Where this backend serves the overview's and the targets' pictures,
        if anywhere. */
     overviewPictures: backend.viewOf?.("overview") ?? null,
     targetPictures: backend.viewOf?.("targets") ?? null,
     cellsShown: false,
     targetsDress: targetsDress(),
-    gates: [],           // [{fx, fy, vertices: [[x, y], ...]}] — see gating.js
+    gates: [] as Gate[], // [{fx, fy, vertices: [[x, y], ...]}] — see gating.ts
     /* The selection as it stands: what the gates let through, and once
        Restrict has been pressed, that held under the ceiling. The canvas
        rings it and the targets scan images it. */
-    gated: new Set(),
+    gated: new Set<string>(),
     /* What Restrict kept of it under the ceiling, and the tiles laid round
        those -- the plan the acquisition images. */
-    restricted: new Set(),
-    targetTiles: [],
+    restricted: new Set<string>(),
+    targetTiles: [] as TargetTile[],
     tilesDress: tilesDress(),
     /* The placing levers, as scan-areas.js reads them, and what the last
        placing came to. */
     placing: newPlacing(),
-    tilePlan: null,
-    acquired: [],
+    tilePlan: null as TilePlan | null,
+    acquired: [] as string[],
     /* The acquired target whose pair the gallery shows, chosen there or on
        the canvas; null until one is acquired. Whether that choice was the
        gallery's own quiet follow rather than the operator's. */
-    selectedTarget: null,
+    selectedTarget: null as string | null,
     selectedQuietly: false,
     /* The acquired target under the pointer on the acquisition step: what a
        press would choose, outlined so the hand knows before it presses. */
-    hoveredTarget: null,
-    acquiredLabels: {},
-    acquiredTiles: {},
+    hoveredTarget: null as string | null,
+    acquiredLabels: {} as Record<string, string | undefined>,
+    acquiredTiles: {} as Record<string, AcquiredTile>,
   };
 }
 
 /* What survives a disconnect or a change of workflow, of this workflow's
    own keys: who the operator was talking to. Everything else was read off
    the session or made against it, and goes with it. The framework adds the
-   keys of its own that survive (`startOver` in `run-state.js`). */
+   keys of its own that survive (`startOver` in `run-state.ts`). */
 export const keptAcrossSessions = ["session", "instruments"];
 
 /* The settings a protocol carries, and the results that stand on them. A
@@ -223,9 +318,10 @@ const THE_SETTINGS = [
  * exception in the list: the steps settled from a protocol are orange until
  * confirmed, so a fresh start empties it.
  */
-export function freshSettings(state, backend) {
-  const fresh = { ...freshState({ backend }), stale: new Set() };
-  for (const key of THE_SETTINGS) state[key] = fresh[key];
+export function freshSettings(state: TaRun, backend: Backend): void {
+  const fresh: Record<string, unknown> = { ...freshState({ backend }), stale: new Set<string>() };
+  const settled = state as unknown as Record<string, unknown>;
+  for (const key of THE_SETTINGS) settled[key] = fresh[key];
   state.notes = { connect: state.notes.connect };
   state.done = new Set(state.done.has("connect") ? ["connect"] : []);
   state.ran = new Set(state.ran.has("connect") ? ["connect"] : []);
@@ -237,7 +333,7 @@ export function freshSettings(state, backend) {
  * why a step did nothing rather than only that it did. The framework adds
  * its own fields (which step is active, which are done, what is running).
  */
-export function forTests(state) {
+export function forTests(state: TaRun) {
   return {
     testTiles: [...state.testTiles], scannedFields: state.scanned?.fields ?? null,
     focus: { strategy: state.focus.strategy, applied: state.focus.applied,

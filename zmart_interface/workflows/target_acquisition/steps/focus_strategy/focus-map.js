@@ -19,17 +19,17 @@
  * about this step, whoever owns the canvas.
  */
 
-import carrierWidget from "../../shared/carrier-panel.js";
+import carrierWidget from "../../shared/carrier-panel.ts";
 import { METRICS, METRIC_KEYS, MIN_TISSUE_WIDTH_UM, findCandidates, pickPeak }
-  from "../../shared/focus-curves.js";
+  from "../../shared/focus-curves.ts";
 import {
   fitSurface, residualsUm, surfaceZ,
 } from "./surface.js";
-import { sharePoints } from "../../shared/scanfields.js";
+import { sharePoints } from "../../shared/scanfields.ts";
 import { visitOrder } from "./visit-order.js";
 import { zColourScale } from "./z-domain.js";
 import { status } from "../../../../api/index.ts";
-import { progressBox } from "../../shared/progress.js";
+import { progressBox } from "../../shared/progress.ts";
 import { activeRecording } from "../../microscope/recordings.ts";
 /* The step's controls, as markup: read in as text by the build tool. */
 import focusControlsMarkup from "./focus-controls.html?raw";

@@ -17,20 +17,67 @@
  */
 
 import { sideGroup } from "../../../api/index.ts";
-import { anchorWarning } from "./alignment.js";
+import { anchorWarning, type Anchor } from "./alignment.ts";
 import {
   CARRIER_TYPES, carrierType, fromPreset, matchingPreset, geometry, maxRadius,
   centres, areaLabels, depthMm,
-} from "./carriers.js";
+  type Area, type Carrier, type CarrierType, type Grid, type Preset,
+} from "./carriers.ts";
+
+/** Where a place on the stage, in micrometres from the carrier's zero, lands on screen. */
+type ToScreen = (x: number, y: number) => [number, number];
+
+/** What drawing the carrier is handed: the carrier, the projection, the scale and the inks. */
+interface Drawing {
+  config: Carrier;
+  toScreen: ToScreen;
+  scale: number;
+  colour: string;
+  fill?: string | null;
+}
+
+/** A place a carrier is aligned from: which border it sits on, and where, in the carrier's micrometres. */
+export interface Mark {
+  at: string;
+  x: number;
+  y: number;
+}
+
+/** The alignment points as the panel asks after them; the page keeps them. */
+export interface Anchors {
+  suggest(marks: Mark[]): void;
+  arming(): boolean;
+  list(): Anchor[];
+  picked(): number;
+  snap(index: number): void;
+  light(index: number): void;
+  pick(index: number): void;
+  onChange(redraw: () => void): void;
+}
+
+/** Which pairs of numbers move together. */
+type Link = { grid: boolean; size: boolean; gap: boolean };
+
+/** One box in a row of numbers: what it edits, its label, how it reads and writes, its floor, and for which types it is shown. */
+interface NumberField {
+  name: string;
+  label: string;
+  get: () => number;
+  set: (v: number) => void;
+  min: () => number;
+  when?: (type: CarrierType) => boolean;
+}
 
 const SVG = "http://www.w3.org/2000/svg";
-const svgEl = (tag, attrs = {}) => {
+const svgEl = (tag: string, attrs: Record<string, string | number> = {}): SVGElement => {
   const e = document.createElementNS(SVG, tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
   return e;
 };
 
-const el = (tag, cls, text) => {
+const el = <K extends keyof HTMLElementTagNameMap>(
+  tag: K, cls?: string | null, text?: string | null,
+): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
   if (text != null) e.textContent = text;
@@ -47,13 +94,13 @@ const NAME_OF_THE_PITCH = 0.22;
    below this the names are not drawn at all. */
 const NAMES_NEED_PX = 14;
 
-function drawTheNames(ctx, { config, toScreen, scale, colour }) {
+function drawTheNames(ctx: CanvasRenderingContext2D, { config, toScreen, scale, colour }: Drawing): void {
   const { rows, cols } = areaLabels(config);
   if (!rows.length) return;
   const { pitchX, pitchY } = geometry(config);
   const pitch = Math.min(pitchX, pitchY) * MM_UM * scale;
   if (pitch < NAMES_NEED_PX) return;
-  const at = (a) => toScreen((a.x - config.w / 2) * MM_UM, (a.y - config.h / 2) * MM_UM);
+  const at = (a: Area) => toScreen((a.x - config.w / 2) * MM_UM, (a.y - config.h / 2) * MM_UM);
   const aw = config.w * MM_UM * scale;
   const ah = config.h * MM_UM * scale;
   const size = pitch * NAME_OF_THE_PITCH;
@@ -77,7 +124,7 @@ function drawTheNames(ctx, { config, toScreen, scale, colour }) {
   ctx.restore();
 }
 
-const ICONS = {
+const ICONS: Record<string, (g: SVGElement) => void> = {
   slide: (g) => {
     g.append(svgEl("rect", { x: 3, y: 8, width: 22, height: 12, rx: 1.5, fill: "none", stroke: "currentColor", "stroke-width": 1.5 }));
     g.append(svgEl("rect", { x: 7, y: 11, width: 14, height: 6, rx: 0.5, fill: "currentColor", "fill-opacity": 0.14, stroke: "currentColor", "stroke-width": 0.8 }));
@@ -126,7 +173,7 @@ const ICONS = {
   },
 };
 
-const typeIcon = (id) => {
+const typeIcon = (id: string): SVGElement => {
   const svg = svgEl("svg", { width: 28, height: 28, viewBox: "0 0 28 28", fill: "none" });
   ICONS[id](svg);
   return svg;
@@ -138,7 +185,7 @@ const MM_UM = 1000;
 
 /* The carrier a type opens on: the one it names, or the first it lists when it
    names none. */
-const opensOn = (type) =>
+const opensOn = (type: CarrierType): Preset =>
   type.presets.find((p) => p.label === type.starts) ?? type.presets[0];
 
 /**
@@ -175,8 +222,11 @@ const DEPTH_UP = DEPTH_RUNS * Math.sin(DEPTH_ANGLE);
  * shading — enough for the eye to read a solid, and nothing that pretends to
  * know where the light is.
  */
-function drawTheDepthBehind(ctx, x, y, w, h, dx, dy, fill) {
-  const faces = [
+function drawTheDepthBehind(
+  ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, dx: number, dy: number,
+  fill: string | null | undefined,
+): void {
+  const faces: [number, [number, number][]][] = [
     [0.55, [[x, y], [x + w, y], [x + w + dx, y - dy], [x + dx, y - dy]]],
     [0.35, [[x + w, y], [x + w, y + h], [x + w + dx, y + h - dy], [x + w + dx, y - dy]]],
   ];
@@ -222,7 +272,7 @@ function drawTheDepthBehind(ctx, x, y, w, h, dx, dy, fill) {
    on — it is four more drives before anything can be scanned. */
 const POINTS_BY_DEFAULT = 1;
 
-export function anchorsUm(config, howMany = POINTS_BY_DEFAULT) {
+export function anchorsUm(config: Grid, howMany = POINTS_BY_DEFAULT): Mark[] {
   /* Half an area, edge to edge — not `scanBox`, which insets by the rounded
      corner so a square frame never overhangs it. That inset is right for
      planning and wrong here: it put every mark a good way inside the line it
@@ -242,14 +292,14 @@ export function anchorsUm(config, howMany = POINTS_BY_DEFAULT) {
      clock. Marks bunched on one area pin where the carrier is without pinning
      how it is turned: the rotation is read off the distance between them, and
      there has to be some. */
-  const near = (v, w) => Math.abs(v - w) < 1e-6;
+  const near = (v: number, w: number) => Math.abs(v - w) < 1e-6;
   /* Worked out once, not once per area. These used to be called from inside the
      filter that uses them, which is a sweep of every area for every area: on a
      plate of a few hundred wells nobody noticed, and on Greiner's high-density
      plate of twenty-four thousand it took the better part of a minute to lay
      four marks. `Math.min(...areas)` also throws past about a hundred thousand
      arguments, so the sweep is written out rather than spread. */
-  const spanOf = (get) => {
+  const spanOf = (get: (a: Area) => number) => {
     let lo = Infinity;
     let hi = -Infinity;
     for (const a of areas) {
@@ -279,7 +329,9 @@ export function anchorsUm(config, howMany = POINTS_BY_DEFAULT) {
      where a rectangle's edge is vertical or horizontal, and on a circle it is
      where the rim's tangent is. Either way the mark sits on a line an operator
      can drive along and see. */
-  const SIDES = [
+  const SIDES: {
+    at: string; out: (a: Area) => number; edge: number; along: (a: Area) => number; lean: number; on: [number, number];
+  }[] = [
     { at: "left", out: (a) => a.x, edge: acrossThem.lo, along: (a) => a.y, lean: -1, on: [-halfW, 0] },
     { at: "top", out: (a) => a.y, edge: downThem.lo, along: (a) => a.x, lean: +1, on: [0, -halfH] },
     { at: "right", out: (a) => a.x, edge: acrossThem.hi, along: (a) => a.y, lean: +1, on: [+halfW, 0] },
@@ -300,7 +352,7 @@ export function anchorsUm(config, howMany = POINTS_BY_DEFAULT) {
      for they come out spread round the carrier rather than gathered down one
      edge of it. A side that has run out of areas is passed over, and when
      every side has, that is as many as this carrier can carry. */
-  const marks = [];
+  const marks: Mark[] = [];
   const used = offers.map(() => 0);
   while (marks.length < howMany) {
     const before = marks.length;
@@ -317,7 +369,7 @@ export function anchorsUm(config, howMany = POINTS_BY_DEFAULT) {
 }
 
 /** As many as this carrier has borders to put them on. See `anchorsUm`. */
-export const howManyAnchorsFit = (config) => anchorsUm(config, Infinity).length;
+export const howManyAnchorsFit = (config: Grid): number => anchorsUm(config, Infinity).length;
 
 /**
  * The robust set: the first well area ringed, and the far end of its row.
@@ -330,14 +382,14 @@ export const howManyAnchorsFit = (config) => anchorsUm(config, Infinity).length;
  * way the sixth does; the sixth does the same down the first column, on the
  * top edge of its lowest area. A carrier one area wide or tall simply has fewer.
  */
-function robustAnchorsUm(config) {
+function robustAnchorsUm(config: Grid): Mark[] {
   const halfW = config.w / 2, halfH = config.h / 2;
   const areas = centres(config);
   if (!areas.length) return [];
-  const near = (v, w) => Math.abs(v - w) < 1e-6;
+  const near = (v: number, w: number) => Math.abs(v - w) < 1e-6;
   const first = areas.reduce((held, a) =>
     (a.y < held.y - 1e-6 || (near(a.y, held.y) && a.x < held.x) ? a : held));
-  const marks = [
+  const marks: Mark[] = [
     { at: "left", x: first.x - halfW, y: first.y },
     { at: "top", x: first.x, y: first.y - halfH },
     { at: "right", x: first.x + halfW, y: first.y },
@@ -361,7 +413,7 @@ export default {
   anchorsUm,
 
   /** How much stage the carrier covers, for whatever has to frame it. */
-  extentUm(config) {
+  extentUm(config: Grid): [number, number] {
     const g = geometry(config);
     return [g.width * MM_UM, g.height * MM_UM];
   },
@@ -377,7 +429,7 @@ export default {
    * rather than a line around nothing — the stage around it is empty travel,
    * and the difference between the two is worth seeing at a glance.
    */
-  drawOn(ctx, { config, toScreen, scale, colour, fill }) {
+  drawOn(ctx: CanvasRenderingContext2D, { config, toScreen, scale, colour, fill }: Drawing): void {
     const g = geometry(config);
     const aw = config.w * MM_UM * scale;
     const ah = config.h * MM_UM * scale;
@@ -391,7 +443,7 @@ export default {
     if (aw < 1.5 || ah < 1.5) {
       const [x, y] = toScreen(0, 0);
       ctx.save();
-      ctx.fillStyle = fill;
+      if (fill) ctx.fillStyle = fill;
       ctx.strokeStyle = colour;
       ctx.globalAlpha = 0.8;
       ctx.lineWidth = 1;
@@ -405,7 +457,7 @@ export default {
     const rad = Math.min(g.corner * MM_UM * scale, aw / 2, ah / 2);
     const depth = depthMm(config) * MM_UM * scale;
     ctx.save();
-    ctx.fillStyle = fill;
+    if (fill) ctx.fillStyle = fill;
     ctx.strokeStyle = colour;
     ctx.globalAlpha = 0.8;
     ctx.lineWidth = Math.min(1.2, Math.max(0.4, aw * 0.02));
@@ -438,12 +490,14 @@ export default {
    * names to stand clear of each other: zoomed out to the stage they are
    * not drawn, and zoomed in past the plate's edge they go with it.
    */
-  render(host, { config, locked, onChange, anchors }) {
-    let cfg = { ...config };
+  render(host: HTMLElement, { config, locked, onChange, anchors }: {
+    config: Carrier; locked: boolean; onChange: (next: Carrier) => void; anchors: Anchors;
+  }): { actionSlot: HTMLElement } {
+    let cfg: Carrier = { ...config };
     /* Whether the two halves of a pair move together is the operator's choice
        about this session, not part of the carrier — a saved configuration that
        remembered it would be describing the panel rather than the vessel. */
-    let link = {
+    let link: Link = {
       grid: cfg.rows === cfg.cols,
       size: cfg.w === cfg.h,
       gap: cfg.gapX === cfg.gapY,
@@ -454,8 +508,8 @@ export default {
     card.append(controls);
     host.append(card);
 
-    const inputs = [];
-    const commit = (patch) => {
+    const inputs: { i: HTMLInputElement; get: () => number; decimals: number }[] = [];
+    const commit = (patch: Partial<Carrier>) => {
       cfg = { ...cfg, ...patch };
       onChange(cfg);
       sync();
@@ -498,20 +552,20 @@ export default {
        by sync(). A group and the rule for showing it are written in the same
        breath here, which is the only arrangement in which the two cannot
        drift apart. */
-    const groups = [];
-    const showWhen = (node, when) => { groups.push([node, when]); return node; };
+    const groups: [HTMLElement, (type: CarrierType) => boolean][] = [];
+    const showWhen = (node: HTMLElement, when: (type: CarrierType) => boolean) => { groups.push([node, when]); return node; };
 
     /* How each row of numbers narrows itself to the carrier on screen. Kept
        beside the list of groups because the two answer the same question at
        different sizes: which groups this carrier is about, and which boxes
        within them. */
-    const fits = [];
+    const fits: (() => void)[] = [];
 
     /* Custom leads, for every type alike: the way out of the catalogue is
        found at the top, not below a list that grows. The selection itself is
        set from the configuration after the options are built, so leading
        never makes Custom the default. */
-    const presetOptions = (typeId) => [
+    const presetOptions = (typeId: string) => [
       new Option("Custom", "-1"),
       ...carrierType(typeId).presets.map((p, i) => new Option(p.label, String(i))),
     ];
@@ -529,7 +583,7 @@ export default {
       if (i < 0) return;
       take(fromPreset(cfg.type, carrierType(cfg.type).presets[i]));
     });
-    const take = (next) => {
+    const take = (next: Carrier) => {
       link = { grid: next.rows === next.cols, size: next.w === next.h, gap: true };
       commit(next);
     };
@@ -699,7 +753,9 @@ export default {
      * pixels short of the edge lines up with nothing and merely looks short
      * of the buttons above it.
      */
-    function numbers({ fields, key, step, decimals, max }) {
+    function numbers({ fields, key, step, decimals, max }: {
+      fields: NumberField[]; key?: keyof Link; step: number; decimals: number; max?: number;
+    }) {
       const group = el("div", "carrier-group");
       const grid = el("div", "carrier-nums");
       const cells = fields.map((f) => {
@@ -729,7 +785,7 @@ export default {
         return { ...f, label: el("span", "carrier-label", f.label), i };
       });
 
-      let tie = null;
+      let tie: HTMLButtonElement | null = null;
       if (key) {
         tie = el("button", "carrier-link");
         tie.type = "button";
@@ -775,7 +831,7 @@ export default {
       return { group, tie };
     }
 
-    const ties = {};
+    const ties: Partial<Record<keyof Link, HTMLButtonElement | null>> = {};
     const gridRow = numbers({
       key: "grid", step: 1, max: 50, decimals: 0,
       fields: [
@@ -933,13 +989,15 @@ export default {
         i.value = decimals ? v.toFixed(decimals) : String(v);
       }
       cornerIn.max = String(maxRadius(cfg));
-      for (const b of types.querySelectorAll(".carrier-type")) {
+      for (const b of types.querySelectorAll<HTMLButtonElement>(".carrier-type")) {
         b.classList.toggle("on", b.dataset.type === cfg.type);
       }
-      for (const [key, b] of Object.entries(ties)) b.classList.toggle("on", link[key]);
+      for (const [key, b] of Object.entries(ties)) b?.classList.toggle("on", link[key as keyof Link]);
       presets.value = String(matchingPreset(cfg));
       shapeBtn.classList.toggle("round", cfg.cornerRatio >= 0.99);
-      for (const i of card.querySelectorAll("input, select, button")) i.disabled = locked;
+      for (const i of card.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>("input, select, button")) {
+        i.disabled = locked;
+      }
     }
 
     sync();

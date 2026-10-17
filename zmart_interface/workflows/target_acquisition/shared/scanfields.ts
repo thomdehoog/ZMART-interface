@@ -14,8 +14,85 @@
  * sample, and a grid that samples only centres drops both.
  */
 
+/** A place, in micrometres. */
+export interface XY {
+  x: number;
+  y: number;
+}
+
+/** Turned about its middle by `rotation`, in radians. */
+interface Turned {
+  rotation?: number;
+}
+
+/** A rectangle by its unturned corner and size. */
+export interface RectangleField extends Turned {
+  type: "rectangle";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** An ellipse by its centre and radii. */
+export interface EllipseField extends Turned {
+  type: "ellipse";
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
+
+/** A triangle or a polygon by its vertices, unturned. */
+export interface OutlineField extends Turned {
+  type: "triangle" | "polygon";
+  points: XY[];
+}
+
+/** A single position. */
+export interface PointField extends Turned {
+  type: "point";
+  x: number;
+  y: number;
+}
+
+/** A circle, as an older template names one; `normalise` makes it an ellipse. */
+export interface CircleField extends Turned {
+  type: "circle";
+  cx: number;
+  cy: number;
+  r: number;
+}
+
+/** The five geometries a field can be. */
+export type Shape = RectangleField | EllipseField | OutlineField | PointField;
+
+/** A scan field the operator drew: a shape, its id, the overlap its tiles are laid with, and whatever else the editor keeps on it. */
+export type Field = Shape & {
+  id?: string | number;
+  overlap?: number;
+  source?: string;
+  [more: string]: unknown;
+};
+
+/** The box a field occupies. */
+export interface Box {
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+}
+
+/** One segment of an outline: from (x1, y1) to (x2, y2). */
+type Segment = [number, number, number, number];
+
+/** A position a plan visits, and how wide a frame it images there. */
+export interface Placed extends XY {
+  frameUm?: number;
+}
+
 /** Rotate (px, py) about (cx, cy). Fields carry an angle; the maths does not. */
-export function rotatePoint(px, py, cx, cy, angle) {
+export function rotatePoint(px: number, py: number, cx: number, cy: number, angle: number): XY {
   const cos = Math.cos(angle), sin = Math.sin(angle);
   return {
     x: cx + (px - cx) * cos - (py - cy) * sin,
@@ -24,7 +101,7 @@ export function rotatePoint(px, py, cx, cy, angle) {
 }
 
 const POINT_LIKE = new Set(["point"]);
-export const isPointLike = (type) => POINT_LIKE.has(type);
+export const isPointLike = (type: string): boolean => POINT_LIKE.has(type);
 
 /**
  * A circle is an ellipse with equal radii, so it becomes one on the way in.
@@ -32,10 +109,10 @@ export const isPointLike = (type) => POINT_LIKE.has(type);
  * needs a circle-shaped special case — and a template that names a circle
  * still loads.
  */
-export function normalise(field) {
-  if (field.type !== "circle") return field;
-  const { r, ...rest } = field;
-  return { ...rest, type: "ellipse", rx: r, ry: r, rotation: field.rotation || 0 };
+export function normalise<F extends Field>(field: F | (CircleField & Omit<F, keyof Shape>)): F | Field {
+  if (field.type !== "circle") return field as F;
+  const { r, ...rest } = field as CircleField & Record<string, unknown>;
+  return { ...rest, type: "ellipse", rx: r, ry: r, rotation: field.rotation || 0 } as Field;
 }
 
 /**
@@ -50,10 +127,10 @@ export function normalise(field) {
  * middle. A polygon with no area (two points, or all on a line) has no such
  * centre, and the mean of its vertices stands in.
  */
-export function centroid(f) {
+export function centroid(f: Shape): XY {
   if (f.type === "rectangle") return { x: f.x + f.w / 2, y: f.y + f.h / 2 };
   if (f.type === "ellipse") return { x: f.cx, y: f.cy };
-  if (f.points?.length) {
+  if ("points" in f && f.points.length) {
     const pts = f.points;
     let twiceArea = 0, cx = 0, cy = 0;
     for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -70,21 +147,21 @@ export function centroid(f) {
       y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
     };
   }
-  return { x: f.x ?? 0, y: f.y ?? 0 };
+  return { x: "x" in f ? f.x : 0, y: "y" in f ? f.y : 0 };
 }
 
 /** Where the rotation grip hangs from: the topmost point of the shape. */
-export function topCentre(f) {
+export function topCentre(f: Shape): XY {
   if (f.type === "rectangle") return { x: f.x + f.w / 2, y: f.y };
   if (f.type === "ellipse") return { x: f.cx, y: f.cy - f.ry };
-  if (f.points?.length) {
+  if ("points" in f && f.points.length) {
     // the actual highest vertex, not a phantom point above the centroid
     return f.points.reduce((top, p) => (p.y < top.y ? p : top), f.points[0]);
   }
   return { x: 0, y: 0 };
 }
 
-export function contains(x, y, f) {
+export function contains(x: number, y: number, f: Shape): boolean {
   if (f.type === "rectangle") {
     const c = centroid(f), p = rotatePoint(x, y, c.x, c.y, -(f.rotation || 0));
     return p.x >= f.x && p.x <= f.x + f.w && p.y >= f.y && p.y <= f.y + f.h;
@@ -94,7 +171,7 @@ export function contains(x, y, f) {
     const a = (p.x - f.cx) / f.rx, b = (p.y - f.cy) / f.ry;
     return a * a + b * b <= 1;
   }
-  if (f.points?.length >= 3) {
+  if ("points" in f && f.points.length >= 3) {
     const c = centroid(f), p = rotatePoint(x, y, c.x, c.y, -(f.rotation || 0));
     let inside = false;
     const pts = f.points, n = pts.length;
@@ -110,7 +187,9 @@ export function contains(x, y, f) {
 }
 
 /** Slab clip: does the segment cross the axis-aligned box at all? */
-export function segmentHitsBox(x1, y1, x2, y2, bx, by, bw, bh) {
+export function segmentHitsBox(
+  x1: number, y1: number, x2: number, y2: number, bx: number, by: number, bw: number, bh: number,
+): boolean {
   let tMin = 0, tMax = 1;
   const d = [x2 - x1, y2 - y1];
   const lo = [bx, by], hi = [bx + bw, by + bh], from = [x1, y1];
@@ -131,14 +210,14 @@ export function segmentHitsBox(x1, y1, x2, y2, bx, by, bw, bh) {
 const ELLIPSE_SEGMENTS = 24;
 
 /** The field's outline in world space, as segments. Rotation is baked in. */
-export function edges(f) {
+export function edges(f: Shape): Segment[] {
   const rot = f.rotation || 0;
-  const ring = (pts) => pts.map((p, i) => {
+  const ring = (pts: XY[]) => pts.map((p, i): Segment => {
     const q = pts[(i + 1) % pts.length];
     return [p.x, p.y, q.x, q.y];
   });
 
-  if (f.points?.length >= 3) {
+  if ("points" in f && f.points.length >= 3) {
     const c = centroid(f);
     return ring(rot ? f.points.map((p) => rotatePoint(p.x, p.y, c.x, c.y, rot)) : f.points);
   }
@@ -160,8 +239,8 @@ export function edges(f) {
 }
 
 /** The axis-aligned box a field occupies, rotation included. */
-export function bounds(f) {
-  const box = (pts) => ({
+export function bounds(f: Shape): Box {
+  const box = (pts: XY[]): Box => ({
     xMin: Math.min(...pts.map((p) => p.x)), yMin: Math.min(...pts.map((p) => p.y)),
     xMax: Math.max(...pts.map((p) => p.x)), yMax: Math.max(...pts.map((p) => p.y)),
   });
@@ -185,15 +264,15 @@ export function bounds(f) {
     const hh = Math.sqrt(f.rx * f.rx * sin * sin + f.ry * f.ry * cos * cos);
     return { xMin: f.cx - hw, yMin: f.cy - hh, xMax: f.cx + hw, yMax: f.cy + hh };
   }
-  if (f.points?.length) {
+  if ("points" in f && f.points.length) {
     const c = centroid(f);
     return box(rot ? f.points.map((p) => rotatePoint(p.x, p.y, c.x, c.y, rot)) : f.points);
   }
-  if (isPointLike(f.type)) return { xMin: f.x, yMin: f.y, xMax: f.x, yMax: f.y };
+  if (f.type === "point") return { xMin: f.x, yMin: f.y, xMax: f.x, yMax: f.y };
   return { xMin: 0, yMin: 0, xMax: 0, yMax: 0 };
 }
 
-export const boxesOverlap = (a, b) =>
+export const boxesOverlap = (a: Box, b: Box): boolean =>
   a.xMin <= b.xMax && a.xMax >= b.xMin && a.yMin <= b.yMax && a.yMax >= b.yMin;
 
 /**
@@ -206,8 +285,8 @@ export const boxesOverlap = (a, b) =>
  * crossing it. The last test is what keeps a sliver or a sharp vertex, which
  * sampling centres alone silently drops.
  */
-export function tiles(field, frameUm, overlapPct = 0, limit = null) {
-  if (isPointLike(field.type)) return [{ x: field.x, y: field.y }];
+export function tiles(field: Shape, frameUm: number, overlapPct = 0, limit: Partial<Box> | null = null): XY[] {
+  if (field.type === "point") return [{ x: field.x, y: field.y }];
   if (!frameUm || frameUm <= 0) return [];
   const step = frameUm * (1 - overlapPct / 100);
   if (step <= 0) return [];
@@ -215,12 +294,12 @@ export function tiles(field, frameUm, overlapPct = 0, limit = null) {
   const bb = bounds(field);
   if (!Number.isFinite(bb.xMin)) return [];
 
-  const run = (min, max, lo, hi) => raster(min, max, frameUm, step, lo, hi);
+  const run = (min: number, max: number, lo: number | null, hi: number | null) => raster(min, max, frameUm, step, lo, hi);
   const xs = run(bb.xMin, bb.xMax, limit?.xMin ?? null, limit?.xMax ?? null);
   const ys = run(bb.yMin, bb.yMax, limit?.yMin ?? null, limit?.yMax ?? null);
   const outline = edges(field);
 
-  const out = [];
+  const out: XY[] = [];
   for (const ty of ys) {
     for (const tx of xs) if (covers(field, tx, ty, frameUm, outline)) out.push({ x: tx, y: ty });
   }
@@ -245,7 +324,7 @@ export function tiles(field, frameUm, overlapPct = 0, limit = null) {
  * * A run that will not fit between the edges is cut to what does fit, from
  *   the near edge out.
  */
-function raster(min, max, frameUm, step, lo, hi) {
+function raster(min: number, max: number, frameUm: number, step: number, lo: number | null, hi: number | null): number[] {
   const half = frameUm / 2;
   const from = lo === null ? min : Math.max(min, lo);
   const to = hi === null ? max : Math.min(max, hi);
@@ -323,7 +402,7 @@ function raster(min, max, frameUm, step, lo, hi) {
  * three owning one, leaving the top row of the block with nothing. A true fixed
  * point for nine dots, and the wrong answer for the sample they cover.
  */
-export function sharePoints(tiles, n, { vary = false } = {}) {
+export function sharePoints(tiles: Placed[], n: number, { vary = false } = {}): XY[] {
   const want = Math.max(1, Math.round(n));
   if (!tiles.length) return [];
   // as many asked for as there are positions, or more: one on each, nothing
@@ -389,8 +468,8 @@ export function sharePoints(tiles, n, { vary = false } = {}) {
  * keeps the arrangement the arithmetic found. `vary` is the caller saying there
  * is more than one.
  */
-function looseInTheirShares(ground, tiles, points) {
-  const mine = points.map(() => []);
+function looseInTheirShares(ground: XY[], tiles: Placed[], points: XY[]): XY[] {
+  const mine: XY[][] = points.map(() => []);
   for (const g of ground) mine[nearestOf(points, g.x, g.y)].push(g);
 
   return points.map((seat, i) => {
@@ -423,11 +502,11 @@ function looseInTheirShares(ground, tiles, points) {
 }
 
 /** How wide the frame is that covers this spot — the nearest one, if none does. */
-function frameAt(tiles, p) {
+function frameAt(tiles: Placed[], p: XY): number {
   let best = tiles[0], bestD = Infinity;
   for (const t of tiles) {
     const half = (t.frameUm ?? 0) / 2;
-    if (half > 0 && Math.abs(t.x - p.x) <= half && Math.abs(t.y - p.y) <= half) return t.frameUm;
+    if (half > 0 && Math.abs(t.x - p.x) <= half && Math.abs(t.y - p.y) <= half) return t.frameUm ?? 0;
     const d = (t.x - p.x) ** 2 + (t.y - p.y) ** 2;
     if (d < bestD) { bestD = d; best = t; }
   }
@@ -442,7 +521,7 @@ function frameAt(tiles, p) {
  * to be the same every time the same map is laid. Both come out of the place
  * itself rather than a counter or a clock.
  */
-function stepFrom(x, y) {
+function stepFrom(x: number, y: number): [number, number] {
   let h = Math.imul(Math.round(x) ^ 0x9e3779b9, 0x85ebca6b);
   h = Math.imul((h ^ (h >>> 13)) + Math.round(y), 0xc2b2ae35);
   h ^= h >>> 16;
@@ -458,7 +537,7 @@ function stepFrom(x, y) {
  * stage is driven there and a height is read off whatever is under the
  * objective, so it has to be somewhere the run actually looks.
  */
-function imagedAt(tiles, p) {
+function imagedAt(tiles: Placed[], p: XY): boolean {
   return tiles.some((t) => {
     const half = (t.frameUm ?? 0) / 2;
     return half > 0 && Math.abs(t.x - p.x) <= half && Math.abs(t.y - p.y) <= half;
@@ -474,7 +553,7 @@ function imagedAt(tiles, p) {
  * ground is made of points inside frames, so the nearest of them is both the
  * closest the settled answer can be honoured and somewhere the run will image.
  */
-function nearestPlace(ground, p) {
+function nearestPlace(ground: XY[], p: XY): XY {
   let best = ground[0], bestD = Infinity;
   for (const g of ground) {
     const d = (g.x - p.x) ** 2 + (g.y - p.y) ** 2;
@@ -493,7 +572,7 @@ function nearestPlace(ground, p) {
  * none is a piece whose height is invented; when there are fewer points than
  * pieces, the largest pieces take them.
  */
-function shareOut(sizes, want) {
+function shareOut(sizes: number[], want: number): number[] {
   const total = sizes.reduce((a, b) => a + b, 0) || 1;
   const order = sizes.map((_, i) => i).sort((a, b) => sizes[b] - sizes[a]);
   if (want <= sizes.length) {
@@ -526,24 +605,24 @@ function shareOut(sizes, want) {
  * plate of a thousand positions costs what one does instead of every pair
  * being asked about every other.
  */
-function piecesOf(tiles) {
+function piecesOf<T extends Placed>(tiles: T[]): T[][] {
   const frame = Math.max(...tiles.map((t) => t.frameUm ?? 0)) || 1;
-  const cells = new Map();
+  const cells = new Map<string, number[]>();
   tiles.forEach((t, i) => {
     const key = `${Math.round(t.x / frame)},${Math.round(t.y / frame)}`;
     if (!cells.has(key)) cells.set(key, []);
-    cells.get(key).push(i);
+    cells.get(key)!.push(i);
   });
 
   const owner = tiles.map((_, i) => i);
-  const rootOf = (start) => {
+  const rootOf = (start: number) => {
     let root = start;
     while (owner[root] !== root) root = owner[root];
     let walk = start;
     while (owner[walk] !== root) { const up = owner[walk]; owner[walk] = root; walk = up; }
     return root;
   };
-  const join = (a, b) => {
+  const join = (a: number, b: number) => {
     const ra = rootOf(a);
     const rb = rootOf(b);
     if (ra !== rb) owner[ra] = rb;
@@ -560,19 +639,19 @@ function piecesOf(tiles) {
     }
   }
 
-  const byPiece = new Map();
+  const byPiece = new Map<number, T[]>();
   tiles.forEach((t, i) => {
     const root = rootOf(i);
     if (!byPiece.has(root)) byPiece.set(root, []);
-    byPiece.get(root).push(t);
+    byPiece.get(root)!.push(t);
   });
   return [...byPiece.values()];
 }
 
 /** How far a set of places reaches, across and down. */
-const widthOf = (places) =>
+const widthOf = (places: XY[]): number =>
   (Math.max(...places.map((p) => p.x)) - Math.min(...places.map((p) => p.x))) || 1;
-const heightOf = (places) =>
+const heightOf = (places: XY[]): number =>
   (Math.max(...places.map((p) => p.y)) - Math.min(...places.map((p) => p.y))) || 1;
 
 /**
@@ -580,7 +659,7 @@ const heightOf = (places) =>
  * nearest it, and this is the sum of those distances squared. Lower is a tighter
  * arrangement — every part of the sample nearer to something measured.
  */
-function spreadCost(ground, points) {
+function spreadCost(ground: XY[], points: XY[]): number {
   return ground.reduce((sum, g) => {
     const p = points[nearestOf(points, g.x, g.y)];
     return sum + (g.x - p.x) ** 2 + (g.y - p.y) ** 2;
@@ -600,12 +679,12 @@ const ACROSS_A_FRAME = 4;
  * description of the ground on their own and the count is what costs — the
  * lumpiness this cures only shows when there are few frames to a point.
  */
-function groundOf(tiles) {
+function groundOf(tiles: Placed[]): XY[] {
   const across = Math.max(1, Math.min(ACROSS_A_FRAME,
     Math.floor(Math.sqrt(4096 / tiles.length))));
   if (across === 1) return tiles.map((t) => ({ x: t.x, y: t.y }));
 
-  const out = [];
+  const out: XY[] = [];
   for (const t of tiles) {
     const frame = t.frameUm ?? 0;
     if (!frame) { out.push({ x: t.x, y: t.y }); continue; }
@@ -636,7 +715,7 @@ function groundOf(tiles) {
  * two, which is lopsided for no reason. Dealt this way the rows read the same
  * from either end, whatever the number.
  */
-function seedCells(tiles, n, howMany) {
+function seedCells(tiles: XY[], n: number, howMany: number): XY[] {
   const xs = tiles.map((t) => t.x), ys = tiles.map((t) => t.y);
   const xMin = Math.min(...xs), yMin = Math.min(...ys);
   const width = widthOf(tiles), height = heightOf(tiles);
@@ -644,7 +723,7 @@ function seedCells(tiles, n, howMany) {
   const base = Math.floor(n / rows), extra = n % rows;
   const takesOneMore = dealtFromTheMiddle(rows, extra);
 
-  const seeds = [];
+  const seeds: XY[] = [];
   let top = yMin;
   for (let r = 0; r < rows; r++) {
     const cells = base + (takesOneMore.has(r) ? 1 : 0);
@@ -662,12 +741,12 @@ function seedCells(tiles, n, howMany) {
  * the middle row first when the number left over is odd, then the pair either
  * side of it, and so on. What comes back reads the same from either end.
  */
-function dealtFromTheMiddle(rows, extra) {
+function dealtFromTheMiddle(rows: number, extra: number): Set<number> {
   const middle = (rows - 1) / 2;
   const order = [...Array(rows).keys()]
     .sort((a, b) => Math.abs(a - middle) - Math.abs(b - middle) || a - b);
 
-  const taken = new Set();
+  const taken = new Set<number>();
   for (const row of order) {
     const left = extra - taken.size;
     if (left <= 0) break;
@@ -705,10 +784,10 @@ function dealtFromTheMiddle(rows, extra) {
  * told to go, and a map that never settles is worse than one that stopped
  * short.
  */
-function settle(tiles, seeds, passes = 12) {
+function settle(tiles: XY[], seeds: XY[], passes = 12): XY[] {
   let points = seeds;
   for (let pass = 0; pass < passes; pass++) {
-    const mine = points.map(() => []);
+    const mine: XY[][] = points.map(() => []);
     for (const t of tiles) mine[nearestOf(points, t.x, t.y)].push(t);
 
     const moved = points.map((p, i) => {
@@ -729,7 +808,7 @@ function settle(tiles, seeds, passes = 12) {
 }
 
 /** Which of these points is nearest that spot. */
-function nearestOf(points, x, y) {
+function nearestOf(points: XY[], x: number, y: number): number {
   let best = 0, bestD = Infinity;
   points.forEach((p, i) => {
     const d = Math.hypot(p.x - x, p.y - y);
@@ -744,7 +823,7 @@ function nearestOf(points, x, y) {
  * busiest share rather than sending the spare point to an outer corner, which
  * is where "furthest from everything" always lands.
  */
-function farthestFrom(tiles, points) {
+function farthestFrom(tiles: XY[], points: XY[]): XY {
   let best = tiles[0], bestD = -1;
   for (const t of tiles) {
     const near = points[nearestOf(points, t.x, t.y)];
@@ -762,7 +841,7 @@ function farthestFrom(tiles, points) {
  * was drawn — except that one frame is the floor, since there is no such thing
  * as imaging less than the objective sees at once.
  */
-export function snapSpan(size, frameUm, overlapPct = 0) {
+export function snapSpan(size: number, frameUm: number, overlapPct = 0): number {
   const step = frameUm * (1 - overlapPct / 100);
   if (!(frameUm > 0) || step <= 0) return size;
   // a hair of tolerance, or a size that is exactly n frames comes back n − 1
@@ -781,7 +860,7 @@ export function snapSpan(size, frameUm, overlapPct = 0) {
  * corners of the frame catch a field bigger than the frame, and the edge test
  * catches one smaller that passes between them.
  */
-export function covers(field, x, y, frameUm, outline = edges(field)) {
+export function covers(field: Shape, x: number, y: number, frameUm: number, outline = edges(field)): boolean {
   const half = frameUm / 2;
   return contains(x, y, field)
     || contains(x - half, y - half, field) || contains(x + half, y - half, field)
@@ -794,7 +873,13 @@ export function covers(field, x, y, frameUm, outline = edges(field)) {
  * rotates them about the centroid, so this stays a statement about the shape
  * rather than about how it is being displayed.
  */
-export function handles(f) {
+/** A grip on a selected field: which one, where, and for a vertex, its place in the outline. */
+export interface Handle extends XY {
+  id: string;
+  index?: number;
+}
+
+export function handles(f: Shape): Handle[] {
   if (f.type === "rectangle") {
     const { x, y, w, h } = f;
     return [
@@ -810,7 +895,7 @@ export function handles(f) {
       { id: "l", x: f.cx - f.rx, y: f.cy }, { id: "r", x: f.cx + f.rx, y: f.cy },
     ];
   }
-  if (f.points?.length) return f.points.map((p, i) => ({ id: `pt${i}`, x: p.x, y: p.y, index: i }));
+  if ("points" in f && f.points.length) return f.points.map((p, i) => ({ id: `pt${i}`, x: p.x, y: p.y, index: i }));
   return [];
 }
 
@@ -828,7 +913,7 @@ export function handles(f) {
  * rather than a distance in micrometres that means different things at
  * different scales.
  */
-export function withoutTrailingDuplicate(points, nearer) {
+export function withoutTrailingDuplicate<P extends XY>(points: P[], nearer: number): P[] {
   if (points.length < 2) return points;
   const [a, b] = [points[points.length - 1], points[points.length - 2]];
   return Math.hypot(a.x - b.x, a.y - b.y) < nearer ? points.slice(0, -1) : points;
@@ -842,10 +927,10 @@ export function withoutTrailingDuplicate(points, nearer) {
  * area's centre and an even one straddles it. Pitch is floored at the frame by
  * the caller — positions may be spread apart, never made to overlap.
  */
-export function block(centre, rows, cols, pitchX, pitchY) {
+export function block(centre: XY, rows: number, cols: number, pitchX: number, pitchY: number): XY[] {
   const x0 = centre.x - ((cols - 1) * pitchX) / 2;
   const y0 = centre.y - ((rows - 1) * pitchY) / 2;
-  const out = [];
+  const out: XY[] = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) out.push({ x: x0 + c * pitchX, y: y0 + r * pitchY });
   }

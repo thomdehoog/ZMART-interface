@@ -26,7 +26,7 @@ import { steps as theRun } from "./the-run.js";
    of it survives a disconnect, and what a browser test may read of it. The
    framework asks the flow for these rather than knowing any microscope key
    (`framework/window/run-state.ts`). */
-export { freshState, keptAcrossSessions, forTests } from "./shared/run-document.js";
+export { freshState, keptAcrossSessions, forTests } from "./shared/run-document.ts";
 
 /** How this workflow is wired to the page when the page opens: its canvas,
     and the functions its steps lend the page. */

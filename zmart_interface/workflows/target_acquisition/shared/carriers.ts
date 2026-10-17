@@ -66,7 +66,58 @@
    Areas Leica declares no geometry for are left out rather than guessed at:
    the two 30-micron-bottom ibidi dishes are in the library with a name and
    nothing else. */
-export const CARRIER_TYPES = [
+
+/** A catalogue part: its grid, the shape and size of an area, the gaps between areas, and its corner in millimetres. */
+export interface Preset {
+  label: string;
+  rows: number;
+  cols: number;
+  shape: "rect" | "round";
+  w: number;
+  h: number;
+  depth?: number;
+  gap?: number;
+  gapX?: number;
+  gapY?: number;
+  corner: number;
+}
+
+/** A kind of vessel, and the catalogue parts it opens on. */
+export interface CarrierType {
+  id: string;
+  starts: string;
+  label: string;
+  grid: boolean;
+  round: boolean;
+  deep: boolean;
+  presets: Preset[];
+}
+
+/** The carrier a run is on: the working copy of a preset, in millimetres. */
+export interface Carrier {
+  type: string;
+  rows: number;
+  cols: number;
+  w: number;
+  h: number;
+  d: number;
+  gapX: number;
+  gapY: number;
+  cornerRatio: number;
+}
+
+/** What the geometry reads of a carrier: its grid, and nothing about which part it is. */
+export type Grid = Pick<Carrier, "rows" | "cols" | "w" | "h" | "gapX" | "gapY" | "cornerRatio">;
+
+/** One area of the grid: which row and column, and its centre in millimetres. */
+export interface Area {
+  row: number;
+  col: number;
+  x: number;
+  y: number;
+}
+
+export const CARRIER_TYPES: CarrierType[] = [
   {
     id: "slide",
     starts: "75 × 25 mm slide",
@@ -204,13 +255,18 @@ CARRIER_TYPES.push({
   ],
 });
 
-export const carrierType = (id) => CARRIER_TYPES.find((t) => t.id === id);
+/** A type by its id; every carrier a run holds names one of these. */
+export const carrierType = (id: string): CarrierType => {
+  const type = CARRIER_TYPES.find((t) => t.id === id);
+  if (!type) throw new Error(`no carrier type ${id}`);
+  return type;
+};
 
 /** The largest corner radius an area of this size could carry: a full round. */
-export const maxRadius = ({ w, h }) => Math.min(w, h) / 2;
+export const maxRadius = ({ w, h }: { w: number; h: number }): number => Math.min(w, h) / 2;
 
 /** A preset is a description of a carrier; this is the working copy of one. */
-export function fromPreset(typeId, preset) {
+export function fromPreset(typeId: string, preset: Preset): Carrier {
   const maxR = maxRadius(preset);
   const corner = preset.shape === "round" ? maxR : preset.corner;
   return {
@@ -228,14 +284,14 @@ export function fromPreset(typeId, preset) {
        than they are down it — the ibidi 8-well steps 11.9 mm one way and 10.4
        the other — and a preset that could only say one number had to lie about
        one of them. */
-    gapX: preset.gapX ?? preset.gap,
-    gapY: preset.gapY ?? preset.gap,
+    gapX: preset.gapX ?? preset.gap ?? 0,
+    gapY: preset.gapY ?? preset.gap ?? 0,
     cornerRatio: maxR > 0 ? Math.min(corner / maxR, 1) : 0,
   };
 }
 
 /** The gap a preset means, in each direction. See `fromPreset`. */
-const gapsOf = (p) => [p.gapX ?? p.gap, p.gapY ?? p.gap];
+const gapsOf = (p: Preset): [number, number] => [p.gapX ?? p.gap ?? 0, p.gapY ?? p.gap ?? 0];
 
 /**
  * What a run starts on: one plain area, the simplest thing a sample can be
@@ -249,7 +305,7 @@ const gapsOf = (p) => [p.gapX ?? p.gap, p.gapY ?? p.gap];
  */
 export const DEFAULT_CARRIER = fromPreset(
   "slide",
-  carrierType("slide").presets.find((p) => p.label === "75 × 25 mm slide"),
+  carrierType("slide").presets.find((p) => p.label === "75 × 25 mm slide")!,
 );
 
 /**
@@ -258,21 +314,21 @@ export const DEFAULT_CARRIER = fromPreset(
  * been handed, so a vessel that gains a depth gains a drawing with no further
  * help.
  */
-export const depthMm = (config) => (carrierType(config.type).deep ? config.d : 0);
+export const depthMm = (config: Carrier): number => (carrierType(config.type).deep ? config.d : 0);
 
 /* A tenth of a micrometre. Five micrometres was the tolerance while everything
    here was a plate or a slide, and it is far too coarse for an EM grid: EMS's
    200 mesh has 0.09 mm holes and SPI's has 0.095 mm ones, five micrometres
    apart, and the picker called them the same part. Every figure in this file
    is quoted to four decimals, so an exact match is exact. */
-const close = (a, b) => Math.abs(a - b) < 1e-4;
+const close = (a: number, b: number): boolean => Math.abs(a - b) < 1e-4;
 
 /**
  * Which preset of this type the configuration still is, or -1 once it has been
  * edited away from all of them. The dropdown reads "Custom" from that, so an
  * edited carrier never claims to be a catalogue part it no longer matches.
  */
-export function matchingPreset(config) {
+export function matchingPreset(config: Carrier): number {
   const { presets } = carrierType(config.type);
   return presets.findIndex((p) => {
     const ratio = maxRadius(p) > 0
@@ -288,7 +344,7 @@ export function matchingPreset(config) {
 }
 
 /** Everything the panel and the canvas both need, derived rather than stored. */
-export function geometry(config) {
+export function geometry(config: Grid) {
   const { rows, cols, w, h, gapX, gapY, cornerRatio } = config;
   const pitchX = w + gapX;
   const pitchY = h + gapY;
@@ -316,9 +372,9 @@ export function geometry(config) {
  * corners because that is what a position is placed relative to — dividing the
  * carrier's width evenly would land them off by half a gap at every edge.
  */
-export function centres(config) {
+export function centres(config: Grid): Area[] {
   const { rows, cols } = config;
-  const out = [];
+  const out: Area[] = [];
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) out.push(centreOf(config, row, col));
   }
@@ -332,10 +388,10 @@ export function centres(config) {
  * the top left, letters down and numbers across; past Z the letters double,
  * AA, AB, as a spreadsheet does. A carrier of one area has nothing to name.
  */
-export function areaLabels(config) {
+export function areaLabels(config: Grid): { rows: (Area & { text: string })[]; cols: (Area & { text: string })[] } {
   const { rows, cols } = config;
   if (rows * cols < 2) return { rows: [], cols: [] };
-  const letter = (row) => {
+  const letter = (row: number) => {
     let name = "";
     for (let n = row + 1; n > 0; n = Math.floor((n - 1) / 26)) {
       name = String.fromCharCode(64 + ((n - 1) % 26) + 1) + name;
@@ -349,7 +405,7 @@ export function areaLabels(config) {
 }
 
 /** Where one area sits. The one place the answer is worked out. */
-function centreOf(config, row, col) {
+function centreOf(config: Grid, row: number, col: number): Area {
   const { w, h } = config;
   const { pitchX, pitchY } = geometry(config);
   return { row, col, x: col * pitchX + w / 2, y: row * pitchY + h / 2 };
@@ -361,7 +417,7 @@ function centreOf(config, row, col) {
  * does, and clamped to the plate so a point off the edge belongs to the area
  * at that edge.
  */
-export function nearestArea(config, x, y) {
+export function nearestArea(config: Grid, x: number, y: number): Area {
   const { rows, cols, w, h } = config;
   const { pitchX, pitchY } = geometry(config);
   const col = Math.min(cols - 1, Math.max(0, Math.round((x - w / 2) / pitchX)));
@@ -384,7 +440,7 @@ export function nearestArea(config, x, y) {
  * there is no corner to cut and the inscribed square when the area is a
  * circle.
  */
-export function scanBox(config) {
+export function scanBox(config: Grid): { halfW: number; halfH: number } {
   const { w, h } = config;
   const { corner } = geometry(config);
   const cut = corner - corner / Math.SQRT2;
@@ -392,7 +448,7 @@ export function scanBox(config) {
 }
 
 /** Whether a point is over the imageable square of an area. */
-export function insideArea(config, x, y) {
+export function insideArea(config: Grid, x: number, y: number): boolean {
   const a = nearestArea(config, x, y);
   const { halfW, halfH } = scanBox(config);
   return Math.abs(x - a.x) <= halfW && Math.abs(y - a.y) <= halfH;
@@ -405,7 +461,7 @@ export function insideArea(config, x, y) {
  * square of sample, and a square that hangs over the edge of the imageable
  * square is a square of plastic.
  */
-export function frameFitsArea(config, x, y, frame) {
+export function frameFitsArea(config: Grid, x: number, y: number, frame: number): boolean {
   const a = nearestArea(config, x, y);
   const { halfW, halfH } = scanBox(config);
   const half = frame / 2;
@@ -421,7 +477,7 @@ export function frameFitsArea(config, x, y, frame) {
  * would not fit where it was put should end up in the middle of the well the
  * operator was aiming at, not skating along its rim.
  */
-export function frameSeat(config, x, y, frame) {
+export function frameSeat(config: Grid, x: number, y: number, frame: number): { x: number; y: number } | null {
   if (frameFitsArea(config, x, y, frame)) return { x, y };
   const a = nearestArea(config, x, y);
   if (!frameFitsArea(config, a.x, a.y, frame)) return null;
@@ -435,7 +491,7 @@ export function frameSeat(config, x, y, frame) {
 }
 
 /** One line for the run: what was configured, without opening the panel. */
-export const describeCarrier = (config) => {
+export const describeCarrier = (config: Carrier): string => {
   const g = geometry(config);
   const preset = matchingPreset(config);
   const name = preset >= 0

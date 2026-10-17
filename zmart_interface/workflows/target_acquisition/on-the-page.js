@@ -12,7 +12,7 @@
  */
 
 import { installTheCanvas } from "./the-canvas.js";
-import * as helpers from "./shared/page-helpers.js";
+import * as helpers from "./shared/page-helpers.ts";
 import {
   chosenInstrument, chosenMicroscope, listInstruments, listProtocols, renderSetup,
   theRestOfTheProtocolAppears,
