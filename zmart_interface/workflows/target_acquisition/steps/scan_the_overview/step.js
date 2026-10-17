@@ -10,7 +10,7 @@
  * its summary, its test tiles and its progress.
  */
 
-import { hasRecording } from "../../../../parts/microscope/recordings.js";
+import { hasRecording } from "../../microscope/recordings.js";
 import { scanArrived, scanChannel } from "./channel.js";
 import { runScan, scanFinished } from "./run.js";
 

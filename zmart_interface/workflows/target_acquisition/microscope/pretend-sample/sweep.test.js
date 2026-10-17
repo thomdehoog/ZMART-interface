@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sweep, scoreAt, debrisAt, SWEEP_N }
-  from "../../../parts/microscope/pretend-sample/sweep.js";
+  from "./sweep.js";
 
 const FOCUS_Z = -412;
 

@@ -5,7 +5,7 @@
  *
  * The general verbs every workflow uses -- connecting, the stage, the
  * instrument's settings, a capture, the pictures -- are the shared backend
- * in `parts/microscope/live.js`. These are this workflow's, and speak to its
+ * in `workflows/target_acquisition/microscope/live.js`. These are this workflow's, and speak to its
  * own Python half on the bridge, under `/api/target_acquisition/`
  * (`../bridge/__init__.py`). `flow.js` puts the two together into the one
  * backend the steps call.
@@ -14,8 +14,8 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import { ask, askedPatiently, capturedBy, rest } from "../../../parts/microscope/live.js";
-import { findCandidates, pickPeak } from "../../../parts/microscope/focus-peaks.js";
+import { ask, askedPatiently, capturedBy, rest } from "../microscope/live.js";
+import { findCandidates, pickPeak } from "../microscope/focus-peaks.js";
 
 /* The operator's hand on the focus map and on the target run: read by each
    loop before its next drive. */

@@ -1,13 +1,13 @@
 /**
  * Target acquisition's promises: what its own verbs must do, asked of the
- * pretend backend and the live one alike, as `parts/microscope/backend-contract.js`
+ * pretend backend and the live one alike, as `workflows/target_acquisition/microscope/backend-contract.js`
  * does for the verbs every workflow shares.
  *
  * Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import { across, spanOf, theTravelOf } from "../../../parts/microscope/backend-contract.js";
+import { across, spanOf, theTravelOf } from "../microscope/backend-contract.js";
 
 export function promisesOfTargetAcquisition(expect) {
   return [

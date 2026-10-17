@@ -49,7 +49,7 @@ test("coverage preserves black pixels, transparent gaps and additive channels ac
       host.style.cssText = "width:100%;height:100%";
       below.append(host);
       document.body.append(below);
-      const { openerFor } = await import("/zmart_interface/parts/canvas/engines.js");
+      const { openerFor } = await import("/zmart_interface/workflows/target_acquisition/canvas/engines.js");
       window.coveredAcquisition = revision => [{ name: "overview", opaque: false,
         channels: [[1, 0, 0], [0, 1, 0]].map((colour, channelIndex) => ({
           name: String(channelIndex), channelIndex, colour, window: { low: 0, high: 255 },

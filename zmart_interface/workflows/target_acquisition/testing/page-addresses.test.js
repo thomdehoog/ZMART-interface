@@ -1,7 +1,7 @@
 /* What a browser spec takes from the page by its address is really there.
  *
  * A spec that runs code inside the page loads modules by their address on the
- * dev server — `await import("/zmart_interface/parts/canvas/viewer.js")` — and
+ * dev server — `await import("/zmart_interface/workflows/target_acquisition/canvas/viewer.js")` — and
  * takes names from them. Nothing that reads imports can follow such an address,
  * so a module moved, or a name made private, breaks the spec without a check
  * turning red. This reads every spec and holds each address to an existing file
@@ -12,7 +12,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PACKAGE = fileURLToPath(new URL("../..", import.meta.url));
+const PACKAGE = fileURLToPath(new URL("../../..", import.meta.url));
 const ROOT = join(PACKAGE, "..");
 
 const specs = (folder) => readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {

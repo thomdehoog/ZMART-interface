@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { pythonForTheBridge } from "../../../../parts/testing/python.js";
-import { readPng } from "../../../../parts/testing/pixels.js";
+import { pythonForTheBridge } from "../../testing/python.js";
+import { readPng } from "../../testing/pixels.js";
 
 for (const bake of [false, true]) test(`publication failure preserves valid pixels, bake ${bake}`, async ({ page }, info) => {
   test.setTimeout(60_000);
@@ -33,8 +33,8 @@ for (const bake of [false, true]) test(`publication failure preserves valid pixe
       below.style.cssText = "position:fixed;left:0;top:0;width:640px;height:320px;z-index:999;background:magenta";
       below.innerHTML = '<div id="failure-host" style="width:100%;height:100%"></div><div id="failure-note" role="status"></div>';
       document.body.append(below);
-      const { backend } = await import("/zmart_interface/parts/microscope/live.js");
-      const { showPublicationStatus } = await import("/zmart_interface/parts/canvas/publication-note.js");
+      const { backend } = await import("/zmart_interface/workflows/target_acquisition/microscope/live.js");
+      const { showPublicationStatus } = await import("/zmart_interface/workflows/target_acquisition/canvas/publication-note.js");
       const { watchTheRun } = await import("/zmart_interface/workflows/target_acquisition/steps/scan_the_overview/watching-the-run.js");
       window.failureWatch = watchTheRun({
         pictureHost: document.getElementById("failure-host"), connected: () => true,

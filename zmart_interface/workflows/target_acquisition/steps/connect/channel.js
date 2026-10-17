@@ -11,8 +11,8 @@
 
 import { applyProtocol, protocolFits } from "../../shared/protocol.js";
 import { freshSettings } from "../../shared/run-document.js";
-import { choicesFrom, theMockAmong } from "../../../../parts/microscope/instruments.js";
-import { activeRecording } from "../../../../parts/microscope/recordings.js";
+import { choicesFrom, theMockAmong } from "../../microscope/instruments.js";
+import { activeRecording } from "../../microscope/recordings.js";
 import { renderSessionCard } from "./session-card.js";
 
 /* The instrument the card has chosen: a microscope from the list and one

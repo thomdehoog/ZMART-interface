@@ -5,8 +5,8 @@
  * together, so a route is asked for at the page's own address and this adds
  * nothing. During development the Vite server holds the page instead, and
  * `?bridge=http://127.0.0.1:8600` on the page's address says where the
- * bridge is. One fact, read once: the microscope seam (`parts/microscope/
- * live.js`) and the framework's loader of installed workflows both ask it,
+ * bridge is. One fact, read once: target acquisition's microscope seam
+ * (`microscope/live.js`) and the framework's loader of installed workflows both ask it,
  * and two copies of a fact drift apart in silence.
  */
 

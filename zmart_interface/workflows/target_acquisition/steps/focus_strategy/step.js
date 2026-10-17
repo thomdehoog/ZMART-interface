@@ -12,7 +12,7 @@
 
 /* Whether a step has what it needs is asked of the slot itself: a step waits
    for a reading to have been taken, not for a particular field on a record. */
-import { hasRecording } from "../../../../parts/microscope/recordings.js";
+import { hasRecording } from "../../microscope/recordings.js";
 import { focusChannel } from "./channel.js";
 import { focusFinished, runFocus } from "./run.js";
 

@@ -9,7 +9,7 @@
  */
 
 import { el } from "../../../../framework/window/dom.js";
-import { hasRecording } from "../../../../parts/microscope/recordings.js";
+import { hasRecording } from "../../microscope/recordings.js";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
 import scanfieldsWidget, { presetInk } from "./scanfield-editor.js";
 

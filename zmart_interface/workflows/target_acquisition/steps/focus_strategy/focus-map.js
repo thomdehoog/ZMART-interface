@@ -21,18 +21,18 @@
 
 import carrierWidget from "../define_carrier/carrier-panel.js";
 import { METRICS, METRIC_KEYS }
-  from "../../../../parts/microscope/pretend-sample/sweep.js";
+  from "../../microscope/pretend-sample/sweep.js";
 import { MIN_TISSUE_WIDTH_UM, findCandidates, pickPeak }
-  from "../../../../parts/microscope/focus-peaks.js";
+  from "../../microscope/focus-peaks.js";
 import {
   fitSurface, residualsUm, surfaceZ,
-} from "../../../../parts/microscope/pretend-sample/surface.js";
+} from "../../microscope/pretend-sample/surface.js";
 import { sharePoints } from "../../shared/scanfields.js";
 import { visitOrder } from "./visit-order.js";
 import { zColourScale } from "./z-domain.js";
 import { status } from "../../../../framework/window/status.js";
 import { progressBox } from "../../shared/progress.js";
-import { activeRecording } from "../../../../parts/microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.js";
 /* The step's controls, as markup: read in as text by the build tool. */
 import focusControlsMarkup from "./focus-controls.html?raw";
 

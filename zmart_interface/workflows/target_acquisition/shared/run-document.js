@@ -16,8 +16,8 @@
  * `page.run` by this workflow's own steps.
  */
 
-import { DEFAULT_SESSION } from "../../../parts/microscope/instruments.js";
-import { emptySlot } from "../../../parts/microscope/recordings.js";
+import { DEFAULT_SESSION } from "../microscope/instruments.js";
+import { emptySlot } from "../microscope/recordings.js";
 import { DEFAULT_CARRIER } from "./carriers.js";
 import { targetsDress, tilesDress } from "./mask-layers.js";
 

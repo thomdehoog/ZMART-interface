@@ -8,8 +8,8 @@
 import { describe, expect, it } from "vitest";
 import {
   THE_MOCK, choicesFrom, describeSession, isTheMock, theMockAmong,
-} from "../../parts/microscope/instruments.js";
-import { pretendInstruments } from "../../parts/microscope/mock.js";
+} from "./instruments.js";
+import { pretendInstruments } from "./mock.js";
 
 describe("choicesFrom", () => {
   it("offers one microscope per listed name, in list order", () => {

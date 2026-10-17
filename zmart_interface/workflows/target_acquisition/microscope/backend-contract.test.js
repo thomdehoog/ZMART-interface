@@ -6,7 +6,7 @@
  * this at it:
  *
  *     python -m zmart_interface.framework.bridge --port 8600
- *     BACKEND_BRIDGE=http://127.0.0.1:8600 npx vitest run zmart_interface/parts/microscope/backend-contract.test.js
+ *     BACKEND_BRIDGE=http://127.0.0.1:8600 npx vitest run zmart_interface/workflows/target_acquisition/microscope/backend-contract.test.js
  *
  * With the mock microscope behind that bridge it is a full round of the real path
  * — controller, driver contract — and the two answers are held

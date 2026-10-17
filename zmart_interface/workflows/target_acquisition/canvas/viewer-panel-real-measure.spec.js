@@ -34,7 +34,7 @@ test("Operator Auto and histogram use a real Smart Viewer 0.2 measurement", asyn
       <main class="canvas-body" style="display:grid;grid-template-columns:1fr auto;height:760px">
         <div class="plot-host" style="position:relative;min-width:600px"><div id="panel-host"></div></div>
       </main>`;
-    const module = await import("/zmart_interface/parts/canvas/viewer-panel.js");
+    const module = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer-panel.js");
     const source = `${location.origin}/data/reference.ome.zarr/|zarr2:`;
     const acquisition = {
       name: "Viewer 0.2 reference",

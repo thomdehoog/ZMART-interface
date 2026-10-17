@@ -38,10 +38,10 @@ into `parts/`.
 
 The framework's helpers a step reaches for are `framework/window/dom.js`,
 `framework/window/panels.js`, `framework/window/status.js`,
-`framework/window/bridge-address.js` and `framework/rules/steps.js`; every
-part under `parts/` is on offer: the canvas and its drawing engines, the
-microscope seam (`parts/microscope/live.js` speaks to the bridge), the
-recordings and instruments helpers, and so on.
+`framework/window/bridge-address.js` and `framework/rules/steps.js`.
+`parts/` holds no page code today: the canvas and the microscope seam belong
+to target acquisition, the one workflow that uses them, and move into
+`parts/` when a second workflow needs them (`zmart_interface/parts/README.md`).
 
 The framework's own fixture, `zmart_interface/framework/fixtures/three_steps/flow.js`,
 is a complete workflow: three steps, a card panel, no microscope. Start from it.

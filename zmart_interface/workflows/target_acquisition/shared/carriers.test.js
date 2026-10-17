@@ -4,7 +4,7 @@ import {
   maxRadius, DEFAULT_CARRIER,
   depthMm, describeCarrier,
   centres, areaLabels, nearestArea, frameFitsArea, frameSeat, insideArea, scanBox,
-} from "../../../workflows/target_acquisition/shared/carriers.js";
+} from "./carriers.js";
 
 const preset = (typeId, label) =>
   carrierType(typeId).presets.find((p) => p.label.startsWith(label));

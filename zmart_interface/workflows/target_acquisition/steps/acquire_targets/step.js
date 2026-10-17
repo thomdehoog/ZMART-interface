@@ -6,7 +6,7 @@
  * (`channel.js` and `gallery.js`). `run.js` drives the acquisition.
  */
 
-import { hasRecording } from "../../../../parts/microscope/recordings.js";
+import { hasRecording } from "../../microscope/recordings.js";
 import { acquisitionArrived, galleryChannel } from "./channel.js";
 import {
   acquisitionFinished, besideTheAcquisitionPress, rerunCurrentTile, runAcquisition,

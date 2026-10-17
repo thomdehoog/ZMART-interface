@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   emptySlot, withRecording, withoutRecording, withActive,
   activeRecording, nextName, nextReadingIndex,
-} from "../../parts/microscope/recordings.js";
-import { sampleReading } from "../../parts/microscope/settings.js";
+} from "./recordings.js";
+import { sampleReading } from "./settings.js";
 
 /** Set the instrument up, name it, record it — what the panel's button does. */
 const record = (slot, name = "") => withRecording(slot, {

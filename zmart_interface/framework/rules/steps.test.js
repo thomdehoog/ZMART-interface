@@ -8,8 +8,8 @@
 import { describe, it, expect } from "vitest";
 import {
   numbered, firstIncomplete, isReachable, panelsFor, editedAt, staleSteps,
-} from "../../framework/rules/steps.js";
-import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
+} from "./steps.js";
+import { assembleWorkflows } from "./finding-workflows.js";
 
 const { WORKFLOWS } = assembleWorkflows(
   import.meta.glob("../../workflows/*/flow.{js,ts}", { eager: true }),

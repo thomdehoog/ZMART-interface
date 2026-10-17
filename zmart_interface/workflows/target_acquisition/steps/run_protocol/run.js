@@ -11,7 +11,7 @@
  */
 
 import { protocolFrom } from "../../shared/protocol.js";
-import { hasRecording } from "../../../../parts/microscope/recordings.js";
+import { hasRecording } from "../../microscope/recordings.js";
 
 /* The steps the protocol walks, in order. */
 const PROTOCOL_STEPS = ["focus", "scan", "detect", "gate", "select", "acquire"];

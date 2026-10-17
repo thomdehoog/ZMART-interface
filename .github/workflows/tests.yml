@@ -141,6 +141,6 @@ jobs:
       - run: >-
           npx playwright test
           zmart_interface/workflows/target_acquisition/the-built-page.spec.js
-          zmart_interface/parts
+          zmart_interface/workflows/target_acquisition/canvas
         env:
           PYTHON: python

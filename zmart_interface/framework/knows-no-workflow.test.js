@@ -1,4 +1,4 @@
-/* The framework and the parts know no workflow, and the framework no instrument.
+/* The framework and the parts know no workflow.
  *
  * `framework/` is the engine: it runs whatever workflow it is handed and
  * asks the workflow's declarations for everything particular. `parts/` is a
@@ -9,8 +9,9 @@
  * backends, the canvas tests borrowed a workflow's helpers -- and nothing
  * said so until it was tried. This test reads every file under `framework/`
  * and `parts/`, their tests included, and refuses an import of anything under
- * `workflows/`, and in the framework of anything under `parts/microscope/`,
- * so the tie cannot come back without a red test saying where. */
+ * `workflows/`, so the tie cannot come back without a red test saying where.
+ * `parts/` holds no page code today -- a part arrives when a second workflow
+ * needs it -- so its half of the test may have nothing to read. */
 
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
@@ -39,7 +40,7 @@ const importsOf = (file) => {
 
 const name = (file) => relative(PACKAGE, file).replaceAll("\\", "/");
 
-describe("the framework imports nothing of any workflow or instrument", () => {
+describe("the framework imports nothing of any workflow", () => {
   const files = sourceFiles(HERE);
 
   it("has files to read", () => {
@@ -50,24 +51,15 @@ describe("the framework imports nothing of any workflow or instrument", () => {
     it(`${name(file)} stays agnostic`, () => {
       for (const from of importsOf(file)) {
         expect(from, `${name(file)} imports ${from}`).not.toMatch(/(^|\/)workflows\//);
-        expect(from, `${name(file)} imports ${from}`).not.toMatch(/(^|\/)parts\/microscope\//);
       }
     });
   }
 });
 
-describe("the parts import nothing of any workflow", () => {
-  const files = sourceFiles(join(PACKAGE, "parts"));
-
-  it("has files to read", () => {
-    expect(files.length).toBeGreaterThan(5);
-  });
-
-  for (const file of files) {
-    it(`${name(file)} stays general`, () => {
-      for (const from of importsOf(file)) {
-        expect(from, `${name(file)} imports ${from}`).not.toMatch(/(^|\/)workflows\//);
-      }
-    });
+it("the parts import nothing of any workflow", () => {
+  for (const file of sourceFiles(join(PACKAGE, "parts"))) {
+    for (const from of importsOf(file)) {
+      expect(from, `${name(file)} imports ${from}`).not.toMatch(/(^|\/)workflows\//);
+    }
   }
 });

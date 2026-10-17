@@ -17,7 +17,7 @@
 import { sideGroup } from "../../../framework/window/panels.js";
 import {
   nextReadingIndex, withActive, withRecording, withoutRecording,
-} from "../../../parts/microscope/recordings.js";
+} from "../microscope/recordings.js";
 
 /* Which recordings are unfolded, by id. As many at once as the operator
    wants open: comparing two readings means reading both, and folding one

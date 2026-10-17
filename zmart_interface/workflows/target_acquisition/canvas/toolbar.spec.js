@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("view controls and acquisition strips stay inside a narrow canvas", async ({ page }, info) => {
   await page.goto("/?backend=pretend");
   await page.evaluate(async () => {
-    const { canvasPanel } = await import("/zmart_interface/parts/canvas/panel.js");
+    const { canvasPanel } = await import("/zmart_interface/workflows/target_acquisition/canvas/panel.js");
     const host = document.createElement("div");
     document.body.replaceChildren(host);
     canvasPanel.build(host);

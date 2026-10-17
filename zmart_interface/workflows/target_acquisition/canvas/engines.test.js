@@ -3,7 +3,7 @@
  * answered with a box that stays empty. */
 
 import { describe, it, expect } from "vitest";
-import { openerFor } from "../../parts/canvas/engines.js";
+import { openerFor } from "./engines.js";
 
 describe("asking for an engine that is not there", () => {
   it("is refused with the list of what there is, rather than a blank box", async () => {

@@ -19,7 +19,7 @@
  * beneath can be put in the same one), and the page's colour lookup. Returns
  * the picture.
  */
-import { openerFor } from "../../../../parts/canvas/engines.js";
+import { openerFor } from "../../canvas/engines.js";
 
 export function watchTheRun(ctx) {
   /**
@@ -204,7 +204,7 @@ export function watchTheRun(ctx) {
     }
 
     async function mountPanel(wanted, session) {
-      const { mountViewerPanel } = await import("../../../../parts/canvas/viewer-panel.js");
+      const { mountViewerPanel } = await import("../../canvas/viewer-panel.js");
       if (session !== generation) return;
       const mounted = await mountViewerPanel(host.parentElement ?? host, {
         viewer, acquisitions: wanted.acquisitions, css: ctx.css,

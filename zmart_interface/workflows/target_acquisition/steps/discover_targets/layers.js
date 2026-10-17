@@ -6,7 +6,7 @@
  * at rather than a thing the run produced.
  */
 import { dressTheMask } from "./mask-dress.js";
-import { activeRecording } from "../../../../parts/microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.js";
 /* One mask picture per field, fetched when first painted. A field whose
    detection has not run answers 404; that is remembered briefly and asked
    again, because a discovery marching across the sample fills them in. */

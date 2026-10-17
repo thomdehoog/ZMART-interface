@@ -24,7 +24,7 @@ async function mountHistogram(page, answer = null) {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(reply) });
   });
   await page.evaluate(async (histogram) => {
-    const module = await import("/zmart_interface/parts/canvas/viewer-panel.js");
+    const module = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer-panel.js");
     const acquisition = {
       name: "overview",
       url: `${location.origin}/data/overview.ome.zarr/|zarr3:`,
@@ -235,7 +235,7 @@ async function mountWithoutRoute(page) {
     window.__histogramForMount = histogram;
   }, histogram);
   await page.evaluate(async () => {
-    const module = await import("/zmart_interface/parts/canvas/viewer-panel.js");
+    const module = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer-panel.js");
     const histogram = window.__histogramForMount;
     const acquisition = {
       name: "overview",

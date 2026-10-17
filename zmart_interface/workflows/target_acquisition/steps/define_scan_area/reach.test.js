@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 import { pushedBackIntoReach }
-  from "../../../../workflows/target_acquisition/steps/define_scan_area/scanfield-editor.js";
+  from "./scanfield-editor.js";
 
 /* The stage, in the carrier's own micrometres: a 120 x 80 mm travel with a
    75 x 25 mm slide centred in it, so the carrier's zero is 22.5 mm right and

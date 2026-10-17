@@ -20,7 +20,7 @@
  */
 
 import { sideGroup } from "../../../../framework/window/panels.js";
-import { isFailed } from "../../../../parts/microscope/connection-status.js";
+import { isFailed } from "../../microscope/connection-status.js";
 
 export function renderSessionCard(host, ctx) {
   const session = ctx.session();

@@ -29,7 +29,7 @@
    microscope, or `?bridge=http://127.0.0.1:8600` during development, when
    the vite server holds the page instead. Re-exported here, since every
    picture address this seam hands out is built with it. */
-import { atBridge } from "../../framework/window/bridge-address.js";
+import { atBridge } from "../../../framework/window/bridge-address.js";
 export { atBridge };
 
 import { PENDING, isFailed } from "./connection-status.js";

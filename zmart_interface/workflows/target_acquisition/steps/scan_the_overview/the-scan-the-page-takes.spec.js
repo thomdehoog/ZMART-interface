@@ -5,7 +5,7 @@
  * OME-TIFFs, and the small JPEG copies the page's gallery, previews and masks
  * are drawn from. Whether the fields reach the screen as they land is the
  * walk's question (`../../walk.spec.js`, through the real bridge) and, at the
- * drawing engine, `parts/canvas/source-refresh.spec.js`'s.
+ * drawing engine, `workflows/target_acquisition/canvas/source-refresh.spec.js`'s.
  */
 
 import fs from "node:fs";

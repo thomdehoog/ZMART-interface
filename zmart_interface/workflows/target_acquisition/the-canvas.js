@@ -3,7 +3,7 @@
  * picture, the live picture of the run being acquired, and the axes under
  * them.
  *
- * The canvas panel itself is a part (`parts/canvas/`) and knows nothing
+ * The canvas panel itself is a part (`workflows/target_acquisition/canvas/`) and knows nothing
  * about any workflow. This file is the workflow's side of it: it opens the
  * stage picture (`shared/stage.js`) and the live overview
  * (`steps/scan_the_overview/watching-the-run.js`) on that panel, hands them
@@ -15,8 +15,8 @@
  * are wired after the canvas is.
  */
 
-import { mountTheAxes } from "../../parts/canvas/axes.js";
-import { showPublicationStatus } from "../../parts/canvas/publication-note.js";
+import { mountTheAxes } from "./canvas/axes.js";
+import { showPublicationStatus } from "./canvas/publication-note.js";
 import { css, el, sizeCanvas } from "../../framework/window/dom.js";
 import { status } from "../../framework/window/status.js";
 

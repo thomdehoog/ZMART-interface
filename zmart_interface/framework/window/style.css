@@ -785,7 +785,7 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
    column beside it. Scrolls on its own so the picture never moves. */
 /* one width, so the channel and the name above it stand in the same column */
 /* Four columns, not three: the picture's own panel (the acquisitions and
-   their channels, parts/canvas/viewer-panel.js) stands between the picture
+   their channels, workflows/target_acquisition/canvas/viewer-panel.js) stands between the picture
    and the step's channel when there is a picture server to feed it. A grid
    given more children than columns quietly wraps them onto a second row,
    which scrambled the whole page the first time the panel appeared. */

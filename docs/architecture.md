@@ -10,9 +10,9 @@ parts that plug into the interface's sides:
    the page (JavaScript)            the bridge (Python)              beside it
    ---------------------            -------------------              ---------
    steps, panels, canvas  --HTTP-->  framework/bridge/    --------->  ZMART Controller --> driver --> microscope
-   parts/microscope/live.js          parts/microscope/instrument.py      (any ZMART driver, or the mock)
+   workflows/target_acquisition/microscope/live.js          parts/microscope/instrument.py      (any ZMART driver, or the mock)
                                      parts/storage/      ----------->  ZMART-viewer (serves the run's pictures)
-   parts/canvas/engines/  <--HTTP--  (the viewer's own server)
+   workflows/target_acquisition/canvas/engines/  <--HTTP--  (the viewer's own server)
                                      parts/analysis/warm.py -------->  ZMART-analysis (focus, detection, plots)
 ```
 
@@ -232,7 +232,7 @@ export const targetAcquisition = {
 };
 ```
 
-`parts/microscope/backend-contract.js` lists the promises the shared verbs
+`workflows/target_acquisition/microscope/backend-contract.js` lists the promises the shared verbs
 keep, and the workflow's `backend/backend-contract.js` its own; each test
 holds the pretend side to them on every change and a running bridge to them
 when asked.
@@ -368,7 +368,7 @@ filled; the other was a duplication, and it has since been taken out:
   wanting only its own module could not be written. `panels` above is the fix.
 - a panel that builds a picture of its own — rather than drawing on one of the
   page's canvases — had no way to learn that it was on screen. The canvas
-  handle now offers `whenShown()` (`parts/canvas/viewer.js`), which a step
+  handle now offers `whenShown()` (`workflows/target_acquisition/canvas/viewer.js`), which a step
   awaits before it draws.
 - **every step held up every step after it.** That is right for a run, where each
   step produces something the next one needs, and wrong for a step that only
@@ -406,15 +406,15 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 |---|---|
 | `ta/shared/carriers.js` | built, unit-tested, **used by the app, the carrier widget and the scan-field grid** |
 | `ta/shared/scanfields.js` | built, unit-tested, **used by the scan-area widget** |
-| `parts/microscope/instruments.js` | used by the app |
+| `workflows/target_acquisition/microscope/instruments.js` | used by the app |
 | `parts/microscope/pretend-sample/` | built, unit-tested, **used by the app** (the focus sweep and the surface fit) |
-| `parts/microscope/mock.js` | built, used by the app only with `?backend=pretend`, for the page's own tests |
+| `workflows/target_acquisition/microscope/mock.js` | built, used by the app only with `?backend=pretend`, for the page's own tests |
 | `framework/rules/steps.js` | built, unit-tested, **used by the app** — numbering, ordering, readiness and panels |
 | `framework/rules/finding-workflows.js` | built, unit-tested, **used by the app: turns the workflow folders into the chooser's list** |
 | `workflows/*/flow.js` | built, unit-tested, **used by the app: the only declaration of the workflows** |
 | `ta/steps/define_carrier/carrier-panel.js` | built, used — the first widget, and the shape the rest should follow |
 | `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |
-| `parts/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
+| `workflows/target_acquisition/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
 | `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares, installs the framework's parts, then calls every workflow's own `install`; it names no workflow, backend or panel |
 | `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: its half of the run document, the rail, the step's press, running a step, the panels, the channel |
 | `framework/fixtures/three_steps/flow.js` | the framework's own test workflow, with no microscope, no Python and no canvas; assembled by the unit tests |
@@ -486,7 +486,7 @@ step)`, in its folder, which call the backend. Adding a step to a workflow
 means writing those beside its declaration, and nothing in the framework
 changes.
 
-## The canvas: `parts/canvas/`
+## The canvas: `workflows/target_acquisition/canvas/`
 
 The canvas has its own surface (`surface.js`): the view, the two gestures, a
 drawing surface beneath and one above, and a middle slot between them where the
@@ -502,7 +502,7 @@ and the order the stack is drawn in, which is the one thing no step can know
 because it interleaves them.
 
 ```
-parts/canvas/
+workflows/target_acquisition/canvas/
   surface.js    the canvas's own surface: the view, the gestures, the slots
   viewer.js     the canvas a workflow puts in a box: its layers, their buttons,
                 the fade, the lock, and where a press or a drag goes

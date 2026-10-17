@@ -8,8 +8,8 @@
  * a step calls them without knowing where they live.
  */
 
-import { displayedPictureAddress } from "../../../parts/canvas/display-of.js";
-import { activeRecording } from "../../../parts/microscope/recordings.js";
+import { displayedPictureAddress } from "../canvas/display-of.js";
+import { activeRecording } from "../microscope/recordings.js";
 
 /** Where a capture's picture is: the viewer's small copy, by the capture's
     label -- drawn with the canvas's own display settings for that

@@ -12,9 +12,9 @@ What is where:
   in JavaScript), the rules for steps,
   and ``bridge.py``, the HTTP door through which the page reaches the
   controller.
-- ``parts/``: what a workflow is built from -- the canvas and its drawing
-  engines, the microscope seam, the storage of what a run captures, and the
-  analysis that scores focus and finds objects.
+- ``parts/``: what more than one workflow is built from. Its Python is on
+  its way to the one workflow that uses it; a part arrives here when a
+  second workflow needs it (``parts/README.md``).
 - ``workflows/``: one folder per workflow, all built into the page;
   ``target_acquisition`` today. A workflow written in another repository is
   dropped into this folder and the page is built again

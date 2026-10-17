@@ -2,8 +2,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { watchTheRun } from "./watching-the-run.js";
 
 const mocks = vi.hoisted(() => ({ opener: vi.fn(), mountPanel: vi.fn() }));
-vi.mock("../../../../parts/canvas/engines.js", () => ({ openerFor: mocks.opener }));
-vi.mock("../../../../parts/canvas/viewer-panel.js", () => ({ mountViewerPanel: mocks.mountPanel }));
+vi.mock("../../canvas/engines.js", () => ({ openerFor: mocks.opener }));
+vi.mock("../../canvas/viewer-panel.js", () => ({ mountViewerPanel: mocks.mountPanel }));
 
 const deferred = () => {
   let resolve;

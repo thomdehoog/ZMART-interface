@@ -37,7 +37,7 @@ test("the engine draws the store, and the console says nothing", async ({ page }
     host.style.cssText =
       "position:fixed;inset:0;z-index:999;background:#202830;";
     document.body.append(host);
-    const { openerFor } = await import("/zmart_interface/parts/canvas/engines.js");
+    const { openerFor } = await import("/zmart_interface/workflows/target_acquisition/canvas/engines.js");
     const openViewer = await openerFor("neuroglancer-under");
     window.__engineLook = await openViewer(host, {
       acquisitions: source.split(" ").map((url, at) => ({ url, name: `looked-at ${at}` })),

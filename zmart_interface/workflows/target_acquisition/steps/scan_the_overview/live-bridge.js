@@ -17,8 +17,8 @@ import { expect } from "@playwright/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { isTheMock } from "../../../../parts/microscope/instruments.js";
-import { bridgePython } from "../../../../parts/testing/python.js";
+import { isTheMock } from "../../microscope/instruments.js";
+import { bridgePython } from "../../testing/python.js";
 
 export const rest = (ms) => new Promise((done) => setTimeout(done, ms));
 

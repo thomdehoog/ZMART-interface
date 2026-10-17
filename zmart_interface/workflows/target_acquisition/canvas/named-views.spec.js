@@ -75,7 +75,7 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
               coverageSources: row.coverageSources.map(url => origin + url),
             })) }];
         };
-        const { openerFor } = await import("/zmart_interface/parts/canvas/engines.js");
+        const { openerFor } = await import("/zmart_interface/workflows/target_acquisition/canvas/engines.js");
         window.namedViewer = await (await openerFor("neuroglancer-under"))(host, {
           acquisitions: namedAcquisitions(layers),
           presentation: "2d-overlay", transparentBackground: true,

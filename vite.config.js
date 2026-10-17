@@ -9,7 +9,7 @@ import { theViewersDrawingFolder } from "./tools/the-installed-viewer.mjs";
 
 const here = import.meta.dirname;
 
-/* Neuroglancer, one of the drawing engines in `zmart_interface/parts/canvas/
+/* Neuroglancer, one of the drawing engines in `zmart_interface/workflows/target_acquisition/canvas/
    engines/`, offers its insides under names beginning `neuroglancer/unstable/`,
    which are not folder names: its package description maps them onto a folder
    called `lib`. The mapping is written out here, so whatever an engine asks of

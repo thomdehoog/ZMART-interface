@@ -1,15 +1,15 @@
 /**
  * Target acquisition's promises, asked of the pretend backend on every change
  * and of a running bridge when one is given (`BACKEND_BRIDGE`), as
- * `parts/microscope/backend-contract.test.js` does for the shared verbs.
+ * `workflows/target_acquisition/microscope/backend-contract.test.js` does for the shared verbs.
  *
  * Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
-import { isTheMock } from "../../../parts/microscope/instruments.js";
-import { backend as sharedPretend } from "../../../parts/microscope/mock.js";
+import { isTheMock } from "../microscope/instruments.js";
+import { backend as sharedPretend } from "../microscope/mock.js";
 import { promisesOfTargetAcquisition } from "./backend-contract.js";
 import { targetAcquisitionPretend } from "./pretend.js";
 
@@ -31,7 +31,7 @@ describe.skipIf(!bridgeAt)("Target acquisition's live verbs keep the same promis
 
   beforeAll(async () => {
     globalThis.location = { search: `?bridge=${bridgeAt}`, protocol: "http:" };
-    const { backend: shared } = await import("../../../parts/microscope/live.js");
+    const { backend: shared } = await import("../microscope/live.js");
     const { targetAcquisition } = await import("./live.js");
     live = { ...shared, ...targetAcquisition };
     const offered = await live.instruments();

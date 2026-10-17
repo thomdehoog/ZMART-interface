@@ -32,7 +32,7 @@ const A_PAGE_WITH_ONLY_A_CANVAS = `
 <div id="box"></div>
 <script type="module">
 const el = (id) => document.getElementById(id);
-const { putTheCanvasIn } = await import("/zmart_interface/parts/canvas/viewer.js");
+const { putTheCanvasIn } = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer.js");
 
 /* Three plain layers, each a flat square of its own colour on its own piece of
    sample, so that which of them reached the screen can be counted from a
@@ -335,7 +335,7 @@ test("a host that gives only a box and a place for the buttons still gets a canv
   /* Only the box and the layer buttons are required — a canvas with nowhere
      to draw, or no way to turn a layer off, is not one. */
   const buttons = await page.evaluate(async () => {
-    const { putTheCanvasIn } = await import("/zmart_interface/parts/canvas/viewer.js");
+    const { putTheCanvasIn } = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer.js");
     const box = document.createElement("div");
     box.style.cssText = "position:relative;width:320px;height:200px";
     const layers = document.createElement("div");
@@ -499,7 +499,7 @@ test("the picture sits between the layers below its place in the stack and those
      is listed before the marker is drawn under the picture, what comes after
      it over the picture. */
   const shares = await page.evaluate(async () => {
-    const { putTheCanvasIn } = await import("/zmart_interface/parts/canvas/viewer.js");
+    const { putTheCanvasIn } = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer.js");
     document.body.textContent = "";
     const box = document.createElement("div");
     box.id = "stacked";

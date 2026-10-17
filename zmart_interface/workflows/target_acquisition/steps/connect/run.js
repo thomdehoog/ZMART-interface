@@ -8,7 +8,7 @@
  * answered, the canvas becomes the instrument's and the stage watch starts.
  */
 
-import { isFailed } from "../../../../parts/microscope/connection-status.js";
+import { isFailed } from "../../microscope/connection-status.js";
 import { watchStagePosition } from "../../shared/stage-position.js";
 
 /** Open the session; answers when it is open, or `{ failed }` once the

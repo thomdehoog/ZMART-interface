@@ -36,7 +36,7 @@ test("the panel stands between the picture and the channel", async ({ page }) =>
   await page.waitForTimeout(400);
 
   await page.evaluate(async () => {
-    const { mountViewerPanel } = await import("/zmart_interface/parts/canvas/viewer-panel.js");
+    const { mountViewerPanel } = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer-panel.js");
     const sources = Array.from(
       { length: 9 },
       (_, at) => `http://127.0.0.1:9/data/0/overview_P${String(at).padStart(6, "0")}.ome.zarr/|zarr3:`,

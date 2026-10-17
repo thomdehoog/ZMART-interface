@@ -9,7 +9,7 @@
  */
 
 import "./style.css";
-import { canvasPanel } from "../../parts/canvas/panel.js";
+import { canvasPanel } from "./canvas/panel.js";
 /* The seam. Connecting, reading a preset off the instrument, measuring the
    focus map and driving the overview scan all go through the backend and are
    awaited; the page never knows whether a real stage moved. The page speaks
@@ -17,8 +17,8 @@ import { canvasPanel } from "../../parts/canvas/panel.js";
    the mock or a real microscope — is chosen on the Connect step. The
    in-browser rehearsal (timers and a synthetic sample) is reachable only by
    `?backend=pretend`, for this page's own browser tests. */
-import { backend as liveBackend } from "../../parts/microscope/live.js";
-import { backend as pretendBackend } from "../../parts/microscope/mock.js";
+import { backend as liveBackend } from "./microscope/live.js";
+import { backend as pretendBackend } from "./microscope/mock.js";
 import { targetAcquisition } from "./backend/live.js";
 import { targetAcquisitionPretend } from "./backend/pretend.js";
 import { installTargetAcquisition } from "./on-the-page.js";

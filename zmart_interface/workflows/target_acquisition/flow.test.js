@@ -12,8 +12,8 @@ import {
 } from "../../framework/rules/steps.js";
 import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
 import { freshRun, startOver } from "../../framework/window/run-state.js";
-import { emptySlot, withRecording } from "../../parts/microscope/recordings.js";
-import { sampleReading } from "../../parts/microscope/settings.js";
+import { emptySlot, withRecording } from "./microscope/recordings.js";
+import { sampleReading } from "./microscope/settings.js";
 import * as threeSteps from "../../framework/fixtures/three_steps/flow.js";
 import * as targetAcquisition from "./flow.js";
 

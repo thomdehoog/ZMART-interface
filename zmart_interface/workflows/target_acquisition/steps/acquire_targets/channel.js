@@ -7,7 +7,7 @@
  * once there are targets.
  */
 
-import { emptySlot, activeRecording } from "../../../../parts/microscope/recordings.js";
+import { emptySlot, activeRecording } from "../../microscope/recordings.js";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
 import galleryWidget from "./gallery.js";
 import { stopFollowingTheRun } from "./run.js";

@@ -5,7 +5,7 @@
  * done when the run failed on the instrument.
  */
 
-import { METRICS } from "../../../../parts/microscope/pretend-sample/sweep.js";
+import { METRICS } from "../../microscope/pretend-sample/sweep.js";
 
 /** Measure every point of the map; the focus map's own `remeasure` drives
     the stage, and the answer says whether the operator's hand stopped it. */

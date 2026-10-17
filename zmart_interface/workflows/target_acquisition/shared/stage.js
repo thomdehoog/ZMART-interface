@@ -21,8 +21,8 @@
  * session there is a frame of its own, so the picture has something to draw.
  */
 
-import { putTheCanvasIn } from "../../../parts/canvas/viewer.js";
-import { theCanvasOf } from "../../../parts/microscope/canvas.js";
+import { putTheCanvasIn } from "../canvas/viewer.js";
+import { theCanvasOf } from "../microscope/canvas.js";
 /* What each step draws on the picture. A step owns its own layers — what they
    are, when the run has anything for them, and what a press on one means — and
    the workflow says only where each sits in the stack. */
@@ -31,7 +31,7 @@ import { scanAreaLayers } from "../steps/define_scan_area/layers.js";
 import { focusLayers } from "../steps/focus_strategy/layers.js";
 import { MASK_RAINBOW } from "../steps/discover_targets/mask-dress.js";
 import { maskLayersOn } from "./mask-layers.js";
-import { mountChannelBox } from "../../../parts/canvas/channel-box.js";
+import { mountChannelBox } from "../canvas/channel-box.js";
 import { overviewLayers } from "../steps/scan_the_overview/layers.js";
 import { targetLayers } from "../steps/discover_targets/layers.js";
 import { acquiredLayers } from "../steps/acquire_targets/layers.js";
@@ -593,7 +593,7 @@ function drawnIn(frame) {
  * What each layer draws belongs to its step; where it sits belongs here.
  *
  * Within each drawing slot, layers that stay solid are drawn last. See
- * `parts/canvas/layers-above.js`.
+ * `workflows/target_acquisition/canvas/layers-above.js`.
  */
 const THE_STACK = [
   "ground", "limits", "carrier", "focus", "plan", "testTiles",

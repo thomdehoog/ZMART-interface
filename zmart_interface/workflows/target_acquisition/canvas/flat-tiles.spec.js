@@ -63,7 +63,7 @@ for (const bake of [false, true]) for (const together of [false, true]) {
           }));
           const acquisitions = [{name:"overview", embeddingUrl:origin+"/embedding.js", channels}];
           if (first) {
-            const { openerFor } = await import("/zmart_interface/parts/canvas/engines.js");
+            const { openerFor } = await import("/zmart_interface/workflows/target_acquisition/canvas/engines.js");
             window.flatViewer = await (await openerFor("neuroglancer-under"))(document.querySelector("#flat-proof"),
               {acquisitions, presentation:"2d-overlay", transparentBackground:true});
             window.initialFlatViewer = flatViewer;

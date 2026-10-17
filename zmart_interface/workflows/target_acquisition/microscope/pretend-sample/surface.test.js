@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   fitSurface, surfaceZ, residualSummary, looErrors, affineSurface, nonCollinear, solve,
-} from "../../../parts/microscope/pretend-sample/surface.js";
+} from "./surface.js";
 
 /* These tests are the contract for the focus surface: the Python fitter they
    once mirrored has been removed, so nothing else pins it. */

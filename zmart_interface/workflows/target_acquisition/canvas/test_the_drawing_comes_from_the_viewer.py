@@ -14,10 +14,10 @@ from pathlib import Path
 
 import zmart_viewer
 
-CHECKOUT = Path(__file__).resolve().parents[3]
+CHECKOUT = Path(__file__).resolve().parents[4]
 #: The neuroglancer engine, written in JavaScript or, once converted, TypeScript.
 ENGINE = next(
-    path for path in (CHECKOUT / "zmart_interface/parts/canvas/engines/neuroglancer-under").glob("viewer.*")
+    path for path in (CHECKOUT / "zmart_interface/workflows/target_acquisition/canvas/engines/neuroglancer-under").glob("viewer.*")
     if path.suffix in (".js", ".ts")
 )
 

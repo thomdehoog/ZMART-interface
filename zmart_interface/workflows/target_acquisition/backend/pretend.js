@@ -4,7 +4,7 @@
  * protocols, with timers and the pretend sample instead of a microscope.
  *
  * The general pretend verbs (connecting, the stage, settings, a capture)
- * are the shared rehearsal in `parts/microscope/mock.js`; these are this
+ * are the shared rehearsal in `workflows/target_acquisition/microscope/mock.js`; these are this
  * workflow's, the pretend twin of `./live.js`. `flow.js` puts the two
  * together when the page's address asks for `?backend=pretend`, which only
  * this page's own browser tests do.
@@ -13,9 +13,9 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import { wait } from "../../../parts/microscope/mock.js";
-import { makeRng } from "../../../parts/microscope/pretend-sample/rng.js";
-import { METRIC_KEYS, sweep } from "../../../parts/microscope/pretend-sample/sweep.js";
+import { wait } from "../microscope/mock.js";
+import { makeRng } from "../microscope/pretend-sample/rng.js";
+import { METRIC_KEYS, sweep } from "../microscope/pretend-sample/sweep.js";
 
 const writtenProtocols = [];
 
