@@ -7,7 +7,7 @@ builds anything.
 
 ```bash
 npm ci            # the page's packages, and neuroglancer's patch
-npm run build     # the page and two files beside it -> zmart_interface/framework/window/build/
+npm run build     # the page and two files beside it -> zmart_interface/build/
 npm run dev       # http://127.0.0.1:5174, reloads on save; open it with `zmart-interface --dev`
 ```
 
@@ -19,7 +19,7 @@ a stored value into a colour (`programs.js`, imported as
 `zmart-viewer/drawing/programs.js`), and the edits that let neuroglancer keep
 an image's transparency, keep a refreshed picture on screen, and let a picture
 grow while it is on screen (`neuroglancer-patches.mjs`, `neuroglancer-growth.mjs`). The build takes them
-from the installed viewer (`the-installed-viewer.mjs` finds them), so the page
+from the installed viewer (`tools/the-installed-viewer.mjs` finds them), so the page
 and the viewer cannot drift apart. The one neuroglancer edit only this page
 needs stays in `patches/neuroglancer+2.41.2.patch`.
 
@@ -35,7 +35,7 @@ Playwright browsers must live there.
 
 ## What the build produces, and why it is three files rather than one
 
-`npm run build` writes three files into `zmart_interface/framework/window/build/`:
+`npm run build` writes three files into `zmart_interface/build/`:
 
 | file | what it is | how large |
 | --- | --- | --- |
@@ -69,7 +69,7 @@ failed twice over:
    page that way, the browser cannot make sense of it, the program never starts,
    and nothing reports an error — the description of a run loads and the picture
    never appears. The only place Vite will accept a compiled program is the file
-   on disk inside `node_modules`, which is why `neuroglancer-workers.mjs` writes
+   on disk inside `node_modules`, which is why `tools/neuroglancer-workers.mjs` writes
    there; a plugin handing Vite the compiled program instead was tried and Vite
    never asked for it.
 2. **Even compiled, it is too large to fold in.** A background program folded
@@ -83,7 +83,7 @@ failed twice over:
    a file beside itself and the fetching one starts the unpacking one that way.
 
 So the page is folded into one file and the two background programs sit beside
-it. `neuroglancer-workers.mjs` compiles them; `vite.config.js` places them.
+it. `tools/neuroglancer-workers.mjs` compiles them; `vite.config.js` places them.
 
 ### What that costs
 
@@ -104,8 +104,8 @@ corner saying where the third went. Serve the folder over HTTP and all three are
 there; the `zmart-interface` window now does exactly that, which is also the
 closer imitation of how the page will really be handed out.
 
-`build.outDir` points at `zmart_interface/framework/window/build/`, beside the
-window that shows it. The built files are committed and ship in the package,
+`build.outDir` points at `zmart_interface/build/`: everything else in the
+repository is source, and that folder is what the window opens. The built files are committed and ship in the package,
 because the microscope PC cannot build them; rebuild and commit them after any
 change to the page's sources. Only the built page goes into the package: the
 JavaScript sources and every test stay in the repository.

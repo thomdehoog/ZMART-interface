@@ -4,8 +4,8 @@ import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import {
   THE_UNPACKING_PROGRAM, WHERE_THE_WORKERS_LIVE, theUnpackingProgram,
-} from "./neuroglancer-workers.mjs";
-import { theViewersDrawingFolder } from "./the-installed-viewer.mjs";
+} from "./tools/neuroglancer-workers.mjs";
+import { theViewersDrawingFolder } from "./tools/the-installed-viewer.mjs";
 
 const here = import.meta.dirname;
 
@@ -34,7 +34,7 @@ const THE_FRAMEWORKS_BARE_NAME = {
 /* The drawing rules this page shares with the ZMART viewer -- the shader
    programs that turn a stored value into a colour -- are the viewer's, and are
    imported under the bare name `zmart-viewer/drawing/<file>` from the viewer
-   installed in the Python that builds the page (see `the-installed-viewer.mjs`). */
+   installed in the Python that builds the page (see `tools/the-installed-viewer.mjs`). */
 const theViewersDrawing = theViewersDrawingFolder();
 const THE_VIEWERS_DRAWING = {
   find: /^zmart-viewer\/drawing\//,
@@ -47,7 +47,7 @@ const THE_VIEWERS_DRAWING = {
  *
  * One of the three engines does part of its work in background programs, which
  * a browser will only start from a file of its own — never from something folded
- * into the page. `neuroglancer-workers.mjs` explains that at length and gets the
+ * into the page. `tools/neuroglancer-workers.mjs` explains that at length and gets the
  * two programs ready; these two plugins are the build's side of it.
  *
  * `assetsInlineLimit` below is what keeps the fetching program out of the page.
@@ -113,7 +113,7 @@ export default defineConfig({
     viteSingleFile({ useRecommendedBuildConfig: false }),
   ],
   build: {
-    outDir: "zmart_interface/framework/window/build",
+    outDir: "zmart_interface/build",
     emptyOutDir: true,
     /* Fold everything into the page except neuroglancer's background programs,
        which have to stay files of their own. */

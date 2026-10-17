@@ -80,7 +80,7 @@ namespaces = false
 # The page's JavaScript sources, and its tests, stay in the repository; only
 # the build goes. The Python tests beside the code stay behind too; setup.py
 # says how.
-"zmart_interface.framework" = ["window/build/**/*"]
+"zmart_interface" = ["build/**/*"]
 # The mock's driver file: what the controller's registry reads to install it.
 "zmart_interface.mock_microscope" = ["zmart_driver.json", "kidney-plane.npz"]
 
@@ -91,7 +91,7 @@ python_files = ["test_*.py"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-extend-exclude = ["node_modules", "zmart_interface/framework/window/build"]
+extend-exclude = ["node_modules", "zmart_interface/build"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

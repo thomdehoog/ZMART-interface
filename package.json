@@ -6,9 +6,9 @@
   "description": "The ZMART interface's operator page: built to one self-contained page, with neuroglancer's two background programs beside it, and shipped inside the Python package.",
   "license": "MIT",
   "scripts": {
-    "predev": "node neuroglancer-workers.mjs",
+    "predev": "node tools/neuroglancer-workers.mjs",
     "dev": "vite",
-    "prebuild": "node neuroglancer-workers.mjs",
+    "prebuild": "node tools/neuroglancer-workers.mjs",
     "build": "vite build",
     "postinstall": "patch-package",
     "preview": "vite preview",

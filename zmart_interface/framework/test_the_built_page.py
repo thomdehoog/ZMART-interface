@@ -1,6 +1,6 @@
 """The built page: what is committed is what the build makes, every time.
 
-The page the bridge hands out lives in ``window/build`` and is committed, so a
+The page the bridge hands out lives in ``zmart_interface/build`` and is committed, so a
 microscope PC can install the interface without Node.js. That only holds if
 the committed files are exactly what ``npm run build`` makes from the sources
 beside them: a change to the page that was never rebuilt, or a build that
@@ -40,7 +40,7 @@ def test_the_committed_page_is_three_files_with_neuroglancers_programs_compiled(
     """The page, and neuroglancer's two background programs beside it, ready to run.
 
     The background programs arrive from npm as twenty-line lists of imports a
-    browser cannot follow; the build compiles them (``neuroglancer-workers.mjs``).
+    browser cannot follow; the build compiles them (``tools/neuroglancer-workers.mjs``).
     A page shipped with the lists instead opens and never draws, and says nothing.
     """
     names = sorted(_digest(THE_PAGE))
@@ -105,5 +105,5 @@ def test_building_twice_gives_the_committed_page(tmp_path):
     assert built[0] == built[1], "two builds of the same sources differ"
     assert built[0] == _digest(THE_PAGE), (
         "the committed page is not what the build makes: run `npm run build` and commit "
-        "zmart_interface/framework/window/build"
+        "zmart_interface/build"
     )

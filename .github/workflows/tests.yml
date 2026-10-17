@@ -1,6 +1,6 @@
 # The interface's tests on Linux and Windows: the page's unit tests (vitest),
 # the Python tests (pytest), and a check that the committed page in
-# zmart_interface/framework/window/build is exactly what `npm run build` makes.
+# zmart_interface/build is exactly what `npm run build` makes.
 #
 # None of these needs a microscope: they run on the mock. The two Python tests
 # that run an analysis step in its own conda environment skip themselves here,

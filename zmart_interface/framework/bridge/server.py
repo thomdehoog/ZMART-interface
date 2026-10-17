@@ -46,8 +46,8 @@ from . import (
     workflows,
 )
 
-#: Where ``npm run build`` leaves the page, beside the window that shows it.
-THE_PAGE = Path(__file__).resolve().parent.parent / "window" / "build"
+#: Where ``npm run build`` leaves the page: ``zmart_interface/build``.
+THE_PAGE = Path(__file__).resolve().parents[2] / "build"
 
 #: The routes, by method and path: what answers ``GET /api/instruments`` is
 #: ``ROUTES[("GET", "/api/instruments")]``.

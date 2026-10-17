@@ -3,7 +3,7 @@
 The shader programs that turn a stored value into a colour, and the edits that
 keep an image's transparency in neuroglancer, are the viewer's. This page used
 to keep copies, aligned by hand, and they drifted. Now the build takes them
-from the installed viewer (``the-installed-viewer.mjs``), and these tests keep
+from the installed viewer (``tools/the-installed-viewer.mjs``), and these tests keep
 a copy from coming back.
 """
 
@@ -44,7 +44,7 @@ def test_the_installed_viewer_is_the_pinned_one():
 
     The build takes the viewer's drawing files from the installed viewer, so a
     different viewer builds a different page. The build itself stops when they
-    differ (``the-installed-viewer.mjs``); this says so before the build is run.
+    differ (``tools/the-installed-viewer.mjs``); this says so before the build is run.
     """
     pinned = re.search(
         r'"zmart-viewer @ git\+https://github\.com/ZMB-UZH/ZMART-viewer@v([^"]+)"',

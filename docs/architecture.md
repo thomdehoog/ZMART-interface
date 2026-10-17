@@ -545,7 +545,7 @@ and a browser will only start one of those from a file of its own. So the build
 is no longer one file: it is `index.html` with everything else folded into it,
 and those two programs beside it. That was accepted after the alternative was
 tried and measured; `docs/building-the-page.md` records what was tried,
-`neuroglancer-workers.mjs` compiles the two programs, and `vite.config.js`
+`tools/neuroglancer-workers.mjs` compiles the two programs, and `vite.config.js`
 places them.
 
 It has one consequence that reaches into this folder. A page opened straight off

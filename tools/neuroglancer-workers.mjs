@@ -79,7 +79,7 @@ import { theViewersDrawingFolder } from "./the-installed-viewer.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 
 /** Where neuroglancer keeps the two lists, and where the finished programs go. */
-export const WHERE_THE_WORKERS_LIVE = join(here, "node_modules", "neuroglancer", "lib");
+export const WHERE_THE_WORKERS_LIVE = join(here, "..", "node_modules", "neuroglancer", "lib");
 
 /** What the fetching program is called, and what the unpacking one is called. */
 export const THE_FETCHING_PROGRAM = "chunk_worker.bundle.js";
@@ -113,7 +113,7 @@ const lookBesideMeInstead = {
           "neuroglancer no longer says where it looks for " +
             `${THE_UNPACKING_PROGRAM} in the way this expects, so the change ` +
             "that puts the two background programs side by side did not " +
-            "happen. Read the note in neuroglancer-workers.mjs and look at " +
+            "happen. Read the note in tools/neuroglancer-workers.mjs and look at " +
             `${path} before going further — built as it stands, the page would ` +
             "open and never draw.",
         );
@@ -203,13 +203,13 @@ export async function theUnpackingProgram() {
     throw new Error(
       `${THE_UNPACKING_PROGRAM} is only ${Math.round(source.length / 1024)} KB, ` +
         "which is the uncompiled list rather than a finished program. Run " +
-        "`node neuroglancer-workers.mjs` — `npm run build` does it for you.",
+        "`node tools/neuroglancer-workers.mjs` — `npm run build` does it for you.",
     );
   }
   return source;
 }
 
-/* Run directly (`node neuroglancer-workers.mjs`), this does the preparation and
+/* Run directly (`node tools/neuroglancer-workers.mjs`), this does the preparation and
    says what it produced, so a build log shows plainly that it happened.
 
    The address is built with `pathToFileURL` rather than by putting `file://` in
