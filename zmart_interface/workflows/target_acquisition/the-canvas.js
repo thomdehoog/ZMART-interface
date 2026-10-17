@@ -24,7 +24,7 @@ const REFUSED = "The stage did not go there: ";
 import carrierWidget from "./shared/carrier-panel.ts";
 import scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.js";
 import { watchTheRun } from "./steps/scan_the_overview/watching-the-run.js";
-import { openTheStage } from "./shared/stage.js";
+import { openTheStage } from "./shared/stage.ts";
 /* What each step draws on the picture, in no particular order: the stack's
    order is the picture's own (`THE_STACK` in `shared/stage.js`). */
 import { carrierLayers } from "./steps/define_carrier/layers.js";

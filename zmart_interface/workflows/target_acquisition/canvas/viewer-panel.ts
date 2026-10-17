@@ -152,6 +152,9 @@ export interface ViewerPanelElement extends HTMLElement {
   lendSettingsCard: (into: HTMLElement) => void;
   reclaimSettingsCard: () => void;
   requestedState: PanelState;
+  /** How the picture may be drawn, and how it is: put on the panel by the scan step's watcher. */
+  viewModes?: (acquisition: string | null) => string[];
+  viewMode?: () => string;
 }
 
 /** What `mountViewerPanel` answers. */

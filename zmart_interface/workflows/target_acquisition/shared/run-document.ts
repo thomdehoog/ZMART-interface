@@ -223,6 +223,9 @@ export function freshState({ backend }: { backend: Pick<Backend, "viewOf"> }) {
        pick per tileset. */
     testTiles: new Set<number>(),
     testN: 3,
+    /* The plan index under the pointer on the scan step, a press from
+       being a test tile; -1 when it is over none. */
+    testHovered: -1,
     /* The protocols this machine has written, listed after connecting; the
        one this run was opened on, or null for a run from scratch; the
        sentence the Protocol box shows about it; and whether the steps after

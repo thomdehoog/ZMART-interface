@@ -21,10 +21,180 @@
  * session there is a frame of its own, so the picture has something to draw.
  */
 
-import { putTheCanvasIn } from "../canvas/viewer.ts";
+import { putTheCanvasIn, type Press, type Touch } from "../canvas/viewer.ts";
 import { theCanvasOf } from "../microscope/canvas.ts";
-import { maskLayersOn } from "./mask-layers.ts";
-import { mountChannelBox } from "../canvas/channel-box.ts";
+import { maskLayersOn, type Dress } from "./mask-layers.ts";
+import { mountChannelBox, type ChannelModel, type Span } from "../canvas/channel-box.ts";
+import type { Drag } from "../canvas/engines/gestures.ts";
+import type { View } from "../canvas/engines/opening-view.ts";
+import type { Layer } from "../canvas/layers-above.ts";
+import type { Frame } from "../canvas/surface.ts";
+import type { ViewerPanelElement } from "../canvas/viewer-panel.ts";
+import type carrierWidget from "./carrier-panel.ts";
+import type { StageAt } from "./stage-position.ts";
+import type { Editor, Shown, TaRun, TaStep, ThePicture } from "../types.ts";
+
+/** A place, in micrometres. */
+interface XY {
+  x: number;
+  y: number;
+}
+
+/** What a step's layers, or a press, are handed but this file only passes on. */
+type PassedOn = (...args: never[]) => unknown;
+
+/** A press, as the step layers written against a DOM event read one. */
+interface AsAPress {
+  offsetX: number;
+  offsetY: number;
+  shiftKey: boolean;
+}
+
+/** The two frames a layer draws in, read off the frame it is handed. */
+export interface DrawnIn {
+  place: (x: number, y: number) => [number, number];
+  onTheStage: (x: number, y: number) => [number, number];
+  scale: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * What every step's layers are handed: the run, the picture's own drawing
+ * helpers, and what a press on a layer may call. Handed over rather than
+ * reached for, so a step's layers know nothing of the page they are drawn on.
+ */
+export interface StageRun {
+  run: TaRun;
+  css: (name: string) => string;
+  drawnIn: (frame: Frame) => DrawnIn;
+  carrierWidget: typeof carrierWidget;
+  scanfieldsWidget: StageContext["scanfieldsWidget"];
+  whereTheStageIs: () => StageAt | null;
+  activePreset: StageContext["activePreset"];
+  indexOfStep: (id: string) => number;
+  step: (index: number) => TaStep;
+  activeMode: string | undefined;
+  editing: Editor | null;
+  shown: number;
+  crosshair: (ctx: CanvasRenderingContext2D, x: number, y: number, arm: number, gap: number, dot: number, ring?: number) => void;
+  drawFocusLayer: PassedOn;
+  drawFocusPoints: PassedOn;
+  drawStageLimits: (ctx: CanvasRenderingContext2D, onTheStage: DrawnIn["onTheStage"], scale: number) => void;
+  drawWhereTheStageIs: (ctx: CanvasRenderingContext2D, onTheStage: DrawnIn["onTheStage"]) => void;
+  drawScaleBar: (ctx: CanvasRenderingContext2D, w: number, h: number, scale: number) => void;
+  showLegend: (spec: { title: string; lo: string; hi: string; ramp: string }) => void;
+  asAPress: (drag: Drag) => AsAPress;
+  renderRail: () => void;
+  renderActionBar: () => void;
+  editorTook: (kind: string, e: AsAPress) => boolean;
+  redraw: () => void;
+  anchorsChanged: (moved?: boolean) => void;
+  testTilesChanged: () => void;
+  drawStage: () => void;
+  pictureShows: (name: string) => boolean;
+  focusGrabbed: PassedOn;
+  marqueeing: () => boolean;
+  focusMarqueeTo: PassedOn;
+  focusMarqueeTook: PassedOn;
+  focusDragging: () => boolean;
+  focusDraggedTo: PassedOn;
+  endFocusDrag: () => void;
+  focusPressed: (x: number, y: number) => unknown;
+  toStage: <P extends XY>(p: P) => P;
+  toCarrier: <P extends XY>(p: P) => P;
+}
+
+/** One step's layers, by key, for the run as it stands. */
+export type StepLayers = (theRun: StageRun) => Record<string, Layer>;
+
+/** A layer of the mask strip: a mask layer, or the tiles or the targets dressed like one. */
+interface StripLayer {
+  id: string;
+  name: string;
+  how: string;
+  objects: number;
+  shown: boolean;
+  dress: Dress;
+  ownColour?: string;
+  glyph?: string;
+}
+
+/**
+ * What the workflow hands the picture: the elements it draws in and on, the
+ * run, the boxes the steps show, each step's layers, and the few things it
+ * must be able to call back into.
+ */
+export interface StageContext {
+  pictureHost: HTMLElement;
+  box: HTMLElement;
+  layerBar: HTMLElement;
+  tip: HTMLElement;
+  readout: HTMLElement | null;
+  carrierButton: HTMLElement;
+  tilesetButton: HTMLButtonElement;
+  tileButton?: HTMLButtonElement | null;
+  masksBar?: HTMLElement | null;
+  maskCells?: HTMLElement | null;
+  maskName?: HTMLElement | null;
+  maskHow?: HTMLElement | null;
+  maskEye?: HTMLElement | null;
+  maskOpacityValue?: HTMLElement | null;
+  channelPop: HTMLElement;
+  greyChip?: HTMLElement | null;
+  greyChipMore?: HTMLElement | null;
+  greyPop: HTMLElement;
+  maskPop: HTMLElement;
+  acquisitionPick?: HTMLElement | null;
+  acquisitionName?: HTMLElement | null;
+  acquisitionEye?: HTMLElement | null;
+  acquisitionMenu: HTMLElement;
+  chips?: HTMLElement | null;
+  channelsBox?: HTMLElement | null;
+  maskColours?: HTMLElement | null;
+  maskFill?: HTMLElement | null;
+  maskLine?: HTMLElement | null;
+  maskOpacity?: HTMLInputElement | null;
+  rampChip?: HTMLElement | null;
+  legend?: HTMLElement | null;
+  css: (name: string) => string;
+  run: TaRun;
+  shown: Shown;
+  carrierWidget: typeof carrierWidget;
+  scanfieldsWidget: unknown;
+  stepLayers: StepLayers[];
+  maskRainbow: string;
+  activePreset: () => unknown;
+  indexOfStep: (id: string) => number;
+  activeStep: () => TaStep | null;
+  step: (index: number) => TaStep;
+  anchorPressed: (x: number, y: number) => unknown;
+  anchorsChanged: (moved?: boolean) => void;
+  testTilesChanged: () => void;
+  tileChosen?: () => void;
+  detectPressed: (x: number, y: number) => unknown;
+  targetPressed?: (x: number, y: number) => unknown;
+  targetAt?: (world: XY, reachUm: number) => string | null;
+  renderActionBar: () => void;
+  renderRail: () => void;
+  pictureShows: (name: string) => boolean;
+  driveTo?: (at: XY) => Promise<StageAt | null>;
+  thePicture: ThePicture;
+  focus: {
+    focusPressed: (x: number, y: number) => unknown;
+    focusCursor: () => string;
+    focusDraggedTo: PassedOn;
+    focusGrabbed: PassedOn;
+    focusHovered: (e: PointerEvent) => unknown;
+    focusMarqueeTo: PassedOn;
+    focusMarqueeTook: PassedOn;
+    drawFocusLayer: PassedOn;
+    drawFocusPoints: PassedOn;
+    marqueeing: () => boolean;
+    dragging: () => boolean;
+    endDrag: () => void;
+  };
+}
 
 /**
  * Open the picture on a canvas.
@@ -40,9 +210,9 @@ import { mountChannelBox } from "../canvas/channel-box.ts";
  * and the workflow's root hands them over, so this picture imports no step.
  * `maskRainbow` is how "each object its own colour" is shown on a swatch.
  */
-export function openTheStage(ctx) {
+export function openTheStage(ctx: StageContext) {
   const {
-    css, sizeCanvas, el, run, carrierWidget, scanfieldsWidget,
+    css, run, carrierWidget, scanfieldsWidget,
     activePreset, indexOfStep, activeStep, step,
     anchorPressed, detectPressed, targetPressed, targetAt,
     renderActionBar, renderRail, thePicture,
@@ -77,16 +247,16 @@ const theCanvas = putTheCanvasIn({
   /* A press that claimed nothing and went nowhere is the run's own picking, so
      it is answered here. A drag is not: the layers answer for those
      themselves, each in its place in the stack. */
-  onPressed: (where) => theRunWasPressed(where),
+  onPressed: (where: Press) => theRunWasPressed(where),
   /* A press a layer reaches is still the run's to answer: the overview's
      fields say what is under a press and act on nothing, and a press on
      an acquired frame over a field must still choose the target. */
-  onTouched: (found) => theRunWasPressed(found),
+  onTouched: (found: Touch) => theRunWasPressed(found),
   /* The scan drawn beneath is registered to this picture, so it has to follow
      every move of it. The wheel and the drag belong to the canvas now, and a
      page that only followed its own redraws would let the two come apart the
      first time somebody zoomed. */
-  onViewMoved: (where) => {
+  onViewMoved: (where: View) => {
     /* Use the view carried by the event. Reading it back from the engine in
        the same callback can still return the preceding frame, leaving the
        acquired picture one wheel tick behind the workflow layers. */
@@ -99,7 +269,7 @@ const theCanvas = putTheCanvasIn({
     redrawViewSoon();
   },
 });
-const theCanvasIsUp = theCanvas.whenShown();
+theCanvas.whenShown();
 /* Where the picture is, asked of the canvas rather than kept here. Two numbers
    say it — the middle of what is on screen, in the carrier's own micrometres,
    and how much sample one screen pixel covers — and the canvas is the one that
@@ -107,7 +277,7 @@ const theCanvasIsUp = theCanvas.whenShown();
 
    `scale` is the other way up from `zoom`, because everything drawn here is
    sized in screen pixels per micrometre. One is 1 / the other. */
-const theView = () => theCanvas.view ?? { centre: { x: 0, y: 0 }, zoom: 1 / 0.03 };
+const theView = (): View => theCanvas.view ?? { centre: { x: 0, y: 0 }, zoom: 1 / 0.03 };
 const view = {
   get scale() { return 1 / theView().zoom; },
   fitted: false,
@@ -127,12 +297,12 @@ const STAGE_UM = [...TRAVEL_BEFORE_A_SESSION];
    starts at zero -- true of the mock alone; the Leica's canvas straddles it,
    and discarding the offset laid the plan outside the travel. */
 const STAGE_ORIGIN_UM = [0, 0];
-let stageReported = null;
+let stageReported: StageAt | null = null;
 
 /** Lay the stage out over the canvas one `get_xyz` reading gives. Throws a
     sentence for the operator when the driver gives none: a guessed area
     would place pictures where they were not taken. */
-function takeTheCanvas(reading) {
+function takeTheCanvas(reading: Parameters<typeof theCanvasOf>[0]) {
   const canvas = theCanvasOf(reading);
   STAGE_ORIGIN_UM[0] = canvas.x_um[0];
   STAGE_ORIGIN_UM[1] = canvas.y_um[0];
@@ -152,7 +322,7 @@ function forgetTheCanvas() {
 }
 
 /** The stage mark: where the watch reads the stage, in micrometres. */
-function takeThePosition(at) {
+function takeThePosition(at: StageAt | null | undefined) {
   if (!at || Number.isNaN(at.x) || Number.isNaN(at.y)) return;
   stageReported = at;
   drawStage();
@@ -168,7 +338,7 @@ function takeThePosition(at) {
  * Everything the run produces is placed from this point too, so the carrier
  * and what was imaged inside it move together instead of drifting apart the
  * moment either of them moves. */
-function carrierOriginUm() {
+function carrierOriginUm(): [number, number] {
   /* Measured, once anything has been aligned. Each anchor that has been driven
      to says the same thing — this place on the drawing is that place on the
      stage — and the offset it implies is the difference between the two. Four
@@ -177,8 +347,8 @@ function carrierOriginUm() {
      plate would inherit it. */
   const measured = run.anchors.filter((a) => a.stage);
   if (measured.length) {
-    const mean = (f) => measured.reduce((sum, a) => sum + f(a), 0) / measured.length;
-    return [mean((a) => a.stage.x - a.x), mean((a) => a.stage.y - a.y)];
+    const mean = (f: (a: (typeof measured)[number]) => number) => measured.reduce((sum, a) => sum + f(a), 0) / measured.length;
+    return [mean((a) => a.stage!.x - a.x), mean((a) => a.stage!.y - a.y)];
   }
   /* Otherwise centred in the travel, because that is where a holder puts a
      plate and it is the only placement that can be worked out rather than
@@ -216,9 +386,7 @@ function fitView() {
      of the carrier on the stage. A carrier too fine to draw one area at a time
      is drawn as one block instead, which is `drawOn`'s answer and the right
      place for it. */
-  const [fw, fh] = STAGE_UM;
   const s = 1 / furthestOut(w, h);
-  const [ox, oy] = carrierOriginUm();
   /* Worked back from where the thing being framed should land, in the carrier's
      own micrometres, which is the frame the layers are drawn in.
 
@@ -238,7 +406,7 @@ function fitView() {
  * the limits below need the same answer: zoomed out as far as the picture goes,
  * this is not just where Fit put it, it is the only place it can be.
  */
-function whereFitPutsIt(w, h, zoom) {
+function whereFitPutsIt(w: number, h: number, zoom: number): XY {
   const [fw] = STAGE_UM;
   const [ox, oy] = carrierOriginUm();
   return {
@@ -265,7 +433,7 @@ function whereFitPutsIt(w, h, zoom) {
  * to show cannot be dragged, only wobbled, and a picture that wobbles under the
  * hand is one nobody can put back without pressing Fit.
  */
-function insideTheLimits(where) {
+function insideTheLimits(where: View): View {
   const box = stageBox.getBoundingClientRect();
   const w = box.width || 800, h = box.height || 600;
   const [fw, fh] = STAGE_UM;
@@ -273,7 +441,7 @@ function insideTheLimits(where) {
   const zoom = Math.min(where.zoom, furthestOut(w, h));
   const air = FIT_MARGIN * zoom;
   const parked = whereFitPutsIt(w, h, zoom);
-  const held = (centre, px, lo, hi, home) => {
+  const held = (centre: number, px: number, lo: number, hi: number, home: number) => {
     const half = (px / 2) * zoom;
     const min = lo - air, max = hi + air;
     return max - min >= 2 * half
@@ -290,7 +458,7 @@ function insideTheLimits(where) {
 }
 
 /** The zoom Fit lands on: the stage framed, margin and all. */
-function furthestOut(w, h) {
+function furthestOut(w: number, h: number): number {
   const [fw, fh] = STAGE_UM;
   return 1 / Math.min((w - 2 * FIT_MARGIN) / fw, (h - roomAbove() - 2 * FIT_MARGIN) / fh);
 }
@@ -342,7 +510,7 @@ function redrawViewSoon() {
    from inside the canvas telling it where to be while it is telling us where
    it went. */
 let straightening = false;
-function keepItOnScreen(where) {
+function keepItOnScreen(where: View): View {
   if (straightening || !where?.centre) return where;
   const should = insideTheLimits(where);
   const off = Math.abs(should.zoom - where.zoom) > 1e-9
@@ -364,7 +532,7 @@ function keepItOnScreen(where) {
  * answer to keep right, and would be wrong the first time a step forgot to
  * write to it.
  */
-function whereTheStageIs() {
+function whereTheStageIs(): StageAt | null {
   /* What the instrument reported is where the stage is, and nothing may
      stand in for it: an invented height handed to the focus map as the
      centre of a stack once drove a real stage millimetres from focus.
@@ -390,7 +558,7 @@ function whereTheStageIs() {
 /* The mark: a crosshair with a hole in the middle. The gap is the point of
    it — the arms reach out of whatever is behind them and the centre stays
    clear, so the mark shows a position rather than covering it. */
-function crosshair(ctx, x, y, arm, gap, dot, ring = 0) {
+function crosshair(ctx: CanvasRenderingContext2D, x: number, y: number, arm: number, gap: number, dot: number, ring = 0) {
   ctx.beginPath();
   for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     ctx.moveTo(x + dx * gap, y + dy * gap);
@@ -443,7 +611,7 @@ const stageMarkAt = () => {
  * the corner is three figures to read past on every step, when the question
  * they answer is only ever asked about this one mark. So they arrive on
  * hover, and the mark thickens to say it is the thing being asked about. */
-function drawWhereTheStageIs(ctx, onTheStage) {
+function drawWhereTheStageIs(ctx: CanvasRenderingContext2D, onTheStage: DrawnIn["onTheStage"]) {
   const at = whereTheStageIs();
   if (!at) return;
   const [x, y] = onTheStage(at.x, at.y);
@@ -479,7 +647,7 @@ function drawWhereTheStageIs(ctx, onTheStage) {
  * Millimetres across and micrometres down, because that is what the rest of
  * the page says: a stage is driven in millimetres and focused in micrometres.
  */
-function tipTheStageMark(e) {
+function tipTheStageMark(e: MouseEvent) {
   const mark = stageMarkAt();
   if (!mark) return false;
   const [mx, my] = mark;
@@ -487,6 +655,7 @@ function tipTheStageMark(e) {
   if (hot !== stageMarkHot) { stageMarkHot = hot; drawStage(); }
   if (!hot) return false;
   const at = whereTheStageIs();
+  if (!at) return false;
   stageTip.classList.add("on");
   stageTip.innerHTML =
     `<b>stage</b><br><b>x</b> ${(at.x / 1000).toFixed(2)} mm`
@@ -501,7 +670,7 @@ function tipTheStageMark(e) {
 /* Where the stage ends. Drawn first and faintly: it is the edge of what any
    of this can reach, which is context for everything else rather than a
    thing in its own right. */
-function drawStageLimits(ctx, onTheStage, scale) {
+function drawStageLimits(ctx: CanvasRenderingContext2D, onTheStage: DrawnIn["onTheStage"], scale: number) {
   const [x, y] = onTheStage(STAGE_ORIGIN_UM[0], STAGE_ORIGIN_UM[1]);
   ctx.save();
   ctx.strokeStyle = css("--line-strong");
@@ -513,13 +682,13 @@ function drawStageLimits(ctx, onTheStage, scale) {
 /* The travel's micrometres, on screen. The canvas projects the carrier's, so
    this is that projection with the carrier's origin taken off — the same two
    frames `drawnIn` names apart, at the one place they have to meet. */
-function toScreen(x, y) {
+function toScreen(x: number, y: number): [number, number] {
   const [ox, oy] = carrierOriginUm();
   const at = theCanvas.project(x - ox, y - oy);
   return [at.x, at.y];
 }
 
-function toWorld(px, py) {
+function toWorld(px: number, py: number): [number, number] {
   const [ox, oy] = carrierOriginUm();
   const at = theCanvas.unproject(px, py);
   return [at.x + ox, at.y + oy];
@@ -536,12 +705,12 @@ function toWorld(px, py) {
  * as the mock's picture happened to line up; on an aligned Leica every focus
  * point drove to the wrong place.
  */
-function toStage(p) {
+function toStage<P extends XY>(p: P): P {
   const [ox, oy] = carrierOriginUm();
   return { ...p, x: p.x + ox, y: p.y + oy };
 }
 
-function toCarrier(p) {
+function toCarrier<P extends XY>(p: P): P {
   const [ox, oy] = carrierOriginUm();
   return { ...p, x: p.x - ox, y: p.y - oy };
 }
@@ -552,7 +721,7 @@ function toCarrier(p) {
 const layersLocked = () => theCanvas.locked;
 /* The stack as it was last handed over, so a press can ask what is on the
    picture without building it again to find out. */
-let theStack = [];
+let theStack: Layer[] = [];
 
 /**
  * What a layer is handed, in the terms this run draws in.
@@ -569,12 +738,12 @@ let theStack = [];
  * differ by where the carrier sits in the travel, and confusing them draws
  * everything up and to the left of where it belongs. That has happened.
  */
-function drawnIn(frame) {
+function drawnIn(frame: Frame): DrawnIn {
   const [ox, oy] = carrierOriginUm();
-  const put = (x, y) => { const at = frame.project(x, y); return [at.x, at.y]; };
+  const put = (x: number, y: number): [number, number] => { const at = frame.project(x, y); return [at.x, at.y]; };
   return {
     place: put,
-    onTheStage: (x, y) => put(x - ox, y - oy),
+    onTheStage: (x: number, y: number) => put(x - ox, y - oy),
     scale: 1 / frame.zoom,
     w: frame.width,
     h: frame.height,
@@ -606,7 +775,7 @@ const THE_STACK = [
  * They are true of the run from the moment there is a microscope to ask, and
  * they are what every step's own layers are drawn against.
  */
-function thePicturesOwnLayers(theRun) {
+function thePicturesOwnLayers(theRun: StageRun): Record<string, Layer> {
   const { run, css, drawnIn, drawStageLimits, drawWhereTheStageIs, drawScaleBar } = theRun;
   return {
     ground: {
@@ -672,8 +841,8 @@ function thePicturesOwnLayers(theRun) {
  * layer says for itself whether the run has anything for it, which is a
  * different question from whether the operator wants to see it.
  */
-function theStageLayers({ shown, editing }) {
-  const theRun = {
+function theStageLayers({ shown, editing }: { shown: number; editing: Editor | null }): Layer[] {
+  const theRun: StageRun = {
     run, css, drawnIn, carrierWidget, scanfieldsWidget,
     /* Where the stage stands, for a layer that frames the field it would
        take before a scan has taken any. */
@@ -696,7 +865,7 @@ function theStageLayers({ shown, editing }) {
     toStage, toCarrier,
   };
 
-  const supplied = {
+  const supplied: Record<string, Layer> = {
     picture: { key: "picture", has: false },
     ...thePicturesOwnLayers(theRun),
   };
@@ -710,7 +879,7 @@ function drawStage() {
   if (ctx.tilesetButton) ctx.tilesetButton.disabled = !run.plan.length;
   legendSettles();
 
-  const editing = activeStep()?.id === "scanfields" ? ctx.shown.editor : null;
+  const editing = activeStep()?.id === "scanfields" ? ctx.shown.editor ?? null : null;
   const stack = theStageLayers({
     shown: Math.max(run.tilesShown, 0),
     /* Which channels are mixed is a question about a picture, and the
@@ -776,73 +945,12 @@ function targetSnapshot() {
   });
 }
 
-/**
- * What the canvas will answer to, from outside it.
- *
- * Read-only geometry and layer controls used by the browser tests.
- */
-window.__theStageCanvas = {
-  /** Which layers there are, and which are being drawn. */
-  layers: () => theCanvas.layersAbove.map(({ key, label, shown, staysSolid }) =>
-    ({ key, label, shown, staysSolid: !!staysSolid })),
-  /**
-   * Draw one of the layers, or stop drawing it.
-   *
-   * The same thing the controls in the canvas foot did before that strip was
-   * taken off the screen. Here rather than only on a button because turning a
-   * layer on and off is a thing the canvas can do, and it should not stop
-   * being possible because nobody has yet decided where the button for it
-   * belongs.
-   */
-  showLayer(key, on) {
-    theCanvas.showLayer(key, on);
-    drawStage();
-  },
-  /** Whether the named layer is being drawn, the picture included. */
-  layerShown(key) {
-    return theCanvas.layerShown?.(key) ?? true;
-  },
-  /** How solid the layers are drawn, 0 to 1. */
-  fadeTo(howSolid) {
-    theCanvas.fadeTo(Math.min(1, Math.max(0, Number(howSolid))));
-  },
-  /**
-   * Where the run means to send the stage, in micrometres in the carrier's
-   * own frame.
-   *
-   * This is the pairing the whole arrangement rests on, and it is worth
-   * saying plainly where it shows up: **the files a microscope writes do not
-   * say where they were taken.** The run knows, because it is the run that
-   * sent the stage there. So making the small pictures for a scan means
-   * handing these positions in alongside the files, and this is where a
-   * rehearsal gets them from — exactly as the real thing will.
-   */
-  plan: () => run.plan.map(({ x, y, frameUm, tileset, fieldId }) => ({ x, y, frameUm, tileset: tileset ?? fieldId ?? null })),
-  /** Candidate, selected, and acquired target positions on this same canvas. */
-  targets: targetSnapshot,
-  /**
-   * Where a place on the sample lands on screen, as the plan itself works it
-   * out.
-   *
-   * Here so that a test can ask the plan and the scan the same question and
-   * compare their answers. That comparison is the one that matters: the two
-   * are drawn by different code on different surfaces, and the only thing
-   * making them one picture is that they agree about where things are. A
-   * difference of a few pixels would look like a slightly blurry scan and be
-   * a run pointed at the wrong place.
-   */
-  project: (x, y) => {
-    const [ox, oy] = carrierOriginUm();
-    return toScreen(x + ox, y + oy);
-  },
-};
-
 /* Carrier coordinates for the editor: it places fields inside the carrier,
    so it is handed where the pointer is in that frame rather than where it is
    on the stage. A different question from `toCarrier(point)`, which turns a
    stage point into a carrier point — this turns a screen pixel into one, and
    sharing the name let it shadow the other and corrupt every converted point. */
-function pointerInCarrier(px, py) {
+function pointerInCarrier(px: number, py: number): XY {
   const [wx, wy] = toWorld(px, py);
   const [ox, oy] = carrierOriginUm();
   return { x: wx - ox, y: wy - oy };
@@ -851,7 +959,7 @@ function pointerInCarrier(px, py) {
 /* The editor sees the pointer first and says whether it took it. Only what
    it turns down pans or picks, so drawing a region does not drag the stage
    out from under the shape being drawn. */
-function editorTook(kind, e) {
+function editorTook(kind: string, e: AsAPress): boolean {
   /* Locked, nothing can be drawn or moved by accident. Panning and zooming
      are untouched — the lock is about picking, not about looking. */
   if (layersLocked()) return false;
@@ -877,7 +985,7 @@ function editorTook(kind, e) {
  * On the picture, not in a strip of its own: the white band it once cleared
  * along the bottom read as a margin under the picture, on Thom's word. */
 
-function drawScaleBar(ctx, w, h, scale) {
+function drawScaleBar(ctx: CanvasRenderingContext2D, w: number, h: number, scale: number) {
   const targetPx = 130;
   const raw = targetPx / scale;
   const pow = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -928,7 +1036,7 @@ function drawScaleBar(ctx, w, h, scale) {
    the presses a layer answers with were written against a DOM event. This is
    the one place the two meet, and it is handed to the layers rather than each
    of them working it out. */
-const asAPress = (drag) => ({
+const asAPress = (drag: Drag): AsAPress => ({
   offsetX: drag.screen.x,
   offsetY: drag.screen.y,
   shiftKey: !!drag.shift,
@@ -938,7 +1046,7 @@ const asAPress = (drag) => ({
    an anchor put down, a focus point placed, the position detection is tuned on.
    Answered when the operator lets go rather than when they press, or the start
    of every pan would put something down. */
-function theRunWasPressed({ screen }) {
+function theRunWasPressed({ screen }: { screen: XY }) {
   if (layersLocked()) return;
   anchorPressed(screen.x, screen.y)
     || focusPressed(screen.x, screen.y)
@@ -962,7 +1070,7 @@ function testTilePressed() {
 
 /* Hovering claims nothing, so it is watched here rather than routed: what is
    under the pointer decides the cursor and whatever the tip has to say. */
-stageBox.addEventListener("pointermove", (e) => {
+stageBox.addEventListener("pointermove", (e: PointerEvent) => {
   /* Nothing to say while a gesture is under way: whoever claimed it is being
      told about every move already, and a second opinion about what is under the
      pointer would only fight it. */
@@ -1048,7 +1156,7 @@ stageBox.addEventListener("pointermove", (e) => {
   stageTip.classList.remove("on");
 });
 
-stageBox.addEventListener("pointerleave", (e) => {
+stageBox.addEventListener("pointerleave", (e: PointerEvent) => {
   editorTook("leave", e);
   stageTip.classList.remove("on");
   if (run.detect.hovered !== -1) { run.detect.hovered = -1; drawStage(); }
@@ -1061,8 +1169,7 @@ stageBox.addEventListener("pointerleave", (e) => {
 /* On the discover step a single press on the tile under the pointer makes
    it the test position -- the one step where a plain click has no other
    meaning. Ignored while a run is out, like the hover that leads to it. */
-stageBox.addEventListener("click", (e) => {
-  void e;
+stageBox.addEventListener("click", () => {
   if (step(run.activeIdx).mode !== "detect" || run.running) return;
   if (run.detect.hovered < 0) return;
   if (run.detect.tile !== run.detect.hovered) {
@@ -1075,7 +1182,7 @@ stageBox.addEventListener("click", (e) => {
 
 /* An outline with no last point of its own is ended by saying the same press
    twice. Not a drag, so it does not go through the claims. */
-stageBox.addEventListener("dblclick", (e) => {
+stageBox.addEventListener("dblclick", (e: MouseEvent) => {
   if (editorTook("finish", e)) return;
   driveTheStageTo(e);
 });
@@ -1100,7 +1207,7 @@ stageBox.addEventListener("dblclick", (e) => {
  * cannot reach, and asking is either refused by the driver or quietly clamped
  * into somewhere nobody pointed at.
  */
-async function driveTheStageTo(e) {
+async function driveTheStageTo(e: MouseEvent) {
   if (run.running || layersLocked() || !ctx.driveTo) return;
   /* `toWorld` answers in the stage's own frame, so the travel's bounds are
      compared in it directly. Subtracting the carrier origin here treated the
@@ -1128,7 +1235,7 @@ ctx.carrierButton.addEventListener("click", () => { fitView(); drawStage(); });
  * to look at as one thing.
  */
 function theTilesets() {
-  const boxes = new Map();
+  const boxes = new Map<unknown, { key: unknown; xMin: number; yMin: number; xMax: number; yMax: number }>();
   for (const t of run.plan) {
     const key = t.tileset ?? t.fieldId ?? "plan";
     const half = t.frameUm / 2;
@@ -1144,7 +1251,7 @@ function theTilesets() {
 
 /* Which tileset the last press framed, so the next press can go on to the
    next one; forgotten when the view has been moved off it by hand. */
-let framedTileset = null;
+let framedTileset: unknown = null;
 
 /**
  * Tile set: frame one tileset, filling the canvas with it. The first press
@@ -1156,8 +1263,8 @@ function frameTileset() {
   const sets = theTilesets();
   if (!sets.length) return;
   const here = theView().centre;
-  const middle = (b) => ({ x: (b.xMin + b.xMax) / 2, y: (b.yMin + b.yMax) / 2 });
-  const inside = (b) => here.x >= b.xMin && here.x <= b.xMax && here.y >= b.yMin && here.y <= b.yMax;
+  const middle = (b: { xMin: number; yMin: number; xMax: number; yMax: number }) => ({ x: (b.xMin + b.xMax) / 2, y: (b.yMin + b.yMax) / 2 });
+  const inside = (b: { xMin: number; yMin: number; xMax: number; yMax: number }) => here.x >= b.xMin && here.x <= b.xMax && here.y >= b.yMin && here.y <= b.yMax;
   let index = sets.findIndex((b) => b.key === framedTileset);
   if (index >= 0 && inside(sets[index])) {
     index = (index + 1) % sets.length;
@@ -1189,8 +1296,8 @@ ctx.tilesetButton.addEventListener("click", frameTileset);
 /* The one field the frame is on: the position detection is tuned on, or
    before the scan the field under the stage. The layer that draws the
    frame says where it stands. */
-function theFramedField() {
-  const layer = theStack.find((one) => one.key === "detect" && one.has);
+function theFramedField(): (XY & { frameUm: number }) | null {
+  const layer = theStack.find((one) => one.key === "detect" && one.has) as (Layer & { field?: () => (XY & { frameUm: number }) | null }) | undefined;
   return layer?.field?.() ?? null;
 }
 
@@ -1206,7 +1313,7 @@ const ROOM_AROUND_A_TILE = 1 / 6;
 const ROOM_AROUND_A_TILESET = 0.1;
 
 /** The zoom that frames a field of `frameUm` with a little ground around it. */
-function zoomForATile(frameUm) {
+function zoomForATile(frameUm: number): number {
   const rect = stageBox.getBoundingClientRect();
   const w = rect.width || 800, h = rect.height || 600;
   return frameUm * (1 + 2 * ROOM_AROUND_A_TILE) / Math.max(1, Math.min(w, h) - 2 * FIT_MARGIN);
@@ -1236,7 +1343,7 @@ ctx.tileButton?.addEventListener("click", frameTile);
  * steps on from that. Chosen from a list, a tile is where the operator is
  * looking, and the presses should not have to be told twice.
  */
-function standOn(tile) {
+function standOn(tile: XY | null | undefined) {
   if (!tile || !Number.isFinite(tile.x) || !Number.isFinite(tile.y)) return;
   const holding = theTilesets().find((b) => tile.x >= b.xMin && tile.x <= b.xMax
     && tile.y >= b.yMin && tile.y <= b.yMax);
@@ -1255,8 +1362,8 @@ function standOn(tile) {
 /* The acquisition the row shows: the operator's choice, else the one the
    step is about -- the focus stacks on the focus step, the targets while
    acquiring, the overview otherwise -- else the first there is. */
-let chosenAcquisition = null;
-function theRowsAcquisition(names) {
+let chosenAcquisition: string | null = null;
+function theRowsAcquisition(names: string[]): string | null {
   if (chosenAcquisition && names.includes(chosenAcquisition)) return chosenAcquisition;
   const mode = step(run.activeIdx)?.mode;
   const wanted = mode === "focus" ? "focussing" : mode === "targets" ? "targets" : "overview";
@@ -1265,11 +1372,11 @@ function theRowsAcquisition(names) {
 
 /* Every card in the row closes the way a menu does: a press anywhere else,
    or Escape. */
-const cards = [];
+const cards: [HTMLElement, HTMLElement | null | undefined][] = [];
 /* The press that opened the card on show, so that the same press closes it:
    a triangle that only ever opened left no way back but a click elsewhere. */
-let openedBy = null;
-function openOnly(card, button, open) {
+let openedBy: HTMLElement | null | undefined = null;
+function openOnly(card: HTMLElement | null, button: HTMLElement | null | undefined, open: boolean) {
   for (const [c, b] of cards) {
     const on = open && c === card;
     c.hidden = !on;
@@ -1283,7 +1390,7 @@ function closeTheCards() { openOnly(null, null, false); }
 /** Open the card from this press, or close it if this press opened it.
     The presses are drawn afresh after every press, so the one that opened
     the card is known by its label rather than by identity. */
-function toggleFrom(card, button, open) {
+function toggleFrom(card: HTMLElement, button: HTMLElement, open: () => void) {
   const same = openedBy && openedBy.getAttribute("aria-label") === button.getAttribute("aria-label");
   if (same && !card.hidden) { closeTheCards(); return false; }
   open();
@@ -1291,7 +1398,7 @@ function toggleFrom(card, button, open) {
   return true;
 }
 document.addEventListener("click", (e) => {
-  if (cards.some(([c]) => !c.hidden) && !e.target.closest?.(".canvas-toolbar-right")) closeTheCards();
+  if (cards.some(([c]) => !c.hidden) && !(e.target as Element | null)?.closest?.(".canvas-toolbar-right")) closeTheCards();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTheCards(); });
 
@@ -1300,7 +1407,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTheCa
    hides that layer; the triangle beside it opens the layer's card, where
    the eye, the colour, the look and the opacity are that layer's own. The
    card is one card for whichever layer was last opened. */
-let chosenMask = null;
+let chosenMask: string | null = null;
 if (ctx.maskPop) cards.push([ctx.maskPop, null]);
 const theMaskKind = () => theAcquisitionOnShow() ?? "overview";
 /* The masks on the picture: those of every acquisition shown in it, not
@@ -1308,18 +1415,18 @@ const theMaskKind = () => theAcquisitionOnShow() ?? "overview";
    targets, whose pictures have no masks, while the overview's masks are
    still drawn under them -- and a mask on the picture with no chip in the
    strip cannot be dressed or put away. */
-const theMaskLayers = () => {
+const theMaskLayers = (): StripLayer[] => {
   const shown = new Set((window.__viewerPanel?.acquisitions?.() ?? [])
     .filter((one) => one.shown).map((one) => one.name));
   const masks = shown.size
     ? (run.masks ?? []).filter((one) => shown.has(one.kind))
     : maskLayersOn(run.masks ?? [], theMaskKind());
-  return [...masks, theTilesLayer(), theTargetsLayer()].filter(Boolean);
+  return [...masks, theTilesLayer(), theTargetsLayer()].filter((one): one is StripLayer => one !== null);
 };
 /* The target tiles, as a layer of the strip: between the masks and the
    targets, as they lie in the picture. Their cell is a square, since that
    is what they are on the picture; colour null is the page's accent. */
-const theTilesLayer = () => {
+const theTilesLayer = (): StripLayer | null => {
   const frames = theCanvas.layersAbove.find((one) => one.key === "frames" && one.has);
   if (!frames) return null;
   return {
@@ -1336,7 +1443,7 @@ const theTilesLayer = () => {
    is the canvas's own switch for the cells layer, read and set through it;
    the dress is the run's. Colour null is each target's own ink, the
    selected green, and the cell in the strip wears that. */
-const theTargetsLayer = () => {
+const theTargetsLayer = (): StripLayer | null => {
   const cells = theCanvas.layersAbove.find((one) => one.key === "cells" && one.has);
   if (!cells) return null;
   const lit = run.restricted?.size ? run.restricted : run.gated?.size ? run.gated : run.cells;
@@ -1348,12 +1455,12 @@ const theTargetsLayer = () => {
     ownColour: css("--mark-selected"),
   };
 };
-const theChosenMask = () => {
+const theChosenMask = (): StripLayer | null => {
   const layers = theMaskLayers();
   return layers.find((one) => one.id === chosenMask) ?? layers[0] ?? null;
 };
 /* A change to the chosen layer: made, drawn, and said in the bar and the card. */
-const dressTheChosen = (change) => {
+const dressTheChosen = (change: (layer: StripLayer) => void) => {
   const layer = theChosenMask();
   if (!layer) return;
   change(layer);
@@ -1362,30 +1469,30 @@ const dressTheChosen = (change) => {
 };
 ctx.maskEye?.addEventListener("click", () => dressTheChosen((layer) => { layer.shown = !layer.shown; }));
 if (ctx.channelPop) cards.push([ctx.channelPop, null]);
-let channelBox = null;
+let channelBox: { refresh(): void } | null = null;
 
 /* What a colour channel's box needs of the panel: its numbers as they
    stand, and where a change goes. The panel keeps the truth; the column's
    own box and this one both read it. */
-const aColourChannel = (panel, index, label) => ({
+const aColourChannel = (panel: ViewerPanelElement, index: number, label: string): ChannelModel => ({
   kind: "colour", label, unit: "",
   state: () => panel.channelBox?.(index) ?? null,
-  setWindow: (window_) => panel.channelAct?.(index, { window: window_ }),
-  setAxis: (axis) => panel.channelAct?.(index, { axis }),
-  setWeight: (weight) => panel.channelAct?.(index, { weight }),
-  setGamma: (gamma) => panel.channelAct?.(index, { gamma }),
-  setSaturate: (saturate) => panel.channelAct?.(index, { saturate }),
-  setLog: (log) => panel.channelAct?.(index, { log }),
-  setVisible: (on) => panel.setChannelVisible?.(index, on),
-  setColour: (hex) => panel.channelAct?.(index, { colour: hex }),
+  setWindow: (window_: Span) => panel.channelAct?.(index, { window: window_ }),
+  setAxis: (axis: Span | null) => panel.channelAct?.(index, { axis }),
+  setWeight: (weight: number) => panel.channelAct?.(index, { weight }),
+  setGamma: (gamma: number) => panel.channelAct?.(index, { gamma }),
+  setSaturate: (saturate: number) => panel.channelAct?.(index, { saturate }),
+  setLog: (log: boolean) => panel.channelAct?.(index, { log }),
+  setVisible: (on: boolean) => panel.setChannelVisible?.(index, on),
+  setColour: (hex: string) => panel.channelAct?.(index, { colour: hex }),
   auto: () => panel.autoChannel?.(index),
   changed: () => sayWhatThePressesDo(),
 });
 
 /* The grey channel's box speaks in percent of the summed window: the
    composite's shares are its numbers, and the axis on view is its own. */
-const theGreyChannel = (panel, acquisition) => {
-  let view = null;
+const theGreyChannel = (panel: ViewerPanelElement, acquisition: string): ChannelModel => {
+  let view: Span | null = null;
   return {
     kind: "grey", label: `the grey ${acquisition}`, unit: "%",
     state: () => {
@@ -1400,19 +1507,19 @@ const theGreyChannel = (panel, acquisition) => {
         gamma: panel.gammaOf?.(acquisition) ?? 1,
       };
     },
-    setGamma: (gamma) => panel.setGammaOf?.(acquisition, gamma),
-    setWindow: ({ low, high }) => {
+    setGamma: (gamma: number) => panel.setGammaOf?.(acquisition, gamma),
+    setWindow: ({ low, high }: Span) => {
       const a = Math.max(0, Math.min(low, 98)) / 100;
       const b = Math.max(a + 0.02, Math.min(high, 100) / 100);
       panel.setComposite?.(acquisition, { a, b });
     },
-    setAxis: (axis) => {
+    setAxis: (axis: Span | null) => {
       if (!axis) { view = null; return; }
       const low = Math.max(0, Math.min(axis.low, 99));
       view = { low, high: Math.min(100, Math.max(axis.high, low + 1)) };
     },
-    setWeight: (s) => panel.setComposite?.(acquisition, { s }),
-    setLog: (log) => panel.setComposite?.(acquisition, { log }),
+    setWeight: (s: number) => panel.setComposite?.(acquisition, { s }),
+    setLog: (log: boolean) => panel.setComposite?.(acquisition, { log }),
     auto: () => panel.autoComposite?.(acquisition),
     changed: () => sayWhatThePressesDo(),
   };
@@ -1420,9 +1527,9 @@ const theGreyChannel = (panel, acquisition) => {
 
 /* The grey channel's chip: while the picture is grey it stands in for the
    dots, and a press opens the one box for the sum. */
-let greyBox = null;
+let greyBox: { refresh(): void } | null = null;
 if (ctx.greyPop) cards.push([ctx.greyPop, ctx.greyChipMore]);
-const openTheGreyBox = (e) => {
+const openTheGreyBox = (e: Event) => {
   e.stopPropagation();
   const panel = window.__viewerPanel;
   const names = panel?.acquisitions?.().map((one) => one.name) ?? [];
@@ -1440,7 +1547,7 @@ ctx.greyChipMore?.addEventListener("click", openTheGreyBox);
    few swatches -- five colours and a grey -- and at the end a swatch that
    opens the browser's own colour picker for any other. */
 const MASK_SWATCHES = ["#ffd400", "#ff5a5f", "#3ddc84", "#4f8dff", "#c04bff", "#9aa3ad"];
-let maskPicker = null;
+let maskPicker: HTMLInputElement | null = null;
 if (ctx.maskColours) {
   const rainbow = document.createElement("button");
   rainbow.type = "button";
@@ -1463,19 +1570,20 @@ if (ctx.maskColours) {
   const swatch = document.createElement("label");
   swatch.className = "mask-colour mask-pick";
   swatch.title = "Every object in one colour: choose it";
-  maskPicker = document.createElement("input");
-  maskPicker.type = "color";
-  maskPicker.id = "mask-picker";
-  maskPicker.value = "#ffd400";
-  maskPicker.setAttribute("aria-label", "choose a colour for the masks");
-  maskPicker.addEventListener("input", () => dressTheChosen((layer) => { layer.dress.colour = maskPicker.value; }));
-  swatch.append(maskPicker);
+  const picker = document.createElement("input");
+  maskPicker = picker;
+  picker.type = "color";
+  picker.id = "mask-picker";
+  picker.value = "#ffd400";
+  picker.setAttribute("aria-label", "choose a colour for the masks");
+  picker.addEventListener("input", () => dressTheChosen((layer) => { layer.dress.colour = picker.value; }));
+  swatch.append(picker);
   ctx.maskColours.append(swatch);
 }
 ctx.maskFill?.addEventListener("click", () => dressTheChosen((layer) => { layer.dress.show = "fill"; }));
 ctx.maskLine?.addEventListener("click", () => dressTheChosen((layer) => { layer.dress.show = "line"; }));
 ctx.maskOpacity?.addEventListener("input", () => {
-  dressTheChosen((layer) => { layer.dress.alpha = Number(ctx.maskOpacity.value) / 100; });
+  dressTheChosen((layer) => { layer.dress.alpha = Number(ctx.maskOpacity!.value) / 100; });
 });
 
 /* A cell with six uneven bumps, no two sides alike, the way a real cell
@@ -1492,7 +1600,7 @@ const MASK_SQUARE = "M4.5 4.5 H19.5 V19.5 H4.5 Z";
    look like a mask -- green shapes over the tissue -- and a mask the strip
    did not list, with the detection's mask switched off, read as a mask
    that had appeared from nowhere. */
-function drawTheMasks(layers) {
+function drawTheMasks(layers: StripLayer[]) {
   const host = ctx.maskCells;
   if (!host) return;
   const chosen = theChosenMask()?.id ?? null;
@@ -1540,11 +1648,11 @@ function drawTheMasks(layers) {
    or hides the whole acquisition; its chip draws it in grey or in colour.
    The press is a span with a button inside it, so it answers the keyboard
    the way a button would. */
-const pickButton = ctx.acquisitionPick?.querySelector("#acquisition-btn");
+const pickButton = ctx.acquisitionPick?.querySelector<HTMLElement>("#acquisition-btn");
 if (ctx.acquisitionMenu) cards.push([ctx.acquisitionMenu, pickButton]);
-const openThePicker = (e) => {
+const openThePicker = (e: Event) => {
   e.stopPropagation();
-  openOnly(ctx.acquisitionMenu, pickButton, ctx.acquisitionMenu.hidden);
+  openOnly(ctx.acquisitionMenu, pickButton, Boolean(ctx.acquisitionMenu.hidden));
 };
 pickButton?.addEventListener("click", openThePicker);
 pickButton?.addEventListener("keydown", (e) => {
@@ -1559,14 +1667,14 @@ pickButton?.addEventListener("keydown", (e) => {
    twice. */
 const theAcquisitionOnShow = () =>
   theRowsAcquisition((window.__viewerPanel?.acquisitions?.() ?? []).map((one) => one.name));
-const drawTheAcquisitionIn = (name, grey) => {
+const drawTheAcquisitionIn = (name: string, grey: boolean) => {
   window.__viewerPanel?.drawInGrey?.(name, grey);
   sayWhatThePressesDo();
 };
 ctx.rampChip?.addEventListener("click", (e) => {
   e.stopPropagation();
   const shown = theAcquisitionOnShow();
-  if (shown) drawTheAcquisitionIn(shown, ctx.rampChip.getAttribute("aria-pressed") !== "true");
+  if (shown) drawTheAcquisitionIn(shown, ctx.rampChip!.getAttribute("aria-pressed") !== "true");
 });
 /* The eye in the press is the shown acquisition's own switch, the same
    one its line in the menu carries; it hides or shows without opening the
@@ -1574,13 +1682,13 @@ ctx.rampChip?.addEventListener("click", (e) => {
 ctx.acquisitionEye?.addEventListener("click", (e) => {
   e.stopPropagation();
   const shown = theAcquisitionOnShow();
-  if (shown) window.__viewerPanel?.showAcquisition?.(shown, ctx.acquisitionEye.getAttribute("aria-pressed") !== "true");
+  if (shown) window.__viewerPanel?.showAcquisition?.(shown, ctx.acquisitionEye!.getAttribute("aria-pressed") !== "true");
   sayWhatThePressesDo();
 });
 
 /* The panel is remade when the picture's sources change, so the hook is
    put on whichever panel stands now, once. */
-let hookedPanel = null;
+let hookedPanel: ViewerPanelElement | null = null;
 function followThePanel() {
   const panel = window.__viewerPanel;
   if (!panel || panel === hookedPanel) return;
@@ -1592,14 +1700,14 @@ function followThePanel() {
    shows. The gradients are defined once, on the chip in the press. */
 const RAMP = '<svg width="14" height="8" viewBox="0 0 14 8" aria-hidden="true"><rect class="ramp colours" width="14" height="8" rx="1.5"/><rect class="ramp greys" width="14" height="8" rx="1.5"/></svg>';
 /* One chip, in the press or on a menu line, told what it stands for. */
-function dressTheChip(chip, name, grey) {
+function dressTheChip(chip: HTMLElement, name: string, grey: boolean) {
   chip.setAttribute("aria-pressed", String(grey));
   chip.setAttribute("aria-label", `show ${name} in colour or in grey`);
   chip.title = grey ? "Show this layer in colour" : "Show this layer in grey";
 }
 /* One eye, in the press or on a menu line, told whose it is and whether
    that acquisition is on show. */
-function dressTheEye(eye, name, shown) {
+function dressTheEye(eye: HTMLElement, name: string, shown: boolean) {
   eye.setAttribute("aria-pressed", String(shown));
   eye.setAttribute("aria-label", `show or hide ${name}`);
   eye.title = shown ? `Hide ${name}` : `Show ${name}`;
@@ -1616,7 +1724,7 @@ const EYE = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke=
  * thing's card, where the dot itself shows or hides it. One shape for the
  * channels' chips and the masks' cells, so the row has one rule.
  */
-function chipMore(label) {
+function chipMore(label: string): HTMLButtonElement {
   const more = document.createElement("button");
   more.type = "button";
   more.className = "chip-more";
@@ -1627,7 +1735,7 @@ function chipMore(label) {
   return more;
 }
 
-function drawTheChips(panel, acquisition) {
+function drawTheChips(panel: ViewerPanelElement, acquisition: string | null) {
   const host = ctx.chips;
   if (!host) return;
   const channels = acquisition ? panel.channelsOf(acquisition) : [];
@@ -1676,7 +1784,7 @@ function drawTheChips(panel, acquisition) {
 
 /* The picker's menu: every acquisition, with an eye, its ramp chip and its
    name; the one the row shows is marked. */
-function drawTheMenu(panel, acquisitions, shown) {
+function drawTheMenu(panel: ViewerPanelElement, acquisitions: { name: string; shown: boolean }[], shown: string | null) {
   const menu = ctx.acquisitionMenu;
   if (!menu) return;
   const greys = acquisitions.map((one) => Boolean(panel.acquisitionGrey?.(one.name)));
@@ -1724,7 +1832,7 @@ function sayWhatThePressesDo() {
   /* How the picture is drawn: shown once there is a product to draw, and
      always on the projection, the one way that is built. */
   const viewerPick = document.getElementById("viewer-pick");
-  const modes = document.getElementById("view-modes");
+  const modes = document.getElementById("view-modes") as HTMLSelectElement | null;
   if (viewerPick && modes) {
     viewerPick.hidden = !(panel?.viewModes?.(shown) ?? []).length;
     modes.value = "projection";
@@ -1762,14 +1870,14 @@ function sayWhatThePressesDo() {
         ctx.maskHow.textContent = `${layer.how} · ${layer.objects} object${layer.objects === 1 ? "" : "s"}`;
       }
       const dress = layer.dress;
-      for (const swatch of ctx.maskColours?.querySelectorAll(".mask-colour[data-colour]") ?? []) {
+      for (const swatch of ctx.maskColours?.querySelectorAll<HTMLElement>(".mask-colour[data-colour]") ?? []) {
         swatch.setAttribute("aria-pressed", String((dress.colour ?? "") === swatch.dataset.colour));
       }
-      if (maskPicker) {
+      if (maskPicker?.parentElement) {
         const swatch = maskPicker.parentElement;
-        const free = Boolean(dress.colour) && !MASK_SWATCHES.includes(dress.colour);
+        const free = dress.colour !== null && !MASK_SWATCHES.includes(dress.colour);
         swatch.setAttribute("aria-pressed", String(free));
-        if (free && document.activeElement !== maskPicker) maskPicker.value = dress.colour;
+        if (free && document.activeElement !== maskPicker && dress.colour) maskPicker.value = dress.colour;
         swatch.style.background = maskPicker.value;
       }
       const line = dress.show === "line";
@@ -1784,8 +1892,8 @@ function sayWhatThePressesDo() {
   /* The channels' box stands only when it holds something; without it the
      acquisition's press ends the strip on its own. */
   if (ctx.channelsBox) {
-    const channelsThere = (Boolean(ctx.chips?.childElementCount) && !ctx.chips.hidden)
-      || (ctx.greyChip && !ctx.greyChip.hidden);
+    const channelsThere = (Boolean(ctx.chips?.childElementCount) && !ctx.chips?.hidden)
+      || Boolean(ctx.greyChip && !ctx.greyChip.hidden);
     ctx.channelsBox.hidden = !channelsThere;
     pickButton?.classList.toggle("strip-last", !channelsThere);
   }
@@ -1795,15 +1903,16 @@ function sayWhatThePressesDo() {
    layer that paints hands over what its colours mean; when no layer has
    done so by the next frame, the row shows none. */
 let legendAsked = false;
-function showLegend(spec) {
+function showLegend(spec: { title: string; lo: string; hi: string; ramp: string }) {
   legendAsked = true;
-  const el = ctx.legend;
-  if (!el) return;
-  el.hidden = false;
-  el.querySelector(".canvas-legend-title").textContent = spec.title;
-  el.querySelector(".canvas-legend-lo").textContent = spec.lo;
-  el.querySelector(".canvas-legend-hi").textContent = spec.hi;
-  el.querySelector(".canvas-legend-ramp").style.background = spec.ramp;
+  const legend = ctx.legend;
+  if (!legend) return;
+  legend.hidden = false;
+  /* The legend's parts are in the panel's own markup. */
+  legend.querySelector(".canvas-legend-title")!.textContent = spec.title;
+  legend.querySelector(".canvas-legend-lo")!.textContent = spec.lo;
+  legend.querySelector(".canvas-legend-hi")!.textContent = spec.hi;
+  legend.querySelector<HTMLElement>(".canvas-legend-ramp")!.style.background = spec.ramp;
 }
 function legendSettles() {
   legendAsked = false;
@@ -1829,7 +1938,7 @@ function legendSettles() {
        the last one that registered itself there. */
     /** Centre on a tile at the zoom in hand, and let the presses go on from it. */
     standOn,
-    lookAt(where) {
+    lookAt(where: { centre?: XY; zoom?: number }) {
       theCanvas.lookAt(where);
       /* Programmatic view changes do not emit the pointer/wheel callback.
          Keep the acquired picture beneath the workflow layers registered in
@@ -1843,7 +1952,7 @@ function legendSettles() {
     /* The canvas measures itself; this only asks for the layers again, since
        what they draw depends on how big the box is. */
     resize() { theCanvasNarrowed(); redrawViewSoon(); },
-    cursor(shape) { stageBox.style.cursor = shape; },
+    cursor(shape: string) { stageBox.style.cursor = shape; },
     view,
     travelUm: STAGE_UM,
     travelOriginUm: STAGE_ORIGIN_UM,
@@ -1862,13 +1971,13 @@ function legendSettles() {
     plan: () => run.plan.map(({ x, y, frameUm, tileset, fieldId }) => ({ x, y, frameUm, tileset: tileset ?? fieldId ?? null })),
     targets: targetSnapshot,
     toStage, toCarrier,
-    project: (x, y) => {
+    project: (x: number, y: number) => {
       const [ox, oy] = carrierOriginUm();
       return toScreen(x + ox, y + oy);
     },
     /* The place on the sample under a screen point, in the frame the cells
        and the plan are kept in -- the same answer the hover reads. */
-    unproject: (px, py) => theCanvas.unproject(px, py),
+    unproject: (px: number, py: number) => theCanvas.unproject(px, py),
     /** How much sample one screen pixel covers right now. */
     umPerPixel: () => 1 / view.scale,
     takeTheCanvas,
@@ -1876,8 +1985,8 @@ function legendSettles() {
     takeThePosition,
     layers: () => theCanvas.layersAbove.map(({ key, label, shown, staysSolid }) =>
       ({ key, label, shown, staysSolid: !!staysSolid })),
-    showLayer(key, on) { theCanvas.showLayer(key, on); drawStage(); },
-    layerShown: (key) => theCanvas.layerShown?.(key) ?? true,
-    fadeTo(value) { theCanvas.fadeTo(value); },
+    showLayer(key: string, on: boolean) { theCanvas.showLayer(key, on); drawStage(); },
+    layerShown: (key: string) => theCanvas.layerShown?.(key) ?? true,
+    fadeTo(value: number) { theCanvas.fadeTo(value); },
   };
 }

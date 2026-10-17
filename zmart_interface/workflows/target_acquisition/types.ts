@@ -14,8 +14,9 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import type { Page, Run, WorkflowTypes } from "../../api/index.ts";
+import type { Page, Run, Step, WorkflowTypes } from "../../api/index.ts";
 import type { Backend } from "./backend/verbs.ts";
+import type { View } from "./canvas/engines/opening-view.ts";
 import type { freshState } from "./shared/run-document.ts";
 import type { StageWatch } from "./shared/stage-position.ts";
 import type { ProgressBox } from "./shared/progress.ts";
@@ -94,3 +95,25 @@ export type TaPage = Page<TargetAcquisition>;
 
 /** This workflow's run document: the framework's keys and its own. */
 export type TaRun = Run<TargetAcquisition>;
+
+/** One of this workflow's steps. */
+export type TaStep = Step<TargetAcquisition>;
+
+/** The run's picture beneath the plan, as the scan step's watcher opens it. */
+export interface ThePicture {
+  /** Whether there was a scan there to open, and it opened. */
+  readonly opened: boolean;
+  /** Whether the picture draws the acquisition of this name itself. */
+  shows(name: string): boolean;
+  open(): unknown;
+  /** Put the scan where the plan is looking, exactly. */
+  followTheStage(stageView?: Partial<View> | null): void;
+  reopenIfTheRunGrew(): unknown;
+  /** A field has landed, so there may be more of the scan to read. */
+  mayHaveLanded(): unknown;
+  /** The session is over, and what was opened belongs to it. */
+  reset(): void;
+}
+
+/** The scan-field editor, while it is on screen. */
+export type Editor = NonNullable<Shown["editor"]>;
