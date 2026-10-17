@@ -5,13 +5,7 @@
  * exercises everything a workflow may declare, with no Python behind it and
  * no canvas. It stands under `framework/fixtures/` rather than under
  * `workflows/`, so the operator's chooser never offers it; the unit tests
- * assemble it the way the page assembles the real workflows, and the
- * installed-workflow test builds it into a package and installs it on a
- * bridge of its own, to prove a workflow written in another repository
- * plugs in without the page being rebuilt.
- *
- * It imports the framework by the bare name every installed workflow uses,
- * `zmart-interface/...`, never by a relative path: that is the point of it.
+ * assemble it the way the page assembles the real workflows.
  *
  * What it does is deliberately dull. Begin is settled by standing on it;
  * Count to three runs for a moment, can be interrupted, and says what it
@@ -19,7 +13,7 @@
  * with a heading and a line of text that follows the run.
  */
 
-import { sideGroup } from "zmart-interface/framework/window/panels.js";
+import { sideGroup } from "../../window/panels.js";
 
 export const blurb = "Three steps that know nothing about a microscope: begin, count to three, finish.";
 

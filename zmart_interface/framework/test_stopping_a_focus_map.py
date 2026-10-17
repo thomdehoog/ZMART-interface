@@ -25,7 +25,7 @@ STOP = ("POST", "/api/target_acquisition/focus/stop")
 def the_workflows_routes(monkeypatch):
     """The bridge's routes with the built-in workflows' halves loaded, as at start-up."""
     monkeypatch.setattr(server, "ROUTES", dict(server.ROUTES))
-    workflows.load_built_in_halves(server.add_route)
+    workflows.load_halves(server.add_route)
 
 
 def test_stopping_a_running_map_puts_the_analysis_workers_down(monkeypatch):

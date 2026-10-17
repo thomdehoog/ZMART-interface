@@ -35,7 +35,7 @@ Install it and test it:
 
 - [Install and run the interface with its dependencies](docs/install-on-a-microscope.md)
 - [The target acquisition workflow](zmart_interface/workflows/target_acquisition)
-- [Write a new workflow](docs/writing-a-workflow.md)
+- [Write a new workflow](docs/dropping-a-workflow-in.md)
 
 ## Author
 Thom de Hoog, Center for Microscopy and Image Analysis (ZMB), University of

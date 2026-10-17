@@ -24,11 +24,10 @@ One module per concern, and one that holds what they share:
 * ``hooks`` — what a workflow tells the bridge: whether one of its runs holds
   the stage, what to stop before another session opens, what to forget when
   a fresh one does, and the pictures it draws itself.
-* ``workflows`` — every workflow's Python half wired in at start-up: those
-  that ship inside the interface (``zmart_interface/workflows/<folder>/bridge``)
-  and those installed on this computer as packages, listed for the page.
-* ``server`` — the HTTP routes as a table, the built page, the installed
-  workflows' files, and ``serve``/``main``.
+* ``workflows`` — every workflow's Python half
+  (``zmart_interface/workflows/<folder>/bridge``), wired in at start-up.
+* ``server`` — the HTTP routes as a table, the built page, and
+  ``serve``/``main``.
 
 Nothing here knows any one workflow. A focus map, an overview scan, finding
 and taking targets are Target acquisition's, in its own Python half
@@ -73,12 +72,8 @@ The verbs, and what they are made of
 * ``GET /api/viewer`` — whether the picture server beside the run is up, and
   what it serves. ``GET /view/<acquisition>/<name>`` hands out one of a run's
   pictures.
-* ``GET /api/workflows`` — the workflows installed on this computer as
-  packages (``zmart_interface.register_workflow``), each with where its
-  bundle is served, ``GET /workflows/<folder>/<file>``; the page loads them
-  as it opens, beside the workflows built into it. A package's Python half
-  adds its own routes under ``/api/<folder>/``. Anything else that is not
-  ``/api/`` is the built page.
+* A workflow's Python half adds its own routes under ``/api/<folder>/``.
+  Anything else that is not ``/api/`` is the built page.
 
 The routes are a table in ``server`` (``ROUTES``, filled by the ``@route``
 decorator): one function per route, taking the request's body and query and

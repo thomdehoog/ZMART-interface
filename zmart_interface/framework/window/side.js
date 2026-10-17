@@ -11,8 +11,7 @@
  * on.
  */
 
-/** Put the channel on the page: `sideWidget()`, `renderSide(show)` and
-    `wireTheEdge(panel)`, for a panel that arrives after the page opened. */
+/** Put the channel on the page: `sideWidget()` and `renderSide(show)`. */
 export function installSide(page) {
   const { run: state, panels: thePanels, step } = page;
 
@@ -78,10 +77,8 @@ export function installSide(page) {
      nor the controls can be crushed. */
   /**
    * Wire one panel's edge: its divider drags the column's width, its fold
-   * puts the column away. Called for every panel built when the page opens,
-   * and again by the page for a panel a workflow brings later, so an
-   * installed workflow's channel drags and folds like the built-in one's.
-   * A panel without a divider has nothing to wire.
+   * puts the column away. Called for every panel as the page opens. A panel
+   * without a divider has nothing to wire.
    */
   function wireTheEdge(withAnEdge) {
     const divider = withAnEdge.divider;
@@ -128,5 +125,5 @@ export function installSide(page) {
   }
   for (const panel of Object.values(thePanels)) wireTheEdge(panel);
 
-  return { sideWidget, renderSide, wireTheEdge };
+  return { sideWidget, renderSide };
 }

@@ -15,12 +15,10 @@ There is one built into the page today:
 - **`target_acquisition/`** — a run on a microscope that has already been set
   up: find the targets on an overview and acquire them.
 
-A workflow does not have to live in this folder, or in this repository. One
-written elsewhere is built into a small package and installed on a computer
-with `zmart_interface.register_workflow`; the page there offers it without
-being rebuilt. `../../docs/writing-a-workflow.md` says how, and the
-framework's own fixture, `../framework/fixtures/three_steps/`, is one written
-that way.
+A workflow written in another repository is dropped into this folder, and
+the page is built again; `../../docs/dropping-a-workflow-in.md` says how. The
+framework's own fixture, `../framework/fixtures/three_steps/`, is the smallest
+complete workflow to start from.
 
 Setting a microscope up -- its travel limits, which way the picture is turned,
 how the objectives line up, and where its coordinates count from -- is done

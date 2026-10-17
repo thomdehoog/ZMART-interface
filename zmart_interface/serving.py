@@ -77,13 +77,8 @@ def main(argv: list[str] | None = None) -> int:
         description="The interface's bridge: the operator page's backend, with the interface's mock microscope",
     )
     parser.add_argument("--port", type=int, default=8600)
-    parser.add_argument("--workflows", action="store_true",
-                        help="list the workflows installed on this computer, and stop")
     add_arguments(parser)
     args = parser.parse_args(argv)
-    if args.workflows:
-        print(server.installed_workflows_report())
-        return 0
     bridge = server.a_bridge_on(
         args.port, args.output_root,
         offered=offered(), pixels_for=pixels_for(simulator_pixels=args.simulator_pixels),

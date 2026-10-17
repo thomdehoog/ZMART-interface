@@ -323,8 +323,7 @@ describe("workflows compose the catalogue rather than restating it", () => {
    page assembles the folders under `workflows/`, and comes out as a
    workflow the page could offer: numbered steps, its own panel, its own
    declarations carried through. It is not under `workflows/`, so the
-   chooser never offers it; the installed-workflow test installs it from a
-   built package instead. */
+   chooser never offers it. */
 describe("a workflow that knows nothing about a microscope", () => {
   const { WORKFLOWS: FIXTURES, DEFAULT_WORKFLOW } = assembleWorkflows(
     import.meta.glob("../fixtures/*/flow.js", { eager: true }),

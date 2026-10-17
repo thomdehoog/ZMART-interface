@@ -14,7 +14,7 @@ top of that lives here:
 - ``views``: the pictures only this workflow draws (focus slices, masks).
 
 Its routes are registered by :func:`routes` under ``/api/target_acquisition/``,
-the same way an installed workflow's are (``framework/bridge/workflows.py``).
+the way every workflow's are (``framework/bridge/workflows.py``).
 Importing this package plugs the workflow into the bridge (``hooks.py``):
 its runs may hold the stage, it lets them go before another session opens,
 it forgets them when a fresh one does, and it draws its own pictures.

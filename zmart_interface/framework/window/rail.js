@@ -17,24 +17,14 @@ import { startOver } from "./run-state.js";
 
 /**
  * Put the rail on the page. Answers the functions the rest of the page calls:
- * `renderRail`, `renderChooser`, `refuseWorkflow`, `readiness`,
- * `stateEdited`, `resetRun` and `switchWorkflow`.
+ * `renderRail`, `readiness`, `stateEdited`, `resetRun` and `switchWorkflow`.
  */
 export function installRail(page) {
   const { run: state, panels: thePanels, steps, step, WORKFLOWS, backendFor } = page;
 
   const selectEl = el("wf-select");
 
-  /* The workflows installed on the machine that the page would not load,
-     each with the sentence saying why: listed in the chooser, greyed, so the
-     operator who installed one learns what happened where they would look. */
-  const refused = [];
-
-  /**
-   * Fill the chooser: one entry per workflow the page offers, built in or
-   * loaded from a package, and a greyed entry per package refused. Drawn
-   * again whenever a workflow arrives after the page opened.
-   */
+  /** Fill the chooser: one entry per workflow the page offers. */
   function renderChooser() {
     selectEl.textContent = "";
     for (const [key, wf] of Object.entries(WORKFLOWS)) {
@@ -48,21 +38,9 @@ export function installRail(page) {
       opt.title = wf.blurb;
       selectEl.append(opt);
     }
-    for (const { folder, name, why } of refused) {
-      const opt = document.createElement("option");
-      opt.value = `refused:${folder}`; opt.textContent = `${name} (not loaded)`;
-      opt.title = why; opt.disabled = true;
-      selectEl.append(opt);
-    }
     selectEl.value = state.wf;
   }
   renderChooser();
-
-  /** A package the page would not load, said in the chooser with its reason. */
-  function refuseWorkflow(folder, name, why) {
-    refused.push({ folder, name, why });
-    renderChooser();
-  }
 
   /* Choosing a workflow is choosing to begin it: the switch restarts the run.
      There is no Restart button — the session card's Disconnect ends a run,
@@ -183,5 +161,5 @@ export function installRail(page) {
     renderRail(); page.renderActionBar();
   }
 
-  return { renderRail, renderChooser, refuseWorkflow, readiness, stateEdited, resetRun, switchWorkflow };
+  return { renderRail, readiness, stateEdited, resetRun, switchWorkflow };
 }

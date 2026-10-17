@@ -125,9 +125,9 @@ workflow's `shared/`. The framework and the parts could as well run an
 e-learning course or an image-analysis pipeline as a microscope: no code in
 the framework names a workflow's step or reads a key of its run, and a test
 keeps it so (its comments still use the microscope as the example, since it
-is the one workflow there is to point at). That is what lets a workflow be written in
-another repository and installed on a machine that has the framework and the
-parts, without the page being rebuilt; `docs/writing-a-workflow.md` says how.
+is the one workflow there is to point at). That is what lets a workflow written in
+another repository be dropped into `workflows/` and built in;
+`docs/dropping-a-workflow-in.md` says how.
 
 `zmart_interface/workflows/README.md` walks through the arrangement in more detail.
 
@@ -137,8 +137,7 @@ parts, without the page being rebuilt; `docs/writing-a-workflow.md` says how.
 from it, naming no workflow. In order:
 
 1. The workflows are assembled from the folders under `workflows/`
-   (`framework/rules/finding-workflows.js`), and later from the packages
-   installed on the machine (`framework/window/installed-workflows.js`).
+   (`framework/rules/finding-workflows.js`).
 2. The run document is made: the framework's keys, and beside them whatever
    the open workflow's `freshState` answers (`run-state.js`). The backend is
    whatever the open workflow's `backendFor` answers for the page's own
@@ -153,8 +152,6 @@ from it, naming no workflow. In order:
    to the page's hook lists. Another workflow's `install` runs the first
    time the operator chooses it, once a run of it is in place.
 6. The page renders on the first step.
-7. The workflows installed on the machine as packages are asked for and
-   loaded, and each joins the chooser.
 
 The hook lists are how the framework calls back into a workflow without
 knowing it. Each is an array on `page` that a workflow's `install` pushes a
@@ -420,7 +417,7 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `parts/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
 | `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares, installs the framework's parts, then calls every workflow's own `install`; it names no workflow, backend or panel |
 | `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: its half of the run document, the rail, the step's press, running a step, the panels, the channel |
-| `framework/fixtures/three_steps/flow.js` | the framework's own test workflow, with no microscope, no Python and no canvas; assembled by the unit tests and installed from a built package by the installed-workflow test |
+| `framework/fixtures/three_steps/flow.js` | the framework's own test workflow, with no microscope, no Python and no canvas; assembled by the unit tests |
 | `ta/the-canvas.js`, `ta/on-the-page.js` | the workflow's side of the page: what it puts on its canvas, and the functions its steps lend the page |
 | `ta/steps/*/run.js`, `ta/steps/*/channel.js` | each step's own run and controls, beside its declaration |
 
@@ -595,10 +592,6 @@ Every test stands beside what it tests.
   specification: the page is nearly all canvas, and driving it has repeatedly
   caught what reading the source did not. `workflows/target_acquisition/walk.spec.js`
   walks all ten steps on the built page through the real bridge.
-  `framework/installed-workflow.spec.js` builds the framework's fixture
-  workflow into a package, installs it on a ZMART folder of its own, and
-  drives the built page served by a bridge on that folder: the workflow is
-  offered, walked and left, and target acquisition is still there.
 
 The Playwright tests need a Chromium and will not run without one;
 `playwright.config.js` honours `PLAYWRIGHT_CHROMIUM` and `PLAYWRIGHT_BROWSERS_PATH`.

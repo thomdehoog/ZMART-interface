@@ -1,9 +1,9 @@
 """The HTTP shell: routes in, JSON out, errors as sentences.
 
 Every route is one of the page's backend verbs, dispatched to the module
-that does the work. The server also hands out the built page, the pictures
-a run makes and the files of the workflows installed on this computer, so
-the microscope computer runs one program on one address.
+that does the work. The server also hands out the built page and the
+pictures a run makes, so the microscope computer runs one program on one
+address.
 
 Standard library only, on purpose. The microscope computer has no network
 to install packages from, and this server is a handful of routes: a
@@ -14,9 +14,9 @@ that answers it. A function is put there with the :func:`route` decorator
 below, takes ``(asked, query)`` -- the request's JSON body as a dictionary
 (empty for a GET) and the raw query string -- and answers the dictionary the
 page receives; an exception it raises becomes the sentence the page shows,
-with the status :meth:`Bridge._fail` gives it. An installed workflow's
-Python half adds its own routes to the same table through
-:func:`add_route`, under ``/api/<its folder>/``.
+with the status :meth:`Bridge._fail` gives it. A workflow's Python half
+adds its own routes to the same table through :func:`add_route`, under
+``/api/<its folder>/``.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -35,7 +35,6 @@ from pathlib import Path
 from zmart_interface.parts.microscope.instrument import InstrumentDeclined
 from zmart_interface.parts.storage import viewer_service
 
-from .. import workflow_library
 from . import (
     connecting,
     hooks,
@@ -143,21 +142,6 @@ def _capture(asked, query):
 @route("GET", "/api/viewer")
 def _viewer(asked, query):
     return viewer_service.status()
-
-
-@route("GET", "/api/workflows")
-def _installed_workflows(asked, query):
-    # The packages installed on this computer, which the page loads as it
-    # opens beside the workflows built into it.
-    return workflows.listing()
-
-
-#: The first part of every route the bridge itself answers (``xyz`` for
-#: ``/api/xyz``), taken before any workflow adds its own. A workflow package
-#: in a folder of one of these names would replace the bridge's own routes,
-#: so its Python half is refused at start-up (as is one in the folder of a
-#: workflow built into the interface).
-THE_BRIDGES_OWN = frozenset(path.split("/")[2] for _method, path in ROUTES if path.startswith("/api/"))
 
 
 #: The names this computer answers to. A request that arrives under any other
@@ -295,24 +279,6 @@ class Bridge(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_a_package_file(self, path: str) -> None:
-        """Hand out one file of an installed workflow's package.
-
-        ``/workflows/<folder>/<file>``: the bundle the page loads, and whatever
-        else a package holds that a page may ask for -- a stylesheet, a
-        picture, a piece of markup. Which kinds, and how the name is kept
-        inside the package, is :func:`workflow_library.package_file`'s
-        business; anything it does not answer is 404.
-        """
-        _, _, rest = path.partition("/workflows/")
-        folder, _, name = rest.partition("/")
-        found = workflow_library.package_file(folder, name)
-        if found is None:
-            self._answer({"error": f"no workflow file at {path}"}, status=404)
-            return
-        where, kind = found
-        self._send_bytes(where.read_bytes(), kind)
-
     #: What a view folder is allowed to hold, and what to call it when sent.
     #: A short list rather than a guess, because this hands out files by a name
     #: the page chose: anything not on it is not a picture and is not sent.
@@ -407,8 +373,6 @@ class Bridge(BaseHTTPRequestHandler):
         try:
             if path.startswith("/view/"):
                 self._send_a_picture(path, query)
-            elif path.startswith("/workflows/"):
-                self._send_a_package_file(path)
             elif not path.startswith("/api/"):
                 self._send_the_page(path)
             else:
@@ -447,7 +411,7 @@ def a_bridge_on(
     state.pixels_for = pixels_for
     state.pixel_provider = None
     state.output_root = output_root
-    workflows.load_python_halves(add_route, reserved=THE_BRIDGES_OWN)
+    workflows.load_halves(add_route)
     return ThreadingHTTPServer(("127.0.0.1", port), Bridge)
 
 
@@ -491,21 +455,6 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
                         help="where runs go, for a driver that cannot discover its own")
 
 
-def installed_workflows_report() -> str:
-    """The workflows installed on this computer, one line each, for ``--workflows``."""
-    found = workflow_library.installed()
-    if not found:
-        return f"no workflows are installed in {workflow_library.library()}"
-    lines = [f"workflows installed in {workflow_library.library()}:"]
-    for one in found:
-        if one.get("error"):
-            lines.append(f"  {one['folder']}: cannot be read -- {one['error']}")
-        else:
-            half = f", Python half {one['python']}" if one.get("python") else ""
-            lines.append(f"  {one['folder']}: {one['name']} {one['version']} (framework {one['framework']}{half})")
-    return "\n".join(lines)
-
-
 def main(argv: list[str] | None = None) -> int:
     """Run the bridge on its own, serving the built page and the instruments the controller lists.
 
@@ -517,13 +466,8 @@ def main(argv: list[str] | None = None) -> int:
         description="The bridge: the operator page's backend, serving the page and the instrument",
     )
     parser.add_argument("--port", type=int, default=8600)
-    parser.add_argument("--workflows", action="store_true",
-                        help="list the workflows installed on this computer, and stop")
     add_arguments(parser)
     args = parser.parse_args(argv)
-    if args.workflows:
-        print(installed_workflows_report())
-        return 0
     server = a_bridge_on(args.port, args.output_root)
     print(f"bridge listening on 127.0.0.1:{args.port}")
     server.serve_forever()
