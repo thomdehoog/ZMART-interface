@@ -1,7 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "zmart_interface/framework/window/main.js!",
     "zmart_interface/**/*.test.{js,ts}",
     "zmart_interface/**/*.spec.{js,ts}",
     "tools/*.mjs"
