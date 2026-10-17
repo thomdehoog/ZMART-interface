@@ -1,9 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  "vite": false,
   "entry": [
+    "zmart_interface/framework/window/main.js",
     "zmart_interface/**/*.test.{js,ts}",
     "zmart_interface/**/*.spec.{js,ts}",
-    "tools/*.mjs"
+    "tools/*.mjs",
+    "vite.config.js"
   ],
   "project": ["zmart_interface/**/*.{js,mjs,ts}", "tools/*.mjs", "!zmart_interface/build/**"],
   "ignoreDependencies": ["zmart-viewer"],
