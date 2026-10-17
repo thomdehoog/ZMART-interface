@@ -13,7 +13,7 @@ test("gallery: failed previews are visible and a new image recovers", async ({ p
     const host = document.querySelector("main");
     const tile = { x: 16, y: 16, frameUm: 32, targetId: "cell" };
     let address = "/failed-preview.jpg";
-    const { default: gallery } = await import("/zmart_interface/workflows/target_acquisition/steps/acquire_targets/gallery.js");
+    const { default: gallery } = await import("/zmart_interface/workflows/target_acquisition/steps/acquire_targets/gallery.ts");
     const widget = gallery.mount(host, {
       acquired: () => ["target"], selected: () => "target", select() {},
       tileByKey: () => tile, cellById: () => ({ id: "cell", x: 16, y: 16, r: 2 }),

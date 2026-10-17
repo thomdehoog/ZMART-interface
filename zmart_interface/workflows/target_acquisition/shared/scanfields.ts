@@ -860,7 +860,7 @@ export function snapSpan(size: number, frameUm: number, overlapPct = 0): number 
  * corners of the frame catch a field bigger than the frame, and the edge test
  * catches one smaller that passes between them.
  */
-export function covers(field: Shape, x: number, y: number, frameUm: number, outline = edges(field)): boolean {
+function covers(field: Shape, x: number, y: number, frameUm: number, outline = edges(field)): boolean {
   const half = frameUm / 2;
   return contains(x, y, field)
     || contains(x - half, y - half, field) || contains(x + half, y - half, field)

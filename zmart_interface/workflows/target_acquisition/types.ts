@@ -22,22 +22,22 @@ import type { StageWatch } from "./shared/stage-position.ts";
 import type { ProgressBox } from "./shared/progress.ts";
 import type * as helpers from "./shared/page-helpers.ts";
 import type { installTheCanvas } from "./the-canvas.js";
-import type * as connect from "./steps/connect/channel.js";
-import type { installCarrier } from "./steps/define_carrier/channel.js";
-import type * as scanArea from "./steps/define_scan_area/channel.js";
-import type { installFocus } from "./steps/focus_strategy/channel.js";
-import type { focusFitWord } from "./steps/focus_strategy/run.js";
-import type { testTilesChanged } from "./steps/scan_the_overview/channel.js";
-import type { overviewGoesGreyForTheMasks } from "./steps/discover_targets/channel.js";
-import type * as acquire from "./steps/acquire_targets/channel.js";
-import type { renderProtocolProgress } from "./steps/run_protocol/channel.js";
-import type { protocolWithin } from "./steps/run_protocol/run.js";
-import type galleryWidget from "./steps/acquire_targets/gallery.js";
-import type { renderSessionCard } from "./steps/connect/session-card.js";
-import type scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.js";
-import type detectionPanel from "./steps/discover_targets/detection.js";
-import type gatingPanel from "./steps/refine_targets/gate.js";
-import type { selectionPanel } from "./steps/target_scan_area/selection-panel.js";
+import type * as connect from "./steps/connect/channel.ts";
+import type { CarrierOnThePage } from "./steps/define_carrier/channel.ts";
+import type * as scanArea from "./steps/define_scan_area/channel.ts";
+import type { FocusOnThePage } from "./steps/focus_strategy/channel.ts";
+import type { focusFitWord } from "./steps/focus_strategy/run.ts";
+import type { testTilesChanged } from "./steps/scan_the_overview/channel.ts";
+import type { overviewGoesGreyForTheMasks } from "./steps/discover_targets/channel.ts";
+import type * as acquire from "./steps/acquire_targets/channel.ts";
+import type { renderProtocolProgress } from "./steps/run_protocol/channel.ts";
+import type { protocolWithin } from "./steps/run_protocol/run.ts";
+import type galleryWidget from "./steps/acquire_targets/gallery.ts";
+import type { renderSessionCard } from "./steps/connect/session-card.ts";
+import type scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.ts";
+import type detectionPanel from "./steps/discover_targets/detection.ts";
+import type gatingPanel from "./steps/refine_targets/gate.ts";
+import type { selectionPanel } from "./steps/target_scan_area/selection-panel.ts";
 
 /** A function that takes the page first, as the page lends it: the page already given. */
 type Lent<F> = F extends (page: never, ...rest: infer A) => infer R ? (...rest: A) => R : never;
@@ -46,7 +46,9 @@ type Lent<F> = F extends (page: never, ...rest: infer A) => infer R ? (...rest: 
 export type Lends = {
   pictureOf: Lent<typeof helpers.pictureOf>;
   redrawSoon: Lent<typeof helpers.redrawSoon>;
-  recordingOptions: Lent<typeof helpers.recordingOptions>;
+  /** Generic over what the step tells its slot, which `Lent` would drop: the options come back with it. */
+  recordingOptions: <O extends Parameters<typeof helpers.recordingOptions>[1]>(opts: O) =>
+    ReturnType<typeof helpers.recordingOptions<O>>;
   scannedPlan: Lent<typeof helpers.scannedPlan>;
   tilesetOfField: Lent<typeof helpers.tilesetOfField>;
   chosenInstrument: Lent<typeof connect.chosenInstrument>;
@@ -67,7 +69,9 @@ export type Lends = {
   focusFitWord: typeof focusFitWord;
   /** The clock reading where the stage is while a session is open. */
   stageWatch: StageWatch | null;
-} & ReturnType<typeof installTheCanvas> & ReturnType<typeof installFocus> & ReturnType<typeof installCarrier>;
+  /** Redraw the carrier panel's list of anchors: set by the panel when it mounts. */
+  redrawAnchors: () => void;
+} & ReturnType<typeof installTheCanvas> & FocusOnThePage & CarrierOnThePage;
 
 /** The boxes this workflow's steps put on screen, while they are mounted. */
 export interface Shown {
@@ -117,3 +121,9 @@ export interface ThePicture {
 
 /** The scan-field editor, while it is on screen. */
 export type Editor = NonNullable<Shown["editor"]>;
+
+/** The scan fields' widget: the plan, how it is drawn, and the editor it mounts. */
+export type ScanfieldsWidget = typeof scanfieldsWidget;
+
+/** The preset the whole plan is taken with, or null before one is recorded. */
+export type ActivePreset = scanArea.RecordedPreset | null;

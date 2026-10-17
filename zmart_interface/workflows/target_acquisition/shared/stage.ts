@@ -32,16 +32,13 @@ import type { Frame } from "../canvas/surface.ts";
 import type { ViewerPanelElement } from "../canvas/viewer-panel.ts";
 import type carrierWidget from "./carrier-panel.ts";
 import type { StageAt } from "./stage-position.ts";
-import type { Editor, Shown, TaRun, TaStep, ThePicture } from "../types.ts";
+import type { ActivePreset, Editor, ScanfieldsWidget, Shown, TaRun, TaStep, ThePicture } from "../types.ts";
 
 /** A place, in micrometres. */
 interface XY {
   x: number;
   y: number;
 }
-
-/** What a step's layers, or a press, are handed but this file only passes on. */
-type PassedOn = (...args: never[]) => unknown;
 
 /** A press, as the step layers written against a DOM event read one. */
 interface AsAPress {
@@ -57,6 +54,38 @@ export interface DrawnIn {
   scale: number;
   w: number;
   h: number;
+}
+
+/** What a legend row is told: its title, the two ends, and the ramp between them as a CSS gradient. */
+interface Legend {
+  title: string;
+  lo: string;
+  hi: string;
+  ramp: string;
+}
+
+/**
+ * The focus map, as the picture holds it: the two layers it draws, the
+ * presses and the pointer it answers for, and whether a gesture of its own
+ * is under way. Positions are screen pixels, places micrometres.
+ */
+interface FocusOnTheStage {
+  /** Draws the surface and the positions; answers what its colours mean, or null while there is no surface. */
+  drawFocusLayer: (ctx: CanvasRenderingContext2D, toScreen: DrawnIn["place"], scale: number, w: number, h: number) => Legend | null;
+  drawFocusPoints: (ctx: CanvasRenderingContext2D, toScreen: DrawnIn["place"]) => void;
+  /** Places a point with the crosshair armed; true when the press was the map's. */
+  focusPressed: (px: number, py: number) => boolean;
+  focusCursor: () => string;
+  focusDraggedTo: (px: number, py: number) => void;
+  /** Takes hold of a point, or starts a rectangle; true when the drag is the map's. */
+  focusGrabbed: (e: AsAPress) => boolean;
+  focusHovered: (e: { offsetX: number; offsetY: number }) => boolean;
+  focusMarqueeTo: (px: number, py: number) => void;
+  focusMarqueeTook: (shift: boolean) => void;
+  marqueeing: () => boolean;
+  dragging: () => boolean;
+  /** Lets go of the point being dragged, and says whether it moved. */
+  endDrag: () => { moved?: boolean };
 }
 
 /**
@@ -78,8 +107,8 @@ export interface StageRun {
   editing: Editor | null;
   shown: number;
   crosshair: (ctx: CanvasRenderingContext2D, x: number, y: number, arm: number, gap: number, dot: number, ring?: number) => void;
-  drawFocusLayer: PassedOn;
-  drawFocusPoints: PassedOn;
+  drawFocusLayer: FocusOnTheStage["drawFocusLayer"];
+  drawFocusPoints: FocusOnTheStage["drawFocusPoints"];
   drawStageLimits: (ctx: CanvasRenderingContext2D, onTheStage: DrawnIn["onTheStage"], scale: number) => void;
   drawWhereTheStageIs: (ctx: CanvasRenderingContext2D, onTheStage: DrawnIn["onTheStage"]) => void;
   drawScaleBar: (ctx: CanvasRenderingContext2D, w: number, h: number, scale: number) => void;
@@ -93,14 +122,14 @@ export interface StageRun {
   testTilesChanged: () => void;
   drawStage: () => void;
   pictureShows: (name: string) => boolean;
-  focusGrabbed: PassedOn;
-  marqueeing: () => boolean;
-  focusMarqueeTo: PassedOn;
-  focusMarqueeTook: PassedOn;
-  focusDragging: () => boolean;
-  focusDraggedTo: PassedOn;
-  endFocusDrag: () => void;
-  focusPressed: (x: number, y: number) => unknown;
+  focusGrabbed: FocusOnTheStage["focusGrabbed"];
+  marqueeing: FocusOnTheStage["marqueeing"];
+  focusMarqueeTo: FocusOnTheStage["focusMarqueeTo"];
+  focusMarqueeTook: FocusOnTheStage["focusMarqueeTook"];
+  focusDragging: FocusOnTheStage["dragging"];
+  focusDraggedTo: FocusOnTheStage["focusDraggedTo"];
+  endFocusDrag: FocusOnTheStage["endDrag"];
+  focusPressed: FocusOnTheStage["focusPressed"];
   toStage: <P extends XY>(p: P) => P;
   toCarrier: <P extends XY>(p: P) => P;
 }
@@ -161,10 +190,10 @@ export interface StageContext {
   run: TaRun;
   shown: Shown;
   carrierWidget: typeof carrierWidget;
-  scanfieldsWidget: unknown;
+  scanfieldsWidget: ScanfieldsWidget;
   stepLayers: StepLayers[];
   maskRainbow: string;
-  activePreset: () => unknown;
+  activePreset: () => ActivePreset;
   indexOfStep: (id: string) => number;
   activeStep: () => TaStep | null;
   step: (index: number) => TaStep;
@@ -180,20 +209,7 @@ export interface StageContext {
   pictureShows: (name: string) => boolean;
   driveTo?: (at: XY) => Promise<StageAt | null>;
   thePicture: ThePicture;
-  focus: {
-    focusPressed: (x: number, y: number) => unknown;
-    focusCursor: () => string;
-    focusDraggedTo: PassedOn;
-    focusGrabbed: PassedOn;
-    focusHovered: (e: PointerEvent) => unknown;
-    focusMarqueeTo: PassedOn;
-    focusMarqueeTook: PassedOn;
-    drawFocusLayer: PassedOn;
-    drawFocusPoints: PassedOn;
-    marqueeing: () => boolean;
-    dragging: () => boolean;
-    endDrag: () => void;
-  };
+  focus: FocusOnTheStage;
 }
 
 /**

@@ -22,18 +22,18 @@ import { css, el, sizeCanvas, status } from "../../api/index.ts";
 /* How the status bar begins a drive the microscope declined. */
 const REFUSED = "The stage did not go there: ";
 import carrierWidget from "./shared/carrier-panel.ts";
-import scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.js";
-import { watchTheRun } from "./steps/scan_the_overview/watching-the-run.js";
+import scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.ts";
+import { watchTheRun } from "./steps/scan_the_overview/watching-the-run.ts";
 import { openTheStage } from "./shared/stage.ts";
 /* What each step draws on the picture, in no particular order: the stack's
    order is the picture's own (`THE_STACK` in `shared/stage.js`). */
-import { carrierLayers } from "./steps/define_carrier/layers.js";
-import { scanAreaLayers } from "./steps/define_scan_area/layers.js";
-import { focusLayers } from "./steps/focus_strategy/layers.js";
-import { overviewLayers } from "./steps/scan_the_overview/layers.js";
-import { targetLayers } from "./steps/discover_targets/layers.js";
-import { acquiredLayers } from "./steps/acquire_targets/layers.js";
-import { MASK_RAINBOW } from "./steps/discover_targets/mask-dress.js";
+import { carrierLayers } from "./steps/define_carrier/layers.ts";
+import { scanAreaLayers } from "./steps/define_scan_area/layers.ts";
+import { focusLayers } from "./steps/focus_strategy/layers.ts";
+import { overviewLayers } from "./steps/scan_the_overview/layers.ts";
+import { targetLayers } from "./steps/discover_targets/layers.ts";
+import { acquiredLayers } from "./steps/acquire_targets/layers.ts";
+import { MASK_RAINBOW } from "./steps/discover_targets/mask-dress.ts";
 
 /**
  * Open the canvas on the page. Answers `stage`, `view`, `drawStage`,

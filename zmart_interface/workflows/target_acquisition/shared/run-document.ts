@@ -44,13 +44,16 @@ export interface Scanned {
 /** A tile laid round chosen targets: where, how wide, which targets it covers, and which overview tileset they came from. */
 export interface TargetTile extends XY {
   id: string;
-  targetId?: string;
+  targetId: string;
+  /** Its place among its target's tiles, and the key it is acquired under: `<targetId>#<tileIndex>`. */
+  tileIndex: number;
+  key: string;
   frameUm: number;
   covers: string[];
-  overviewTileset?: unknown;
+  /** The targets the acquisition has whole once this tile is taken, the tiles before it included. */
+  completes: string[];
+  overviewTileset?: string | number;
   positionIndex?: number;
-  key?: string;
-  [more: string]: unknown;
 }
 
 /** What placing the target tiles came to. */
@@ -61,12 +64,20 @@ export interface TilePlan {
   notes: string[];
 }
 
+/** How a target was focussed before its capture: the job, the map's height, and the peak its stack found, if it found one. */
+export interface TargetFocussing {
+  job: unknown;
+  z_map_um: number | null;
+  z_peak_um: number | null;
+  found: boolean;
+}
+
 /** A target tile as it was acquired: where, how wide the capture is, its label and its focussing. */
 export interface AcquiredTile extends XY {
   frameUm: number | null;
   label?: string;
   taken: unknown;
-  focus: unknown;
+  focus: TargetFocussing | null;
   positionIndex: number;
   tile: TargetTile;
 }
@@ -103,15 +114,44 @@ export interface ProtocolWalk {
   summary: ProtocolSummary | null;
 }
 
-/** The surface fitted through a focus map's heights. */
-export interface Surface {
-  kind: string;
-  model: string;
-  [more: string]: unknown;
-}
+/**
+ * The surface fitted through a focus map's heights, as the geometry bought it:
+ * one height, a least-squares plane about the points' centre, or a smoothing
+ * thin-plate spline in coordinates scaled to order one. `affine` is a surface
+ * with no points behind it, its tilt `a` and `b` in µm across `width` and `height`.
+ */
+export type Surface =
+  | { kind: "constant"; model: "constant"; c: number }
+  | { kind: "plane"; model: "plane"; x0: number; y0: number; c0: number; c1: number; c2: number }
+  | {
+    kind: "spline"; model: "spline"; x0: number; y0: number; scale: number;
+    pts: { u: number; v: number }[]; w: number[]; a0: number; a1: number; a2: number;
+  }
+  | { kind: "affine"; model: "affine"; a: number; b: number; c: number; width: number; height: number };
 
 /** A focus point on a map: placed, then measured, and how far the fitted surface misses it. */
-export type MapPoint = FocusSpot & { residual?: number | null };
+export type MapPoint = FocusSpot & {
+  residual?: number | null;
+  /** Which tileset's leg of the route it marches with; none for a point outside every tileset. */
+  tileset?: number;
+  /** Whether the peak chosen for it is too narrow to be tissue. */
+  onNarrow?: boolean;
+  /** What was read for it before it was moved, so the move can be taken back. */
+  wasRead?: WasRead;
+};
+
+/** A moved point's last reading: where it stood, and what was read there. */
+interface WasRead {
+  x: number;
+  y: number;
+  z: number;
+  zAuto?: number | null;
+  traces?: FocusSpot["traces"];
+  manual: boolean;
+  onNarrow: boolean;
+  lost: boolean;
+  speck: unknown;
+}
 
 /* The focus strategy is its own little document: which approach, that
    approach's parameters, and whatever it has produced so far.
@@ -162,15 +202,23 @@ function newDetect() {
     targetTile: 0,   // the current target tile, on the steps about the targets
     hovered: -1,     // the tile under the pointer, a press from being tested
     tested: false,
-    tried: [] as number[],
+    tried: [] as FoundObject[],
   };
 }
 
 /** A focus map: where to measure, what was measured, and the surface fitted to it. */
 export type FocusMap = ReturnType<typeof newFocus>;
 
-/** The placing levers as a run starts, as `scan-areas.js` reads them. */
-const newPlacing = () => ({ margin: 1, objectsMax: 50, minimise: true, overlapMin: 0.2 });
+/** The placing levers: the margin, the ceiling per tileset and the stitching overlap, each null when its switch is off, and whether to look for the fewest tiles. */
+export interface Placing {
+  margin: number | null;
+  objectsMax: number | null;
+  minimise: boolean;
+  overlapMin: number | null;
+}
+
+/** The placing levers as a run starts, as `scan-areas.ts` reads them. */
+const newPlacing = (): Placing => ({ margin: 1, objectsMax: 50, minimise: true, overlapMin: 0.2 });
 
 /**
  * The workflow's keys of a fresh run, for the backend it will speak to.
@@ -212,6 +260,8 @@ export function freshState({ backend }: { backend: Pick<Backend, "viewOf"> }) {
     anchoring: false,
     anchorPicked: -1,
     anchorLit: -1,
+    /* The anchor being dragged on the picture, or -1 while none is held. */
+    anchorHeld: -1,
     /* The scan fields the operator drew, and the plan -- the positions the
        stage will visit -- worked out from them and the active preset. */
     fields: [] as Field[],
@@ -226,6 +276,8 @@ export function freshState({ backend }: { backend: Pick<Backend, "viewOf"> }) {
     /* The plan index under the pointer on the scan step, a press from
        being a test tile; -1 when it is over none. */
     testHovered: -1,
+    /* The rectangle a Shift-drag on the scan step is drawing over the plan, in the carrier's frame, with where it started on screen; null while none is. */
+    testMarquee: null as { sx: number; sy: number; cx: number; cy: number; screen: { x: number; y: number } } | null,
     /* The protocols this machine has written, listed after connecting; the
        one this run was opened on, or null for a run from scratch; the
        sentence the Protocol box shows about it; and whether the steps after

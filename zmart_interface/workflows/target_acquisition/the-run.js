@@ -8,16 +8,16 @@
  * the Connect step, so there is one workflow and one list of steps.
  */
 
-import { connect } from "./steps/connect/step.js";
-import { carrierConfiguration } from "./steps/define_carrier/step.js";
-import { initialScanfields } from "./steps/define_scan_area/step.js";
-import { focusStrategy } from "./steps/focus_strategy/step.js";
-import { scanOverview } from "./steps/scan_the_overview/step.js";
-import { detectCells } from "./steps/discover_targets/step.js";
-import { selectCells } from "./steps/refine_targets/step.js";
-import { targetScanArea } from "./steps/target_scan_area/step.js";
-import { acquireAndCurate } from "./steps/acquire_targets/step.js";
-import { runProtocolStep } from "./steps/run_protocol/step.js";
+import { connect } from "./steps/connect/step.ts";
+import { carrierConfiguration } from "./steps/define_carrier/step.ts";
+import { initialScanfields } from "./steps/define_scan_area/step.ts";
+import { focusStrategy } from "./steps/focus_strategy/step.ts";
+import { scanOverview } from "./steps/scan_the_overview/step.ts";
+import { detectCells } from "./steps/discover_targets/step.ts";
+import { selectCells } from "./steps/refine_targets/step.ts";
+import { targetScanArea } from "./steps/target_scan_area/step.ts";
+import { acquireAndCurate } from "./steps/acquire_targets/step.ts";
+import { runProtocolStep } from "./steps/run_protocol/step.ts";
 
 export const steps = [
   connect,

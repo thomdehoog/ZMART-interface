@@ -27,8 +27,10 @@ import type { Field, XY } from "./scanfields.ts";
 
 const PROTOCOL_VERSION = 1;
 
-/** A protocol as written: the run's settings, and nothing measured. */
-export interface Protocol {
+/** A protocol as written: the run's settings, and nothing measured. A plain
+    object type rather than an interface, so it is the JSON record the
+    backend lists and saves (`Record<string, unknown>`) as well. */
+export type Protocol = {
   version: number;
   session?: { microscope?: string | null; api?: string | null };
   carrier: Carrier;
@@ -46,7 +48,7 @@ export interface Protocol {
   gates: Gate[];
   placing: TaRun["placing"];
   testTiles?: { tiles: number[]; of: number };
-}
+};
 
 const AUTOMATABLE_GATE = /^(?!pca_|umap_)/;
 

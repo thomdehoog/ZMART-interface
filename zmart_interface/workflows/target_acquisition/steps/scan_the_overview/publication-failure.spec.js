@@ -35,7 +35,7 @@ for (const bake of [false, true]) test(`publication failure preserves valid pixe
       document.body.append(below);
       const { backend } = await import("/zmart_interface/workflows/target_acquisition/backend/live.ts");
       const { showPublicationStatus } = await import("/zmart_interface/workflows/target_acquisition/canvas/publication-note.ts");
-      const { watchTheRun } = await import("/zmart_interface/workflows/target_acquisition/steps/scan_the_overview/watching-the-run.js");
+      const { watchTheRun } = await import("/zmart_interface/workflows/target_acquisition/steps/scan_the_overview/watching-the-run.ts");
       window.failureWatch = watchTheRun({
         pictureHost: document.getElementById("failure-host"), connected: () => true,
         viewerSources: () => backend.viewerSources(status => showPublicationStatus(document.getElementById("failure-note"), status)),

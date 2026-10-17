@@ -13,7 +13,7 @@ test("detection: failed previews are visible and a new image recovers", async ({
     const host = document.querySelector("main");
     const tile = { x: 16, y: 16, frameUm: 32, targetId: "cell" };
     let address = "/failed-preview.jpg";
-    const { default: detection } = await import("/zmart_interface/workflows/target_acquisition/steps/discover_targets/detection.js");
+    const { default: detection } = await import("/zmart_interface/workflows/target_acquisition/steps/discover_targets/detection.ts");
     const settings = { tile: 0, algo: "fast", diameter: 30, threshold: 100,
       border: 0, binning: 1, tested: false, tried: [] };
     const widget = detection.mount(host, {

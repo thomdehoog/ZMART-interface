@@ -16,16 +16,16 @@ import * as helpers from "./shared/page-helpers.ts";
 import {
   chosenInstrument, chosenMicroscope, listInstruments, listProtocols, renderSetup,
   theRestOfTheProtocolAppears,
-} from "./steps/connect/channel.js";
-import { installCarrier } from "./steps/define_carrier/channel.js";
-import { activePreset, rebuildPlan } from "./steps/define_scan_area/channel.js";
-import { installFocus } from "./steps/focus_strategy/channel.js";
-import { focusFitWord } from "./steps/focus_strategy/run.js";
-import { testTilesChanged } from "./steps/scan_the_overview/channel.js";
-import { overviewGoesGreyForTheMasks } from "./steps/discover_targets/channel.js";
-import { selectTarget, targetAt, targetPressed } from "./steps/acquire_targets/channel.js";
-import { renderProtocolProgress } from "./steps/run_protocol/channel.js";
-import { protocolWithin } from "./steps/run_protocol/run.js";
+} from "./steps/connect/channel.ts";
+import { installCarrier } from "./steps/define_carrier/channel.ts";
+import { activePreset, rebuildPlan } from "./steps/define_scan_area/channel.ts";
+import { installFocus } from "./steps/focus_strategy/channel.ts";
+import { focusFitWord } from "./steps/focus_strategy/run.ts";
+import { testTilesChanged } from "./steps/scan_the_overview/channel.ts";
+import { overviewGoesGreyForTheMasks } from "./steps/discover_targets/channel.ts";
+import { selectTarget, targetAt, targetPressed } from "./steps/acquire_targets/channel.ts";
+import { renderProtocolProgress } from "./steps/run_protocol/channel.ts";
+import { protocolWithin } from "./steps/run_protocol/run.ts";
 
 export function installTargetAcquisition(page) {
   const lends = {};
