@@ -1,0 +1,28 @@
+{
+  // The type checker's view of the page. Nothing is emitted: Vite builds the
+  // page, and `tsc --noEmit` only checks it. Strict for every TypeScript
+  // file; the JavaScript that is not converted yet is read for its exports
+  // but not checked (`allowJs` without `checkJs`), and goes when the last
+  // file is converted.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    // `import.meta.glob`, `?raw` and stylesheet imports, as Vite answers them.
+    "types": ["vite/client"],
+    // Neuroglancer's insides by the names it offers them under, mapped as
+    // `vite.config.js` maps them.
+    "paths": {
+      "neuroglancer/unstable/*": ["./node_modules/neuroglancer/lib/*"]
+    }
+  },
+  "include": ["zmart_interface", "tools"],
+  "exclude": ["zmart_interface/build", "node_modules"]
+}

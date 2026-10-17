@@ -1,4 +1,4 @@
-# The interface's tests on Linux and Windows: the page's unit tests (vitest),
+# The interface's tests on Linux and Windows: the page's types (tsc) and unit tests (vitest),
 # the Python tests (pytest), and a check that the committed page in
 # zmart_interface/build is exactly what `npm run build` makes.
 #
@@ -53,7 +53,27 @@ jobs:
       - run: npm ci
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      # The TypeScript files' types, each error with its file and line.
+      - run: npm run check:types
       - run: npm run test:unit
+
+  structure:
+    name: which module imports which, and what nothing uses (ubuntu, warning only)
+    runs-on: ubuntu-latest
+    # Reported, not yet enforced: each check fails the run once the modules
+    # it covers are converted (docs/building-the-page.md).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run check:imports
+      - run: npm run check:unused
 
   python:
     name: python tests (${{ matrix.os }}, py${{ matrix.python-version }})

@@ -33,6 +33,22 @@ On the ZMB workstations AppLocker runs programs only from
 `C:\ProgramData\MinicondaZMB`, so the checkout, `node_modules` and the
 Playwright browsers must live there.
 
+## Checking the page
+
+The page is being converted to TypeScript, one folder at a time; files not yet
+converted stay JavaScript until their turn (`tsconfig.json`). Three checks read
+the sources without running them:
+
+```bash
+npm run check:types     # the TypeScript files' types (tsc), file and line
+npm run check:imports   # which module may import which (dependency-cruiser, .dependency-cruiser.cjs)
+npm run check:unused    # exports, files and packages nothing uses (knip, knip.json)
+```
+
+`npm test` runs the types with the unit and browser tests, and so does CI. The
+other two run in CI as warnings for now, and become failing as the modules they
+cover are converted.
+
 ## What the build produces, and why it is three files rather than one
 
 `npm run build` writes three files into `zmart_interface/build/`:

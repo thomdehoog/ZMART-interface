@@ -12,7 +12,7 @@ import {
 import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
 
 const { WORKFLOWS } = assembleWorkflows(
-  import.meta.glob("../../workflows/*/flow.js", { eager: true }),
+  import.meta.glob("../../workflows/*/flow.{js,ts}", { eager: true }),
 );
 
 describe("numbering is derived, so reordering costs nothing", () => {
@@ -122,7 +122,19 @@ describe("panels follow the step", () => {
     expect(steps.map((_, i) => panelsFor(steps, i, ["map"])))
       .toEqual([[], ["map"], ["map", "notes"]]);
   });
+});
 
+/* A workflow's front door is `flow.js` or, once it is converted, `flow.ts`;
+   the folder is found either way. */
+describe("finding a workflow's folder", () => {
+  it("finds a flow written in JavaScript or in TypeScript", () => {
+    const { WORKFLOWS } = assembleWorkflows({
+      "workflows/in_js/flow.js": { steps: [{ id: "a" }] },
+      "workflows/in_ts/flow.ts": { steps: [{ id: "b" }] },
+      "workflows/neither/flow.css": { steps: [{ id: "c" }] },
+    });
+    expect(Object.keys(WORKFLOWS)).toEqual(["in_js", "in_ts"]);
+  });
 });
 
 /* The framework runs a workflow that knows nothing about a microscope. The
@@ -133,7 +145,7 @@ describe("panels follow the step", () => {
    chooser never offers it. */
 describe("a workflow that knows nothing about a microscope", () => {
   const { WORKFLOWS: FIXTURES, DEFAULT_WORKFLOW } = assembleWorkflows(
-    import.meta.glob("../fixtures/*/flow.js", { eager: true }),
+    import.meta.glob("../fixtures/*/flow.{js,ts}", { eager: true }),
   );
   const three = FIXTURES.three_steps;
 

@@ -23,18 +23,18 @@ const PACKAGE = join(HERE, "..");
 /* A static import's source: `import ... from "..."`, `import "..."`, and a
    re-export's `export ... from "..."`. A dynamic `import("...")` too. The
    build tool's folder scan, `import.meta.glob("...")`, is not an import of
-   anything in particular and is left alone. */
-const IMPORTED_FROM = /(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s+["']([^"']+)["']|(?:^|\n)\s*import\s+["']([^"']+)["']|\bimport\(\s*["']([^"']+)["']\s*\)/g;
+   anything in particular and is left alone. A stylesheet's `@import` is. */
+const IMPORTED_FROM = /(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s+["']([^"']+)["']|(?:^|\n)\s*import\s+["']([^"']+)["']|\bimport\(\s*["']([^"']+)["']\s*\)|@import\s+(?:url\()?\s*["']([^"']+)["']/g;
 
 const sourceFiles = (folder) => readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
   const at = join(folder, entry.name);
   if (entry.isDirectory()) return entry.name === "__pycache__" ? [] : sourceFiles(at);
-  return /\.m?js$/.test(entry.name) ? [at] : [];
+  return /\.(m?js|ts|css)$/.test(entry.name) ? [at] : [];
 });
 
 const importsOf = (file) => {
   const text = readFileSync(file, "utf8");
-  return [...text.matchAll(IMPORTED_FROM)].map((m) => m[1] ?? m[2] ?? m[3]);
+  return [...text.matchAll(IMPORTED_FROM)].map((m) => m[1] ?? m[2] ?? m[3] ?? m[4]);
 };
 
 const name = (file) => relative(PACKAGE, file).replaceAll("\\", "/");

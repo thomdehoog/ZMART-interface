@@ -65,7 +65,7 @@ export default defineConfig({
      search. A `.test.js` belongs to vitest; the two runners share folders. */
   testDir: "zmart_interface",
   testIgnore: ["**/node_modules/**", "**/test-results/**"],
-  testMatch: "**/*.spec.js",
+  testMatch: "**/*.spec.{js,ts}",
   /* Screenshots and traces of a failed test. `ZMART_TEST_OUTPUT` puts them on
      another disk when this one is short of room. */
   outputDir: process.env.ZMART_TEST_OUTPUT || "test-results",

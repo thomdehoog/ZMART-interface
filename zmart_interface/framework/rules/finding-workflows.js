@@ -1,7 +1,7 @@
 /**
  * How the framework finds the workflows, and what it makes of a folder's name.
  *
- * Every folder in `workflows/` that contains a `flow.js` is a workflow the
+ * Every folder in `workflows/` that contains a `flow.js` (or `flow.ts`) is a workflow the
  * chooser offers. The folder's name is the workflow's name: underscores read
  * as spaces and the first letter capitalised, so `target_acquisition` appears
  * as "Target acquisition". Adding a workflow is adding a folder — nothing in
@@ -10,7 +10,7 @@
  *
  * The finding itself — reading the folder listing — happens where the code
  * runs. The page uses the build tool's folder scan (`import.meta.glob`, in
- * `window/main.js`); the tests read the same folders their own way. Both hand what
+ * `window/the-workflows.js`); the tests read the same folders their own way. Both hand what
  * they found to `assembleWorkflows` below, so the page and the tests cannot
  * disagree about what a folder full of workflows means.
  */
@@ -25,10 +25,10 @@ export function workflowName(folder) {
 }
 
 /** The folder a flow was found in, out of the path it was found under. */
-const folderOf = (path) => path.match(/([^/]+)\/flow\.js$/)?.[1];
+const folderOf = (path) => path.match(/([^/]+)\/flow\.[jt]s$/)?.[1];
 
 /**
- * Turn a set of found `flow.js` files into the workflows the page offers.
+ * Turn a set of found flow files into the workflows the page offers.
  *
  * Takes an object mapping each flow's path to its loaded module — the shape
  * `import.meta.glob(..., { eager: true })` produces — and returns the chooser's

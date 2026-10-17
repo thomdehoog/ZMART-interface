@@ -14,12 +14,18 @@
     "preview": "vite preview",
     "test:unit": "vitest run",
     "test:ui": "playwright test",
-    "test": "vitest run && playwright test"
+    "check:types": "tsc --noEmit",
+    "check:imports": "depcruise zmart_interface tools --config .dependency-cruiser.cjs",
+    "check:unused": "knip",
+    "test": "tsc --noEmit && vitest run && playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
+    "dependency-cruiser": "18.6.0",
     "esbuild": "^0.28.1",
+    "knip": "6.41.0",
     "patch-package": "8.0.1",
+    "typescript": "6.0.3",
     "vite": "^8.1.5",
     "vite-plugin-singlefile": "^2.3.0",
     "vitest": "^4.1.10"

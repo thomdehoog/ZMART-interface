@@ -12,9 +12,9 @@ import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
 const workflowsDir = fileURLToPath(new URL("../", import.meta.url));
 const flowFiles = {};
 for (const folder of fs.readdirSync(workflowsDir)) {
-  const flowPath = path.join(workflowsDir, folder, "flow.js");
-  if (fs.existsSync(flowPath)) {
-    flowFiles[`${folder}/flow.js`] = await import(pathToFileURL(flowPath).href);
+  for (const name of ["flow.js", "flow.ts"]) {
+    const flowPath = path.join(workflowsDir, folder, name);
+    if (fs.existsSync(flowPath)) flowFiles[`${folder}/${name}`] = await import(pathToFileURL(flowPath).href);
   }
 }
 const { WORKFLOWS } = assembleWorkflows(flowFiles);

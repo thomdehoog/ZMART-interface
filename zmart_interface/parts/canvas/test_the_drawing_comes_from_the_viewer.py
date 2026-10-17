@@ -15,7 +15,11 @@ from pathlib import Path
 import zmart_viewer
 
 CHECKOUT = Path(__file__).resolve().parents[3]
-ENGINE = CHECKOUT / "zmart_interface/parts/canvas/engines/neuroglancer-under/viewer.js"
+#: The neuroglancer engine, written in JavaScript or, once converted, TypeScript.
+ENGINE = next(
+    path for path in (CHECKOUT / "zmart_interface/parts/canvas/engines/neuroglancer-under").glob("viewer.*")
+    if path.suffix in (".js", ".ts")
+)
 
 
 def test_the_installed_viewer_offers_what_the_build_reads():

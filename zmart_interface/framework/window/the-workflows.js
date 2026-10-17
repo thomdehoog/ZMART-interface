@@ -1,6 +1,6 @@
 /**
  * The workflows this page offers: every folder in `workflows/` with a
- * `flow.js` inside it, found by the build tool's folder scan and assembled by
+ * `flow.js` or `flow.ts` inside it, found by the build tool's folder scan and assembled by
  * the framework. The unit tests read the same folders, so a workflow the tests
  * can see is a workflow the operator can choose. The list used to be written
  * out by hand — twice, at one point — and the copies drifted apart in silence,
@@ -14,5 +14,5 @@
 import { assembleWorkflows } from "../rules/finding-workflows.js";
 
 export const { WORKFLOWS, DEFAULT_WORKFLOW } = assembleWorkflows(
-  import.meta.glob("../../workflows/*/flow.js", { eager: true }),
+  import.meta.glob("../../workflows/*/flow.{js,ts}", { eager: true }),
 );
