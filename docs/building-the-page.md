@@ -45,9 +45,9 @@ npm run check:imports   # which module may import which (dependency-cruiser, .de
 npm run check:unused    # exports, files and packages nothing uses (knip, knip.json)
 ```
 
-`npm test` runs the types with the unit and browser tests, and so does CI. The
-other two run in CI as warnings for now, and become failing as the modules they
-cover are converted.
+`npm test` runs the types with the unit and browser tests, and so does CI. CI
+fails on a wrong import too; the unused code is reported as a warning until the
+dead code the module map lists is gone.
 
 ## What the build produces, and why it is three files rather than one
 

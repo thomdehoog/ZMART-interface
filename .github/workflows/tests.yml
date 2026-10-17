@@ -58,11 +58,8 @@ jobs:
       - run: npm run test:unit
 
   structure:
-    name: which module imports which, and what nothing uses (ubuntu, warning only)
+    name: which module imports which, and what nothing uses (ubuntu)
     runs-on: ubuntu-latest
-    # Reported, not yet enforced: each check fails the run once the modules
-    # it covers are converted (docs/building-the-page.md).
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -73,7 +70,10 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: npm run check:imports
+      # Reported, not yet enforced: it fails the run once the dead code the
+      # module map lists is gone (docs/building-the-page.md).
       - run: npm run check:unused
+        continue-on-error: true
 
   python:
     name: python tests (${{ matrix.os }}, py${{ matrix.python-version }})
