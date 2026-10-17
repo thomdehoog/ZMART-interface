@@ -21,7 +21,7 @@ import type { freshState } from "./shared/run-document.ts";
 import type { StageWatch } from "./shared/stage-position.ts";
 import type { ProgressBox } from "./shared/progress.ts";
 import type * as helpers from "./shared/page-helpers.ts";
-import type { installTheCanvas } from "./the-canvas.js";
+import type { CanvasOnThePage } from "./the-canvas.ts";
 import type * as connect from "./steps/connect/channel.ts";
 import type { CarrierOnThePage } from "./steps/define_carrier/channel.ts";
 import type * as scanArea from "./steps/define_scan_area/channel.ts";
@@ -71,7 +71,7 @@ export type Lends = {
   stageWatch: StageWatch | null;
   /** Redraw the carrier panel's list of anchors: set by the panel when it mounts. */
   redrawAnchors: () => void;
-} & ReturnType<typeof installTheCanvas> & FocusOnThePage & CarrierOnThePage;
+} & CanvasOnThePage & FocusOnThePage & CarrierOnThePage;
 
 /** The boxes this workflow's steps put on screen, while they are mounted. */
 export interface Shown {

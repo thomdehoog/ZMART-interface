@@ -5,8 +5,8 @@
  *
  * The canvas panel itself is a part (`workflows/target_acquisition/canvas/`) and knows nothing
  * about any workflow. This file is the workflow's side of it: it opens the
- * stage picture (`shared/stage.js`) and the live overview
- * (`steps/scan_the_overview/watching-the-run.js`) on that panel, hands them
+ * stage picture (`shared/stage.ts`) and the live overview
+ * (`steps/scan_the_overview/watching-the-run.ts`) on that panel, hands them
  * the run and the few things they must be able to call back into, and gives
  * the page its own names for what it does to the picture.
  *
@@ -17,7 +17,61 @@
 
 import { mountTheAxes } from "./canvas/axes.ts";
 import { showPublicationStatus } from "./canvas/publication-note.ts";
-import { css, el, sizeCanvas, status } from "../../api/index.ts";
+import { css, status, type BuiltPanel } from "../../api/index.ts";
+import type { canvasPanel } from "./canvas/panel.ts";
+import type { Axes } from "./canvas/axes.ts";
+import type { View } from "./canvas/engines/opening-view.ts";
+import type { theCanvasOf } from "./microscope/canvas.ts";
+import type { StageAt } from "./shared/stage-position.ts";
+import type { TaPage, ThePicture } from "./types.ts";
+
+/** The canvas panel as this workflow built it: the framework's panel, and its own parts. */
+type TheCanvasPanel = BuiltPanel & ReturnType<NonNullable<typeof canvasPanel.build>> & { shown?: () => void };
+
+/**
+ * What the canvas lends the page. Written out rather than read off
+ * `installTheCanvas`, because the page's own type is made of what is lent,
+ * and a lend whose type came from the page would make the page's type
+ * depend on itself.
+ */
+export interface CanvasOnThePage {
+  stage: ReturnType<typeof openTheStage>;
+  view: ReturnType<typeof openTheStage>["view"];
+  theAxes: Axes;
+  thePicture: ThePicture;
+  drawStage(): void;
+  carrierOriginUm(): [number, number];
+  whereTheStageIs(): StageAt | null;
+  takeTheCanvas(reading: Parameters<typeof theCanvasOf>[0]): void;
+  takeThePosition(at: StageAt | null | undefined): void;
+  drawScaleBar(ctx: CanvasRenderingContext2D, w: number, h: number, scale: number): void;
+  renderFramingPresses(): void;
+}
+
+/** What a browser test may ask of the picture: read-only geometry and the layers' switches. */
+interface TheStageCanvas {
+  layers(): { key?: string; label?: string; shown?: boolean; staysSolid: boolean }[];
+  showLayer(key: string, on: boolean): void;
+  layerShown(key: string): boolean;
+  acquisitionOnShow(): string | null;
+  fadeTo(value: number): void;
+  plan(): { x: number; y: number; frameUm: number; tileset: unknown }[];
+  targets(): unknown[];
+  project(x: number, y: number): [number, number];
+  view(): View | null;
+  lookAt(where: { centre?: { x: number; y: number }; zoom?: number }): void;
+  carrierOriginUm(): [number, number];
+  focusZAt(x: number, y: number): unknown;
+}
+
+declare global {
+  interface Window {
+    /** The T slider under the picture, for a browser test. */
+    __theAxes?: Axes;
+    /** The picture, for a browser test. */
+    __theStageCanvas?: TheStageCanvas;
+  }
+}
 
 /* How the status bar begins a drive the microscope declined. */
 const REFUSED = "The stage did not go there: ";
@@ -26,7 +80,7 @@ import scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.ts";
 import { watchTheRun } from "./steps/scan_the_overview/watching-the-run.ts";
 import { openTheStage } from "./shared/stage.ts";
 /* What each step draws on the picture, in no particular order: the stack's
-   order is the picture's own (`THE_STACK` in `shared/stage.js`). */
+   order is the picture's own (`THE_STACK` in `shared/stage.ts`). */
 import { carrierLayers } from "./steps/define_carrier/layers.ts";
 import { scanAreaLayers } from "./steps/define_scan_area/layers.ts";
 import { focusLayers } from "./steps/focus_strategy/layers.ts";
@@ -41,11 +95,11 @@ import { MASK_RAINBOW } from "./steps/discover_targets/mask-dress.ts";
  * (`whereTheStageIs`, `carrierOriginUm`, `takeTheCanvas`, `takeThePosition`,
  * `drawScaleBar`) and `renderFramingPresses`.
  */
-export function installTheCanvas(page) {
+export function installTheCanvas(page: TaPage): CanvasOnThePage {
   const { run: state, panels: thePanels, step, indexOfStep } = page;
 
   /* The canvas panel this workflow declared, and everything that draws in it. */
-  const theCanvas = thePanels.canvas;
+  const theCanvas = thePanels.canvas as TheCanvasPanel;
   /* The T slider under the picture, on whichever picture is open. */
   const theAxes = mountTheAxes(theCanvas.parts, { picture: () => window.__thePicture ?? null });
   window.__theAxes = theAxes;
@@ -57,7 +111,6 @@ export function installTheCanvas(page) {
     pictureHost: theCanvas.parts.pictureHost,
     /* Where this backend's scans can be fetched from, if anywhere. The live
        one serves what the microscope wrote; the pretend one has nothing. */
-    pictures: (kind) => (state.done.has("connect") ? page.backend?.viewOf?.(kind) : null) ?? null,
     /* The run's OME-Zarr sources, as the viewer server beside the bridge
        serves them — the real picture, linked position by position. `null`
        while there is none, and the JPEG copies stand in.
@@ -67,7 +120,7 @@ export function installTheCanvas(page) {
        Disconnect, so the page reopened an empty JPEG picture on a bridge
        that had no run to serve. */
     viewerSources: () => {
-      const report = (status) => showPublicationStatus(theCanvas.parts.publicationNote, status);
+      const report = (status: Parameters<typeof showPublicationStatus>[1]) => showPublicationStatus(theCanvas.parts.publicationNote, status);
       if (!state.done.has("connect")) { report(null); return null; }
       return page.backend?.viewerSources?.(report) ?? null;
     },
@@ -128,7 +181,7 @@ export function installTheCanvas(page) {
     maskOpacity: theCanvas.parts.maskOpacity,
     rampChip: theCanvas.parts.rampChip,
     legend: theCanvas.parts.legend,
-    css, sizeCanvas, el,
+    css,
     run: state,
     /* The boxes the steps put on screen; the scan-field editor among them. */
     shown: page.shown,
@@ -182,7 +235,7 @@ export function installTheCanvas(page) {
           z: Number(at.z?.position ?? 0),
         };
       } catch (why) {
-        status.say(`${REFUSED}${why.message}`);
+        status.say(`${REFUSED}${(why as Error).message}`);
         return null;
       }
     },
@@ -229,7 +282,7 @@ export function installTheCanvas(page) {
      an empty canvas offering to frame what is not there. */
   function renderFramingPresses() {
     const connected = state.done.has("connect");
-    const parts = theCanvas.parts ?? {};
+    const parts = theCanvas.parts;
     for (const press of [parts.carrier, parts.tileset, parts.tile]) {
       if (press) press.hidden = !connected;
     }
@@ -247,9 +300,9 @@ export function installTheCanvas(page) {
     drawStage: () => stage.draw(),
     carrierOriginUm: () => stage.carrierOriginUm(),
     whereTheStageIs: () => stage.whereTheStageIs(),
-    takeTheCanvas: (reading) => stage.takeTheCanvas(reading),
-    takeThePosition: (at) => stage.takeThePosition(at),
-    drawScaleBar: (...a) => stage.drawScaleBar(...a),
+    takeTheCanvas: (reading: Parameters<typeof theCanvasOf>[0]) => stage.takeTheCanvas(reading),
+    takeThePosition: (at: StageAt | null | undefined) => stage.takeThePosition(at),
+    drawScaleBar: (...a: Parameters<typeof stage.drawScaleBar>) => stage.drawScaleBar(...a),
     renderFramingPresses,
   };
 }

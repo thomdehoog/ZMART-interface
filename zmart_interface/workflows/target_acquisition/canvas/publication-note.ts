@@ -7,7 +7,7 @@ interface Publication {
 
 /** Publication acknowledges data available to the viewer, not rendered pixels. */
 export function showPublicationStatus(
-  note: { textContent: string | null; hidden: boolean },
+  note: Pick<HTMLElement, "textContent" | "hidden">,
   status: { publications?: Record<string, Publication>; error?: string } | null | undefined,
 ): void {
   const pending = Object.entries(status?.publications ?? {})

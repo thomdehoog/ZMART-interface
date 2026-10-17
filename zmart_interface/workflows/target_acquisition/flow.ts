@@ -1,7 +1,7 @@
 /**
  * Target acquisition — the workflow built into this page.
  *
- * The steps are the list in `./the-run.js`. What the run drives is chosen on
+ * The steps are the list in `./the-run.ts`. What the run drives is chosen on
  * the Connect step, not here: the operator picks the microscope — the
  * controller's mock driver, which answers with made-up data through the
  * whole real chain, or the Leica through Navigator Expert — and the page
@@ -19,8 +19,9 @@ import { canvasPanel } from "./canvas/panel.ts";
    `?backend=pretend`, for this page's own browser tests. */
 import { backend as live } from "./backend/live.ts";
 import { backend as pretend } from "./backend/pretend.ts";
-import { installTargetAcquisition } from "./on-the-page.js";
-import { steps as theRun } from "./the-run.js";
+import { installTargetAcquisition } from "./on-the-page.ts";
+import { steps as theRun } from "./the-run.ts";
+import type { Backend } from "./backend/verbs.ts";
 
 /* What a run of this workflow holds beside the framework's own keys, what
    of it survives a disconnect, and what a browser test may read of it. The
@@ -35,7 +36,7 @@ export const install = installTargetAcquisition;
 /** Which backend this workflow's steps speak to, given the page's own
     address: the rehearsal when it asks for `?backend=pretend`, the bridge
     otherwise. */
-export const backendFor = (search) => (search.get("backend") === "pretend" ? pretend : live);
+export const backendFor = (search: URLSearchParams): Backend => (search.get("backend") === "pretend" ? pretend : live);
 
 export const blurb =
   "Find the targets on an overview and acquire them, on the microscope chosen "

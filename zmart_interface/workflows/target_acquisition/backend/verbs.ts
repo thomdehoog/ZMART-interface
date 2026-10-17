@@ -11,6 +11,7 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
+import type { Acquisition } from "../canvas/engines/neuroglancer-under/viewer.ts";
 import type { Reading } from "../microscope/settings.ts";
 import type { Sample } from "../microscope/pretend-sample/sweep.ts";
 
@@ -153,7 +154,7 @@ export interface WrittenProtocol {
 
 /** What ZMART Viewer holds of this run, and how far each acquisition is published. */
 export interface ViewerStatus {
-  acquisitions?: unknown[];
+  acquisitions?: Acquisition[];
   sources?: Record<string, { url: string; name: string }[]>;
   publications?: Record<string, { acquired?: number; published?: number; state?: string }>;
   error?: string;
@@ -212,7 +213,7 @@ export interface TargetFocus {
  */
 export interface Backend {
   viewOf(acquisitionType: string): string | null;
-  viewerSources(onStatus?: (status: ViewerStatus) => void): Promise<unknown[] | null>;
+  viewerSources(onStatus?: (status: ViewerStatus) => void): Promise<Acquisition[] | null>;
   instruments(): Promise<string[]>;
   connect(session: Opening | null | undefined, connecting?: Connecting): Promise<{ info: Record<string, unknown> }>;
   disconnect(): Promise<void>;

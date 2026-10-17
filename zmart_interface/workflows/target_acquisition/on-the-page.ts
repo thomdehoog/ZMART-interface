@@ -11,7 +11,7 @@
  * lent, and the workflow's hooks, are what `install` answers.
  */
 
-import { installTheCanvas } from "./the-canvas.js";
+import { installTheCanvas } from "./the-canvas.ts";
 import * as helpers from "./shared/page-helpers.ts";
 import {
   chosenInstrument, chosenMicroscope, listInstruments, listProtocols, renderSetup,
@@ -26,15 +26,19 @@ import { overviewGoesGreyForTheMasks } from "./steps/discover_targets/channel.ts
 import { selectTarget, targetAt, targetPressed } from "./steps/acquire_targets/channel.ts";
 import { renderProtocolProgress } from "./steps/run_protocol/channel.ts";
 import { protocolWithin } from "./steps/run_protocol/run.ts";
+import type { Hooks, Installed } from "../../api/index.ts";
+import type { Lends, TaPage, TargetAcquisition } from "./types.ts";
 
-export function installTargetAcquisition(page) {
-  const lends = {};
+export function installTargetAcquisition(page: TaPage): Installed<TargetAcquisition> {
+  const lends: Partial<Lends> = {};
   /* Put on the page now, and in the answer: the next thing installed may
      reach for it. */
-  const add = (made) => { Object.assign(lends, made); Object.assign(page, made); };
-  /* Functions that take the page first, lent under their own names. */
-  const lend = (functions) => add(Object.fromEntries(Object.entries(functions)
-    .map(([name, fn]) => [name, (...a) => fn(page, ...a)])));
+  const add = (made: Partial<Lends>) => { Object.assign(lends, made); Object.assign(page, made); };
+  /* Functions that take the page first, lent under their own names: each
+     one as `Lends` names it, the page already given. */
+  const lend = (functions: Record<string, (page: TaPage, ...rest: never[]) => unknown>) => add(
+    Object.fromEntries(Object.entries(functions)
+      .map(([name, fn]) => [name, (...a: never[]) => fn(page, ...a)])) as Partial<Lends>);
   /* What several steps share on the page. */
   lend({
     pictureOf: helpers.pictureOf, redrawSoon: helpers.redrawSoon,
@@ -68,14 +72,15 @@ export function installTargetAcquisition(page) {
   page.renderPointList();
   page.rebuildPlan();
 
-  return { lends, hooks: theHooksOf(page) };
+  /* Every name `Lends` declares has been lent above. */
+  return { lends: lends as Lends, hooks: theHooksOf(page) };
 }
 
 /**
  * What target acquisition does when the page tells it something: only while
  * it is the workflow open, since only the open workflow's hooks run.
  */
-export function theHooksOf(page) {
+export function theHooksOf(page: TaPage): Hooks<TargetAcquisition> {
   /* The stage's clock, put down: a session is over, or this workflow is no
      longer the one on screen. */
   const stopTheStageClock = () => {

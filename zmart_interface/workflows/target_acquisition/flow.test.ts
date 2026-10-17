@@ -15,12 +15,18 @@ import { freshRun, startOver } from "../../framework/window/run-state.ts";
 import { emptySlot, withRecording } from "./microscope/recordings.ts";
 import { sampleReading } from "./microscope/settings.ts";
 import * as threeSteps from "../../framework/fixtures/three_steps/flow.ts";
-import * as targetAcquisition from "./flow.js";
+import * as targetAcquisition from "./flow.ts";
+import type { TaPage } from "./types.ts";
+import type { TheRun } from "../../framework/types.ts";
+
+/* The readiness rules read the run; none of the ones asked about here reads
+   the page as well, so none is handed one. */
+const NO_PAGE = undefined as unknown as TaPage;
 
 const { WORKFLOWS } = assembleWorkflows({ "target_acquisition/flow.js": targetAcquisition });
 
-const ids = (wf) => WORKFLOWS[wf].steps.map((s) => s.id);
-const stepOf = (wf, id) => WORKFLOWS[wf].steps.find((s) => s.id === id);
+const ids = (wf: string) => WORKFLOWS[wf].steps.map((s) => s.id);
+const stepOf = (wf: string, id: string) => WORKFLOWS[wf].steps.find((s) => s.id === id);
 
 describe("numbering", () => {
   it("numbers target acquisition straight through, one to ten", () => {
@@ -92,11 +98,11 @@ describe("readiness belongs to the step, not the frame", () => {
   /* These are the rules an operator actually meets: the greyed-out button and
      the short phrase beside it saying what is still missing. The frame only
      asks; each step answers for itself. */
-  const byId = (id) => stepOf("target_acquisition", id);
+  const byId = (id: string) => stepOf("target_acquisition", id);
   /* Real slots, read the way the panel reads them: a hand-made stand-in with
      the right shape is how a gate went on asking for a field the recordings
      stopped having while this suite stayed green. */
-  const recorded = (type) => withRecording(emptySlot(type), {
+  const recorded = (type: string) => withRecording(emptySlot(type), {
     name: "overview",
     reading: sampleReading(type, 0),
   });
@@ -119,46 +125,46 @@ describe("readiness belongs to the step, not the frame", () => {
   it("with no points, the press says what it waits for", () => {
     expect(blockedBecause(byId("focus"), run({
       focus: { strategy: "plane", points: [] },
-    }))).toMatch(/no points to measure/);
+    }), NO_PAGE)).toMatch(/no points to measure/);
   });
 
   it("the focus strategy wants its focussing preset recorded first", () => {
     expect(blockedBecause(byId("focus"), run({
       focus: { strategy: "plane", points: [1, 2, 3] },
       focusPreset: emptySlot("autofocus"),
-    }))).toMatch(/focussing preset/);
+    }), NO_PAGE)).toMatch(/focussing preset/);
   });
 
   it("detection never blocks: trying a tile first is offered, not demanded", () => {
-    expect(blockedBecause(byId("detect"), run())).toBeNull();
-    expect(blockedBecause(byId("detect"), run({ detect: { tested: true } }))).toBeNull();
+    expect(blockedBecause(byId("detect"), run(), NO_PAGE)).toBeNull();
+    expect(blockedBecause(byId("detect"), run({ detect: { tested: true } }), NO_PAGE)).toBeNull();
   });
 
   it("restriction wants something gated; acquisition wants the tiles laid", () => {
     /* Two different answers: no objects on this sample at all, and objects
        that no gate lets through. */
-    expect(blockedBecause(byId("select"), run())).toMatch(/detect objects/);
-    expect(blockedBecause(byId("select"), run({ cells: new Map([[1, {}]]) }))).toMatch(/nothing gated/);
-    expect(blockedBecause(byId("acquire"), run())).toMatch(/add the tiles/);
-    expect(blockedBecause(byId("acquire"), run({ gated: new Set([1]) }))).toMatch(/add the tiles/);
-    expect(blockedBecause(byId("acquire"), run({ targetTiles: [{ id: 1 }] }))).toBeNull();
+    expect(blockedBecause(byId("select"), run(), NO_PAGE)).toMatch(/detect objects/);
+    expect(blockedBecause(byId("select"), run({ cells: new Map([[1, {}]]) }), NO_PAGE)).toMatch(/nothing gated/);
+    expect(blockedBecause(byId("acquire"), run(), NO_PAGE)).toMatch(/add the tiles/);
+    expect(blockedBecause(byId("acquire"), run({ gated: new Set([1]) }), NO_PAGE)).toMatch(/add the tiles/);
+    expect(blockedBecause(byId("acquire"), run({ targetTiles: [{ id: 1 }] }), NO_PAGE)).toBeNull();
   });
 
   it("acquisition also wants the acquisition type recorded", () => {
     expect(blockedBecause(byId("acquire"),
-      run({ targetTiles: [{ id: 1 }], targetType: emptySlot("acquisition") })))
+      run({ targetTiles: [{ id: 1 }], targetType: emptySlot("acquisition") }), NO_PAGE))
       .toMatch(/acquisition type/);
   });
 
   it("a step with no rule is always ready", () => {
-    expect(blockedBecause(byId("connect"), run())).toBeNull();
-    expect(blockedBecause(byId("carrier"), run())).toBeNull();
+    expect(blockedBecause(byId("connect"), run(), NO_PAGE)).toBeNull();
+    expect(blockedBecause(byId("carrier"), run(), NO_PAGE)).toBeNull();
   });
 });
 
 describe("panels follow the step", () => {
-  const staying = (wf) => WORKFLOWS[wf].panels.filter((p) => p.stays).map((p) => p.key);
-  const panelsOf = (wf) =>
+  const staying = (wf: string) => WORKFLOWS[wf].panels.filter((p) => p.stays).map((p) => p.key);
+  const panelsOf = (wf: string) =>
     Object.fromEntries(WORKFLOWS[wf].steps.map((s, i) =>
       [s.id, panelsFor(WORKFLOWS[wf].steps, i, staying(wf))]));
 
@@ -255,7 +261,7 @@ describe("the real run", () => {
   it("leaves target acquisition exactly as it was", () => {
     for (const s of WORKFLOWS.target_acquisition.steps) {
       expect(s.id).not.toMatch(/^canvas-/);
-      expect(s.panels.some((p) => p.startsWith("viewer"))).toBe(false);
+      expect(s.panels!.some((p: string) => p.startsWith("viewer"))).toBe(false);
       /* And nothing in a real run may skip its place in the queue: every step
          of an acquisition produces something the next one needs. The flag that
          lets a step be walked past belongs to the bench, where a step only
@@ -271,14 +277,18 @@ describe("the real run", () => {
 const NO_BACKEND = Object.freeze({});
 const A_MICROSCOPES_KEYS = ["session", "instruments", "carrier", "focus", "plan", "cells", "acquired"];
 
+/* The framework's run, with the few of this workflow's keys these tests write. */
+type Held = TheRun & { carrier: Record<string, unknown>; cells: Map<unknown, unknown>; session: { password: string } };
+const aRun = () => freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition }) as Held;
+
 describe("a run of target acquisition", () => {
   it("holds target acquisition's keys when that is the workflow", () => {
-    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
+    const run = aRun();
     for (const key of A_MICROSCOPES_KEYS) expect(run, key).toHaveProperty(key);
   });
 
   it("takes the previous workflow's keys off the document when another is chosen", () => {
-    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
+    const run = aRun();
     run.carrier.kind = "slide"; run.cells.set(1, {});
     run.wf = "three_steps";
     startOver(run, NO_BACKEND, threeSteps);
@@ -288,7 +298,7 @@ describe("a run of target acquisition", () => {
   });
 
   it("lays a kept key afresh when another workflow took it off the document in between", () => {
-    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
+    const run = aRun();
     run.session.password = "hunter2";
     run.wf = "three_steps";
     startOver(run, NO_BACKEND, threeSteps);
@@ -301,7 +311,7 @@ describe("a run of target acquisition", () => {
   });
 
   it("keeps target acquisition's session and instruments, as before", () => {
-    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
+    const run = aRun();
     run.session.password = "hunter2"; run.instruments = [{ key: "mock" }]; run.carrier.kind = "slide";
     startOver(run, NO_BACKEND, targetAcquisition);
     expect(run.session.password).toBe("hunter2");

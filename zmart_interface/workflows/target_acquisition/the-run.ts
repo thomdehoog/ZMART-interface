@@ -3,7 +3,7 @@
  *
  * This folder is the code home — the steps in their numbered folders, the
  * shared canvas and geometry, the microscope seam — and this file is the run
- * they compose into; `flow.js` beside it is the workflow's front door. What
+ * they compose into; `flow.ts` beside it is the workflow's front door. What
  * the run drives — the controller's mock driver or the Leica — is chosen on
  * the Connect step, so there is one workflow and one list of steps.
  */
@@ -18,8 +18,9 @@ import { selectCells } from "./steps/refine_targets/step.ts";
 import { targetScanArea } from "./steps/target_scan_area/step.ts";
 import { acquireAndCurate } from "./steps/acquire_targets/step.ts";
 import { runProtocolStep } from "./steps/run_protocol/step.ts";
+import type { TaStep } from "./types.ts";
 
-export const steps = [
+export const steps: TaStep[] = [
   connect,
   carrierConfiguration,
   initialScanfields,
