@@ -24,15 +24,30 @@ types. Each workflow states the versions it works with in its own
 `workflow.json`:
 
 ```json
-{ "name": "target_acquisition", "version": "0.1.0", "api": "^0.1.0" }
+{ "name": "target_acquisition", "version": "0.1.0", "api": "^1.0.0" }
 ```
 
 The build, and the development server as it starts, stop with a sentence when
 a workflow's range does not include the API's version, or when a workflow has
-no `workflow.json`. While the API is at 0.x, every minor raise means editing
-each workflow's range; that is intended. From 1.0.0, adding a hook or an
-optional field is a minor raise; a new required field, a changed argument, a
-changed default type or a changed moment of calling is a major one.
+no `workflow.json`. The API is at 1.0.0. Adding a hook or an optional field is
+a minor raise; a new required field, a changed argument, a changed default type
+or a changed moment of calling is a major one.
+
+Two checks hold the API to its version:
+
+- **The declaration report.** `zmart_interface/api/report.txt` holds the
+  declaration of every name the API offers, as the type checker writes it, under
+  the version it belongs to. `npm run check:api` (in CI) fails when the API
+  declares something else than the report says; `node tools/the-api-report.mjs
+  --write` writes it again, and refuses to while `api/version.json` still names
+  the version the report was written for. So a change to the API cannot reach
+  `main` without its version.
+- **The frozen fixture.** `framework/fixtures/three_steps_at_1_0_0/` is the
+  framework's fixture as it stood at 1.0.0, never edited. It uses every field
+  and hook the API offered then; it must still type-check, and
+  `framework/window/the-frozen-fixture.test.ts` walks it. When it stops fitting,
+  the API has broken its word to the workflows written for 1.0.0: that is a new
+  major version, and a new frozen copy beside this one.
 
 ## What a workflow may use
 
@@ -41,12 +56,12 @@ changed default type or a changed moment of calling is a major one.
   (the page's DOM and its colours), `sideGroup(title)` (one box down the
   channel), `status` (the bar's sentence), `atBridge(route)` (a route on the
   bridge as an address the page can fetch), `editedAt` and `staleSteps` (the
-  rules about orange steps).
+  rules about orange steps), and `StepShape`, what those rules read of a step.
 - `ThemeVar`: the page's base colours and measures, as CSS custom properties.
 
 ## What a workflow declares
 
-`flow.js` (or `flow.ts`) exports, every one optional but the first two:
+`flow.ts` exports, every one optional but the first two:
 
 | export | what it is |
 | --- | --- |

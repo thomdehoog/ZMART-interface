@@ -15,7 +15,7 @@
 
 import version from "./version.json";
 
-/** The version of this agreement (`version.json`). At 0.x every minor is a change a workflow must look at. */
+/** The version of this agreement (`version.json`): a new major is a change a workflow may trip over, a new minor only adds. */
 export const API_VERSION: string = version.version;
 
 /* ---- the helpers a step reaches for ----------------------------------------- */
@@ -25,6 +25,8 @@ export { sideGroup } from "../framework/window/panels.ts";
 export { status } from "../framework/window/status.ts";
 export { atBridge } from "../framework/window/bridge-address.ts";
 export { editedAt, staleSteps } from "../framework/rules/steps.ts";
+/** A step as `editedAt` reads it: its id, and what it is. */
+export type { StepShape } from "../framework/rules/steps.ts";
 
 /** The page's base colours and measures, as CSS custom properties a workflow's styles and canvases read. */
 export type ThemeVar =

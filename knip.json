@@ -3,6 +3,7 @@
   "vite": false,
   "entry": [
     "zmart_interface/api/index.ts",
+    "zmart_interface/framework/fixtures/*/flow.ts",
     "zmart_interface/**/*.test.{js,ts}",
     "zmart_interface/**/*.spec.{js,ts}",
     "tools/*.mjs",
@@ -10,6 +11,5 @@
   ],
   "project": ["zmart_interface/**/*.{js,mjs,ts}", "tools/*.mjs", "!zmart_interface/build/**"],
   "ignoreDependencies": ["zmart-viewer"],
-  "ignoreUnresolved": ["^/zmart_interface/"],
   "ignoreExportsUsedInFile": { "interface": true, "type": true }
 }

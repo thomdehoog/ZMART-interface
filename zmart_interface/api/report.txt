@@ -1,0 +1,220 @@
+// The workflow API 1.0.0: what a workflow may use, as the type checker declares it.
+// Written by `node tools/the-api-report.mjs --write`; held to the version by `--check`.
+
+export declare const API_VERSION: string;
+
+// ---- from ../framework/window/dom.ts
+export declare const el: (id: string) => HTMLElement | null;
+
+export declare const css: (name: string) => string;
+
+export declare function sizeCanvas(cv: HTMLCanvasElement & {
+    cssW?: number;
+    cssH?: number;
+}): boolean;
+
+// ---- from ../framework/window/panels.ts
+export declare function sideGroup(title: string, extra?: string): {
+    group: HTMLDivElement;
+    body: HTMLDivElement;
+};
+
+// ---- from ../framework/window/status.ts
+export declare const status: {
+    say(text: string | null): void;
+    quiet(): void;
+};
+
+// ---- from ../framework/window/bridge-address.ts
+export declare const atBridge: (route: string) => string;
+
+// ---- from ../framework/rules/steps.ts
+export declare function editedAt(steps: StepShape[], done: Set<string>, stale: Set<string>, id: string): Set<string>;
+
+export declare const staleSteps: <S extends {
+    id: string;
+}>(steps: S[], done: Set<string>, stale: Set<string>) => S[];
+
+// ---- from ../framework/rules/steps.ts
+export interface StepShape {
+    id: string;
+    n?: string;
+    panels?: string[];
+    nothingWaitsOnThis?: boolean;
+}
+
+export type ThemeVar = "--bg" | "--screen" | "--surface-2" | "--surface-3" | "--control" | "--box-gap" | "--line" | "--line-strong" | "--ink" | "--ink-2" | "--ink-3" | "--accent" | "--accent-deep" | "--accent-tint" | "--accent-line" | "--good" | "--bad" | "--warn-bg" | "--warn-ink" | "--confirm-ink" | "--edit-ink" | "--warn-line" | "--shadow" | "--mono" | "--sans" | "--side-w" | "--head-h" | "--brand";
+
+// ---- from ../framework/types.ts
+export interface WorkflowTypes {
+    state: object;
+    backend: object;
+    lends: object;
+    shown: object;
+    step: object;
+}
+
+export interface Plain extends WorkflowTypes {
+    state: Record<never, never>;
+    backend: Record<never, never>;
+    lends: Record<never, never>;
+    shown: Record<string, unknown>;
+    step: Record<never, never>;
+}
+
+export interface Walk {
+    running: boolean;
+    interrupted: boolean;
+}
+
+export interface FrameworkRun {
+    done: Set<string>;
+    stale: Set<string>;
+    ran: Set<string>;
+    notes: Record<string, string>;
+    activeIdx: number;
+    walk: Walk;
+    sideFolded: boolean;
+    readonly wf: string;
+    readonly running: string | null;
+    readonly interrupting: string | null;
+    readonly failed: string | null;
+    readonly tabs: string[];
+    readonly tab: string | null;
+    readonly sideMounted: string | null;
+}
+
+export type Run<W extends WorkflowTypes = Plain> = FrameworkRun & W["state"];
+
+export type RunAnswer = void | undefined | {
+    stopped: true;
+    note: string;
+} | {
+    failed: unknown;
+};
+
+export type Outcome = {
+    outcome: "finished";
+} | {
+    outcome: "stopped";
+} | {
+    outcome: "failed";
+    why: unknown;
+} | {
+    outcome: "busy";
+};
+
+export interface Mounted {
+    actionSlot?: HTMLElement | null;
+    destroy?: () => void;
+}
+
+export interface Channel<W extends WorkflowTypes = Plain> {
+    id: string;
+    label: string;
+    mount(host: HTMLElement, page: Page<W>, options: {
+        locked: boolean;
+    }): Mounted | void;
+    rebuildsOnEveryRender?: boolean;
+}
+
+export interface Built {
+    channel?: HTMLElement;
+    divider?: HTMLElement;
+    fold?: HTMLElement;
+    foot?: HTMLElement | null;
+    shown?: () => void;
+}
+
+export interface Panel {
+    key: string;
+    label: string;
+    stays?: boolean;
+    build?(host: HTMLElement): Built & Record<string, unknown>;
+}
+
+export type BuiltPanel = Panel & Built & {
+    host: HTMLElement;
+} & Record<string, unknown>;
+
+export interface Walks<W extends WorkflowTypes = Plain> {
+    press(page: Page<W>): unknown;
+    whileWalking?: string;
+}
+
+export type Step<W extends WorkflowTypes = Plain> = W["step"] & {
+    id: string;
+    title: string;
+    n?: string;
+    panels?: string[];
+    btn?: string;
+    ownButton?: boolean;
+    ms?: number;
+    mode?: string;
+    run?(page: Page<W>, step: Step<W>, options: Record<string, unknown>): RunAnswer | Promise<RunAnswer>;
+    finished?(page: Page<W>, step: Step<W>): void;
+    brake?(page: Page<W>): unknown;
+    again?: string;
+    rerunCurrent?(page: Page<W>): (() => Record<string, unknown>) | null;
+    walks?: Walks<W>;
+    beside?(run: Run<W>, how: {
+        done: boolean;
+    }): string | null | undefined;
+    noHint?: boolean;
+    afterThePress?(host: HTMLElement, page: Page<W>): void;
+    channel?: Channel<W>;
+    arrived?(page: Page<W>): void;
+    settledByStanding?(page: Page<W>): void;
+    ready?(run: Run<W>, page: Page<W>): string | null;
+    nothingWaitsOnThis?: boolean;
+};
+
+export type Page<W extends WorkflowTypes = Plain> = W["lends"] & {
+    run: Run<W>;
+    backend: W["backend"];
+    panels: Record<string, BuiltPanel>;
+    shown: W["shown"];
+    steps(): Step<W>[];
+    step(index: number): Step<W>;
+    indexOfStep(id: string): number;
+    activeStep(): Step<W> | null;
+    renderAll(): void;
+    renderRail(): void;
+    renderActionBar(): void;
+    focusPanelsFor(index: number): void;
+    readiness(step: Step<W>): string | null;
+    stateEdited(id: string): void;
+    runStep(index: number, options?: Record<string, unknown>): Promise<Outcome>;
+    resetRun(): void;
+    remountChannel(): void;
+    interruptWalk(): void;
+    shownPanel(): string | undefined;
+};
+
+export interface Hooks<W extends WorkflowTypes = Plain> {
+    onRender?(): void;
+    onPanelShown?(step: Step<W>, key: string): void;
+    onReset?(): void;
+    onLeave?(): void;
+    onChannelMounted?(host: HTMLElement, channel: Channel<W>): void;
+}
+
+export interface Installed<W extends WorkflowTypes = Plain> {
+    lends?: W["lends"];
+    hooks?: Hooks<W>;
+}
+
+export interface Flow<W extends WorkflowTypes = Plain> {
+    steps: Step<W>[];
+    blurb: string;
+    name?: string;
+    panels?: Panel[];
+    opensFirst?: boolean;
+    install?(page: Page<W>): Installed<W> | void;
+    backendFor?(search: URLSearchParams): W["backend"];
+    freshState?(made: {
+        backend: W["backend"];
+    }): W["state"];
+    keptAcrossSessions?: string[];
+    forTests?(run: Run<W>): Record<string, unknown>;
+}

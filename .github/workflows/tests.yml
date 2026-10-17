@@ -58,7 +58,7 @@ jobs:
       - run: npm run test:unit
 
   structure:
-    name: which module imports which, and what nothing uses (ubuntu)
+    name: which module imports which, what nothing uses, and the API's declarations (ubuntu)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +71,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: npm run check:imports
       - run: npm run check:unused
+      - run: npm run check:api
 
   python:
     name: python tests (${{ matrix.os }}, py${{ matrix.python-version }})
