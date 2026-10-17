@@ -36,8 +36,8 @@ target_acquisition/
                  the step's declaration (step.js); what the step does when it
                  is run (run.js); the controls it docks in the channel beside
                  the canvas (channel.js); and, where the step shows something
-                 of its own, a file named for what that is — overview.js,
-                 gate.js, gallery.js — rather than for the kind of thing it is.
+                 of its own, a file named for what that is — gate.js,
+                 gallery.js — rather than for the kind of thing it is.
   shared/        what several steps of this workflow use: the carrier geometry,
                  the scan-field arithmetic, the layers the run draws, and the
                  small things they share on the page (page-helpers.js).

@@ -39,7 +39,7 @@
  *
  * ## Neuroglancer, and what it costs to have it here
  *
- * `viv-under` is ordinary JavaScript and lives entirely inside the page.
+ * The JPEG engine is ordinary JavaScript and lives entirely inside the page.
  * Neuroglancer does not: it hands the fetching and the unpacking of image pieces
  * to background programs, and a browser will only start one of those from a file
  * of its own.
@@ -87,13 +87,8 @@
  * photograph of the built page, in `framework/the-built-page.spec.js`.
  */
 
-/* The order matters in one small way: the page opens on the first of them unless
-   the address says otherwise, so this list decides what an operator sees first.
-   It is left as it was, with a Viv engine leading, because which engine should
-   greet an operator is a decision about the product and not something to change
-   quietly while adding one. */
+/* The page opens on the first of them unless the address says otherwise. */
 const HOW_TO_OPEN = {
-  "viv-under": () => import("./engines/viv-under/viewer.js"),
   "neuroglancer-under": () =>
     import("./engines/neuroglancer-under/viewer.js"),
   "jpeg-under": () => import("./engines/jpeg-under/viewer.js"),
@@ -104,7 +99,6 @@ const HOW_TO_OPEN = {
  * them, so that somebody looking at the picture knows what they are looking at.
  */
 const WHAT_IT_IS = {
-  "viv-under": "the picture underneath, the operator's own drawing on a second surface above it",
   "neuroglancer-under":
     "neuroglancer draws the picture underneath, the operator's own drawing on a " +
     "second surface above it",

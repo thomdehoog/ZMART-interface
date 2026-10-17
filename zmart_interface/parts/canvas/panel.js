@@ -228,17 +228,11 @@ export const canvasPanel = {
                the id the tests aim by, because what they want of it is where
                the picture is on screen. -->
           <div class="plot stagecv" id="stage-canvas"></div>
-          <!-- The overview as it is being acquired, drawn from the images the
-               run is writing. It covers the plan while the scan is the thing
-               being looked at, and is only there at all when the page was
-               given a run to watch. -->
-          <canvas class="plot livecv" id="overview-canvas" hidden></canvas>
           <!-- Where the scan itself is drawn, beneath the plan. Empty unless
                the page was pointed at a folder of small pictures with
                \`?picture=\`; the drawing engine builds its own surfaces inside
                it. See \`viz_studio/options/jpeg-under/\`. -->
           <div class="plot picturecv" id="picture-host"></div>
-          <div class="live-note" id="overview-note" hidden></div>
           <div class="live-note" id="publication-note" role="status" hidden></div>
           <div class="tip" id="stage-tip"></div>
         </div>
@@ -325,8 +319,6 @@ export const canvasPanel = {
         maskOpacity: find("mask-opacity"),
         rampChip: find("ramp-chip"),
         legend: find("canvas-legend"),
-        overviewCanvas: find("overview-canvas"),
-        overviewNote: find("overview-note"),
         publicationNote: find("publication-note"),
         pictureHost: find("picture-host"),
         axes: find("canvas-axes"),

@@ -60,9 +60,8 @@ dead code the module map lists is gone.
 | `async_computation.bundle.js` | neuroglancer unpacks them in this | ~1.6 MB |
 
 Those three are what has to reach the microscope computer, and they have to stay
-in one folder together. The page opens and draws with the two Viv engines
-whether or not the other two came along; the third engine, neuroglancer, needs
-them.
+in one folder together: neuroglancer, which draws the picture, needs the two
+programs beside the page.
 
 Everything is folded into the page because the microscope PC has no toolchain
 and no network: the build happens on a developer machine, the three files ship

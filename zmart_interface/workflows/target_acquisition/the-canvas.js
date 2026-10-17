@@ -29,7 +29,7 @@ import { openTheStage } from "./shared/stage.js";
 
 /**
  * Open the canvas on the page. Answers `stage`, `view`, `drawStage`,
- * `thePicture`, `liveOverview`, `theAxes`, the stage's readings
+ * `thePicture`, `theAxes`, the stage's readings
  * (`whereTheStageIs`, `carrierOriginUm`, `takeTheCanvas`, `takeThePosition`,
  * `drawScaleBar`) and `renderFramingPresses`.
  */
@@ -42,10 +42,10 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
   const theAxes = mountTheAxes(theCanvas.parts, { picture: () => window.__thePicture ?? null });
   window.__theAxes = theAxes;
 
-  /* The pictures of a real run — the overview being acquired, and the scan
-     beneath the plan. The scan step's, so they live with it; this hands
-     them the canvases and the projection and asks them to draw. */
-  const { thePicture, liveOverview } = watchTheRun({
+  /* The picture of a real run: the scan beneath the plan. The scan step's, so
+     it lives with it; this hands it the box and the projection and asks it to
+     draw. */
+  const { thePicture } = watchTheRun({
     pictureHost: theCanvas.parts.pictureHost,
     /* Where this backend's scans can be fetched from, if anywhere. The live
        one serves what the microscope wrote; the pretend one has nothing. */
@@ -64,8 +64,6 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
       return page.backend?.viewerSources?.(report) ?? null;
     },
     connected: () => state.done.has("connect"),
-    overviewCanvas: theCanvas.parts.overviewCanvas,
-    overviewNote: theCanvas.parts.overviewNote,
     view: () => stage.pictureView(),
     carrierOriginUm: () => stage.carrierOriginUm(),
     /* Where the picture's own panel is mounted, out of sight; and the word
@@ -176,7 +174,7 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
         return null;
       }
     },
-    liveOverview, thePicture,
+    thePicture,
     focus: {
       focusPressed: (...a) => page.focusPressed(...a),
       focusCursor: (...a) => page.focusCursor(...a),
@@ -228,9 +226,6 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
      for every workflow's render, and another workflow's steps are not this
      picture's business. */
   page.onRender.push(() => { if (isOpen()) renderFramingPresses(); });
-  /* The acquired overview lies over the plan while the scan is what is being
-     looked at, so which of the two is on screen follows the step. */
-  page.onPanelShown.push((s, show) => { if (isOpen()) liveOverview.showFor(s, show); });
 
   /* A picture cannot be laid out while it is hidden: a hidden box has no
      size. So the panel re-measures when it comes up. */
@@ -241,7 +236,7 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
   ro.observe(theCanvas.host);
 
   return {
-    stage, view: stage.view, theAxes, thePicture, liveOverview,
+    stage, view: stage.view, theAxes, thePicture,
     drawStage: () => stage.draw(),
     carrierOriginUm: () => stage.carrierOriginUm(),
     whereTheStageIs: () => stage.whereTheStageIs(),

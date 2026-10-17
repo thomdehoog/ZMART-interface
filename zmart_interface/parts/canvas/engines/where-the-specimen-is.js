@@ -91,7 +91,7 @@ export function theMiddleOfWhatWasImaged(values, sizes) {
  *   *sharpest* copy, per axis name, or nothing when it cannot be read. Given in
  *   the sharpest copy's voxels because that is what every caller counts in.
  */
-export async function whereTheSpecimenIs(sources) {
+async function whereTheSpecimenIs(sources) {
   const smallest = sources?.[sources.length - 1];
   const sharpest = sources?.[0];
   if (!smallest || !sharpest) return null;

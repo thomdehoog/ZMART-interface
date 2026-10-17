@@ -5,16 +5,15 @@ engine is pluggable. This page says what any engine has to offer to fill that sl
 interface chooses one, and what a different viewer -- a plain JPEG one, or one built on Viv --
 would implement to take its place.
 
-Three engines fill the slot today. They live in
+Two engines fill the slot today. They live in
 `zmart_interface/parts/canvas/engines/`, one folder each:
 
 | Engine | What it draws | When it is used |
 |---|---|---|
 | `neuroglancer-under` | the run's OME-Zarr images, served by ZMART-viewer, with neuroglancer | the picture of a connected run, by default |
-| `viv-under` | the run's OME-Zarr images, read directly with Viv on deck.gl | on request (`?engine=viv-under`) |
 | `jpeg-under` | one small JPEG per field, with a `tiles.json` saying where each belongs | the canvas itself: opened with no acquisition, it carries the panning, the zooming and the operator's drawings, and the acquired picture sits in its middle slot (`middleSlot`) |
 
-"Under" names the arrangement all three share: the picture is drawn **underneath** the
+"Under" names the arrangement both share: the picture is drawn **underneath** the
 operator's own drawing (the carrier, the scan fields, the focus points, the targets), which
 lies on a second surface above it. The engines came from ZMART-microscopy's
 `viz_studio/options/`, where they were written side by side behind one interface so that they
@@ -109,9 +108,6 @@ of the images themselves, so it opens a scan of ten thousand fields at once. It 
 showing, following (a field that lands is one more JPEG), and where things are drawn; it has
 one plane and one moment, so `theDepthItCanShow()` and `theMomentsItCanShow()` answer `null`,
 and it has no volume to show.
-
-**A viewer built on Viv** (as `viv-under` is) reads the OME-Zarr images in the browser. It
-implements everything above; named views it draws as the flat pictures the viewer published.
 
 **Any other viewer** -- ZMART-viewer's own engine, when the two are merged -- implements
 `openViewer` and the handle above, answers in micrometres, and says plainly what it cannot do

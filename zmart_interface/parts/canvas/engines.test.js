@@ -31,13 +31,10 @@ function pageOpenedFrom(protocol) {
 afterEach(() => { delete globalThis.location; });
 
 describe("what the page was built with", () => {
-  it("carries every engine, so they can be compared", () => {
+  it("carries every engine", () => {
     /* Written out rather than counted, so that adding one is a decision
-       somebody made here and not something that happened. The three do
-       genuinely different things: two read the microscope's own store and draw
-       it in the browser, and `jpeg-under` reads small pictures made ahead of
-       time, which is the one that opens a scan of ten thousand fields. */
-    expect(enginesBuiltIn()).toEqual(["viv-under", "neuroglancer-under", "jpeg-under"]);
+       somebody made here and not something that happened. */
+    expect(enginesBuiltIn()).toEqual(["neuroglancer-under", "jpeg-under"]);
   });
 
   it("says in plain words what each one does, for the note beside the buttons", () => {
@@ -47,9 +44,6 @@ describe("what the page was built with", () => {
     }
   });
 
-  it("opens the page on a Viv engine, which is a decision and not an accident", () => {
-    expect(enginesBuiltIn()[0]).toBe("viv-under");
-  });
 });
 
 describe("what the page offers, which depends on where it was opened from", () => {
@@ -66,9 +60,9 @@ describe("what the page offers, which depends on where it was opened from", () =
 
   it("leaves out the engine that needs a background program when opened off the disk", () => {
     pageOpenedFrom("file:");
-    // Only neuroglancer needs one. The other two are ordinary JavaScript and
-    // draw perfectly well in a page opened straight off the disk.
-    expect(enginesOnOffer()).toEqual(["viv-under", "jpeg-under"]);
+    // Only neuroglancer needs one. The JPEG engine is ordinary JavaScript and
+    // draws perfectly well in a page opened straight off the disk.
+    expect(enginesOnOffer()).toEqual(["jpeg-under"]);
   });
 
   it("says which engine is missing and what to do about it", () => {
@@ -105,6 +99,6 @@ describe("asking for an engine that is not there", () => {
   it("is refused with the list of what there is, rather than a blank box", async () => {
     pageOpenedFrom("http:");
     await expect(openerFor("no-such-engine")).rejects.toThrow(/there is no engine/);
-    await expect(openerFor("no-such-engine")).rejects.toThrow(/viv-under/);
+    await expect(openerFor("no-such-engine")).rejects.toThrow(/neuroglancer-under/);
   });
 });

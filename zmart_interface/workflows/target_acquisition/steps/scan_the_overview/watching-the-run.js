@@ -1,61 +1,27 @@
 /**
  * Watching a real run: the pictures the microscope is writing, on the canvas.
  *
- * Everything else on this page is a rehearsal — a synthetic sample, a stage
- * that moves on a timer. These two are not. Point the page at a run with
- * `?overview=` (and `?targets=`, `?picture=`) and it opens what is on disk:
- *
- *   the overview being acquired, over the plan, while the scan step is stood
- *   on — the tiles appearing as they land rather than a count of them;
- *
- *   the scan beneath the plan, in the same projection as the plan itself, so
- *   the two are registered rather than merely near each other.
+ * The scan beneath the plan, in the same projection as the plan itself, so
+ * the two are registered rather than merely near each other: the run's own
+ * sources, or a folder of small pictures the address names (`?picture=`).
  *
  * Nothing on disk announces a saved tile: the images are declared at their
  * full size before any of them exists, so their description never changes.
- * Both pictures are therefore asked again rather than told — by the step as
- * positions land, and by a heartbeat while the scan is on screen, because a
- * real acquisition goes on long after this page's rehearsal has finished.
+ * The picture is therefore asked again rather than told — by the step as
+ * positions land, and by a heartbeat, because a real acquisition goes on long
+ * after this page's rehearsal has finished.
  */
 
 /**
- * Open both, on the canvases this page hands over.
+ * Open it, in the box this page hands over.
  *
- * `ctx` carries the two canvases and the note, the projection the plan is
- * drawn in (so the scan beneath can be put in the same one), and the page's
- * colour lookup. Returns the two pictures.
+ * `ctx` carries the box, the projection the plan is drawn in (so the scan
+ * beneath can be put in the same one), and the page's colour lookup. Returns
+ * the picture.
  */
 import { openerFor } from "../../../../parts/canvas/engines.js";
 
 export function watchTheRun(ctx) {
-  const ACQUISITIONS = (() => {
-    const asked = new URLSearchParams(location.search);
-    return [asked.get("overview"), asked.get("targets")].filter(Boolean);
-  })();
-  const RUN_TO_WATCH = ACQUISITIONS[0] ?? null;
-
-
-  /* What colour to paint the room the run declared, underneath the picture, as
-     six hex digits — `?ground=1e3a5f`. Left out, nothing is drawn underneath and
-     an unimaged part of the canvas is simply dark.
-
-     This is worth having because a run declares far more room than it images,
-     and painting that room says where the picture is going to appear. It is also
-     how the tests ask a question the design rests on: whether the parts of the
-     image nobody has imaged let what is beneath them show through. */
-  const GROUND = (() => {
-    const asked = new URLSearchParams(location.search).get("ground");
-    if (!asked || !/^[0-9a-f]{6}$/i.test(asked)) return null;
-    return [0, 2, 4].map((at) => parseInt(asked.slice(at, at + 2), 16));
-  })();
-
-  /* Whether the dark parts of the picture should be see-through — `?seethrough=1`.
-     Off unless asked for, because it makes a place that was imaged and came back
-     black look exactly like a place nobody has visited, and during a run those
-     are two different things worth telling apart. `steps/scan_the_overview/overview.js` explains
-     what it does and why it has to exist. */
-  const SEE_THROUGH = new URLSearchParams(location.search).get("seethrough") === "1";
-
   /**
    * The scan itself, drawn beneath the plan by one of the drawing engines.
    *
@@ -445,89 +411,5 @@ export function watchTheRun(ctx) {
     }
   }, 1500);
 
-  const liveOverview = (() => {
-    const cv = ctx.overviewCanvas;
-    const note = ctx.overviewNote;
-    /* No plane control here any more: stepping through a stack is a thing to
-       do to a picture, and the viewer will bring its own. */
-    let picture = null;      // the drawing, once the run has been opened
-    let opening = false;
-    let showing = false;
-    let heartbeat = null;
-
-    const say = (text) => { note.hidden = !text; note.textContent = text ?? ""; };
-
-    /* Opened the first time it is needed, and kept afterwards. Opening reads the
-       run's description over the network, so it is not something to do on every
-       render — and re-opening would throw away where the operator had panned to. */
-    async function open() {
-      if (picture || opening) return;
-      opening = true;
-      try {
-        const { showOverview } = await import("./overview.js");
-        picture = await showOverview(cv, {
-          stores: ACQUISITIONS, onStatus: say, ground: GROUND, seeThrough: SEE_THROUGH,
-        });
-        /* Left where a test can reach it. Nothing on the page reads this: what
-           matters about a picture is what is on the screen, and a viewer that
-           reports itself perfectly loaded while drawing nothing is exactly the
-           failure this is meant to catch. */
-        window.__liveOverview = picture;
-        picture.lookAgain();
-      } catch (e) {
-        say(`the run at ${RUN_TO_WATCH} could not be opened — ${e.message}`);
-      } finally {
-        opening = false;
-      }
-    }
-
-    return {
-      /** Whether this page was given a run to watch at all. */
-      watching: !!RUN_TO_WATCH,
-
-      get showing() { return showing; },
-
-      /* The acquired picture belongs to the step that acquires it. Standing on
-         the scan is what brings it up, and stepping away puts the plan back —
-         the plan is what the other steps are about. */
-      showFor(step, panel) {
-        const wants = !!RUN_TO_WATCH && panel === "canvas" && step.mode === "scan";
-        // Only the change is acted on. Framing the overview again on every
-        // render would undo the operator's panning a few times a second.
-        if (wants === showing) return;
-        showing = wants;
-        cv.hidden = !wants;
-        note.hidden = !wants || !note.textContent;
-        clearInterval(heartbeat);
-        heartbeat = null;
-        if (!wants) return;
-        open().then(() => picture?.fit());
-        /* And while it is on screen, it reads the run every second whether or
-           not anything has told it to.
-
-           This is not belt and braces. The scan on this page is a rehearsal that
-           finishes after a couple of seconds, while a real acquisition takes as
-           long as it takes — so the tiles that land after the rehearsal has
-           stopped reporting are exactly the ones a picture driven only by the
-           step would miss. A run stops changing when it is over, and reading a
-           finished run again simply draws the same picture, so the cost of this
-           when there is nothing new is a handful of requests a second. */
-        heartbeat = setInterval(() => picture?.tileMayHaveLanded(), 1500);
-      },
-
-      /** A position has been saved, so there may be more picture to read. */
-      tileMayHaveLanded() {
-        picture?.tileMayHaveLanded();
-        /* The scan drawn beneath the plan reads its own note again. Nothing on
-           disk announces a new field, so it is asked rather than told — the
-           same reason the overview above has to be asked. */
-        thePicture.mayHaveLanded();
-      },
-
-      /** Frame the whole overview again, for the Fit button. */
-      fit() { picture?.fit(); },
-    };
-  })();
-
-  return { thePicture, liveOverview };
+  return { thePicture };
 }

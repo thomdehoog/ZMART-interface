@@ -84,10 +84,8 @@ const dropTheSignInPagesWeDoNotUse = {
    Everything, that is, except neuroglancer's two background programs, which a
    browser refuses to start from anything but a file. So what gets copied to the
    microscope is one folder holding three files: `index.html`, which is the whole
-   page, and the two programs beside it. The page opens and draws with the two
-   Viv engines whether or not those two are there; they are what the third engine
-   needs. `docs/building-the-page.md` says what that costs and why it was
-   accepted. */
+   page, and the two programs beside it; neuroglancer draws only with them.
+   `docs/building-the-page.md` says what that costs and why it was accepted. */
 export default defineConfig({
   base: "./",
   plugins: [
@@ -133,8 +131,7 @@ export default defineConfig({
      starts answering. */
   optimizeDeps: {
     include: [
-      "@deck.gl/core", "@deck.gl/layers", "@deck.gl/geo-layers",
-      "@vivjs/extensions", "@vivjs/layers", "@vivjs/loaders", "@vivjs/views",
+      "@vivjs/loaders",
       /* Neuroglancer is the one package that must *not* be made ready this way,
          because doing so rewrites the line where it starts its background
          program and the program then never starts. It is left out just below.

@@ -414,7 +414,6 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `workflows/*/flow.js` | built, unit-tested, **used by the app: the only declaration of the workflows** |
 | `ta/steps/define_carrier/carrier-panel.js` | built, used — the first widget, and the shape the rest should follow |
 | `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |
-| `ta/steps/scan_the_overview/overview.js` | built, used by the app when it is given a run to watch (`?overview=`); its browser tests stayed in ZMART-microscopy with the demo run they need |
 | `parts/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
 | `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares, installs the framework's parts, then calls every workflow's own `install`; it names no workflow, backend or panel |
 | `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: its half of the run document, the rail, the step's press, running a step, the panels, the channel |
@@ -489,11 +488,8 @@ changes.
 
 ## The canvas: `parts/canvas/`
 
-The scan step's own `overview.js` draws the overview inside that step, with Viv
-wired in directly. The canvas is the next thing along and a different arrangement: one
-viewer written more than once, once for each drawing engine worth considering,
-every version behind the same small interface so that they can be compared and
-swapped. The engines live in `parts/canvas/engines/`, and the interface they
+The canvas is one viewer behind a small interface, the viewer slot, so the
+engine that draws the picture can be named rather than wired in. The engines live in `parts/canvas/engines/`, and the interface they
 share -- the viewer slot -- is written out in `docs/viewer-slot.md`.
 
 It is a **part**, not the workflow's: it takes a list of layers and knows
@@ -554,31 +550,6 @@ was built with, and what it can actually open where it is now. Only the second i
 put in front of an operator. A button that draws nothing would be the worst of
 the available behaviours, because an empty box looks exactly like one that is
 still loading.
-
-## Acquired data: the scan step's `overview.js`
-
-Everything else on this page is a rehearsal — a synthetic sample, a stage that
-moves on a timer. `steps/scan_the_overview/overview.js` is not: given the
-address of a run, it draws
-the OME-Zarr images the microscope is writing, and reads them again as tiles
-land, so the scan step shows the overview appearing rather than a count.
-
-It is drawn by Viv's layers on deck.gl, deliberately not by Viv's ready-made
-React viewers: those own the whole drawing surface and the whole layout, which is
-the opposite of what a panel inside this page can allow. Several acquisitions can
-be drawn at once — a survey underneath, the target scan over it — which is the
-shape the writer already produces, one image per acquisition type.
-
-Two properties of it are worth knowing before changing anything, and both are
-written out at length in the file:
-
-- **Nothing on disk announces a saved tile.** The images are declared at their
-  full size before any of them exists, so their description never changes. The
-  picture is told by the scan step, and it re-reads the run rather than waiting
-  to be notified.
-- **Viv draws an unimaged part of the canvas as solid black**, not as nothing.
-  A shader extension in the same file makes the dark parts see-through, which is
-  what allows an acquisition to be a layer over anything else.
 
 ## Tests
 

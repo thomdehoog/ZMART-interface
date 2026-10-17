@@ -142,10 +142,7 @@ export function theWindowThesePixelsAskFor(values) {
 /**
  * The window an image asks for, from resolutions somebody has already opened.
  *
- * This is the one an option should call when it has the image in its hands
- * already, which the two Viv options do — Viv hands a store's resolutions back
- * when it opens it, so asking for the store a second time would be a second load
- * of the same thing.
+ * Used by `theRangeAStoreHolds` below once it has opened the store.
  *
  * @param {Array<object>} sources the image's resolutions, sharpest first.
  * @param {{channel?: number}} which colour of the picture to ask about; a
@@ -154,7 +151,7 @@ export function theWindowThesePixelsAskFor(values) {
  *   or nothing when it cannot be read or holds a single value — in which case
  *   the caller keeps whatever it would have used.
  */
-export async function theRangeTheseSourcesHold(sources, { channel = 0 } = {}) {
+async function theRangeTheseSourcesHold(sources, { channel = 0 } = {}) {
   if (!sources?.length) return null;
   const reading = theCopyToRead(sources);
   if (!reading) return null;

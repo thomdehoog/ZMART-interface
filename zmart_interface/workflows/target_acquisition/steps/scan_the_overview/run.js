@@ -68,9 +68,8 @@ export function runScan(page, s) {
          because the tile it just saved is new picture that nothing on disk
          announces — the images were declared at their full size before any
          of them existed, so their description is the same before and after
-         a tile lands. The picture decides how often to actually look; see
-         `overview.js`, which explains why. */
-      page.liveOverview.tileMayHaveLanded();
+         a tile lands. */
+      page.thePicture.mayHaveLanded();
       page.drawStage(); page.renderAll();
     },
   }).then((outcome) => {

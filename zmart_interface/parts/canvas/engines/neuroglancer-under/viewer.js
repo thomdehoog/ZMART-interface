@@ -330,18 +330,6 @@ function sourceAddressIsWhole(address, acquisition) {
 // ---------------------------------------------------------------------------
 // The two surfaces
 // ---------------------------------------------------------------------------
-//
-// Five of the pieces below — `fitTheSurfaces`, `makeTheSurfaceBeneath`,
-// `imagedBounds`, `howThingsArePlaced` and `repaint` — are word for word the
-// same in this file and in `../viv-under/viewer.js`.
-// That is on purpose and it is not tidy. The two options are the same
-// arrangement with a different engine in the middle, so the parts that are
-// not about the engine have to be identical or a reader could not tell an
-// engine difference from a wiring difference — which is the whole reason
-// this comparison exists. Two copies can drift apart, though, so **if you
-// change one of those five, change the other file to match in the same
-// commit.** Whether they should instead live in one shared module is a real
-// question and `../README.md` sets out what it would cost.
 
 /**
  * Put the engine's canvas down and the operator's canvas exactly on top of it.

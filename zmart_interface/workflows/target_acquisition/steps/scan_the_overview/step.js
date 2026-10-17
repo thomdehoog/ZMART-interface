@@ -5,9 +5,9 @@
  * the picture: the overview drawn from the images the run is writing, filling
  * in position by position, so the operator can see that the sample is where it
  * was meant to be and that the focus held — neither of which a count can say.
- * `overview.js`, in this same folder, holds that picture and explains how it
- * is kept up to date; `run.js` drives the scan, and `channel.js` holds its
- * summary, its test tiles and its progress.
+ * `watching-the-run.js`, in this same folder, holds that picture and explains
+ * how it is kept up to date; `run.js` drives the scan, and `channel.js` holds
+ * its summary, its test tiles and its progress.
  */
 
 import { hasRecording } from "../../../../parts/microscope/recordings.js";

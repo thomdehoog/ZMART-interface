@@ -545,7 +545,6 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
    0, because the plan is drawn over what has been imaged rather than under it. */
 .stagecv { position: absolute; inset: 0; z-index: 1; }
 .stagecv > canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-canvas.livecv { position: absolute; inset: 0; z-index: 0; background: #05070d; }
 
 /* The scan, drawn by whichever engine is chosen, at the very bottom. The engine
    builds its own canvases inside this box, so it is a plain container rather
@@ -553,7 +552,6 @@ canvas.livecv { position: absolute; inset: 0; z-index: 0; background: #05070d; }
    above it owns the gestures and hands the view down. One canvas listening and
    one following is the only arrangement in which the two cannot disagree. */
 .picturecv { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-canvas.livecv[hidden] { display: none; }
 
 /* The box the canvas draws in, on the step that is nothing but the canvas. It
    holds nothing of its own: whatever drawing surfaces the chosen engine needs

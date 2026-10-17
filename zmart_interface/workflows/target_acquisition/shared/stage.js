@@ -49,7 +49,7 @@ export function openTheStage(ctx) {
     css, sizeCanvas, el, run, carrierWidget, scanfieldsWidget,
     activePreset, indexOfStep, sideWidget, step,
     anchorPressed, detectPressed, targetPressed, targetAt,
-    renderActionBar, renderRail, liveOverview, thePicture,
+    renderActionBar, renderRail, thePicture,
   } = ctx;
   const {
     focusPressed, focusCursor, focusDraggedTo, focusGrabbed, focusHovered,
@@ -1129,13 +1129,8 @@ async function driveTheStageTo(e) {
 stageBox.addEventListener("contextmenu", (e) => e.preventDefault());
 
 
-/* Carrier frames whichever picture is on show. While the acquired overview
-   is covering the plan, it is the thing being looked at, so it is the thing
-   that gets framed. */
-ctx.carrierButton.addEventListener("click", () => {
-  if (liveOverview.showing) { liveOverview.fit(); return; }
-  fitView(); drawStage();
-});
+/* Carrier frames the whole carrier. */
+ctx.carrierButton.addEventListener("click", () => { fitView(); drawStage(); });
 
 /**
  * The tilesets the plan holds, each as the box its fields cover, in the
