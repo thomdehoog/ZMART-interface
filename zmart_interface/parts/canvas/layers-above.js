@@ -1,14 +1,11 @@
 /**
  * The layers the operator's own drawing is made of, above the picture.
  *
- * This controls drawing-layer opacity, not acquired-image coverage. The
- * transparent image engine uses authoritative coverage: acquired black is
- * opaque and unacquired ground is transparent. The operator splits its drawing
- * stack around that image layer; it does not cut rectangular acquisition holes.
- * The optional windows below remain available to other drawing clients.
- * This file turns drawing layers into one paint function for a canvas slot.
+ * This turns drawing layers into one paint function for a canvas slot. It
+ * controls how solid the drawing is, not what of the run's picture is covered:
+ * the picture is its own layer in the canvas's middle slot.
  *
- * ## The three ways a layer can be made see-through
+ * ## The two ways a layer can be made fainter
  *
  * **Its own fade.** Each layer carries an `opacity`, its own and nobody else's.
  * A carrier outline you want faintly present and a set of positions you want
@@ -21,27 +18,11 @@
  * makes things fainter: a layer already set faint does not become solid because
  * the dial is turned up.
  *
- * **A window over chosen ground.** A list of rectangles, in micrometres on the
- * sample, where the drawing above is made see-through so the picture shows
- * through. This is how "let me see these particular fields" is said. It is in
- * micrometres rather than screen pixels for the same reason everything else
- * here is: it describes a piece of specimen, so it travels with the specimen
- * when the view is panned and grows when the view is magnified.
- *
- * ## What a window cuts through, and what it does not
- *
- * A window takes away everything drawn *before* it. That is deliberate and it
- * is the answer to a question that comes up immediately: if one layer is made
- * see-through, should the ones below it go too? Here they do, because otherwise
- * a window would reveal the next drawing down rather than the picture, and
- * revealing the picture is the entire purpose.
- *
- * A layer that should survive that says `staysSolid: true`. It is drawn after
- * the windows are cut and the dial does not touch it. Focus points are the
- * example worth having in mind: they mark where the microscope will focus, they
- * have to be readable whatever else is going on, and an operator fading the
- * plan to see the picture underneath does not mean they wanted to lose the
- * focus points too.
+ * A layer that should not fade says `staysSolid: true`: it is drawn after the
+ * others and the dial does not touch it. Focus points are the example worth
+ * having in mind: they mark where the microscope will focus, and an operator
+ * fading the plan to see the picture underneath does not mean they wanted to
+ * lose the focus points too.
  *
  * ## The layers are things an operator works with, not decoration
  *
@@ -77,15 +58,11 @@
  *   having to change shape.
  * @param dial how much of the whole stack to keep, 0 to 1. Layers that stay
  *   solid ignore it.
- * @param seeThrough rectangles on the sample, in micrometres, where the drawing
- *   is made see-through: `{ x, y, w, h, letThrough }`. `letThrough` is how much
- *   of the picture to reveal, 0 (nothing) to 1 (all of it), and defaults to
- *   fully see-through.
  * @returns a paint function, or `null` if there is nothing at all to draw —
  *   which lets the canvas tell "this stack is empty" apart from "this stack
  *   drew nothing today", a distinction the engines care about.
  */
-export function theDrawingAbove(layers = [], { dial = 1, seeThrough = [] } = {}) {
+export function theDrawingAbove(layers = [], { dial = 1 } = {}) {
   const drawable = layers.filter((layer) => layer && typeof layer.paint === "function");
   if (!drawable.length) return null;
 
@@ -96,8 +73,6 @@ export function theDrawingAbove(layers = [], { dial = 1, seeThrough = [] } = {})
       if (layer.shown === false || layer.staysSolid) continue;
       paintOneLayer(frame, layer, clamped(layer.opacity ?? 1) * fade);
     }
-
-    cutTheWindows(frame, seeThrough);
 
     /* All the way down means the picture alone: a mark that never fades
        still steps aside when the operator asks for maximum transparency. */
@@ -128,32 +103,6 @@ function paintOneLayer(frame, layer, strength) {
   layer.paint(frame);
   context.restore();
 }
-
-/**
- * Take away what has been drawn, over the ground the windows name.
- *
- * `destination-out` is the browser's way of saying "remove what is already
- * here", and removing it is what lets the picture below show through. Cutting
- * rather than drawing something pale over the top matters: a pale rectangle
- * would still be a rectangle, sitting between the operator and the picture and
- * changing its colour. A window leaves nothing at all behind.
- */
-function cutTheWindows(frame, windows) {
-  if (!windows?.length) return;
-  const { context, project, zoom } = frame;
-  context.save();
-  context.globalCompositeOperation = "destination-out";
-  for (const window of windows) {
-    const letThrough = clamped(window.letThrough ?? 1);
-    if (letThrough <= 0) continue;
-    const at = project(window.x, window.y);
-    context.globalAlpha = letThrough;
-    context.fillStyle = "#000";
-    context.fillRect(at.x, at.y, window.w / zoom, window.h / zoom);
-  }
-  context.restore();
-}
-
 
 /**
  * What the operator just touched, asked of the layers from the top down.

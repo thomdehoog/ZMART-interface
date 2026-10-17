@@ -182,29 +182,6 @@ test("fades the whole stack with one control, and leaves the solid ones solid", 
     .toBeGreaterThan(focusBefore * 0.8);
 });
 
-test("opens a window over chosen ground, cutting through every layer below it", async ({ page }) => {
-  for (const key of ["carrier", "tiles", "focus"]) {
-    await page.locator(`#layers button[data-layer="${key}"]`).click();
-  }
-  const tilesBefore = await howMuchIs(page, THE_TILES);
-  const carrierBefore = await howMuchIs(page, THE_CARRIER);
-
-  /* A window wider than the tiles, so it reaches ground the carrier holds on
-     its own. That matters: a window has to take away *every* layer below it,
-     not only the top one, because what is meant to show through is the
-     picture — and if it only cut the top layer, the next drawing down would
-     appear instead, which is the opposite of what was asked for. */
-  await page.evaluate(() => window.__canvas.seeThrough([{ x: 0, y: 0, w: 280, h: 280 }]));
-  await page.waitForTimeout(200);
-
-  expect(await howMuchIs(page, THE_TILES)).toBeLessThan(tilesBefore * 0.2);
-  expect(await howMuchIs(page, THE_CARRIER),
-    "the window did not reach the carrier below the tiles").toBeLessThan(carrierBefore * 0.5);
-  /* And the focus points, which stay solid, are drawn after the window is cut
-     and so survive it — even though the window covers the ground they are on. */
-  expect(await howMuchIs(page, THE_FOCUS)).toBeGreaterThan(0.005);
-});
-
 test("hands a click to the layer the operator can see", async ({ page }) => {
   for (const key of ["carrier", "tiles", "focus"]) {
     await page.locator(`#layers button[data-layer="${key}"]`).click();

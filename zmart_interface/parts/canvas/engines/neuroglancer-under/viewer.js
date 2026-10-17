@@ -2509,21 +2509,6 @@ function handleFor(own) {
     },
 
     /**
-     * Whether a drawing handed to `drawUnder` really ends up beneath the
-     * picture, where an operator can see it.
-     *
-     * Transparency is opt-in and applies only to the flat view.
-     */
-    get drawsUnder() { return own.transparentBackground && !own.showingVolume; },
-
-    /** Why, in a sentence a page can show to whoever is looking at it. */
-    get drawsUnderBecause() {
-      return this.drawsUnder
-        ? "The flat viewer is transparent outside acquired image footprints."
-        : "The viewer background is opaque; enable transparentBackground for 2D embedding.";
-    },
-
-    /**
      * Where the canvas is looking, in a form good enough to place an ordinary
      * HTML element in micrometres.
      *
@@ -2542,10 +2527,9 @@ function handleFor(own) {
      * view settles, so an element can be moved in the same instant the picture
      * moved rather than a frame later.
      *
-     * Which side of the canvas such an element may go on is not a free choice,
-     * and it is the same question `drawsUnder` answers: above the canvas works
-     * on every option, below it only where the engine's canvas lets what is
-     * behind it show through.
+     * Which side of the canvas such an element may go on is not a free choice:
+     * above the canvas always works, below it only where the engine's canvas
+     * lets what is behind it show through.
      */
     whereThingsAreDrawn() {
       return howThingsArePlaced(own);

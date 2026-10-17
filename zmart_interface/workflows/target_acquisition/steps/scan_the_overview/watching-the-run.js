@@ -3,7 +3,7 @@
  *
  * The scan beneath the plan, in the same projection as the plan itself, so
  * the two are registered rather than merely near each other: the run's own
- * sources, or a folder of small pictures the address names (`?picture=`).
+ * sources, drawn with neuroglancer.
  *
  * Nothing on disk announces a saved tile: the images are declared at their
  * full size before any of them exists, so their description never changes.
@@ -23,21 +23,10 @@ import { openerFor } from "../../../../parts/canvas/engines.js";
 
 export function watchTheRun(ctx) {
   /**
-   * The scan itself, drawn beneath the plan by one of the drawing engines.
-   *
-   * A folder of small JPEGs with a `tiles.json` saying where each belongs —
-   * what `zmart_interface/parts/storage/jpeg_tiles.py` makes from the files a microscope
-   * exports, one per field as it lands. The backend says where its own are
-   * (`viewOf`), because where a run's output is reachable is a fact about the
-   * instrument's end; `?picture=<folder>` overrides it, which is how a run
-   * served from somewhere else is looked at. Nothing is opened while neither
-   * names a folder, because an engine is a large thing to fetch and a page
-   * with no scan to draw has no use for one.
-   *
-   * Which engine draws it is `?engine=`, and the default is the JPEG one.
-   * Every engine is reached through `openerFor`, the one interface they all
-   * sit behind, so swapping in neuroglancer is choosing a different name and
-   * changes nothing here.
+   * The scan itself, drawn beneath the plan with neuroglancer, from the run's
+   * OME-Zarr sources as the viewer beside the bridge publishes them. Nothing
+   * is opened while there are none, because an engine is a large thing to
+   * fetch and a page with no scan to draw has no use for one.
    *
    * ## The view is not shared, it is handed down
    *
@@ -56,7 +45,6 @@ export function watchTheRun(ctx) {
    * than merely near it.
    */
   const thePicture = (() => {
-    const search = new URLSearchParams(location.search);
     const host = ctx.pictureHost;
     let viewer = null;
     let opening = false;
@@ -71,7 +59,6 @@ export function watchTheRun(ctx) {
     let openedOn = null;
     /* The names of the acquisitions the open picture draws. */
     let openedNames = [];
-    let inStageFrame = true;
     let panel = null;
     /* The one way the picture is drawn: every acquisition as its projection,
        so a stack lies flat beside the single planes. */
@@ -109,14 +96,11 @@ export function watchTheRun(ctx) {
     /**
      * What there is to draw, asked fresh each time.
      *
-     * Two answers, in order of preference: a store the address named
-     * (`?picture=`, taken as it is); and the run's own OME-Zarr sources,
-     * served by the viewer beside the bridge — the real picture, every
-     * acquisition type a source of its own. The backend's JPEG copies are
-     * not a third: the canvas opened on them first and reopened on the
-     * sources a moment later, a picture changing under the operator for
-     * nothing. `?engine=` still overrides the engine, so the comparisons
-     * stay askable.
+     * The run's own OME-Zarr sources, served by the viewer beside the
+     * bridge — the real picture, every acquisition type a source of its own.
+     * The backend's small JPEG copies are not drawn here: the canvas once
+     * opened on them first and reopened on the sources a moment later, a
+     * picture changing under the operator for nothing.
      */
     async function readSources() {
       if (readingSources) return readingSources;
@@ -130,15 +114,6 @@ export function watchTheRun(ctx) {
     }
 
     async function whatToOpen() {
-      const picture = search.get("picture");
-      if (picture) {
-        return {
-          engine: search.get("engine") ?? "jpeg-under",
-          acquisitions: [{ url: picture, name: picture.split("/").filter(Boolean).pop() ?? "scan" }],
-          signature: `picture:${picture}`,
-          inStageFrame: false,
-        };
-      }
       const sources = latestSources;
       // An unavailable response is not an instruction to remove loaded images.
       if (sources == null && viewer) return null;
@@ -171,19 +146,14 @@ export function watchTheRun(ctx) {
           ...selectedSources.filter(({ name }) => name === "focussing"),
         ];
         return {
-          engine: search.get("engine") ?? "neuroglancer-under",
           acquisitions: drawOrder,
           signature: `sources:${JSON.stringify(drawOrder.map(acquisition => [
             addressesIn([acquisition]),
             (acquisition.channels ?? []).map(channel => channel.sourceRevisions ?? []),
           ]))}`,
-          inStageFrame: true,
         };
       }
-      return ctx.connected?.() ? {
-        engine: search.get("engine") ?? "neuroglancer-under",
-        acquisitions: [], signature: "sources:", inStageFrame: true,
-      } : null;
+      return ctx.connected?.() ? { acquisitions: [], signature: "sources:" } : null;
     }
 
     async function open() {
@@ -191,10 +161,10 @@ export function watchTheRun(ctx) {
       opening = true;
       const session = generation;
       try {
-        if (!search.has("picture")) await readSources();
+        await readSources();
         const wanted = await whatToOpen();
         if (!wanted || session !== generation) return;
-        const openViewer = await openerFor(wanted.engine);
+        const openViewer = await openerFor("neuroglancer-under");
         if (session !== generation) return;
         const opened = await openViewer(host, {
           acquisitions: wanted.acquisitions,
@@ -210,7 +180,6 @@ export function watchTheRun(ctx) {
         viewer = opened;
         openedOn = wanted.signature;
         openedNames = wanted.acquisitions.map(({ name }) => name);
-        inStageFrame = wanted.inStageFrame;
         /* Left where a test can reach it. What matters about a picture is what
            reached the screen, and a viewer that reports itself perfectly opened
            while drawing nothing is the failure this project keeps meeting — so
@@ -221,11 +190,10 @@ export function watchTheRun(ctx) {
         /* The viewer's own controls — the acquisitions and their channels —
            in the column the page keeps for them beside the step's channel
            (the display settings, a tab away), or beside the picture when the
-           page keeps no such column. Only for the run's own sources: a JPEG
-           copy has no channels to offer. */
+           page keeps no such column. */
         panel?.destroy?.();
         panel = null;
-        if (wanted.signature.startsWith("sources:")) await mountPanel(wanted, session);
+        await mountPanel(wanted, session);
         if (session !== generation) return;
         ctx.displayChanged?.();
       } catch (e) {
@@ -267,7 +235,7 @@ export function watchTheRun(ctx) {
          stage engine for it again from inside that callback can return the
          previous frame and makes this picture visibly lag during zooming. */
       const v = stageView ?? ctx.view();
-      if (inStageFrame && v?.centre) {
+      if (v?.centre) {
         const [ox, oy] = ctx.carrierOriginUm();
         viewer.setView({ ...v, centre: { x: v.centre.x + ox, y: v.centre.y + oy } });
         return;
@@ -312,9 +280,7 @@ export function watchTheRun(ctx) {
           panel.destroy();
           panel = null;
         }
-        if (wanted.signature.startsWith("sources:")
-            && openedOn?.startsWith("sources:")
-            && await viewer.addSources?.(wanted.acquisitions)) {
+        if (openedOn && await viewer.addSources?.(wanted.acquisitions)) {
           if (session !== generation) return;
           openedOn = wanted.signature;
           openedNames = wanted.acquisitions.map(({ name }) => name);
@@ -363,9 +329,6 @@ export function watchTheRun(ctx) {
     }
 
     return {
-      /** Whether this page was pointed at a scan by its own address. The run's
-          sources are asked for asynchronously, so they do not answer here. */
-      get asked() { return !!search.get("picture"); },
       /** Whether there was a scan there to open, and it opened. */
       get opened() { return !!viewer; },
       /** Whether the picture draws the acquisition of this name itself. A

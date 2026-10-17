@@ -106,42 +106,16 @@ describe("the drawing above the picture", () => {
     expect(surface.done).toEqual([]);
   });
 
-  it("cuts a window over the ground it was given, in micrometres", () => {
-    const surface = aPretendSurface();
-    theDrawingAbove([aLayerThatMarks("plan")], {
-      seeThrough: [{ x: 10, y: 20, w: 30, h: 40 }],
-    })(aFrame(surface));
-    const cut = surface.done.find((d) => d.what === "fillRect");
-    expect(cut).toMatchObject({ x: 10, y: 20, w: 30, h: 40, how: "destination-out" });
-  });
-
-  it("cuts through every layer below the window, so the picture is what shows", () => {
-    const surface = aPretendSurface();
-    theDrawingAbove([aLayerThatMarks("carrier"), aLayerThatMarks("positions")], {
-      seeThrough: [{ x: 0, y: 0, w: 10, h: 10 }],
-    })(aFrame(surface));
-    const order = surface.done.map((d) => d.what);
-    expect(order).toEqual(["carrier", "positions", "fillRect"]);
-  });
-
-  it("leaves a layer that stays solid alone, above the window and out of the dial", () => {
+  it("leaves a layer that stays solid alone, above the rest and out of the dial", () => {
     const surface = aPretendSurface();
     theDrawingAbove(
       [aLayerThatMarks("plan"), aLayerThatMarks("focus points", { staysSolid: true })],
-      { dial: 0.2, seeThrough: [{ x: 0, y: 0, w: 10, h: 10 }] },
+      { dial: 0.2 },
     )(aFrame(surface));
-    expect(surface.done.map((d) => d.what)).toEqual(["plan", "fillRect", "focus points"]);
+    expect(surface.done.map((d) => d.what)).toEqual(["plan", "focus points"]);
     // Faded with the rest, the plan is nearly gone; the focus points are untouched.
     expect(surface.done[0].alpha).toBeCloseTo(0.2);
-    expect(surface.done[2].alpha).toBe(1);
-  });
-
-  it("lets a window be half open, so the drawing is thinned rather than removed", () => {
-    const surface = aPretendSurface();
-    theDrawingAbove([aLayerThatMarks("plan")], {
-      seeThrough: [{ x: 0, y: 0, w: 10, h: 10, letThrough: 0.4 }],
-    })(aFrame(surface));
-    expect(surface.done.find((d) => d.what === "fillRect").alpha).toBeCloseTo(0.4);
+    expect(surface.done[1].alpha).toBe(1);
   });
 
   it("does not let one layer's settings leak into the next", () => {
