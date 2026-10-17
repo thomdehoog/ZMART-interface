@@ -231,8 +231,11 @@ const viewerChannelKey = (row) =>
  * The engine is deliberately absent. This object records what the operator
  * asked for and can be handed to a replacement panel or Viewer without making
  * either of them the owner of the controls.
+ *
+ * @public — the browser specs take it by the page's address, which knip
+ * cannot follow (`parts/testing/page-addresses.test.js` holds them to it).
  */
-function createViewerPanelState() {
+export function createViewerPanelState() {
   return {
     acquisitions: new Map(),
     channels: new Map(),
