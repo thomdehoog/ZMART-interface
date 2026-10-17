@@ -1201,6 +1201,47 @@ test("a region can be copied, and a second paste lands clear of the first",
     await expect(page.locator(".sf-readout")).toContainText("2 regions");
   });
 
+test("an undo takes what it removed out of the selection too",
+  async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    await throughSetupRoomy(page);
+    await gotoStep(page, "Overview scan area");
+    await recordSlot(page, "sf-preset", "overview");
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
+    const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+
+    await page.locator(".sf-tool[data-tool='rectangle']").click();
+    await page.mouse.move(at(0.3, 0.3).x, at(0.3, 0.3).y);
+    await page.mouse.down();
+    await page.mouse.move(at(0.45, 0.5).x, at(0.45, 0.5).y, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+
+    /* The paste is what is selected; the undo takes the paste away. Adding
+       the original to the selection and pressing it to drag once found the
+       paste still selected -- a region no longer on the plan -- and threw. */
+    await page.keyboard.press("Control+c");
+    await page.keyboard.press("Control+v");
+    await page.waitForTimeout(250);
+    await page.keyboard.press("Control+z");
+    await page.waitForTimeout(250);
+    await expect(page.locator(".sf-readout")).toContainText("1 region");
+
+    const original = at(0.33, 0.33);
+    await page.keyboard.down("Shift");
+    await page.mouse.click(original.x, original.y);
+    await page.keyboard.up("Shift");
+    await page.mouse.move(original.x, original.y);
+    await page.mouse.down();
+    await page.mouse.move(original.x + 30, original.y + 20, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+
+    expect(errors, "page errors").toEqual([]);
+    await expect(page.locator(".sf-readout")).toContainText("1 region");
+  });
+
 test("a pasted position is hand-made, so the next Apply leaves it alone",
   async ({ page }) => {
     await throughFields(page);

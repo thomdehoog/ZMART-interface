@@ -902,17 +902,27 @@ export default {
     function undo() {
       if (locked || !ed.past.length) return;
       ed.future = [...ed.future, ed.fields];
-      ed.fields = ed.past[ed.past.length - 1];
+      const back = ed.past[ed.past.length - 1];
       ed.past = ed.past.slice(0, -1);
-      onChange(ed.fields);
-      sync();
+      restore(back);
     }
 
     function redo() {
       if (locked || !ed.future.length) return;
       ed.past = [...ed.past, ed.fields];
-      ed.fields = ed.future[ed.future.length - 1];
+      const again = ed.future[ed.future.length - 1];
       ed.future = ed.future.slice(0, -1);
+      restore(again);
+    }
+
+    /* A plan out of the history comes back without whatever it did not have,
+       and what is selected is only ever something on the plan: a region the
+       undo took away stays out of the selection too. Left in, it was a name
+       with no region behind it, and the next press to drag threw. */
+    function restore(fields: Field[]) {
+      ed.fields = fields;
+      const there = new Set(fields.map((f) => f.id));
+      ed.selected = new Set([...ed.selected].filter((id) => there.has(id)));
       onChange(ed.fields);
       sync();
     }
@@ -1431,7 +1441,7 @@ export default {
       if (hit) {
         if (!ed.selected.has(hit.id)) ed.selected = new Set([hit.id]);
         // picked either way; only what the grid did not place can be dragged
-        // a selected id names a field on the plan (one an undo took away throws here, as it always has)
+        // a selected id names a field on the plan: undo and redo keep it so
         if ([...ed.selected].some((id) => movable(ed.fields.find((f) => f.id === id)!))) {
           startMove(x, y);
         }
