@@ -27,8 +27,8 @@
  * marker is drawn wholly over the picture.
  */
 
-import { openerFor } from "./engines.js";
 import { theDrawingAbove, whoClaims, whoIsAt } from "./layers-above.js";
+import { openTheSurface } from "./surface.js";
 
 /**
  * A drawing that draws nothing, for a layer that has been switched off.
@@ -71,7 +71,6 @@ const paintNothingAtAll = () => {};
  * @param layers an element to fill with one button per layer, and the fade and
  *   the lock beside them.
  * @param readout a small element that says where the pointer, or the view, is.
- * @param engine the drawing engine that carries the canvas's own surfaces.
  * @param layersAbove the workflow's layers, bottom of the stack first.
  * @param pictureHost the run's picture, put in the canvas's middle slot.
  * @param onTouched told what an operator clicked, when a layer claims the click.
@@ -85,7 +84,7 @@ const paintNothingAtAll = () => {};
  * @returns the handle the workflow drives the canvas with.
  */
 export function putTheCanvasIn({
-  box, layers, readout, engine,
+  box, layers, readout,
   layersAbove = [],
   pictureHost = null,
   onTouched = null,
@@ -97,8 +96,7 @@ export function putTheCanvasIn({
 }) {
   readout = readout ?? Object.assign(document.createElement("div"), { hidden: true });
 
-  let viewer = null;      // the canvas's surfaces, once opened
-  let opening = false;
+  let viewer = null;      // the canvas's surface, once opened
 
   /* The layers, in drawing order, each carrying its own `shown`. Copied rather
      than used in place, because the canvas writes `shown` on them and a
@@ -130,7 +128,7 @@ export function putTheCanvasIn({
   function markTheButtons() {
     for (const [key, button] of buttons) {
       button.setAttribute("aria-pressed", String(isShowing(key)));
-      button.disabled = opening;
+      button.disabled = !viewer;
     }
   }
 
@@ -236,11 +234,9 @@ export function putTheCanvasIn({
     return false;
   }
 
-  /** Open the canvas's surfaces in the box. */
-  async function openTheCanvas() {
-    const openViewer = await openerFor(engine);
-    const opened = await openViewer(box, {
-      acquisitions: [],
+  /** Lay the canvas's surface down in the box. */
+  function openTheCanvas() {
+    const opened = openTheSurface(box, {
       background,
       onViewChanged: (where) => { sayWhereTheViewIs(where); onViewMoved?.(where); },
     });
@@ -259,7 +255,7 @@ export function putTheCanvasIn({
 
   /** Turn one layer on or off; the operator's choice is remembered. */
   function showTheLayer(key, on) {
-    if (opening || !viewer || isShowing(key) === on) return;
+    if (!viewer || isShowing(key) === on) return;
     const layer = stackAbove.find((one) => one.key === key);
     if (!layer) return;
     layer.shown = on;
@@ -439,14 +435,11 @@ export function putTheCanvasIn({
     async whenShown() {
       /* Left where a browser test can reach it; nothing on the page reads it. */
       window.__theCanvas = handle;
-      if (viewer || opening) return viewer;
-      opening = true;
-      try {
-        return await openTheCanvas();
-      } finally {
-        opening = false;
+      if (!viewer) {
+        openTheCanvas();
         markTheButtons();
       }
+      return viewer;
     },
   };
 

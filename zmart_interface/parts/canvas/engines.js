@@ -27,7 +27,6 @@
 
 const HOW_TO_OPEN = {
   "neuroglancer-under": () => import("./engines/neuroglancer-under/viewer.js"),
-  "jpeg-under": () => import("./engines/jpeg-under/viewer.js"),
 };
 
 /**

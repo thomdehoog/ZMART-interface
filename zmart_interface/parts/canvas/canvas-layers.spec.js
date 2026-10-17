@@ -52,8 +52,6 @@ window.__moved = [];
 window.__armed = false;
 window.__canvas = await putTheCanvasIn({
   box: el("box"), layers: el("layers"), readout: el("readout"),
-  // Until the canvas has a surface of its own (phase 6, step a2b).
-  engine: "jpeg-under", acquisitions: [],
   layersAbove: [
     { key: "carrier", label: "Carrier", ...aSquare("rgb(30,80,190)", 0, 0, 300) },
     { key: "tiles", label: "Tiles", ...aSquare("rgb(240,160,30)", 60, 60, 180) },
@@ -344,8 +342,6 @@ test("a host that gives only a box and a place for the buttons still gets a canv
     document.body.append(box, layers);
     const bare = putTheCanvasIn({
       box, layers,
-      // Until the canvas has a surface of its own (phase 6, step a2b).
-      engine: "jpeg-under", acquisitions: [],
       layersAbove: [{
         key: "only", label: "Only", shown: true,
         paint: ({ context }) => {
@@ -518,8 +514,6 @@ test("the picture sits between the layers below its place in the stack and those
     };
     const canvas = putTheCanvasIn({
       box, layers, pictureHost: picture,
-      // Until the canvas has a surface of its own (phase 6, step a2b).
-      engine: "jpeg-under", acquisitions: [],
       layersAbove: [
         { key: "below", label: "Below", shown: true, paint: fill("rgb(20,20,200)") },
         { key: "picture", label: "Picture", shown: true },

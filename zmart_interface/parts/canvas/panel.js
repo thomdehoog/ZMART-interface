@@ -228,10 +228,9 @@ export const canvasPanel = {
                the id the tests aim by, because what they want of it is where
                the picture is on screen. -->
           <div class="plot stagecv" id="stage-canvas"></div>
-          <!-- Where the scan itself is drawn, beneath the plan. Empty unless
-               the page was pointed at a folder of small pictures with
-               \`?picture=\`; the drawing engine builds its own surfaces inside
-               it. See \`viz_studio/options/jpeg-under/\`. -->
+          <!-- The run's picture: the drawing engine builds its own surfaces
+               inside this, and the canvas puts it in its middle slot, between
+               the drawings beneath and over it. -->
           <div class="plot picturecv" id="picture-host"></div>
           <div class="live-note" id="publication-note" role="status" hidden></div>
           <div class="tip" id="stage-tip"></div>

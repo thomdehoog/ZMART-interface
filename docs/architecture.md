@@ -488,9 +488,10 @@ changes.
 
 ## The canvas: `parts/canvas/`
 
-The canvas is one viewer behind a small interface, the viewer slot, so the
-engine that draws the picture can be named rather than wired in. The engines live in `parts/canvas/engines/`, and the interface they
-share -- the viewer slot -- is written out in `docs/viewer-slot.md`.
+The canvas has its own surface (`surface.js`): the view, the two gestures, a
+drawing surface beneath and one above, and a middle slot between them where the
+run's picture sits. The picture is drawn by a drawing engine, neuroglancer,
+behind a small interface, the viewer slot, written out in `docs/viewer-slot.md`.
 
 It is a **part**, not the workflow's: it takes a list of layers and knows
 nothing about what any of them mean. What target acquisition draws on it is the
@@ -502,54 +503,38 @@ because it interleaves them.
 
 ```
 parts/canvas/
-  engines/      the drawing engines themselves, one folder each
-  engines.js    which engines this page can open, and what each one is
-  viewer.js     opening one on a run, changing engine, and the layer buttons
-  layers-above.js   the stack drawn over the picture, faded and cut through
+  surface.js    the canvas's own surface: the view, the gestures, the slots
+  viewer.js     the canvas a workflow puts in a box: its layers, their buttons,
+                the fade, the lock, and where a press or a drag goes
+  layers-above.js   the stack, drawn beneath and over the picture, faded
+  engines/      the drawing engine (neuroglancer) and what it shares
+  engines.js    loads the engine by name
   panel.js      the canvas as a panel a workflow declares, and its markup
 ```
 
-The two gestures are not in this list, and that is deliberate. Dragging and the
-wheel used to be arranged by this page, on the box the picture sits in. They now
-come with the canvas: every engine attaches the same shared piece of code for
-them when it opens. This page therefore does nothing about them at all, which is
-what you want — if each engine had interpreted a drag for itself, a difference in
-how two of them felt might have been the engine or might have been somebody's
-idea of how far a wheel notch should zoom, with no way to tell which.
+Dragging pans and the wheel zooms, from one shared piece of code
+(`engines/gestures.js`), and a layer or the workflow may take a drag first.
 
 Two rules hold this together and both are load-bearing.
 
-**The canvas is never told which step it is in.** It is handed a run to draw
-and, when the page wants them, two functions to draw with — one for beneath the
-picture and one for above it. It learns nothing else. A picture that has taken
-on the shape of one workflow cannot be moved into the next one without being
-taken apart again, and being movable is the whole reason it was built behind an
-interface. If wiring it into a future step seems to want a piece of run state
-passed in, the interface is where the answer belongs.
+**The canvas is never told which step it is in.** It is handed layers to draw
+and, when the page wants them, functions to answer a press with. It learns
+nothing else. A picture that has taken on the shape of one workflow cannot be
+moved into the next one without being taken apart again. If wiring it into a
+future step seems to want a piece of run state passed in, the canvas is where
+the answer belongs.
 
-**Everything about how a picture is drawn stays behind that interface.** Nothing
-in this page imports Viv or deck.gl on the canvas's behalf; it calls
-`openViewer` and drives the handle that comes back. That is what makes a
-difference between two engines a difference in the engines, rather than a
-difference in how somebody happened to wire one of them up.
+**Everything about how a picture is drawn stays behind the viewer slot.**
+Nothing in this page reaches into neuroglancer on the picture's behalf; it calls
+`openViewer` and drives the handle that comes back.
 
-**One engine changes what the build produces.** Neuroglancer, the third of the
-three, hands the fetching and unpacking of image pieces to background programs,
-and a browser will only start one of those from a file of its own. So the build
-is no longer one file: it is `index.html` with everything else folded into it,
-and those two programs beside it. That was accepted after the alternative was
-tried and measured; `docs/building-the-page.md` records what was tried,
-`tools/neuroglancer-workers.mjs` compiles the two programs, and `vite.config.js`
-places them.
-
-It has one consequence that reaches into this folder. A page opened straight off
-the disk rather than served over HTTP has no address of its own, and a browser
-will not start a background program for it — so neuroglancer cannot draw there
-however well it was built. `engines.js` therefore has two lists: what the page
-was built with, and what it can actually open where it is now. Only the second is
-put in front of an operator. A button that draws nothing would be the worst of
-the available behaviours, because an empty box looks exactly like one that is
-still loading.
+**The engine changes what the build produces.** Neuroglancer hands the fetching
+and unpacking of image pieces to background programs, and a browser will only
+start one of those from a file of its own — and only in a page served over
+HTTP. So the build is `index.html` with everything else folded into it, and
+those two programs beside it. `docs/building-the-page.md` records what was
+tried, `tools/neuroglancer-workers.mjs` compiles the two programs, and
+`vite.config.js` places them.
 
 ## Tests
 

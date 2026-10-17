@@ -1,23 +1,15 @@
 # The viewer slot
 
-The picture in the middle of the operator window is drawn by a **drawing engine**, and the
-engine is pluggable. This page says what any engine has to offer to fill that slot, how the
-interface chooses one, and what a different viewer -- a plain JPEG one, or one built on Viv --
-would implement to take its place.
+The canvas the operator pans and zooms has its own surface (`parts/canvas/surface.js`): the
+view, the two gestures, a drawing surface beneath and one above, and a **middle slot** between
+them. The picture of the run sits in that slot, drawn by a **drawing engine**. This page says
+what an engine has to offer to fill it.
 
-Two engines fill the slot today. They live in
-`zmart_interface/parts/canvas/engines/`, one folder each:
-
-| Engine | What it draws | When it is used |
-|---|---|---|
-| `neuroglancer-under` | the run's OME-Zarr images, served by ZMART-viewer, with neuroglancer | the picture of a connected run, by default |
-| `jpeg-under` | one small JPEG per field, with a `tiles.json` saying where each belongs | the canvas itself: opened with no acquisition, it carries the panning, the zooming and the operator's drawings, and the acquired picture sits in its middle slot (`middleSlot`) |
-
-"Under" names the arrangement both share: the picture is drawn **underneath** the
-operator's own drawing (the carrier, the scan fields, the focus points, the targets), which
-lies on a second surface above it. The engines came from ZMART-microscopy's
-`viz_studio/options/`, where they were written side by side behind one interface so that they
-could be compared fairly. Merging them with ZMART-viewer's own engine is a later step.
+One engine fills the slot: `neuroglancer-under`, in `zmart_interface/parts/canvas/engines/`,
+which draws the run's OME-Zarr images, served by ZMART-viewer, with neuroglancer. "Under"
+names the arrangement: the picture lies **underneath** the operator's own drawing (the
+carrier, the scan fields, the focus points, the targets), which the canvas draws above it.
+Merging it with ZMART-viewer's own engine is a later step.
 
 ## What an engine is
 
@@ -35,18 +27,16 @@ openViewer(element, options) → Promise<handle>
   window and whether it is shown; left out, the engine reads them from the image's own
   description.
 - `background`, `transparentBackground` -- the page's colour, or a transparent ground so the
-  drawing beneath shows through where nothing was imaged.
+  canvas's drawing beneath shows through where nothing was imaged.
 - `presentation: "2d-overlay"` -- the run's stacks stand on one table, every stack's lowest
   plane at z = 0.
 - `onViewChanged(where)` -- called whenever the view settles.
 
 Everything is in **micrometres on the stage**: the centre of the view, the zoom (micrometres
-per screen pixel), the plane. No engine may expose its own notion of zoom, because two
-engines that disagreed on units would put the same field in two places.
+per screen pixel), the plane. No engine may expose its own notion of zoom, because the picture
+and the canvas's drawings would then put the same field in two places.
 
 ## What the handle must offer
-
-These are the five things the operator page needs from any engine.
 
 **1. Show an acquisition.** Draw what `acquisitions` names, each placed by the voxel size *and*
 the position it states in its own description (two images at different voxel sizes have only
@@ -69,46 +59,23 @@ carries `embeddingUrl`, the address of the viewer's own `embedding.js`, which sa
 there are and which one is chosen. An engine draws a named view as a flat picture and keeps it
 in view at every depth, since a projection has no depth of its own.
 
-**4. Where the operator clicked.** The page's drawings and presses are in micrometres, so the
-engine says how the screen and the stage meet: `whereThingsAreDrawn()` gives the centre, the
-zoom, the box's size, and `project(x, y)` / `unproject(px, py)` between micrometres and screen
-pixels, for this very frame. `getView()` and `setView({ centre, zoom })` read and move the
-view. `handDragsTo(handler)` lets the page take a drag for itself (to move a focus point, say),
-reported as `{ phase, at, screen }` with `at` in micrometres; handing over `null` gives
-dragging back to panning.
-
-**5. The two drawings and the two gestures.** `drawUnder(paint)` and `drawOver(paint)` each
-take one function that the engine calls at the moment it considers right, with the frame it is
-drawing (`centre`, `zoom`, `context`, `project`, `unproject`, ...). An engine that cannot really
-draw beneath its picture says so in `drawsUnder` (`false`) and `drawsUnderBecause` (one plain
-sentence) rather than faking it above. Dragging pans and the wheel zooms, for every engine,
-from one shared file (`engines/gestures.js`), so a difference in how two engines feel is a
-difference in the engines.
+**4. Follow the canvas.** The canvas owns the view; the picture follows it. `getView()` and
+`setView({ centre, zoom })` read and move the picture's view, and the page sets it from every
+view the canvas reports, so the picture never lags a wheel tick behind the drawings around it.
+`whereThingsAreDrawn()` gives the centre, the zoom, the box's size, and `project(x, y)` /
+`unproject(px, py)` between micrometres and screen pixels, for this very frame.
 
 And `destroy()`, which leaves the box empty. An engine keeps nothing in module variables, so a
 page can hold two at once.
 
-## How the interface chooses one
+## How the picture is opened
 
-`zmart_interface/parts/canvas/engines.js` lists the engines the page was built with and how
-to load each one. The canvas the steps draw on is a `jpeg-under` opened with no acquisition;
-the picture of a connected run opens on `neuroglancer-under` inside its middle slot, and
-`?engine=<name>` in the page's address chooses another engine for the picture, for
-comparison. A page opened straight off the disk cannot start neuroglancer's background
-programs, so `enginesOnOffer()` leaves it out there and `whyOneIsMissing()` says so on the
-page. An engine that is asked for and cannot be opened is named in the corner of the box, never
-replaced in silence: a picture that never arrives looks exactly like one still loading.
+`zmart_interface/parts/canvas/engines.js` loads the engine by name (`openerFor`), only when it
+is first needed. Target acquisition opens the run's picture inside the canvas's middle slot
+once the run has sources to draw (`steps/scan_the_overview/watching-the-run.js`). An engine
+that is asked for and cannot be opened is said in words, never replaced in silence: a picture
+that never arrives looks exactly like one still loading.
 
-Adding an engine is one line in `engines.js` and a folder beside the others.
-
-## What a second viewer would implement
-
-**A JPEG viewer** (as `jpeg-under` already is) reads small pictures made ahead of time instead
-of the images themselves, so it opens a scan of ten thousand fields at once. It implements
-showing, following (a field that lands is one more JPEG), and where things are drawn; it has
-one plane and one moment, so `theDepthItCanShow()` and `theMomentsItCanShow()` answer `null`,
-and it has no volume to show.
-
-**Any other viewer** -- ZMART-viewer's own engine, when the two are merged -- implements
-`openViewer` and the handle above, answers in micrometres, and says plainly what it cannot do
-(`drawsUnder`, `canShowVolume`, each with its sentence) rather than pretending.
+Neuroglancer needs two background programs, which a browser starts only from files of their
+own and only in a page served over HTTP: what is copied to the microscope is the page and those
+two programs beside it (`docs/building-the-page.md`).

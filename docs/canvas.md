@@ -35,12 +35,6 @@ of a shape being drawn, the scale bar. What those have in common is that a
 half-visible one is worse than none — you cannot edit what you cannot see, and a
 scale bar you can half see through is a scale bar you cannot trust.
 
-The dial is not the only way through. A window can be opened over chosen ground
-and it cuts through **every** layer at once, down to whatever is drawn beneath
-the stack — which is how an operator watches a scan appear through their own
-drawing rather than beside it. Given in the same coordinates the layers are, so
-the window travels with the sample when the picture is panned.
-
 **It offers the layers.** Each layer that has something to draw gets a chip on
 the picture's own bar: what is drawn and how is the picture's business, so it is
 asked on the picture.

@@ -72,10 +72,8 @@ const theCanvas = putTheCanvasIn({
   box: stageBox,
   layers: ctx.layerBar,
   readout: ctx.readout,
-  // The lightweight canvas owns navigation and the two application drawings.
-  // The acquisition viewer occupies its middle slot.
-  acquisitions: [],
-  engine: "jpeg-under",
+  // The canvas owns navigation and the two application drawings; the run's
+  // picture occupies its middle slot.
   // Background is an explicit layer in THE_STACK, not a second CSS fill.
   background: "transparent",
   layersAbove: [],

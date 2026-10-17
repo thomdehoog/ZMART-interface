@@ -92,14 +92,17 @@ export const POLL_MS = 250;
 
 export const backend = {
   /**
-   * Where a scan's pictures can be fetched, or `null` for a backend with none.
+   * Where a scan's small pictures can be fetched, or `null` for a backend
+   * with none.
    *
    * A microscope writes OME-TIFFs, which a browser cannot open and which are
    * far too heavy to send; the bridge makes one small JPEG per field as it
-   * lands and serves them here, with a `tiles.json` beside them saying where
-   * each belongs. The backend answers this rather than the page working it
-   * out, because where a run's output is reachable is a fact about the
-   * instrument's end and nothing the page could know.
+   * lands and serves them here, for the gallery, the previews, the focus
+   * slices and the masks. (The run's picture on the canvas is drawn from the
+   * OME-Zarr sources instead; the `tiles.json` beside the JPEGs is the
+   * bridge's own note of which copy is which.) The backend answers this
+   * rather than the page working it out, because where a run's output is
+   * reachable is a fact about the instrument's end.
    */
   viewOf(acquisitionType) {
     return atBridge(`/view/${acquisitionType}`);
