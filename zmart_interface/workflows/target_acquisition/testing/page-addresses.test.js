@@ -30,6 +30,10 @@ function exportsOf(file) {
   const text = readFileSync(file, "utf8");
   const names = new Set();
   for (const m of text.matchAll(/^export\s+(?:async\s+)?(?:function\*?|const|let|class)\s+(\w+)/gm)) names.add(m[1]);
+  /* `export const { a, b } = ...`: each name taken apart. */
+  for (const m of text.matchAll(/^export\s+(?:const|let)\s*\{([^}]*)\}/gm)) {
+    for (const part of m[1].split(",")) names.add(part.trim().split(/\s*:\s*/).pop());
+  }
   for (const m of text.matchAll(/^export\s*\{([^}]*)\}/gm)) {
     for (const part of m[1].split(",")) names.add(part.trim().split(/\s+as\s+/).pop());
   }
