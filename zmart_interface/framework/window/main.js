@@ -1,126 +1,42 @@
 /**
  * The operator page, put together.
  *
- * This file composes the page and nothing else. It builds the one object
- * every module shares -- `page` -- and then lets each module put its part on
- * it: the framework's rail, action bar, runner, tabs and channel; and then
- * each workflow's own wiring, through the `install(page, { folder })` its
- * flow exports, the first time a run of that workflow begins.
- * Nothing here names a workflow, a backend or a panel: the page would compose
- * the same way for a workflow about e-learning or about image analysis.
+ * This file starts the page and nothing else: it reads which workflow to
+ * open on, hands the workflows the build found to the composition
+ * (`pages.js`), which builds the frame and each workflow's page over it, and
+ * opens the page. Nothing here names a workflow, a backend or a panel: the
+ * page would compose the same way for a workflow about e-learning or about
+ * image analysis.
  *
- * `page` is the page's whole surface, and every module reaches the others
- * through it at call time (`page.renderAll()`, `page.stage`, ...), which is
- * what lets each live in its own file without caring which was wired first.
- * What it carries:
- *
- * - `run`: the run document (`run-state.js`); `WORKFLOWS`, `flow()`,
- *   `steps()`, `step(i)`, `indexOfStep(id)`, `tabsForStep(i)`; `panels`,
- *   one element per panel a workflow declared.
- * - `backend`: the seam to whatever the workflow drives, chosen by the
- *   workflow's own `backendFor` (target acquisition answers the bridge, or
- *   the in-browser rehearsal for `?backend=pretend`); an empty object for a
- *   workflow that drives nothing.
- * - `shown`: the handles of the boxes a workflow's steps put on screen, set
- *   by each step's channel when it mounts; empty until a workflow fills it.
- * - the hook lists, each an array a workflow's `install` pushes to:
- *   `onRender` after every render, `onPanelShown` whenever a panel is drawn,
- *   `onReset` when the run starts over, and `onChannelMounted` after a
- *   step's controls were mounted in the channel.
- * - and the functions the modules lend it, named as they are installed.
+ * What a workflow's page carries -- the run document, its steps and panels,
+ * its backend, the boxes its steps show, what it lends and its hooks -- is
+ * written out in `pages.js`, and what a workflow may rely on of it in
+ * `workflows/README.md`.
  */
 
 import "./style.css";
-import { panelsFor } from "../rules/steps.js";
-import { installActionBar } from "./action-bar.js";
-import { buildThePanels } from "./panels.js";
-import { installRail } from "./rail.js";
-import { installRunner } from "./runner.js";
-import { exposeTheRunForTests, freshRun } from "./run-state.js";
-import { installSide } from "./side.js";
-import { installTabs } from "./tabs.js";
+import { composeThePages } from "./pages.js";
+import { exposeTheRunForTests } from "./run-state.js";
 import { DEFAULT_WORKFLOW, WORKFLOWS } from "./the-workflows.js";
-
-/* What a workflow that drives nothing is handed as its backend: nothing to
-   call, and nothing that answers. A workflow's steps that never speak to an
-   instrument never reach for it. */
-const NO_BACKEND = Object.freeze({});
 
 /* Which workflow to open on — `?workflow=target_acquisition`.
  *
  * For pointing this page at a run and looking at it, which is what somebody
- * with an acquisition in their hand wants. Without it that address lands on the first step of the ordinary
- * run and the picture is two clicks away, every time.
- *
- * A name that is not a workflow is ignored rather than refused: the page is
- * still perfectly usable on its ordinary workflow, and an address that opens
- * something slightly unexpected is a smaller failure than one that opens
- * nothing. The first step is then shown as it always is — there is no separate
- * path here, and no `?step=`, because a workflow whose first step is not where
- * you want to start is a workflow that has its steps in the wrong order.
+ * with an acquisition in their hand wants. A name that is not a workflow is
+ * ignored rather than refused: the page is still perfectly usable on its
+ * ordinary workflow, and an address that opens something slightly
+ * unexpected is a smaller failure than one that opens nothing. There is no
+ * `?step=`: a workflow whose first step is not where you want to start is a
+ * workflow that has its steps in the wrong order.
  */
-const WORKFLOW_ASKED_FOR = new URLSearchParams(location.search).get("workflow");
-const OPENS_ON = WORKFLOWS[WORKFLOW_ASKED_FOR] ? WORKFLOW_ASKED_FOR : DEFAULT_WORKFLOW;
+const search = new URLSearchParams(location.search);
+const asked = search.get("workflow");
+const opensOn = WORKFLOWS[asked] ? asked : DEFAULT_WORKFLOW;
 
-/* The seam, chosen by the workflow: what its steps speak to, and whether a
-   rehearsal of it exists. Asked again whenever the workflow changes, with
-   the page's own address so a workflow can read `?backend=` off it. */
-const backendFor = () =>
-  page.flow().backendFor?.(new URLSearchParams(location.search)) ?? NO_BACKEND;
-
-const page = {
-  WORKFLOWS, DEFAULT_WORKFLOW, backendFor,
-  /* The workflow open now, as assembled: its steps, panels and the rest. */
-  flow: () => WORKFLOWS[page.run.wf],
-  steps: () => page.flow().steps,
-  step: (i) => page.steps()[i],
-  indexOfStep: (id) => page.steps().findIndex((s) => s.id === id),
-  /* The rule, with the workflow's own staying panels already in it. Bound
-     once because it is asked in two places — when a step is walked to, and
-     again on every render — and two callers passing the list separately is
-     one caller forgetting to. */
-  tabsForStep: (i) => panelsFor(page.steps(), i, page.flow().panels.filter((p) => p.stays).map((p) => p.key)),
-  shown: {},
-  onRender: [],
-  onPanelShown: [],
-  onReset: [],
-  onChannelMounted: [],
-};
-
-/* The backend is asked of the workflow being opened, before there is a run to
-   read the workflow off, so the first answer is made by hand. */
-page.backend = WORKFLOWS[OPENS_ON].backendFor?.(new URLSearchParams(location.search)) ?? NO_BACKEND;
-/* The framework's keys of the run, and beside them whatever the workflow
-   says a run of it holds; the framework reads none of the latter. */
-page.run = freshRun({ workflow: OPENS_ON, backend: page.backend, flow: WORKFLOWS[OPENS_ON] });
-page.panels = buildThePanels(WORKFLOWS);
-
-/* The framework: what runs any workflow. */
-Object.assign(page, installRail(page));
-Object.assign(page, installActionBar(page));
-Object.assign(page, installRunner(page));
-Object.assign(page, installTabs(page));
-Object.assign(page, installSide(page));
-
-/* The workflows: each wires itself to the page once, the first time a run of
-   it begins -- as the page opens on it, or when the operator chooses it --
-   so that `page.run` is a run of its own when it does. Its panels are built
-   and kept from the start, so what it draws on them is wired once too, and
-   switching workflows shows a different set rather than rebuilding. A flow
-   with no `install` has nothing to wire. The flow is told the folder it is
-   installed under, so its hooks can ask whether it is the workflow open. */
-const installed = new Set();
-page.installWorkflow = (folder) => {
-  if (installed.has(folder) || !WORKFLOWS[folder]) return;
-  installed.add(folder);
-  WORKFLOWS[folder].install?.(page, { folder });
-};
-page.installWorkflow(OPENS_ON);
+const pages = composeThePages({ WORKFLOWS, opensOn, search });
 
 /* Left where a test can reach it: the framework's fields, and whatever the
-   workflow of the moment exposes of its own. */
-exposeTheRunForTests(page.run, page.flow);
+   workflow open now exposes of its own. */
+exposeTheRunForTests(pages.run, () => WORKFLOWS[pages.run.wf]);
 
-/* The page as it opens: on the first step. */
-page.focusPanelsFor(0);
-page.renderAll();
+pages.open();

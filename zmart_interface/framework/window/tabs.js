@@ -23,9 +23,8 @@ import { el } from "./dom.js";
  * Put the panels on the page: `focusPanelsFor(i)`, `shownPanel()`,
  * `renderTabs()`, `renderPanels()` and `renderAll()`.
  *
- * Two lists on the page let other modules take part: `page.onPanelShown`
- * is called with the step and the panel's key whenever a panel is drawn,
- * and `page.onRender` after every full render.
+ * The open workflow's hooks take part: `onPanelShown(step, key)` whenever a
+ * panel is drawn, and `onRender()` after every full render.
  */
 export function installTabs(page) {
   const { run: state, panels: thePanels, step, tabsForStep } = page;
@@ -96,7 +95,7 @@ export function installTabs(page) {
        picture cannot be laid out while it is hidden, because a hidden box has
        no size. A panel with nothing to re-measure simply says nothing. */
     thePanels[show].shown?.();
-    for (const told of page.onPanelShown) told(step(state.activeIdx), show);
+    page.hooks.onPanelShown?.(step(state.activeIdx), show);
   }
 
   function renderAll() {
@@ -110,7 +109,7 @@ export function installTabs(page) {
     page.renderActionBar();
     renderTabs();
     renderPanels();
-    for (const also of page.onRender) also();
+    page.hooks.onRender?.();
   }
 
   return { focusPanelsFor, renderTabs, shownPanel, renderPanels, renderAll };

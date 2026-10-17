@@ -7,6 +7,8 @@
  * (`page.pictureOf(...)` is `pictureOf(page, ...)`), and where the parts
  * that need wiring once at the start -- the canvas, the focus map, the
  * carrier's keyboard -- are installed, in the order they need one another.
+ * Each is lent as it is made, since the next one reaches for it; what was
+ * lent, and the workflow's hooks, are what `install` answers.
  */
 
 import { installTheCanvas } from "./the-canvas.js";
@@ -25,25 +27,22 @@ import { selectTarget, targetAt, targetPressed } from "./steps/acquire_targets/c
 import { renderProtocolProgress } from "./steps/run_protocol/channel.js";
 import { protocolWithin } from "./steps/run_protocol/run.js";
 
-/** Lend functions that take the page first to the page, under their own names. */
-function lend(page, functions) {
-  for (const [name, fn] of Object.entries(functions)) page[name] = (...a) => fn(page, ...a);
-}
-
-export function installTargetAcquisition(page, { folder } = {}) {
-  /* Whether this workflow is the one open. The hook lists below are called
-     for every workflow's run -- a reset puts down what every workflow holds
-     -- but what reads this workflow's own keys of the run, or asks its
-     backend, must only run while the run is this workflow's. */
-  const isOpen = () => page.run.wf === folder;
+export function installTargetAcquisition(page) {
+  const lends = {};
+  /* Put on the page now, and in the answer: the next thing installed may
+     reach for it. */
+  const add = (made) => { Object.assign(lends, made); Object.assign(page, made); };
+  /* Functions that take the page first, lent under their own names. */
+  const lend = (functions) => add(Object.fromEntries(Object.entries(functions)
+    .map(([name, fn]) => [name, (...a) => fn(page, ...a)])));
   /* What several steps share on the page. */
-  lend(page, {
+  lend({
     pictureOf: helpers.pictureOf, redrawSoon: helpers.redrawSoon,
     recordingOptions: helpers.recordingOptions,
     scannedPlan: helpers.scannedPlan, tilesetOfField: helpers.tilesetOfField,
   });
   /* The steps' own functions, by the names the rest of the page calls. */
-  lend(page, {
+  lend({
     chosenInstrument, chosenMicroscope, listInstruments, listProtocols, renderSetup,
     theRestOfTheProtocolAppears,
     activePreset, rebuildPlan,
@@ -52,37 +51,55 @@ export function installTargetAcquisition(page, { folder } = {}) {
     selectTarget, targetAt, targetPressed,
     protocolWithin, renderProtocolProgress,
   });
-  page.focusFitWord = focusFitWord;
-  /* The clock reading where the stage is while a session is open, set by
-     Connect and stopped when the run starts over. */
-  page.stageWatch = null;
-  /* The canvas first: the focus map draws on it. */
-  Object.assign(page, installTheCanvas(page, { isOpen }));
-  Object.assign(page, installFocus(page));
-  Object.assign(page, installCarrier(page));
-
-  /* What this workflow does when the run starts over -- on Disconnect, or
-     when another workflow is chosen: the stage's clock is stopped and the
-     picture will fit itself to the next session's travel, whichever
-     workflow is being opened; and when it is this one, the instruments are
-     asked for again (the fresh run has none) and the boxes that draw their
-     own picture are drawn empty. */
-  page.onReset.push(() => {
-    page.stageWatch?.stop();
-    page.stageWatch = null;
-    page.view.fitted = false;
-    if (!isOpen()) return;
-    page.shown.gating?.redraw();
-    page.renderPointList();
-    page.listInstruments();
+  add({
+    focusFitWord,
+    /* The clock reading where the stage is while a session is open, set by
+       Connect and stopped when the run starts over or the workflow is left. */
+    stageWatch: null,
   });
-  /* The protocol's progress stands over whichever step's controls the walk
-     is standing in, so it is put there whenever a step's controls go in. */
-  page.onChannelMounted.push(() => { if (isOpen()) page.renderProtocolProgress(); });
+  /* The canvas first: the focus map draws on it. */
+  add(installTheCanvas(page));
+  add(installFocus(page));
+  add(installCarrier(page));
 
   /* The instruments, asked for once the backend is known; the card fills in
      when the answer lands. The focus list and the plan drawn once, empty. */
   page.listInstruments();
   page.renderPointList();
   page.rebuildPlan();
+
+  return { lends, hooks: theHooksOf(page) };
+}
+
+/**
+ * What target acquisition does when the page tells it something: only while
+ * it is the workflow open, since only the open workflow's hooks run.
+ */
+export function theHooksOf(page) {
+  /* The stage's clock, put down: a session is over, or this workflow is no
+     longer the one on screen. */
+  const stopTheStageClock = () => {
+    page.stageWatch?.stop();
+    page.stageWatch = null;
+  };
+  return {
+    /* The canvas's framing presses come and go with the session. */
+    onRender: () => page.renderFramingPresses(),
+    /* The run starts over -- on Disconnect, or when this workflow is chosen:
+       the stage's clock is stopped, the picture will fit itself to the next
+       session's travel, the instruments are asked for again (the fresh run
+       has none) and the boxes that draw their own picture are drawn empty. */
+    onReset: () => {
+      stopTheStageClock();
+      page.view.fitted = false;
+      page.shown.gating?.redraw();
+      page.renderPointList();
+      page.listInstruments();
+    },
+    /* Another workflow is chosen: the clock that reads the stage stops. */
+    onLeave: stopTheStageClock,
+    /* The protocol's progress stands over whichever step's controls the walk
+       is standing in, so it is put there whenever controls go in. */
+    onChannelMounted: () => page.renderProtocolProgress(),
+  };
 }

@@ -42,7 +42,7 @@ import { MASK_RAINBOW } from "./steps/discover_targets/mask-dress.js";
  * (`whereTheStageIs`, `carrierOriginUm`, `takeTheCanvas`, `takeThePosition`,
  * `drawScaleBar`) and `renderFramingPresses`.
  */
-export function installTheCanvas(page, { isOpen = () => true } = {}) {
+export function installTheCanvas(page) {
   const { run: state, panels: thePanels, step, indexOfStep } = page;
 
   /* The canvas panel this workflow declared, and everything that draws in it. */
@@ -235,11 +235,6 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
       if (press) press.hidden = !connected;
     }
   }
-  /* Both only while this workflow is the one open: the page calls these
-     for every workflow's render, and another workflow's steps are not this
-     picture's business. */
-  page.onRender.push(() => { if (isOpen()) renderFramingPresses(); });
-
   /* A picture cannot be laid out while it is hidden: a hidden box has no
      size. So the panel re-measures when it comes up. */
   theCanvas.shown = () => stage.resize();

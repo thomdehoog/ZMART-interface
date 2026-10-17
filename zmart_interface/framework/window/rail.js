@@ -1,6 +1,7 @@
 /**
- * The left rail: the workflow chooser, the steps in order, and the rules
- * about reaching and editing them.
+ * The left rail: the steps in order, and the rules about reaching and
+ * editing them. The workflow chooser over it is the composition's
+ * (`pages.js`), since it is one for every workflow.
  *
  * The rail is navigation. It shows each step's number and title, green once
  * done, orange when done under settings that have since changed, and locked
@@ -17,65 +18,28 @@ import { startOver } from "./run-state.js";
 
 /**
  * Put the rail on the page. Answers the functions the rest of the page calls:
- * `renderRail`, `readiness`, `stateEdited`, `resetRun` and `switchWorkflow`.
+ * `renderRail`, `readiness`, `stateEdited` and `resetRun`.
  */
 export function installRail(page) {
-  const { run: state, panels: thePanels, steps, step, WORKFLOWS, backendFor } = page;
-
-  const selectEl = el("wf-select");
-
-  /** Fill the chooser: one entry per workflow the page offers. */
-  function renderChooser() {
-    selectEl.textContent = "";
-    for (const [key, wf] of Object.entries(WORKFLOWS)) {
-      const opt = document.createElement("option");
-      opt.value = key; opt.textContent = wf.name;
-      /* Each workflow's own sentence about itself, shown when the pointer rests on
-         it. A name has to be short enough for the rail, which is not always long
-         enough to say what a workflow is for — and it matters most for the one
-         that is a demonstration rather than a run, because somebody choosing it by
-         mistake should be able to find that out before they choose it. */
-      opt.title = wf.blurb;
-      selectEl.append(opt);
-    }
-    selectEl.value = state.wf;
-  }
-  renderChooser();
-
-  /* Choosing a workflow is choosing to begin it: the switch restarts the run.
-     There is no Restart button — the session card's Disconnect ends a run,
-     and picking a workflow starts one. */
-  function switchWorkflow(key) {
-    state.wf = key;
-    selectEl.value = key;
-    page.backend = backendFor();
-    resetRun();
-  }
-  selectEl.addEventListener("change", () => switchWorkflow(selectEl.value));
+  const { run: state, panels: thePanels, steps, step } = page;
 
   /**
    * Put the run back to its first step, keeping only what outlives a session.
    *
-   * What a workflow has to put down when the run starts over -- a clock
-   * reading the stage, a picture's fit, a list to ask for again -- is the
-   * workflow's own, so each says it in `page.onReset`, and this calls every
-   * one of them once the run document is fresh.
+   * What the workflow has to put down when the run starts over -- a clock
+   * reading the stage, a picture's fit, a list to ask for again -- is its
+   * own, said in its `onReset` hook, called once the run document is fresh.
    */
   function resetRun() {
     /* Every panel's channel is emptied, not only the one about to be shown:
-       switching workflows leaves the other workflow's panel hidden with its
-       last step's controls still in it, and a hidden form is still a form
-       -- a second password field the page can find. */
+       a hidden form is still a form. */
     for (const panel of Object.values(thePanels)) {
       if (panel.channel) panel.channel.textContent = "";
       if (panel.foot) panel.foot.textContent = "";
     }
-    startOver(state, backendFor(), WORKFLOWS[state.wf]);
-    /* A workflow chosen for the first time wires itself to the page now,
-       with a run of its own in place. */
-    page.installWorkflow(state.wf);
+    startOver(state, page.backend, page.flow());
     page.focusPanelsFor(0);
-    for (const reset of page.onReset) reset();
+    page.hooks.onReset?.();
     page.renderAll();
   }
 
@@ -156,5 +120,5 @@ export function installRail(page) {
     renderRail(); page.renderActionBar();
   }
 
-  return { renderRail, readiness, stateEdited, resetRun, switchWorkflow };
+  return { renderRail, readiness, stateEdited, resetRun };
 }

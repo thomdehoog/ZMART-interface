@@ -40,6 +40,8 @@ export const canvasPanel = {
    * panel of their own.
    */
   build(host) {
+    /* Named for this workflow's stylesheet: the canvas fills its panel. */
+    host.classList.add("canvas-panel");
     host.innerHTML = `
       <div class="canvas-body">
         <div class="plot-column">

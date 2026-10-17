@@ -80,7 +80,7 @@ button.ghost:disabled { opacity: 0.45; cursor: default; }
 }
 /* Nothing sits below the canvas: its layer controls live under Display
    settings and Fit is on the picture itself. */
-#panel-canvas.on { grid-template-rows: minmax(0, 1fr); }
+.panel.canvas-panel.on { grid-template-rows: minmax(0, 1fr); }
 .action-hint.bad { color: var(--bad); }
 button.ghost.tiny { padding: 2px 7px; font-size: 11px; line-height: 1.4; }
 .swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }

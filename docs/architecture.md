@@ -138,37 +138,37 @@ another repository be dropped into `workflows/` and built in;
 
 ## How the page is composed
 
-`framework/window/main.js` builds one object, `page`, and composes the page
-from it, naming no workflow. In order:
+`framework/window/main.js` reads which workflow to open on and hands the
+workflows to `framework/window/pages.js`, which composes the page, naming no
+workflow. In order:
 
 1. The workflows are assembled from the folders under `workflows/`
    (`framework/rules/finding-workflows.js`).
 2. The run document is made: the framework's keys, and beside them whatever
-   the open workflow's `freshState` answers (`run-state.js`). The backend is
-   whatever the open workflow's `backendFor` answers for the page's own
-   address, or an empty object for a workflow that drives nothing.
-3. One panel element is built per panel any workflow declared
-   (`panels.js`); the workflow fills it through the panel's own `build`.
-4. The framework's modules are installed on the page: the rail, the press,
-   the runner, the tabs, the channel.
-5. The open workflow's `install(page, { folder })` runs. This is where a
-   workflow wires what it needs wired once -- target acquisition opens its
-   canvas and lends its steps' functions to the page -- and where it pushes
-   to the page's hook lists. Another workflow's `install` runs the first
-   time the operator chooses it, once a run of it is in place.
-6. The page renders on the first step.
+   the open workflow's `freshState` answers (`run-state.js`). It is one
+   object, shared by every workflow's page and started over in place when
+   another workflow is chosen.
+3. The frame is one: the rail and its chooser, the runner, the tabs, the
+   channel and the action bar.
+4. Each workflow gets a page of its own over the frame, the first time it is
+   opened: its panels are built (`panels.js`) and filled through each
+   panel's `build`; its backend is whatever its `backendFor` answers for the
+   page's own address, or an empty object for a workflow that drives
+   nothing; and its `install(page)` runs, answering what it lends its page
+   and its hooks. Target acquisition opens its canvas there and lends its
+   steps' functions.
+5. The page renders on the first step.
 
-The hook lists are how the framework calls back into a workflow without
-knowing it. Each is an array on `page` that a workflow's `install` pushes a
-function to. They are called for every workflow's run, so a hook that reads
-its own workflow's keys of the run document first checks that its workflow
-is the one open (`page.run.wf === folder`):
+A workflow's hooks are how the framework calls back into it without knowing
+it. Only the open workflow's are called, and the one being left hears
+`onLeave`:
 
-| list | called | what target acquisition puts there |
+| hook | called | what target acquisition does |
 | --- | --- | --- |
 | `onRender` | after every full render | the canvas's framing presses, the fixture's card line |
 | `onPanelShown(step, key)` | whenever a panel is drawn | which picture the live overview shows |
-| `onReset` | when the run starts over (Disconnect, or another workflow chosen) | stop the stage clock, ask for the instruments again, refit the picture |
+| `onReset` | when the run starts over (Disconnect, or this workflow chosen) | stop the stage clock, ask for the instruments again, refit the picture |
+| `onLeave` | when another workflow is chosen | stop the stage clock |
 | `onChannelMounted(host, channel)` | after a step's controls were mounted in the channel | the protocol's progress bar over them |
 
 Two more things a workflow declares take the place of names the framework
@@ -408,7 +408,7 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `ta/shared/carrier-panel.js` | built, used — the first widget, and the shape the rest should follow |
 | `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |
 | `workflows/target_acquisition/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
-| `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares, installs the framework's parts, then calls every workflow's own `install`; it names no workflow, backend or panel |
+| `framework/window/main.js`, `pages.js` | start and compose the page: one frame, and one page per workflow over it with its own panels, lends and hooks; they name no workflow, backend or panel |
 | `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: its half of the run document, the rail, the step's press, running a step, the panels, the channel |
 | `framework/fixtures/three_steps/flow.js` | the framework's own test workflow, with no microscope, no Python and no canvas; assembled by the unit tests |
 | `ta/the-canvas.js`, `ta/on-the-page.js` | the workflow's side of the page: what it puts on its canvas, and the functions its steps lend the page |

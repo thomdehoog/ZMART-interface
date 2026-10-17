@@ -20,7 +20,7 @@ describe("where the standing step's press goes", () => {
     const run = { sideMounted: null, activeIdx: 0, running: null, walk: { running: false }, sideFolded: false };
     const host = { hidden: false, textContent: "" };
     const channel = { id: "count", label: "Count", mount: () => answer };
-    const page = { run, panels: { card: { channel: host } }, step: () => ({ id: "count", channel }), onChannelMounted: [] };
+    const page = { run, panels: { card: { channel: host } }, step: () => ({ id: "count", channel }), hooks: {} };
     Object.assign(page, installSide(page));
     return page;
   }

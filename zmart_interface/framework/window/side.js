@@ -73,7 +73,7 @@ export function installSide(page) {
     /* What a workflow puts over every step's controls -- the progress of a
        walk through its steps, say -- it adds here, once the step's own
        controls are in. */
-    for (const mounted of page.onChannelMounted) mounted(host, widget);
+    page.hooks.onChannelMounted?.(host, widget);
   }
 
   /* The channel's width is the operator's to set. The divider drags, the
