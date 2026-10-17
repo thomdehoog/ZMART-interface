@@ -31,37 +31,6 @@
      orange, because a point somebody edited is not a point in trouble */
   --edit-ink: #eab308;
   --warn-line: #fde68a;
-  /* data marks — validated for BOTH surfaces, so they never change. The
-     selected green is vivid, on Thom's word: the darker green it was
-     sank into the magenta and cyan of the tissue it marks. */
-  --mark-selected: #22e05a;
-  --mark-acquired: #16a34a;
-  --mark-context: #94a3b8;
-  /* where the microscope is standing. A deep blue, on Thom's word: the red
-     it wore read as a focus point, and the page already speaks blue -- so
-     the mark joins the page's family, darker and heavier than the tiles. */
-  --mark-stage: #1e40af;
-  /* where focus is measured. Red, by the operator's ask — kept apart from
-     the error red (--bad); the stage mark wears blue now, so red carries
-     one meaning fewer. */
-  --mark-focus: #dc2626;
-  /* and the ones held, or found by the pointer: the same red turned up —
-     brighter and a little heavier. A picked point is the same thing picked
-     out, so it is the same drawing turned up rather than a different one. */
-  --mark-focus-lit: #ff1a1a;
-  /* An anchor the operator is pointing at in the list. Deeper and more
-     saturated than the resting green rather than a different hue, so it reads
-     as the same mark being singled out and not as a second kind of thing. */
-  --mark-anchor-lit: #15803d;
-  /* An anchor still waiting to be driven to. A true dark yellow: the warning
-     ink next to it is amber-800, which against green and the red stage mark
-     reads as a third red rather than as the other half of a pair. */
-  --mark-anchor-waiting: #a16207;
-  /* The two sharpness metrics, as two series on one plot. Blue for the
-     gradient and green for the other, so the pair can be told apart at a
-     glance and by name — the gradient is the blue line. */
-  --m-brenner: #0369a1;
-  --m-dct: #15803d;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 12px 32px rgba(15, 23, 42, 0.07);
   --mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -83,15 +52,12 @@
     --accent-tint: #0c1f31;
     --accent-line: #164e63;
     --good: #4ade80;
-    --mark-anchor-lit: #86efac;
-    --mark-anchor-waiting: #facc15;
     --bad: #f87171;
     --warn-bg: #221a08;
     --warn-ink: #fb923c;
     --confirm-ink: #f59e0b;
   --edit-ink: #fde047;
     --warn-line: #57430f;
-    --mark-context: #64748b;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
   }
 }
@@ -116,7 +82,6 @@
   --warn-ink: #fb923c;
   --edit-ink: #fde047;
   --warn-line: #57430f;
-  --mark-context: #64748b;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
@@ -142,7 +107,6 @@
      orange, because a point somebody edited is not a point in trouble */
   --edit-ink: #eab308;
   --warn-line: #fde68a;
-  --mark-context: #94a3b8;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 12px 32px rgba(15, 23, 42, 0.07);
 }
 
@@ -221,15 +185,6 @@ select.wf-select {
   padding: 7px 9px; cursor: pointer;
 }
 
-button.ghost {
-  font: inherit; font-size: 13px; font-weight: 600;
-  color: var(--ink-2); background: var(--surface-3);
-  border: 1px solid var(--line-strong); border-radius: 8px;
-  padding: 6px 11px; cursor: pointer;
-}
-button.ghost:hover:enabled { background: var(--line); color: var(--ink); }
-button.ghost:disabled { opacity: 0.45; cursor: default; }
-
 .steps { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
 
 .step {
@@ -306,20 +261,6 @@ button.run {
   height: var(--control); padding: 0 14px; cursor: pointer;
 }
 button.run:hover:enabled { border-color: var(--accent); color: var(--accent); }
-/* The viewer's press: the word VIEWER and the way the picture is drawn, in
-   one raised press like the acquisitions'. The select wears no box of its
-   own; the press is its box. */
-.viewer-press {
-  display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box;
-  font: inherit; font-size: 13px; font-weight: 600; line-height: 1;
-  color: var(--accent-deep); border: 1px solid var(--line-strong);
-  height: var(--control); padding: 0 4px 0 8px; user-select: none;
-}
-#view-modes {
-  width: auto; min-width: 104px; height: 24px; padding: 0 4px;
-  font: inherit; font-size: 13px; font-weight: 600; color: var(--accent-deep);
-  background: transparent; border: none; cursor: pointer;
-}
 /* Faded, the way every other disabled control here is. A grey slab was the
    heaviest thing on a bar whose point is the field beside it. */
 button.run:disabled { opacity: 0.4; cursor: default; }
@@ -337,13 +278,8 @@ button.run:disabled { opacity: 0.4; cursor: default; }
   position: relative; z-index: 1;
 }
 .panel-foot:empty { display: none; }
-
-/* Nothing sits below the canvas: its layer controls live under Display
-   settings and Fit is on the picture itself. */
-#panel-canvas.on { grid-template-rows: minmax(0, 1fr); }
 .action-hint { font-size: 12.5px; color: var(--ink-3); font-family: var(--mono); flex: none; }
 .action-hint.ok { color: var(--good); }
-.action-hint.bad { color: var(--bad); }
 /* names the channel over the column it heads, at the far end of the tab row */
 .side-tab {
   /* out past the row's own padding, so it stands over the whole channel */
@@ -386,47 +322,6 @@ button.run:disabled { opacity: 0.4; cursor: default; }
 .panel.on { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
 
 .param .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
-
-button.ghost.tiny { padding: 2px 7px; font-size: 11px; line-height: 1.4; }
-
-.swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-
-/* The readout shrinks rather than wrapping: a toolbar that changes height
-   moves the canvas under the cursor, and points get placed where they were
-   not clicked. */
-.readout {
-  margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-  flex: 1 1 0; min-width: 0; text-align: right;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
-.seg button {
-  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-3);
-  background: var(--surface-2); border: none; border-right: 1px solid var(--line);
-  padding: 5px 10px; cursor: pointer; white-space: nowrap;
-}
-.seg button:last-child { border-right: none; }
-.seg button:not([aria-checked="true"]):not([aria-pressed="true"]):hover {
-  color: var(--ink); background: var(--surface-3);
-}
-/* Two kinds of button live in these strips and they look the same when they are
-   on. A row of engines is a choice between them, so exactly one is checked; a
-   row of layers is three switches that happen to sit together, so any number of
-   them may be pressed at once. The colour says "this one is on" in both cases,
-   which is the only thing an operator needs to read off it — said the way the
-   tool row says it, as a tint behind an accent border, so one page has one
-   picture of "this one is chosen" rather than two. */
-.seg button[aria-checked="true"],
-.seg button[aria-pressed="true"] {
-  color: var(--accent-deep); background: var(--accent-tint); border-color: var(--accent);
-}
-/* A layer cannot be turned on while there is no picture to turn it on in. Said
-   by making the button plainly unavailable rather than by letting it be pressed
-   and do nothing. */
-.seg button:disabled { opacity: 0.45; cursor: default; }
-.seg button:disabled:hover { color: var(--ink-3); background: var(--surface-2); }
 .param { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
 .param input[type="number"], .param select {
   font: inherit; font-family: var(--mono); font-size: 12px;
@@ -449,97 +344,6 @@ button.run.running::after {
 }
 @keyframes press-turning { to { transform: rotate(360deg); } }
 
-.plot-host { position: relative; min-height: 0; }
-canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
-/* No grabbing hand. The canvas is a picture that happens to pan, not a sheet
-   of paper being shoved about, and a hand on it says the panning is the point
-   when the point is what is drawn.
-
-   The cursor answers what the next press will do instead, which only the scan
-   fields editor knows — so while that step is standing here it sets the cursor
-   itself and this is the resting state underneath. */
-.stagecv { cursor: default; }
-
-/* The acquired overview lies over the plan, in the same place and at the same
-   size, because it is the same square of stage seen for real rather than a
-   second view of it. It is dark, the way an unimaged region is, so a canvas
-   with nothing written into it yet looks empty rather than looking broken.
-
-   The `hidden` attribute needs saying again here: the rule above gives every
-   canvas in this panel `display: block`, and that would otherwise keep showing
-   a canvas the page had asked to put away. */
-/* **Beneath the plan, not over it.** It was written the other way — the
-   acquired picture laid over the plan, the two swapped by hiding one — and
-   that arrangement can only ever show one of them. It cannot show the picture
-   *through* the plan, which is the whole point of the layers: the operator's
-   drawing fades or has a window opened in it, and the scan appears there.
-
-   A picture on top could not do that whatever the layers did, and it is also
-   the wrong way round for what is coming: the engine that will draw this —
-   neuroglancer — cannot be made see-through at all, so it has to be at the
-   bottom or it hides everything. `viz_studio/LAYERS.md` sets that out.
-
-   The plan's own surface is cleared to nothing and its background is painted
-   by the bottom layer of its stack, so turning that layer off, or cutting a
-   window through it, is what lets this show. */
-/* The picture the run is drawn on. A plain box rather than a canvas of its
-   own: the drawing engine builds whatever surfaces it needs inside it, and the
-   workflow's layers are drawn over them. Above the scan, which sits at z-index
-   0, because the plan is drawn over what has been imaged rather than under it. */
-.stagecv { position: absolute; inset: 0; z-index: 1; }
-.stagecv > canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-
-/* The scan, drawn by whichever engine is chosen, at the very bottom. The engine
-   builds its own canvases inside this box, so it is a plain container rather
-   than a canvas of its own — and it takes no pointer events, because the plan
-   above it owns the gestures and hands the view down. One canvas listening and
-   one following is the only arrangement in which the two cannot disagree. */
-.picturecv { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-
-/* `hidden` is an attribute and `display: flex` is a rule, and the rule wins, so a
-   row of buttons the page has hidden would otherwise still be on the screen. */
-.seg[hidden] { display: none; }
-
-/* What the picture is doing, said quietly in the corner of it: which run is
-   open, or why it could not be. */
-.live-note {
-  position: absolute; left: 10px; bottom: 10px; z-index: 6; max-width: 70%;
-  background: rgba(5, 7, 13, 0.72); color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 7px;
-  padding: 5px 9px; font-size: 11px; font-family: var(--mono);
-}
-.live-note[hidden] { display: none; }
-
-.tip {
-  position: absolute; pointer-events: none; z-index: 5;
-  background: var(--screen); border: 1px solid var(--line-strong); border-radius: 7px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
-  padding: 6px 9px; font-size: 12px; line-height: 1.45; color: var(--ink);
-  font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap;
-  opacity: 0; transition: opacity 0.1s;
-}
-.tip.on { opacity: 1; }
-.tip b { color: var(--ink-3); font-weight: 500; }
-
-/* One pair per row, however wide the channel, so the eye moves straight
-   down from overview context to the high-resolution target frame. */
-.pairs { display: grid; grid-template-columns: 1fr; gap: 12px; }
-.pair {
-  border: 1px solid var(--line); border-radius: 9px; overflow: hidden;
-  background: var(--surface-2); display: flex; flex-direction: column;
-}
-
-.pair canvas { display: block; width: 100%; height: auto; background: #000; }
-.pair .meta {
-  display: flex; align-items: center; gap: 6px; padding: 6px 8px;
-  font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums;
-}
-
-.legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.legend span { display: flex; align-items: center; gap: 6px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.dot.ring { box-shadow: 0 0 0 2px var(--screen), 0 0 0 3.5px var(--mark-selected); }
-
 :where(button, select, [tabindex]):focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px;
 }
@@ -554,31 +358,8 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
   .steps { max-height: 200px; }
 }
 
-/* A box that brings its own padding still needs the channel's margin around
-   it, which a panel of plain markup gets from `.side-pad`. More than one box
-   in there stands apart the way boxes do elsewhere in the channel. */
-.side-pad-around {
-  margin: var(--box-gap) 14px 0; display: flex; flex-direction: column; gap: var(--box-gap);
-}
-/* Laying it out with display beats the browser's own rule for `hidden`, so a
-   box that is put away has to be put away explicitly. */
-.side-pad-around[hidden] { display: none; }
-
 .field { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 12px; }
 .field > span { font-size: 13px; color: var(--ink-2); }
-/* What a field looks like on this page, said once. The open bar in Optical
-   Configuration asks for the same two things a session does — a choice and a
-   name — so it is the same control, not one that resembles it. */
-.field select, .field input,
-.rec-new input {
-  font: inherit; font-size: 13px; color: var(--ink);
-  background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: 7px; height: var(--control); padding: 0 9px; width: 100%;
-}
-/* No ring while a field holds the caret — the caret says so. Said once here,
-   so a session and the open bar behave the same way as well as look it. */
-.field select:focus, .field input:focus,
-.rec-new input:focus { outline: none; }
 
 .field input { font-family: var(--mono); letter-spacing: 0.08em; }
 .field select:disabled, .field input:disabled { opacity: 0.55; }
@@ -626,88 +407,8 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
   font-size: 15px; font-weight: 400; letter-spacing: 0.01em;
   color: var(--ink-3); line-height: 1;
 }
-
-/* Settings of one kind sit close; one kind and the next stand apart. */
-/* ---- the carrier configuration panel ------------------------------------
-   Controls down one side, the carrier drawn beside them. The drawing is the
-   check on the numbers: a wrong pitch is hard to see in a field and obvious
-   as soon as the areas overlap. */
-/* The canvas keeps the room; a step whose work is about the frame gets a
-   column beside it. Scrolls on its own so the picture never moves. */
-/* one width, so the channel and the name above it stand in the same column */
-/* Four columns, not three: the picture's own panel (the acquisitions and
-   their channels, workflows/target_acquisition/canvas/viewer-panel.js) stands between the picture
-   and the step's channel when there is a picture server to feed it. A grid
-   given more children than columns quietly wraps them onto a second row,
-   which scrambled the whole page the first time the panel appeared. */
-.canvas-body { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; min-height: 0; }
-/* The column's fold: a small handle halfway down its edge, not a strip the
-   height of the page. Pressed, the column goes and the handle stays as the
-   way back, so the canvas takes the room and nothing is lost. */
-.side-fold {
-  width: 18px; height: 64px; padding: 0; cursor: pointer; align-self: center;
-  /* A tab on the column's edge: rounded on the side that faces the
-     canvas, flat and open where it meets the column, so it reads as part
-     of it rather than a button laid beside it. */
-  border: 1px solid var(--line-strong); border-right: none; border-radius: 9px 0 0 9px;
-  background: var(--screen); color: var(--accent-deep); font: inherit; font-size: 20px;
-  /* Over the canvas's edge rather than in a column of its own: pulled back
-     by its whole width, the grid gives it no room at all, so the picture
-     runs to the column's edge and the tab lies on it. */
-  margin-left: -18px; position: relative; z-index: 4;
-  box-shadow: -2px 0 7px rgba(15, 23, 42, 0.10);
-}
-.side-fold:hover, .side-fold:focus-visible {
-  color: var(--accent); background: var(--accent-tint); border-color: var(--accent);
-}
-.side-fold > span { display: block; transform: translateY(-1px); }
-.side-fold.collapsed { border-right: 1px solid var(--line-strong); }
-.side-fold[hidden] { display: none; }
-.canvas-body > .viewer-panel { overflow-y: auto; min-height: 0; }
-.canvas-side {
-  width: var(--side-w); overflow-y: auto; min-height: 0;
-  border-left: 1px solid var(--line); background: var(--surface-2);
-  /* The column holds still while a hand works in it. The browser's scroll
-     anchoring keeps some lower element in place when content above it
-     grows, and the gate's readout growing to a second line at the first
-     point pushed the plot up by that line -- the closing press then missed
-     the first point by exactly it (measured 2026-09-03: scroll 37 -> 54). */
-  overflow-anchor: none;
-}
-.canvas-side[hidden] { display: none; }
-/* The display settings fill their column edge to edge: the viewer's panel was
-   drawn for a strip beside the picture, with a fold and a fixed width, and
-   here the tab is the fold and the column is the width. */
-.display-side > .viewer-panel { width: 100%; height: 100%; }
-.display-side > .viewer-panel > div { width: 100% !important; }
-.display-side {
-  display: flex; flex-direction: column; gap: 0;
-  padding: 0;
-}
-/* The canvas's own layers stand under the picture's settings, at the foot
-   of the column: the picture is what the column is about. */
-.display-side > .display-layer-settings { order: 2; }
-.display-side[hidden] { display: none; }
-.display-side > .viewer-panel { flex: 1 1 auto; height: auto; min-height: 0; }
-.display-layer-settings {
-  flex: none; margin: var(--box-gap) 14px;
-}
-.display-layer-settings .side-group-body { gap: 10px; }
-.display-layer-settings #stage-layers { align-items: flex-start; }
-.display-layer-settings .layer-extra {
-  width: 100%; margin: 2px 0 0; padding-top: 9px; border-top: 1px solid var(--line);
-  justify-content: space-between; flex-wrap: wrap;
-}
-/* In the column the panel wears the page's boxes: its rows keep their own
-   inset, so the box holds them without a second one. */
-.display-side .viewer-panel .side-group-body { padding: 10px 2px; gap: 0; }
 /* Two tabs at the end of the row, over the one column they switch. */
 .side-tab { gap: 2px; }
-/* The channel's edge, made draggable. It sits over the channel's own border
-   so there is no second line — the affordance is the cursor and the tint. */
-.side-divider { width: 6px; margin-right: -6px; cursor: col-resize; z-index: 2; }
-.side-divider:hover, .side-divider.dragging { background: var(--accent-line); }
-.side-divider[hidden] { display: none; }
 
 /* Every number of the carrier in one box, its rows stacked without frames of
    their own: the box is the description, and an edge round each row said that
@@ -742,356 +443,6 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
   background: var(--screen);
 }
 
-/* The fade and the lock, in a strip beside the row of layer buttons.
-   Separate from that row on purpose: the buttons are a joined set of switches
-   and read as one control, and a slider dropped into the middle of them reads
-   as something having gone wrong with the page. */
-.layer-extra { display: inline-flex; align-items: center; gap: 8px; margin-left: 8px; }
-.layer-fade {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12.5px; font-weight: 600; color: var(--ink-3);
-}
-.layer-fade input[type="range"] { width: 96px; accent-color: var(--accent); }
-/* The lock is a switch like the layer buttons, so it is given their look
-   rather than a look of its own — an operator should not have to learn two
-   kinds of switch in one toolbar. */
-.layer-extra button[data-lock] {
-  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-3);
-  background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: 8px; padding: 4px 10px; cursor: pointer;
-}
-.layer-extra button[data-lock]:not([aria-pressed="true"]):hover {
-  color: var(--ink); background: var(--surface-3);
-}
-.layer-extra button[data-lock][aria-pressed="true"] {
-  background: var(--accent-tint); color: var(--accent-deep); border-color: var(--accent);
-}
-
-/* The layer chips in Display settings, and the dial beside them. They read as
-   switches rather than as the checkboxes that were here before, because that
-   is what they are: any number may be on at once, and the colour is the only
-   thing an operator has to read off them. */
-.layer-chip {
-  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-3);
-  background: var(--surface-2); border: 1px solid var(--line-strong);
-  border-radius: 7px; padding: 3px 9px; cursor: pointer; white-space: nowrap;
-}
-.layer-chip:not([aria-pressed="true"]):hover { color: var(--ink); background: var(--surface-3); }
-.layer-chip[aria-pressed="true"] {
-  background: var(--accent-tint); color: var(--accent-deep); border-color: var(--accent);
-}
-#stage-layers { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-
-/* The canvas's own row, under the tab and above the picture. The picture never
-   reaches the top edge, so nothing has to float over it: the presses that say
-   what to look at stand at the left, and a legend for the layer on show --
-   the focus map's colour ramp -- stands at the right, where the eye looks
-   for one. The scale bar stays at the foot of the picture, where a scale bar
-   is expected. */
-/* The picture reaches the top of its column: the toolbar's row floats over
-   it rather than taking a strip of its own, which read as a white margin
-   above the picture. */
-.plot-column { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
-/* The slider under the picture: T, across the whole width. */
-.canvas-axes { display: grid; gap: 6px; padding: 8px 14px 10px; border-top: 1px solid var(--line); background: var(--screen); }
-.canvas-axes[hidden] { display: none; }
-.canvas-axis { display: grid; grid-template-columns: 18px 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; font-size: 11px; color: var(--ink-3); }
-/* Play: a small triangle that becomes two bars while it runs. */
-.canvas-axis-play {
-  width: 24px; height: 22px; padding: 0; border: 1px solid var(--line-strong); border-radius: 5px;
-  background: var(--screen); color: var(--accent-deep); cursor: pointer; position: relative;
-}
-.canvas-axis-play::before {
-  content: ""; position: absolute; left: 8px; top: 5px; border-style: solid;
-  border-width: 5px 0 5px 8px; border-color: transparent transparent transparent currentColor;
-}
-.canvas-axis-play[aria-pressed="true"]::before {
-  left: 7px; top: 5px; width: 3px; height: 10px; border: none; border-left: 3px solid currentColor; border-right: 3px solid currentColor; box-sizing: content-box; padding: 0 2px;
-}
-.canvas-axis-play:hover { border-color: var(--accent); color: var(--accent); }
-.canvas-axis[hidden] { display: none; }
-.canvas-axis-name { font-weight: 700; color: var(--ink-2); text-align: center; }
-.canvas-axis input { width: 100%; margin: 0; }
-.canvas-axis-value { min-width: 150px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
-.canvas-toolbar {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
-  /* The presses stand at the top of the row, and the row is exactly as
-     tall as they are plus its padding: its lower content edge is their
-     lower edge, which is what Fit measures the picture's room from. */
-  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px;
-  padding: 11px 12px; background: transparent;
-  /* And as tall as it is with the presses even while they are away, before
-     the microscope is connected: the row's edge does not move when they
-     arrive, so neither does the picture under it. */
-  min-height: calc(var(--control) + 22px); box-sizing: border-box;
-  /* The row never widens the canvas's column: it takes no more than its
-     column, and the chips are what give way when it is short of room.
-     Not clipped itself, so a card can hang below it. */
-  min-width: 0; white-space: nowrap;
-}
-/* The same blue-on-white press as Rerun and Run new points: one look for
-   every press on the page. */
-.canvas-toolbar button.run { align-self: center; }
-.canvas-toolbar-right { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
-.canvas-toolbar-right button[hidden] { display: none; }
-/* The row's presses carry a pictogram before the word. */
-.canvas-toolbar button.run { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none; }
-.canvas-toolbar button.run[hidden] { display: none; }
-/* A press that is only its pictogram: square, the symbol centred. */
-.canvas-toolbar button.run.icon { width: var(--control); padding: 0; justify-content: center; }
-.canvas-toolbar button.run svg { flex: none; }
-
-/* The picture's half of the row, in three pieces: the colour-or-grey
-   toggle on its own; then a joined strip, a little raised, holding the
-   acquisition picker with its channels flat in a box beside it, a numbered
-   dot each; and past a short dividing line in that same box, the masks.
-   The cards hang from the strip: the acquisitions' list under its press,
-   every other card at the row's right edge. */
-.canvas-strip { position: relative; display: inline-flex; flex: none; }
-.canvas-strip[hidden] { display: none; }
-/* The acquisition's press stands a little proud of the row, and the box of
-   channels beside it lies a little below it: the press decides what the
-   box holds, so it reads as the thing on top. */
-.canvas-strip .run {
-  background: linear-gradient(var(--screen), var(--surface-3));
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  position: relative; z-index: 1;
-}
-.canvas-strip .run.strip-first { border-radius: 7px 0 0 7px; }
-.canvas-strip .run.strip-first.strip-last { border-radius: 7px; }
-.canvas-strip .run.strip-last { border-radius: 0 7px 7px 0; border-left: none; }
-
-.canvas-strip .run.switch[aria-pressed="true"] {
-  background: var(--accent-tint); border-color: var(--line-strong); box-shadow: none;
-}
-/* The acquisition's press is a span with the ramp chip inside it, so it
-   dresses itself the way `button.run` does and lays its parts on one centre
-   line: the eye, the chip, the name and the caret, each in a box of the
-   same height, so the word sits neither above nor below the glyphs. */
-.acquisition-press {
-  display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box;
-  font: inherit; font-size: 13px; font-weight: 600; line-height: 1;
-  color: var(--accent-deep); border: 1px solid var(--line-strong);
-  height: var(--control); padding: 0 10px 0 8px; cursor: pointer; user-select: none;
-}
-.acquisition-press:hover { border-color: var(--accent); color: var(--accent); }
-/* The word at the head of a bar, ACQUISITIONS or MASKS, in the page's ink with a
-   hairline after it: the two bars in the row are two kinds of thing. */
-.bar-word {
-  display: inline-flex; align-items: center; height: 16px; flex: none;
-  padding-right: 7px; margin-right: 1px; border-right: 1px solid var(--line-strong);
-  font: 700 9.5px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink);
-}
-/* In the press the eye wears the press's own ink, as it did while it was a
-   drawing there, and no padding of its own: the press already spaces it. */
-.acquisition-press > .acquisition-eye { color: inherit; padding: 0; }
-.acquisition-press > .acquisition-eye svg { display: block; }
-/* The name stands in a box of the chip's height, and the box is centred
-   in the row rather than the word: a lowercase word has no ascenders to
-   speak of, so its letters sit in the lower half of the em box, and centring
-   the em box put the word two pixels low beside the glyphs. The bottom
-   padding lifts the letters by half its own height. */
-.acquisition-press > #acquisition-name {
-  display: inline-flex; align-items: center; height: 18px; padding-bottom: 4px;
-}
-/* The ramp chip: the lookup-table bar a microscopist knows, in a small
-   bordered box. Pressed means grey, and the glyph says which: a rainbow
-   ramp in colour, a black-to-white ramp in grey, each with a hairline so
-   the light end still has an edge. */
-.ramp-chip {
-  display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: 22px; height: 18px; padding: 0; box-sizing: border-box;
-  border: 1px solid var(--line-strong); border-radius: 4px; background: var(--screen);
-  cursor: pointer;
-}
-.ramp-chip:hover { border-color: var(--accent); }
-.ramp-chip svg { display: block; }
-.ramp-chip .ramp { stroke: rgba(15, 23, 42, 0.25); stroke-width: 0.6; }
-.ramp-chip .ramp.colours { fill: url(#ramp-colours); }
-.ramp-chip .ramp.greys { fill: url(#ramp-greys); }
-.ramp-chip[aria-pressed="true"] .ramp.colours { display: none; }
-.ramp-chip:not([aria-pressed="true"]) .ramp.greys { display: none; }
-
-/* The channels' box: flat, bordered on the top, right and bottom, joined
-   onto the acquisition's press, so the strip reads as one piece and the box
-   says which channels belong to the acquisition named at its left. */
-.canvas-channels {
-  display: flex; align-items: center; gap: 2px; min-width: 0;
-  height: var(--control); padding: 0 7px; box-sizing: border-box;
-  border: 1px solid var(--line-strong); border-left: none; border-radius: 0 7px 7px 0;
-  background: var(--screen);
-  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.10);
-}
-.canvas-channels[hidden] { display: none; }
-.canvas-chips { display: flex; align-items: center; gap: 2px; min-width: 0; }
-/* A chip is a numbered dot in the channel's colour and, beside it, the
-   small triangle that opens its box. The dot is pressed to show or hide the
-   channel; the triangle is its own press with its own hover, so the two are
-   not confused. The chosen chip sits on the accent tint, both parts. */
-.chip {
-  position: relative; display: inline-flex; align-items: center; gap: 1px;
-  height: 24px; padding: 0 2px; border-radius: 5px;
-}
-.chip[hidden] { display: none; }
-.chip.chosen { background: var(--accent-tint); }
-.chip-more {
-  width: 10px; height: 18px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: none; border-radius: 3px; color: var(--ink-3); cursor: pointer;
-}
-.chip-more:hover { background: var(--surface-3); color: var(--ink); }
-.chip-more svg { display: block; }
-.chip-dot {
-  position: relative; width: 18px; height: 18px; border-radius: 50%; padding: 0; cursor: pointer;
-  border: 1px solid rgba(15, 23, 42, 0.18); box-shadow: inset 0 0 0 1px var(--screen);
-  font: 600 9.5px system-ui, sans-serif; color: #fff; text-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
-  overflow: visible; transition: transform 0.12s;
-}
-.chip-dot:hover { transform: scale(1.12); }
-/* The grey chip's dot is a glyph, not a press: it neither grows nor invites. */
-.grey-dot { cursor: default; }
-.grey-dot:hover { transform: none; }
-/* Hidden: the dot fades and a line crosses it. Only the dot fades, not the
-   chip: a faded chip would become a layer of its own and trap its card
-   beneath the picture. */
-.chip.off .chip-dot { opacity: 0.45; }
-.chip.off .chip-dot::after {
-  content: ""; position: absolute; left: -4px; right: -4px; top: 50%; height: 1.5px;
-  background: var(--ink); transform: rotate(-45deg);
-}
-/* The masks' bar: a flat box the shape of the channels' box, rounded at
-   both ends, at the right end of the row, headed MASKS. One cell per mask
-   layer, in the layer's own dress; hidden, the cell fades and a line
-   crosses it, the way a hidden channel's dot is crossed. */
-.canvas-masks {
-  position: relative; display: flex; align-items: center; gap: 4px; flex: none;
-  height: var(--control); padding: 0 7px; box-sizing: border-box;
-  border: 1px solid var(--line-strong); border-radius: 7px;
-  /* Raised like the acquisitions' and the viewer's press: the three heads
-     of the row are three things of one kind. */
-  background: linear-gradient(var(--screen), var(--surface-3));
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-.canvas-masks[hidden] { display: none; }
-.mask-cells { display: flex; align-items: center; gap: 2px; min-width: 0; }
-
-/* The grey channel's chip. */
-.canvas-chips[hidden] { display: none; }
-.grey-dot { background: #6b7280; color: #fff; font: 600 10px system-ui, sans-serif; text-shadow: 0 0 2px rgba(0, 0, 0, 0.7); }
-
-/* A channel's box under the row -- the same box for a colour channel and
-   for the grey one: a head, a histogram, the axis's ends with Auto and Log
-   between them, then min, max and opacity, each a slider and a box. */
-.grey-pop, .channel-pop { right: 0; width: 320px; padding: 10px 12px 12px; display: grid; gap: 6px; color: var(--ink-2); }
-.canvas-box-head { display: flex; align-items: center; gap: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); margin-bottom: 2px; min-height: 24px; user-select: none; }
-.canvas-box-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.canvas-box-name { font-size: 12.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.canvas-box-eye {
-  width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: none; border-radius: 5px; color: var(--ink-2); cursor: pointer;
-}
-.canvas-box-eye:hover { background: var(--surface-3); color: var(--ink); }
-.canvas-box-eye .canvas-box-eye-slash { display: none; }
-.canvas-box-eye[aria-pressed="false"] { color: var(--ink-3); }
-.canvas-box-eye[aria-pressed="false"] .canvas-box-eye-slash { display: block; }
-/* The swatch is the channel's colour; the browser's own picker lies over
-   it, invisible, so a press on the swatch opens it. */
-.canvas-box-swatch {
-  position: relative; overflow: hidden; width: 16px; height: 16px; border-radius: 4px; flex: none;
-  border: 1px solid rgba(15, 23, 42, 0.25); box-shadow: inset 0 0 0 1px var(--screen); cursor: pointer;
-}
-.canvas-box-swatch input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.canvas-box-plot { display: block; width: 100%; height: 72px; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px; touch-action: none; user-select: none; }
-.canvas-box-axis { display: grid; grid-template-columns: 54px 1fr 54px; align-items: center; gap: 6px; padding: 4px 0 6px; }
-.canvas-box-buttons { display: flex; gap: 4px; justify-content: center; }
-.canvas-box-button { width: 54px; height: 24px; padding: 0; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface-3); color: var(--ink); font: 600 11px system-ui, sans-serif; cursor: pointer; }
-.canvas-box-button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
-.canvas-box-button:disabled { opacity: 0.5; cursor: default; }
-.canvas-box-row { display: grid; grid-template-columns: 52px 1fr 54px; gap: 6px; align-items: center; font-size: 10.5px; color: var(--ink-3); }
-.canvas-box-value {
-  width: 54px; height: 24px; box-sizing: border-box; padding: 1px 4px; text-align: right;
-  font: 500 11px system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--ink);
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 3px;
-}
-.canvas-box-value:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-/* A card under a press in the row: the masks' dress, the acquisitions. */
-.canvas-card {
-  position: absolute; top: calc(100% + 6px); right: 0; z-index: 6;
-  display: grid; gap: 10px; padding: 11px 12px;
-  background: var(--screen); border: 1px solid var(--line-strong); border-radius: 9px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
-}
-.canvas-card[hidden] { display: none; }
-/* Wide enough for the colour row: the rainbow, six swatches and the
-   picker, at 18 px and 6 px apart, beside their label. Narrower, the row
-   overflowed and pushed the opacity's readout past the card's edge. */
-.mask-pop { width: 280px; gap: 9px; padding: 9px 12px 12px; }
-.mask-pop-head { display: flex; align-items: center; gap: 8px; padding-bottom: 3px; border-bottom: 1px solid var(--line); margin-bottom: 1px; }
-.mask-pop-name { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-/* How the layer was made and how many objects it holds, in quiet ink at
-   the end of the head. */
-.mask-pop-how { margin-left: auto; font-size: 11px; color: var(--ink-3); white-space: nowrap; }
-.mask-eye {
-  width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: none; border-radius: 5px; color: var(--ink-2); cursor: pointer;
-}
-.mask-eye:hover { background: var(--surface-3); color: var(--ink); }
-.mask-eye .mask-eye-slash { display: none; }
-.mask-eye[aria-pressed="false"] { color: var(--ink-3); }
-.mask-eye[aria-pressed="false"] .mask-eye-slash { display: block; }
-.mask-pop-row { display: grid; grid-template-columns: 58px 1fr; align-items: center; gap: 8px; }
-.mask-opacity-row { display: grid; grid-template-columns: 1fr 38px; align-items: center; gap: 6px; }
-.mask-opacity-value { font-size: 11px; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
-.mask-pop-label {
-  font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--ink-3);
-}
-.mask-colours { display: flex; gap: 6px; }
-
-.mask-look { display: inline-flex; justify-self: start; }
-#mask-opacity { width: 100%; margin: 0; }
-
-.acquisition-pick { position: relative; }
-.acquisition-pick[hidden] { display: none; }
-.acquisition-menu { left: 0; right: auto; min-width: 230px; gap: 2px; padding: 6px; }
-
-.acquisition-eye {
-  display: inline-flex; padding: 2px; border: none; background: none; cursor: pointer;
-  color: var(--ink-2); border-radius: 4px;
-}
-.acquisition-eye[aria-pressed="false"] { opacity: 0.4; }
-/* A hidden acquisition's eye is struck through, as the layer and mask eyes are. */
-.acquisition-eye .acquisition-eye-slash { display: none; }
-.acquisition-eye[aria-pressed="false"] .acquisition-eye-slash { display: block; }
-
-/* On is tinted, off is outlined: the same look as every other on-or-off
-   press on the page, so the state can be read without reading the label. */
-.canvas-toolbar button.switch[aria-pressed="true"] {
-  background: var(--accent-tint); color: var(--accent-deep); border-color: var(--accent);
-}
-/* The legend stands at the foot of the picture on the left, on a plate so
-   its values read on every hue, clear of the scale bar at the right. Two
-   lines: the colours, and under them the two values at the ends of the bar
-   with what the colours mean between them. */
-.canvas-legend {
-  position: absolute; left: 12px; bottom: 30px; z-index: 3;
-  display: flex; flex-direction: column; align-items: stretch;
-  gap: 4px; width: 300px; padding: 6px 8px; color: var(--ink-2);
-  background: color-mix(in srgb, var(--screen) 88%, transparent);
-  border: 1px solid var(--line); border-radius: 6px;
-}
-.canvas-legend[hidden] { display: none; }
-.canvas-legend-ramp { display: block; height: 12px; border-radius: 2px; border: 1px solid var(--line-strong); }
-.canvas-legend-ends {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
-  font-family: ui-monospace, Consolas, monospace; font-size: 13px; font-weight: 600; line-height: 1.2;
-}
-.canvas-legend-ends > span { white-space: nowrap; }
-.canvas-legend-title {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 13px; font-weight: 600; color: var(--ink-3);
-}
-
 /* The status bar: one quiet sentence at the foot of the rail, there only
    while something is running -- what is happening lives beside the steps it
    speaks for, not floating over the picture. Hidden, the rail's third row
@@ -1104,7 +455,3 @@ canvas.plot { display: block; width: 100%; height: 100%; touch-action: none; }
   color: #1e40af;
   overflow-wrap: break-word;
 }
-
-/* A box greyed out for now: what it holds is on screen, and says so, but
-   nothing in it can be pressed. */
-.side-group.parked .side-group-body { opacity: 0.55; }
