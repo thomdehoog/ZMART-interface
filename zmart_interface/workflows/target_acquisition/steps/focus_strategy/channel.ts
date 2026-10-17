@@ -201,6 +201,7 @@ export function installFocus(page: TaPage): FocusOnThePage {
     tileChosen: () => page.shown.detection?.redraw(),
     backend: {
       measureFocus: (...a: Parameters<Backend["measureFocus"]>) => page.backend.measureFocus(...a),
+      stopFocusMeasure: () => page.backend.stopFocusMeasure(),
       /* Where a focus stack's slice pictures are fetched from -- the same
          answer every other picture gets, and `null` from a backend that
          serves none, which is what hides the preview. */

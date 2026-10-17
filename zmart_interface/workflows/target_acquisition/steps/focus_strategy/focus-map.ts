@@ -68,7 +68,8 @@ interface FocusMapContext {
     measureFocus: Backend["measureFocus"];
     /** Where a focus stack's slice pictures are fetched from, or null when none are served. */
     slicesAt?: () => string | null;
-    stopFocusMeasure?: () => unknown;
+    /** The run's own loop told to stop before its next point; the microscope is not asked. */
+    stopFocusMeasure: Backend["stopFocusMeasure"];
   };
   stage: FocusStage;
   el: (id: string) => HTMLElement | null;
@@ -1952,7 +1953,7 @@ const runAgain = (from: "stage" | "map", button: HTMLElement) => {
 let interruptAsked = false;
 const interruptTheRun = () => {
   interruptAsked = true;
-  backend.stopFocusMeasure?.();
+  backend.stopFocusMeasure();
   theButton("fp-rerun").disabled = true;
   theButton("fp-rerun").textContent = "stopping…";
 };
