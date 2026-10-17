@@ -13,6 +13,28 @@
  * panel is drawing never changes underneath it.
  */
 
+import type { Reading } from "./settings.ts";
+
+/** One recording kept: its own id and name, and the reading. */
+export interface Recording {
+  id: string;
+  name: string;
+  summary: string;
+  detail: Reading["detail"];
+  frameUm: number | null;
+  kind: Reading["kind"];
+  changeable: Record<string, unknown> | null;
+}
+
+/** A step's slot: the kind it records, the recording it holds, and how many it has taken. */
+export interface Slot {
+  type: string;
+  from: number;
+  records: Recording[];
+  active: string | null;
+  seq: number;
+}
+
 /**
  * A step's slot, before anything has been read into it.
  *
@@ -23,12 +45,12 @@
  * would look like one that did. A real controller reads what is there and
  * ignores it.
  */
-export const emptySlot = (type, from = 0) => ({
+export const emptySlot = (type: string, from = 0): Slot => ({
   type, from, records: [], active: null, seq: 0,
 });
 
 /** Whether anything has been read into it yet. */
-export const hasRecording = (slot) => !!slot?.records?.length;
+export const hasRecording = (slot: Slot | null | undefined): boolean => !!slot?.records?.length;
 
 /**
  * The name an unnamed recording gets. Counted from every reading this slot has
@@ -36,7 +58,7 @@ export const hasRecording = (slot) => !!slot?.records?.length;
  * ends up with names that tell readings apart; a recording that happened
  * under a dull name beats one refused over a blank field.
  */
-export const nextName = (slot) => `Default ${slot.seq + 1}`;
+export const nextName = (slot: Slot): string => `Default ${slot.seq + 1}`;
 
 /**
  * Which reading of its kind the next recording is. The mock controller answers
@@ -44,9 +66,9 @@ export const nextName = (slot) => `Default ${slot.seq + 1}`;
  * pretend operator changed the instrument in between. A real controller reads
  * what is there and ignores this number.
  */
-export const nextReadingIndex = (slot) => slot.from + slot.seq;
+export const nextReadingIndex = (slot: Slot): number => slot.from + slot.seq;
 
-const capitalised = (v) => (v ? v[0].toUpperCase() + v.slice(1) : v);
+const capitalised = (v: string) => (v ? v[0].toUpperCase() + v.slice(1) : v);
 
 /**
  * The reading, kept — in place of whatever the slot held before. Named as it
@@ -54,7 +76,7 @@ const capitalised = (v) => (v ? v[0].toUpperCase() + v.slice(1) : v);
  * afterwards; and active, because a reading is taken in order to be used and
  * the hand that took it is already here.
  */
-export const withRecording = (slot, { name, reading }) => {
+export const withRecording = (slot: Slot, { name, reading }: { name?: string | null; reading: Reading }): Slot => {
   const seq = slot.seq + 1;
   /* Counted rather than positional: a record replaced must not hand its id to
      the next one, or anything still naming the old preset would silently find
@@ -62,7 +84,7 @@ export const withRecording = (slot, { name, reading }) => {
      that the reading changed — a focus map measured under the old one, for
      instance, does not quietly claim to belong to the new. */
   const id = `${slot.type}-${seq}`;
-  const record = {
+  const record: Recording = {
     id,
     name: capitalised((name ?? "").trim()) || nextName(slot),
     summary: reading.summary,
@@ -84,7 +106,7 @@ export const withRecording = (slot, { name, reading }) => {
  * since a slot that still holds recordings has no reason to be working with
  * none of them.
  */
-export const withoutRecording = (slot, id) => {
+export const withoutRecording = (slot: Slot, id: string): Slot => {
   const records = slot.records.filter((r) => r.id !== id);
   const active = slot.active === id
     ? (records[records.length - 1]?.id ?? null)
@@ -98,9 +120,9 @@ export const withoutRecording = (slot, id) => {
  * recording and everything it produces is taken with that one, so there is no
  * second gesture that says where it applies.
  */
-export const withActive = (slot, id) =>
+export const withActive = (slot: Slot, id: string): Slot =>
   (slot.records.some((r) => r.id === id) ? { ...slot, active: id } : slot);
 
 /** The one this step is taken with. */
-export const activeRecording = (slot) =>
+export const activeRecording = (slot: Slot): Recording | null =>
   slot.records.find((r) => r.id === slot.active) ?? null;

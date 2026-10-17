@@ -10,4 +10,4 @@
 
 export const PENDING = "pending";
 
-export const isFailed = (value) => /^failed\b/i.test(String(value));
+export const isFailed = (value: unknown): boolean => /^failed\b/i.test(String(value));

@@ -5,7 +5,7 @@
  * through them, drawn in the stage's own projection because they are a
  * statement about the same glass the plan is drawn on.
  */
-import { activeRecording } from "../../microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.ts";
 
 export function focusLayers(theRun) {
   const {

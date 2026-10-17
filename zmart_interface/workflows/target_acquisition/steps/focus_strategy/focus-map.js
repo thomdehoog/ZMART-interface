@@ -30,7 +30,7 @@ import { visitOrder } from "./visit-order.js";
 import { zColourScale } from "./z-domain.js";
 import { status } from "../../../../api/index.ts";
 import { progressBox } from "../../shared/progress.js";
-import { activeRecording } from "../../microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.ts";
 /* The step's controls, as markup: read in as text by the build tool. */
 import focusControlsMarkup from "./focus-controls.html?raw";
 

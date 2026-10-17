@@ -2,11 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   emptySlot, withRecording, withoutRecording, withActive,
   activeRecording, nextName, nextReadingIndex,
-} from "./recordings.js";
-import { sampleReading } from "./settings.js";
+} from "./recordings.ts";
+import type { Slot } from "./recordings.ts";
+import { sampleReading } from "./settings.ts";
 
 /** Set the instrument up, name it, record it — what the panel's button does. */
-const record = (slot, name = "") => withRecording(slot, {
+const record = (slot: Slot, name = "") => withRecording(slot, {
   name,
   reading: sampleReading(slot.type, nextReadingIndex(slot)),
 });
@@ -67,7 +68,7 @@ describe("which state of the instrument a slot starts from", () => {
 describe("the recording held is the one the step is taken with", () => {
   it("activates what was just recorded, since recording is done in order to use it", () => {
     const slot = record(emptySlot("acquisition"), "overview");
-    expect(activeRecording(slot).name).toBe("Overview");
+    expect(activeRecording(slot)?.name).toBe("Overview");
   });
 
   it("refuses to activate what is not in the slot", () => {
@@ -79,7 +80,7 @@ describe("the recording held is the one the step is taken with", () => {
 describe("forgetting and replacing", () => {
   it("empties out, active and all, when the recording is forgotten", () => {
     const slot = record(emptySlot("acquisition"), "overview");
-    const left = withoutRecording(slot, slot.active);
+    const left = withoutRecording(slot, slot.active ?? "");
     expect(left.records).toEqual([]);
     expect(activeRecording(left)).toBe(null);
   });

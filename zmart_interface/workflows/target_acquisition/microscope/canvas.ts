@@ -14,7 +14,17 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
+/** A stretch along one axis, `[min, max]` in micrometres. */
+type Span = [number, number];
+
+/** Where pictures can show, per axis. */
+export interface PictureArea {
+  x_um: Span;
+  y_um: Span;
+  z_um: Span;
+}
+
+const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 /**
  * `{ x_um, y_um, z_um }`, each `[min, max]` in micrometres, from one
@@ -22,9 +32,9 @@ const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
  * driver gives no usable canvas on an axis: drawing an area somebody guessed
  * would put pictures where they were not taken.
  */
-export function theCanvasOf(reading) {
-  const area = {};
-  for (const axis of ["x", "y", "z"]) {
+export function theCanvasOf(reading: Partial<Record<"x" | "y" | "z", { canvas?: unknown }>> | null | undefined): PictureArea {
+  const area: Partial<PictureArea> = {};
+  for (const axis of ["x", "y", "z"] as const) {
     const canvas = reading?.[axis]?.canvas;
     if (!Array.isArray(canvas) || canvas.length !== 2
         || !canvas.every(isNumber) || canvas[0] > canvas[1]) {
@@ -36,5 +46,5 @@ export function theCanvasOf(reading) {
     }
     area[`${axis}_um`] = [canvas[0], canvas[1]];
   }
-  return area;
+  return area as PictureArea;
 }

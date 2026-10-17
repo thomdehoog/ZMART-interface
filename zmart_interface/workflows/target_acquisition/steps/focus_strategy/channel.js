@@ -17,7 +17,7 @@
 
 import { css, el, sizeCanvas } from "../../../../api/index.ts";
 import { newFocus } from "../../shared/run-document.js";
-import { activeRecording } from "../../microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.ts";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
 import { openTheFocusMap } from "./focus-map.js";
 

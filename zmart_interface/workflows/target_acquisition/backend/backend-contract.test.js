@@ -19,7 +19,7 @@
 
 import { beforeAll, describe, expect, it } from "vitest";
 import { promisesOfABackend } from "./backend-contract.js";
-import { isTheMock } from "../microscope/instruments.js";
+import { isTheMock } from "../microscope/instruments.ts";
 import { backend as pretend } from "./pretend.js";
 
 const promises = promisesOfABackend(expect);

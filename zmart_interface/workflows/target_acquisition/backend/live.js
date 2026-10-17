@@ -32,7 +32,7 @@
    microscope, or `?bridge=http://127.0.0.1:8600` during development, when
    the vite server holds the page instead. */
 import { atBridge } from "../../../api/index.ts";
-import { PENDING, isFailed } from "../microscope/connection-status.js";
+import { PENDING, isFailed } from "../microscope/connection-status.ts";
 import { findCandidates, pickPeak } from "../shared/focus-curves.js";
 
 /** Where this workflow's routes answer on the bridge: every verb below,

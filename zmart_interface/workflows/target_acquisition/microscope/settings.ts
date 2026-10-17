@@ -21,6 +21,22 @@
  * offers whatever is in it and always leaves an empty row at the bottom.
  * `sample` stands in for the controller read that a real backend would do.
  */
+
+/**
+ * One reading of the instrument's state, as the window records it: a line,
+ * the rows behind it, the ground one frame covers, for an autofocus which
+ * kind it is, and the reapplicable state the controller handed back.
+ */
+export interface Reading {
+  summary: string;
+  detail: [string, string][];
+  frameUm: number | null;
+  pixelUm?: number;
+  framePx?: number;
+  kind?: "software" | "hardware" | null;
+  changeable?: Record<string, unknown> | null;
+}
+
 /**
  * A reading is a summary and the detail behind it, composed from what the
  * controller reports rather than written out twice.
@@ -31,7 +47,9 @@
  * meant for reading is a number nothing can use — which is how the overview
  * tile size came to be typed a second time somewhere else.
  */
-const acquisition = ({ objective, pixelUm, framePx, channels, zStack }) => {
+const acquisition = ({ objective, pixelUm, framePx, channels, zStack }: {
+  objective: string; pixelUm: number; framePx: number; channels: string[]; zStack: string;
+}): Reading => {
   const frameUm = Math.round(framePx * pixelUm);
   /* The line an operator checks a configuration by: the objective as the
      instrument names it, and how much sample one frame covers. The name
@@ -52,7 +70,7 @@ const acquisition = ({ objective, pixelUm, framePx, channels, zStack }) => {
       ["Objective", objective],
       ["Pixel size", `${pixelUm.toFixed(2)} µm`],
       ["Frame", `${framePx} × ${framePx} px · ${frameUm} × ${frameUm} µm`],
-      ...channels.map((c, i) => [`Channel ${i + 1}`, c]),
+      ...channels.map((c, i): [string, string] => [`Channel ${i + 1}`, c]),
       ["Z stack", zStack],
     ],
   };
@@ -80,7 +98,9 @@ const acquisition = ({ objective, pixelUm, framePx, channels, zStack }) => {
  * autofocus has no metric, no sweep and no steps: filling those in as blanks
  * would be a form pretending the two are the same kind of thing.
  */
-const softwareAutofocus = ({ objective, pixelUm, framePx, channel, metric, rangeUm, stepUm }) => {
+const softwareAutofocus = ({ objective, pixelUm, framePx, channel, metric, rangeUm, stepUm }: {
+  objective: string; pixelUm: number; framePx: number; channel: string; metric: string; rangeUm: number; stepUm: number;
+}): Reading => {
   const frameUm = Math.round(framePx * pixelUm);
   /* How far it sweeps, how finely, and at what format — the three an operator
      checks a focus configuration by, because they are what decide whether it
@@ -102,7 +122,9 @@ const softwareAutofocus = ({ objective, pixelUm, framePx, channel, metric, range
   };
 };
 
-const hardwareAutofocus = ({ objective, pixelUm, framePx, source, offset, hold }) => {
+const hardwareAutofocus = ({ objective, pixelUm, framePx, source, offset, hold }: {
+  objective: string; pixelUm: number; framePx: number; source: string; offset: string; hold: string;
+}): Reading => {
   const frameUm = Math.round(framePx * pixelUm);
   return {
     /* No stack and no steps: it measures the glass rather than looking through
@@ -127,7 +149,7 @@ const hardwareAutofocus = ({ objective, pixelUm, framePx, source, offset, hold }
  * software or hardware and through which lens; the rest of it is one fold
  * away.
  */
-const SETTING_TYPES = [
+const SETTING_TYPES: { key: string; label: string; readings: Reading[] }[] = [
   {
     key: "acquisition",
     label: "Acquisition",
@@ -204,10 +226,11 @@ const SETTING_TYPES = [
   },
 ];
 
-const settingType = (key) => SETTING_TYPES.find((t) => t.key === key);
+const settingType = (key: string) => SETTING_TYPES.find((t) => t.key === key);
 
 /** What the controller reports for the nth recording of a kind. */
-export const sampleReading = (key, nth) => {
-  const { readings } = settingType(key);
-  return readings[nth % readings.length];
+export const sampleReading = (key: string, nth: number): Reading => {
+  const known = settingType(key);
+  if (!known) throw new Error(`no setting of the kind ${key}`);
+  return known.readings[nth % known.readings.length];
 };

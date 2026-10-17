@@ -18,10 +18,18 @@
 export const THE_MOCK = "interface-mock";
 
 /** Whether a listed name is the interface's own mock. */
-export const isTheMock = (name) => name === THE_MOCK;
+export const isTheMock = (name: string): boolean => name === THE_MOCK;
 
 /** Friendlier words for the names the page knows; any other is shown as it is. */
-export const MICROSCOPES = {
+/** What the Connect card says of a microscope and the driver it is reached through. */
+export interface KnownMicroscope {
+  label: string;
+  detail: string;
+  api: string;
+  apiDetail: string;
+}
+
+export const MICROSCOPES: Record<string, KnownMicroscope> = {
   [THE_MOCK]: { label: "Mock", detail: "the interface's pretend microscope",
     api: "Mock API", apiDetail: "in-process · made-up data" },
   mock: { label: "Mock beads", detail: "the controller's pretend microscope",
@@ -32,7 +40,15 @@ export const MICROSCOPES = {
  * The listed names, shaped the way the Connect card asks: one microscope per
  * name, each with the one driver it is plugged in through. List order is kept.
  */
-export function choicesFrom(instruments) {
+/** One microscope on the Connect card, with the drivers it is reached through. */
+export interface Choice {
+  key: string;
+  label: string;
+  detail: string;
+  apis: { key: string; label: string; detail: string; instrument: string }[];
+}
+
+export function choicesFrom(instruments: string[] | null | undefined): Choice[] {
   return (instruments ?? []).map((name) => {
     const known = MICROSCOPES[name];
     return {
@@ -51,12 +67,20 @@ export function choicesFrom(instruments) {
  * key and the driver's, ready for the Connect card to select. `null` when it
  * is not listed.
  */
-export function theMockAmong(choices) {
+export function theMockAmong(choices: Choice[] | null | undefined): { microscope: string; api: string } | null {
   const scope = (choices ?? []).find((one) => isTheMock(one.key));
   return scope ? { microscope: scope.key, api: scope.apis[0].key } : null;
 }
 
-export const DEFAULT_SESSION = {
+/** The session the Connect card is filling in. */
+export interface Session {
+  microscope: string | null;
+  api: string | null;
+  password: string;
+  instrument?: string;
+}
+
+export const DEFAULT_SESSION: Session = {
   /* Chosen once the instruments are listed: the interface's mock when it is
      listed, so a page opened by accident drives nothing. */
   microscope: null,
@@ -68,7 +92,7 @@ export const DEFAULT_SESSION = {
   password: "",
 };
 
-export const describeSession = ({ instrument }) => {
+export const describeSession = ({ instrument }: { instrument?: string | null }): string => {
   if (!instrument) return "not chosen";
   return MICROSCOPES[instrument]?.label ?? instrument;
 };

@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import {
   THE_MOCK, choicesFrom, describeSession, isTheMock, theMockAmong,
-} from "./instruments.js";
+} from "./instruments.ts";
 import { pretendInstruments } from "../backend/pretend.js";
 
 describe("choicesFrom", () => {

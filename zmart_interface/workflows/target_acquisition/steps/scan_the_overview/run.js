@@ -8,7 +8,7 @@
  */
 
 import { status } from "../../../../api/index.ts";
-import { activeRecording } from "../../microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.ts";
 
 /** How far through the scanned plan the scan is, worded once. */
 const scanNote = (state) => `${state.tilesShown} / ${state.scanned?.plan.length ?? state.plan.length} tiles`;

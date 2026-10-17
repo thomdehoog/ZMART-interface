@@ -1,12 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { sweep, scoreAt, debrisAt, SWEEP_N }
-  from "./sweep.js";
+  from "./sweep.ts";
 
 const FOCUS_Z = -412;
 
 /** An index the generator gives a speck to, and one it does not. */
-const withDebris = [...Array(40).keys()].find((i) => debrisAt(i));
-const withoutDebris = [...Array(40).keys()].find((i) => !debrisAt(i));
+const theFirst = (wanted: (i: number) => boolean) => {
+  const found = [...Array(40).keys()].find(wanted);
+  if (found === undefined) throw new Error("no such index among the first forty");
+  return found;
+};
+const withDebris = theFirst((i) => debrisAt(i) !== null);
+const withoutDebris = theFirst((i) => debrisAt(i) === null);
 
 describe("the sweep is a sweep", () => {
   it("returns the sampled curve, in order", () => {

@@ -7,7 +7,7 @@
  * press is asked for again.
  */
 
-import { activeRecording } from "../../microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.ts";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
 import { selectionPanel } from "./selection-panel.js";
 

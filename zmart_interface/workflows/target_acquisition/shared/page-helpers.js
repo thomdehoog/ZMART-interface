@@ -9,7 +9,7 @@
  */
 
 import { displayedPictureAddress } from "../canvas/display-of.js";
-import { activeRecording } from "../microscope/recordings.js";
+import { activeRecording } from "../microscope/recordings.ts";
 
 /** Where a capture's picture is: the viewer's small copy, by the capture's
     label -- drawn with the canvas's own display settings for that

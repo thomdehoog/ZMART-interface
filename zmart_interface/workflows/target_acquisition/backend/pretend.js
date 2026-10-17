@@ -32,10 +32,10 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import { MICROSCOPES, THE_MOCK } from "../microscope/instruments.js";
-import { sampleReading } from "../microscope/settings.js";
-import { makeRng } from "../microscope/pretend-sample/rng.js";
-import { sweep } from "../microscope/pretend-sample/sweep.js";
+import { MICROSCOPES, THE_MOCK } from "../microscope/instruments.ts";
+import { sampleReading } from "../microscope/settings.ts";
+import { makeRng } from "../microscope/pretend-sample/rng.ts";
+import { sweep } from "../microscope/pretend-sample/sweep.ts";
 import { METRIC_KEYS } from "../shared/focus-curves.js";
 
 /** A pause, for the pretend instrument's timers. */

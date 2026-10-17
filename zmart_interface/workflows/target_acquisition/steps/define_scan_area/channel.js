@@ -9,7 +9,7 @@
  */
 
 import { el } from "../../../../api/index.ts";
-import { hasRecording } from "../../microscope/recordings.js";
+import { hasRecording } from "../../microscope/recordings.ts";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
 import scanfieldsWidget, { presetInk } from "./scanfield-editor.js";
 

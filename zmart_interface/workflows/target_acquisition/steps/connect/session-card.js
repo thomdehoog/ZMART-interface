@@ -20,7 +20,7 @@
  */
 
 import { sideGroup } from "../../../../api/index.ts";
-import { isFailed } from "../../microscope/connection-status.js";
+import { isFailed } from "../../microscope/connection-status.ts";
 
 export function renderSessionCard(host, ctx) {
   const session = ctx.session();

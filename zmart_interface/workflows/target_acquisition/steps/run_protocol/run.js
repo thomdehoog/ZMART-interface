@@ -12,7 +12,7 @@
  */
 
 import { protocolFrom } from "../../shared/protocol.js";
-import { hasRecording } from "../../microscope/recordings.js";
+import { hasRecording } from "../../microscope/recordings.ts";
 
 /* The steps the protocol walks, in order. */
 const PROTOCOL_STEPS = ["focus", "scan", "detect", "gate", "select", "acquire"];

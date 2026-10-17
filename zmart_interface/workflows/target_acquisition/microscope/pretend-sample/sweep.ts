@@ -12,12 +12,27 @@
  * the rejected ones in the result is what lets the UI show its work.
  */
 
-import { makeRng } from "./rng.js";
+import { makeRng } from "./rng.ts";
 
 /** How each sharpness measure's curve is pretended: its width and offset
     about the focus, its skew, its noise, and how hard a speck answers it.
     The measures' names are the page's (`shared/focus-curves.js`). */
-const CURVE_OF = {
+/** How one measure's curve is pretended. */
+interface Curve {
+  width: number;
+  bias: number;
+  skew: number;
+  noise: number;
+  speckGain: number;
+}
+
+/** One sample of a sharpness curve: a height, and the sharpness there. */
+export interface Sample {
+  z: number;
+  s: number;
+}
+
+const CURVE_OF: Record<string, Curve> = {
   brenner: { width: 9.0, bias: 0.0, skew: 0.16, noise: 0.045, speckGain: 1.0 },
   dct: { width: 6.2, bias: -0.7, skew: 0.03, noise: 0.028, speckGain: 0.72 },
 };
@@ -26,7 +41,7 @@ export const SWEEP_N = 61;
 const SWEEP_HALF_UM = 34;
 
 /** Whether this position happens to have a speck in the field, and what it is. */
-export function debrisAt(index) {
+export function debrisAt(index: number): { offset: number; amp: number; width: number } | null {
   const r = makeRng(770 + index * 613);
   if (r() > 0.45) return null;
   return {
@@ -46,8 +61,11 @@ export function debrisAt(index) {
  *                swept about it. Left out, it arrives somewhere near the tissue
  *                already, which is the best a first run can be said to do.
  */
-export function sweep({ focusZ, index, metric, startZ }) {
+export function sweep({ focusZ, index, metric, startZ }: {
+  focusZ: number; index: number; metric: string; startZ?: number | null;
+}): { samples: Sample[]; hasDebris: boolean } {
   const m = CURVE_OF[metric];
+  if (!m) throw new Error(`no sharpness measure called ${metric}`);
   const centre = focusZ + m.bias;
   /* A sweep is taken about where the objective started, not about where the
      answer turns out to be. That is what makes the starting height worth
@@ -58,7 +76,7 @@ export function sweep({ focusZ, index, metric, startZ }) {
   const r = makeRng(1000 + index * 91 + metric.length * 17);
   const speck = debrisAt(index);
 
-  const samples = [];
+  const samples: Sample[] = [];
   for (let i = 0; i < SWEEP_N; i++) {
     const z = guess - SWEEP_HALF_UM + (2 * SWEEP_HALF_UM * i) / (SWEEP_N - 1);
     const d = z - centre;
@@ -79,7 +97,7 @@ export function sweep({ focusZ, index, metric, startZ }) {
 
 
 /** Read the curve between its samples — used by the draggable height marker. */
-export function scoreAt(samples, z) {
+export function scoreAt(samples: Sample[], z: number): number {
   if (z <= samples[0].z) return samples[0].s;
   const last = samples[samples.length - 1];
   if (z >= last.z) return last.s;

@@ -17,7 +17,7 @@
 import { sideGroup } from "../../../api/index.ts";
 import {
   nextReadingIndex, withActive, withRecording, withoutRecording,
-} from "../microscope/recordings.js";
+} from "../microscope/recordings.ts";
 
 /* Which recordings are unfolded, by id. As many at once as the operator
    wants open: comparing two readings means reading both, and folding one

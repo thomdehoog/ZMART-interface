@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PENDING } from "../microscope/connection-status.js";
+import { PENDING } from "../microscope/connection-status.ts";
 import { backend } from "./live.js";
 
 /** A bridge whose `get_info` answers walk through `statuses`, one per poll. */

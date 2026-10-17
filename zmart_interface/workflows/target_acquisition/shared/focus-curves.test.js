@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from "vitest";
 import { findCandidates, pickPeak, MIN_TISSUE_WIDTH_UM, METRIC_KEYS } from "./focus-curves.js";
-import { sweep, debrisAt } from "../microscope/pretend-sample/sweep.js";
+import { sweep, debrisAt } from "../microscope/pretend-sample/sweep.ts";
 
 const FOCUS_Z = -412;
 

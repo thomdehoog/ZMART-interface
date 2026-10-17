@@ -12,7 +12,7 @@
  * the placing are `run.js`.
  */
 
-import { hasRecording } from "../../microscope/recordings.js";
+import { hasRecording } from "../../microscope/recordings.ts";
 import { selectionChannel } from "./channel.js";
 import { placingFinished } from "./run.js";
 

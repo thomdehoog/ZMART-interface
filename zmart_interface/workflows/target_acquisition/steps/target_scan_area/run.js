@@ -7,7 +7,7 @@
  * where the sampling and the placing happen.
  */
 
-import { activeRecording } from "../../microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.ts";
 import { keptUnderCeiling } from "../../shared/gating.js";
 import { planScanAreas } from "./scan-areas.js";
 

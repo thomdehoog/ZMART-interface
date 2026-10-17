@@ -10,7 +10,7 @@
  */
 
 import { status } from "../../../../api/index.ts";
-import { activeRecording } from "../../microscope/recordings.js";
+import { activeRecording } from "../../microscope/recordings.ts";
 import carrierWidget from "../../shared/carrier-panel.js";
 
 /* The pause before the picture moves on to the tile being taken, which
