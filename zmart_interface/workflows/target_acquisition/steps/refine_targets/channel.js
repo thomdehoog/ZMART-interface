@@ -6,7 +6,7 @@
  * the page asks it to draw again.
  */
 
-import { css, sizeCanvas } from "../../../../framework/window/dom.js";
+import { css, sizeCanvas } from "../../../../api/index.ts";
 import { cellsInAllGates } from "../../shared/gating.js";
 import gatingPanel from "./gate.js";
 

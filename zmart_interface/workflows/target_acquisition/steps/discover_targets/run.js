@@ -3,7 +3,7 @@
  * each field's targets landing on the canvas as it is found.
  */
 
-import { status } from "../../../../framework/window/status.js";
+import { status } from "../../../../api/index.ts";
 import { newMaskLayer, replaceMaskLayer } from "../../shared/mask-layers.js";
 import { cellsInAllGates } from "../../shared/gating.js";
 import { settingsFor } from "./detection.js";

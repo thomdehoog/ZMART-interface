@@ -172,22 +172,24 @@ describe("a workflow that knows nothing about a microscope", () => {
     expect(three.blurb).toBeTruthy();
   });
 
-  it("has its three steps numbered one to three", () => {
-    expect(three.steps.map((s) => [s.n, s.id])).toEqual([["1", "begin"], ["2", "count"], ["3", "finish"]]);
+  it("has its steps numbered in order, the one that says its own number included", () => {
+    expect(three.steps.map((s) => [s.n, s.id])).toEqual(
+      [["1", "begin"], ["2", "count"], ["3", "finish"], ["4", "look"], ["5", "walk"]]);
   });
 
   it("brings its own panel, and every step stands on it", () => {
     expect(three.panels.map((p) => p.key)).toEqual(["card"]);
     const staying = three.panels.filter((p) => p.stays).map((p) => p.key);
-    expect(three.steps.map((_, i) => panelsFor(three.steps, i, staying))).toEqual([["card"], ["card"], ["card"]]);
+    expect(three.steps.map((_, i) => panelsFor(three.steps, i, staying)))
+      .toEqual(three.steps.map(() => ["card"]));
   });
 
-  it("carries the declarations the page reads: state, install, no backend", () => {
+  it("carries every declaration the page reads", () => {
     expect(typeof three.freshState).toBe("function");
     expect(three.keptAcrossSessions).toEqual([]);
     expect(typeof three.forTests).toBe("function");
     expect(typeof three.install).toBe("function");
-    expect(three.backendFor).toBeUndefined();
+    expect(typeof three.backendFor).toBe("function");
   });
 
   it("is the shape the rail expects: begin settles by standing, count has a brake, finish a press", () => {
@@ -205,8 +207,8 @@ describe("a workflow that knows nothing about a microscope", () => {
     expect(isReachable(three.steps, new Set(["begin"]), 2)).toBe(false);
   });
 
-  it("names the step that walks the others only where there is one", () => {
-    expect(three.steps.filter((s) => s.walks)).toEqual([]);
+  it("names the step that walks the others", () => {
+    expect(three.steps.filter((s) => s.walks).map((s) => s.id)).toEqual(["walk"]);
   });
 });
 

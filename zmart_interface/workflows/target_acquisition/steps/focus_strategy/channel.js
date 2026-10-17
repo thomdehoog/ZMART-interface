@@ -15,7 +15,7 @@
  * its layers and other steps read the surface it fitted.
  */
 
-import { css, el, sizeCanvas } from "../../../../framework/window/dom.js";
+import { css, el, sizeCanvas } from "../../../../api/index.ts";
 import { newFocus } from "../../shared/run-document.js";
 import { activeRecording } from "../../microscope/recordings.js";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";

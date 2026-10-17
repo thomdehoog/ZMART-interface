@@ -10,7 +10,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { assembleWorkflows } from "../rules/finding-workflows.js";
-import * as threeSteps from "../fixtures/three_steps/flow.js";
+import * as threeSteps from "../fixtures/three_steps/flow.ts";
 import { composeThePages } from "./pages.js";
 
 let heard;

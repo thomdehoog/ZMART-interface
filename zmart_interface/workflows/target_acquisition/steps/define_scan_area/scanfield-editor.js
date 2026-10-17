@@ -25,7 +25,7 @@
  * without the question in front of them.
  */
 
-import { sideGroup } from "../../../../framework/window/panels.js";
+import { sideGroup } from "../../../../api/index.ts";
 import {
   centres, geometry, frameFitsArea, frameSeat, insideArea, nearestArea, scanBox,
 } from "../../shared/carriers.js";

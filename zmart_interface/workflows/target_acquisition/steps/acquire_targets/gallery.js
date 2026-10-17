@@ -126,7 +126,7 @@ function targetFrame(src, field) {
 }
 
 import { progressBox } from "../../shared/progress.js";
-import { sideGroup } from "../../../../framework/window/panels.js";
+import { sideGroup } from "../../../../api/index.ts";
 
 export default {
   id: "acquire",

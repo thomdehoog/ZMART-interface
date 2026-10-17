@@ -17,7 +17,7 @@
  * `run.js` walks the steps; `channel.js` holds the box.
  */
 
-import { staleSteps } from "../../../../framework/rules/steps.js";
+import { staleSteps } from "../../../../api/index.ts";
 import { protocolChannel } from "./channel.js";
 import { afterTheProtocolPress, protocolBlockers, runProtocol } from "./run.js";
 

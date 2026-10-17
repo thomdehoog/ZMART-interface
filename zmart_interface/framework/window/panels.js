@@ -25,8 +25,8 @@
 /**
  * Make one box for the channel: a heading, and a card to put controls in.
  *
- * @param title what the box is for, shown above the card.
- * @param extra an optional further class on the box, for the few places that
+ * @param {string} title what the box is for, shown above the card.
+ * @param {string} [extra] an optional further class on the box, for the few places that
  *   need to style one differently — the carrier's layout box asks for
  *   `carrier-sizes`, which gives it a little more room inside.
  * @returns `{ group, body }` — `group` is the whole box, to be added to the

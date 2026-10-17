@@ -31,7 +31,7 @@
    (`framework/window/bridge-address.js`): the page's own origin on the
    microscope, or `?bridge=http://127.0.0.1:8600` during development, when
    the vite server holds the page instead. */
-import { atBridge } from "../../../framework/window/bridge-address.js";
+import { atBridge } from "../../../api/index.ts";
 import { PENDING, isFailed } from "../microscope/connection-status.js";
 import { findCandidates, pickPeak } from "../shared/focus-curves.js";
 

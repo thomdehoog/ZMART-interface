@@ -410,7 +410,7 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `workflows/target_acquisition/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
 | `framework/window/main.js`, `pages.js` | start and compose the page: one frame, and one page per workflow over it with its own panels, lends and hooks; they name no workflow, backend or panel |
 | `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: its half of the run document, the rail, the step's press, running a step, the panels, the channel |
-| `framework/fixtures/three_steps/flow.js` | the framework's own test workflow, with no microscope, no Python and no canvas; assembled by the unit tests |
+| `framework/fixtures/three_steps/flow.ts` | the framework's own test workflow, in TypeScript over the workflow API alone, using every field and hook; no microscope and no canvas; assembled by the unit tests |
 | `ta/the-canvas.js`, `ta/on-the-page.js` | the workflow's side of the page: what it puts on its canvas, and the functions its steps lend the page |
 | `ta/steps/*/run.js`, `ta/steps/*/channel.js` | each step's own run and controls, beside its declaration |
 

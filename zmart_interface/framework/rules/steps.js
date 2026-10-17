@@ -76,7 +76,14 @@ export function editedAt(steps, done, stale, id) {
   return next;
 }
 
-/** The stale steps in rail order — a step not done is never stale. */
+/**
+ * The stale steps in rail order — a step not done is never stale.
+ * @template {{ id: string }} S
+ * @param {S[]} steps
+ * @param {Set<string>} done
+ * @param {Set<string>} stale
+ * @returns {S[]}
+ */
 export const staleSteps = (steps, done, stale) =>
   steps.filter((s) => done.has(s.id) && stale.has(s.id));
 

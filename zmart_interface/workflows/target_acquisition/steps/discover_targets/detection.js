@@ -44,7 +44,7 @@ const labelColour = (n, alpha = 1) =>
 import { dressTheMask } from "./mask-dress.js";
 import { progressBox } from "../../shared/progress.js";
 import { previewMessage } from "../../shared/preview-message.js";
-import { sideGroup } from "../../../../framework/window/panels.js";
+import { sideGroup } from "../../../../api/index.ts";
 
 export default {
   id: "detect",

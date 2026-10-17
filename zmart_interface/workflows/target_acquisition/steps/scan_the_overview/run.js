@@ -7,7 +7,7 @@
  * and the picture as each field lands.
  */
 
-import { status } from "../../../../framework/window/status.js";
+import { status } from "../../../../api/index.ts";
 import { activeRecording } from "../../microscope/recordings.js";
 
 /** How far through the scanned plan the scan is, worded once. */

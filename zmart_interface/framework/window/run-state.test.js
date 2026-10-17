@@ -6,7 +6,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { exposeTheRunForTests, freshRun, startOver } from "./run-state.js";
-import * as threeSteps from "../fixtures/three_steps/flow.js";
+import * as threeSteps from "../fixtures/three_steps/flow.ts";
 
 const NO_BACKEND = Object.freeze({});
 

@@ -7,7 +7,7 @@
  * handing.
  */
 
-import { sideGroup } from "../../../../framework/window/panels.js";
+import { sideGroup } from "../../../../api/index.ts";
 
 /**
  * The step's box.

@@ -8,7 +8,7 @@
  * a field takes its frame from it.
  */
 
-import { el } from "../../../../framework/window/dom.js";
+import { el } from "../../../../api/index.ts";
 import { hasRecording } from "../../microscope/recordings.js";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
 import scanfieldsWidget, { presetInk } from "./scanfield-editor.js";

@@ -8,9 +8,7 @@
  */
 
 import { burst } from "./confetti.js";
-import { css } from "../../../../framework/window/dom.js";
-import { sideGroup } from "../../../../framework/window/panels.js";
-import { staleSteps } from "../../../../framework/rules/steps.js";
+import { css, sideGroup, staleSteps } from "../../../../api/index.ts";
 import { protocolFrom } from "../../shared/protocol.js";
 
 /** The operator looked at every orange step and agrees with them as they

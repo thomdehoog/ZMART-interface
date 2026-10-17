@@ -14,7 +14,7 @@ import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
 import { freshRun, startOver } from "../../framework/window/run-state.js";
 import { emptySlot, withRecording } from "./microscope/recordings.js";
 import { sampleReading } from "./microscope/settings.js";
-import * as threeSteps from "../../framework/fixtures/three_steps/flow.js";
+import * as threeSteps from "../../framework/fixtures/three_steps/flow.ts";
 import * as targetAcquisition from "./flow.js";
 
 const { WORKFLOWS } = assembleWorkflows({ "target_acquisition/flow.js": targetAcquisition });

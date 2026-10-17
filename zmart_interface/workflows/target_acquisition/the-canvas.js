@@ -17,8 +17,7 @@
 
 import { mountTheAxes } from "./canvas/axes.js";
 import { showPublicationStatus } from "./canvas/publication-note.js";
-import { css, el, sizeCanvas } from "../../framework/window/dom.js";
-import { status } from "../../framework/window/status.js";
+import { css, el, sizeCanvas, status } from "../../api/index.ts";
 
 /* How the status bar begins a drive the microscope declined. */
 const REFUSED = "The stage did not go there: ";

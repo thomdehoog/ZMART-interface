@@ -18,6 +18,7 @@ a piece of markup read in as text -- and, if it has one, its Python half:
 
 ```
 my_workflow/
+  workflow.json      its name, its version, and the workflow API it works with
   flow.js            the front door: the steps, the blurb, the panels, install, ...
   steps/
     begin/step.js
@@ -31,20 +32,27 @@ of its routes at the bridge (`/api/my_workflow/...`).
 
 ## What a workflow may import
 
-A workflow imports its own files, and the framework and the parts by a
-relative path: `../../framework/window/panels.js` from its `flow.js`. It does
-not import another workflow: a piece two workflows need is general and moves
-into `parts/`.
+A workflow imports its own files, the workflow API --
+`zmart_interface/api/index.ts`, by a relative path: `../../api/index.ts` from
+its `flow.js` -- and the npm packages the interface lists. Anything else stops
+the build with a sentence naming the import, and so does an import of another
+workflow: two workflows share nothing. `docs/the-workflow-api.md` says what the
+API holds and when the interface calls what a workflow declares.
 
-The framework's helpers a step reaches for are `framework/window/dom.js`,
-`framework/window/panels.js`, `framework/window/status.js`,
-`framework/window/bridge-address.js` and `framework/rules/steps.js`.
-`parts/` holds no page code today: the canvas and the microscope seam belong
-to target acquisition, the one workflow that uses them, and move into
-`parts/` when a second workflow needs them (`zmart_interface/parts/README.md`).
+The framework's own fixture, `zmart_interface/framework/fixtures/three_steps/flow.ts`,
+is a complete workflow that uses every field and hook of the API and imports
+nothing else: steps, a card panel, no microscope. Start from it.
 
-The framework's own fixture, `zmart_interface/framework/fixtures/three_steps/flow.js`,
-is a complete workflow: three steps, a card panel, no microscope. Start from it.
+## Which API it was written for
+
+Beside `flow.js` goes a `workflow.json` naming the workflow, its own version,
+and the versions of the workflow API it works with:
+
+```json
+{ "name": "my_workflow", "version": "0.1.0", "api": "^0.1.0" }
+```
+
+The build stops, saying so, when the interface's API is outside that range.
 
 ## Its dependencies
 

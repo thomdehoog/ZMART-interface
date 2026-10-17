@@ -15,6 +15,9 @@
     "noEmit": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
+    // A module is named with its own ending, `.ts` included, as Vite reads it.
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
     // `import.meta.glob`, `?raw` and stylesheet imports, as Vite answers them.
     "types": ["vite/client"],
     // Neuroglancer's insides by the names it offers them under, mapped as

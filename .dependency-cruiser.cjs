@@ -38,6 +38,20 @@ module.exports = {
       to: { path: "^zmart_interface/workflows/", pathNot: "^zmart_interface/workflows/$1/" },
     },
     {
+      name: "a-workflow-uses-only-the-api",
+      comment: "A workflow imports its own files, the workflow API (zmart_interface/api/) and npm packages; anything else of the interface could change under it. Its tests may reach further.",
+      severity: "error",
+      from: { path: "^zmart_interface/workflows/([^/]+)/", pathNot: "\\.(test|spec)\\.[jt]s$" },
+      to: { path: "^zmart_interface/", pathNot: ["^zmart_interface/workflows/$1/", "^zmart_interface/api/"] },
+    },
+    {
+      name: "the-fixture-uses-only-the-api",
+      comment: "The framework's own fixture is the smallest workflow, and is held to the same edge.",
+      severity: "error",
+      from: { path: "^zmart_interface/framework/fixtures/([^/]+)/", pathNot: "\\.(test|spec)\\.[jt]s$" },
+      to: { path: "^zmart_interface/", pathNot: ["^zmart_interface/framework/fixtures/$1/", "^zmart_interface/api/"] },
+    },
+    {
       name: "a-step-imports-no-step",
       comment: "A step is its own folder. What two steps use sits below them, in the workflow's shared/; only the workflow's root composes the steps.",
       severity: "error",

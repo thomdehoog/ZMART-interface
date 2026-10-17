@@ -8,8 +8,7 @@
  * the run and the backend.
  */
 
-import { css, sizeCanvas } from "../../../../framework/window/dom.js";
-import { status } from "../../../../framework/window/status.js";
+import { css, sizeCanvas, status } from "../../../../api/index.ts";
 import detectionPanel from "./detection.js";
 
 /* Detection is judged by its masks, and coloured masks read best on

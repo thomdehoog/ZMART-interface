@@ -19,7 +19,7 @@
  * in the row already on screen.
  */
 
-import { sideGroup } from "../../../../framework/window/panels.js";
+import { sideGroup } from "../../../../api/index.ts";
 import { isFailed } from "../../microscope/connection-status.js";
 
 export function renderSessionCard(host, ctx) {

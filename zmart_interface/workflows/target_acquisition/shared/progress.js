@@ -22,7 +22,7 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import { sideGroup } from "../../../framework/window/panels.js";
+import { sideGroup } from "../../../api/index.ts";
 
 /** A duration in the box's own words. */
 const saySpan = (s) => (s >= 90

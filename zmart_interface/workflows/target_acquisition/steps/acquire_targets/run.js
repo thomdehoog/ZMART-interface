@@ -9,7 +9,7 @@
  * run; the next run follows again.
  */
 
-import { status } from "../../../../framework/window/status.js";
+import { status } from "../../../../api/index.ts";
 import { activeRecording } from "../../microscope/recordings.js";
 import carrierWidget from "../../shared/carrier-panel.js";
 

@@ -18,7 +18,7 @@ import { rgbOf, stampDots } from "./dots.js";
 import {
   cellFeature, cellsInAllGates, featureNames, gateForPair, hasFeature, insidePolygon,
 } from "../../shared/gating.js";
-import { sideGroup } from "../../../../framework/window/panels.js";
+import { sideGroup } from "../../../../api/index.ts";
 
 /** Room for the axes, in pixels. */
 /* The plot takes the card: room at the left for the tick labels and the

@@ -6,6 +6,7 @@ import {
   THE_UNPACKING_PROGRAM, WHERE_THE_WORKERS_LIVE, theUnpackingProgram,
 } from "./tools/neuroglancer-workers.mjs";
 import { theViewersDrawingFolder } from "./tools/the-installed-viewer.mjs";
+import { theWorkflowsFitTheApi } from "./tools/the-workflows-fit.mjs";
 
 const here = import.meta.dirname;
 
@@ -89,6 +90,13 @@ const dropTheSignInPagesWeDoNotUse = {
 export default defineConfig({
   base: "./",
   plugins: [
+    /* Every workflow names the workflow API versions it works with; one that
+       does not fit stops the build, and the development server, with a
+       sentence naming it. */
+    theWorkflowsFitTheApi({
+      workflows: path.join(here, "zmart_interface", "workflows"),
+      api: path.join(here, "zmart_interface", "api"),
+    }),
     placeTheUnpackingProgram,
     dropTheSignInPagesWeDoNotUse,
     /* The single-file plugin normally sets a handful of build options for you,

@@ -231,5 +231,8 @@ drives nothing and keeps nothing of its own needs only the first two.
 - `forTests(state)` — what a browser test may read of the workflow's state,
   through `window.__theRunState()`, beside the framework's own fields.
 
-The framework's own fixture, `../framework/fixtures/three_steps/flow.js`,
-is the smallest flow that exercises all of these; read it next to this list.
+The framework's own fixture, `../framework/fixtures/three_steps/flow.ts`,
+is the smallest flow that uses all of these, typed against the workflow API
+(`../api/index.ts`, explained in `docs/the-workflow-api.md`); read it next to
+this list. A workflow imports nothing of the interface but that API, and says
+which versions of it it works with in its `workflow.json`.

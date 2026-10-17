@@ -1,16 +1,16 @@
 /**
- * Whether a version of the framework satisfies the range a workflow asks for.
+ * Whether a version of the workflow API satisfies the range a workflow asks for.
  *
- * A workflow package says which framework it was written for, in its
- * `workflow.json`: `"framework": "^0.1.0"`, say. The page compares that with
- * its own version before it loads the bundle, and refuses one written for a
- * framework it is not, with a sentence rather than a page that half works.
+ * A workflow says which API it was written for, in its `workflow.json`:
+ * `"api": "^0.1.0"`, say. The build compares that with the API's own version
+ * (`tools/the-workflows-fit.mjs`), and refuses a workflow written for an API
+ * it is not, with a sentence rather than a page that half works.
  *
  * Pure, and small on purpose: the handful of range shapes a workflow author
  * actually writes, and nothing from a package. A version is `major.minor.patch`
  * with an optional tag after a hyphen (`0.1.0-rc.1`), and the tag is ignored
  * when comparing: a release candidate of 0.1.0 is 0.1.0 for the question
- * "was this workflow written for this framework".
+ * "was this workflow written for this API".
  *
  * The ranges understood, each as a word to the reader:
  *
@@ -18,9 +18,9 @@
  * - `1.2.3`: exactly that version.
  * - `^1.2.3`: that version or newer, below the next major (below 2.0.0);
  *   while the major is 0, below the next minor (`^0.1.0` means 0.1.x), since
- *   a 0.x framework changes between minors. This is npm's reading for every
- *   caret but `^0.0.x`, which npm pins to one patch and this file reads as
- *   0.0.x; a framework at 0.0 is not something a package would be written for.
+ *   a 0.x API changes between minors. This is npm's reading for every caret
+ *   but `^0.0.x`, which npm pins to one patch and this file reads as 0.0.x;
+ *   an API at 0.0 is not something a workflow would be written for.
  * - `~1.2.3`: that version or newer, below the next minor (below 1.3.0).
  * - `>=1.2.3`, `>1.2.3`, `<=1.2.3`, `<1.2.3`: one bound. A space between the
  *   sign and the version (`>= 1.2.3`) is allowed.

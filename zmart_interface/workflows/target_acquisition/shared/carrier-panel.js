@@ -16,7 +16,7 @@
  * controls that are already there and leaves the focused one alone.
  */
 
-import { sideGroup } from "../../../framework/window/panels.js";
+import { sideGroup } from "../../../api/index.ts";
 import { anchorWarning } from "./alignment.js";
 import {
   CARRIER_TYPES, carrierType, fromPreset, matchingPreset, geometry, maxRadius,

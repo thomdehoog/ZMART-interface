@@ -9,7 +9,7 @@
  * starts the scan.
  */
 
-import { sideGroup } from "../../../../framework/window/panels.js";
+import { sideGroup } from "../../../../api/index.ts";
 import { progressBox } from "../../shared/progress.js";
 import { sharePoints } from "../../shared/scanfields.js";
 

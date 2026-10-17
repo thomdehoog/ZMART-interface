@@ -28,7 +28,7 @@ import {
 import { sharePoints } from "../../shared/scanfields.js";
 import { visitOrder } from "./visit-order.js";
 import { zColourScale } from "./z-domain.js";
-import { status } from "../../../../framework/window/status.js";
+import { status } from "../../../../api/index.ts";
 import { progressBox } from "../../shared/progress.js";
 import { activeRecording } from "../../microscope/recordings.js";
 /* The step's controls, as markup: read in as text by the build tool. */

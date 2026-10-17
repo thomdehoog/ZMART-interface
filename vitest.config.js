@@ -7,7 +7,7 @@ import { defineConfig } from "vitest/config";
    and would only fail confusingly here. */
 export default defineConfig({
   test: {
-    include: ["zmart_interface/**/*.test.{js,ts}"],
+    include: ["zmart_interface/**/*.test.{js,ts}", "tools/**/*.test.mjs"],
     environment: "node",
   },
 });
