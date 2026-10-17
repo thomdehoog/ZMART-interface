@@ -4,7 +4,7 @@ import {
   displayFor,
   displayQueryFor,
   hexColour,
-} from "./display-of.js";
+} from "./display-of.ts";
 
 const snapshot = {
   channels: [

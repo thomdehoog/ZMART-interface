@@ -1,7 +1,7 @@
 /**
  * The drawing engines the canvas opens, by name.
  *
- * An engine is a folder holding a `viewer.js` that exports one function,
+ * An engine is a folder holding a `viewer.ts` that exports one function,
  * `openViewer`, and the page reaches it through that function and nothing else
  * (`docs/viewer-slot.md`). Each is loaded only when it is first asked for: an
  * engine is a large thing to fetch, and a page with nothing to draw has no use
@@ -25,8 +25,11 @@
  * built page, in `workflows/target_acquisition/the-built-page.spec.js`.
  */
 
-const HOW_TO_OPEN = {
-  "neuroglancer-under": () => import("./engines/neuroglancer-under/viewer.js"),
+/** An engine's one export. */
+type OpenViewer = typeof import("./engines/neuroglancer-under/viewer.ts")["openViewer"];
+
+const HOW_TO_OPEN: Record<string, () => Promise<{ openViewer?: OpenViewer }>> = {
+  "neuroglancer-under": () => import("./engines/neuroglancer-under/viewer.ts"),
 };
 
 /**
@@ -36,7 +39,7 @@ const HOW_TO_OPEN = {
  *   `openViewer` — said plainly, with the list of what there is, rather than
  *   leaving an empty box on screen.
  */
-export async function openerFor(name) {
+export async function openerFor(name: string): Promise<OpenViewer> {
   const load = HOW_TO_OPEN[name];
   if (!load) {
     throw new Error(

@@ -9,7 +9,7 @@
  * at most its own pair's polygon; choosing a gate from the list brings its
  * plot back, axes and all.
  *
- * The rules live in `gating.js`, where they are pinned without a canvas.
+ * The rules live in `gating.ts`, where they are pinned without a canvas.
  * The widget owns its markup, its canvas and its gestures; what it reads and
  * what it changes arrive in `ctx`, and it never reaches for the page.
  */

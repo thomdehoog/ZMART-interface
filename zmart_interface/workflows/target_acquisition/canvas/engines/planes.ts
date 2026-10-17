@@ -1,7 +1,7 @@
 /**
  * Which plane of a stack to look at when nobody has said which.
  *
- * Shared by every option, the way `gestures.js` is, and for the same reason: it
+ * Shared by every option, the way `gestures.ts` is, and for the same reason: it
  * is not part of what is being compared. Which engine draws a picture is the
  * question; which plane of the stack that picture is *of* is not, and two
  * options answering it differently do not compare — they draw different
@@ -25,7 +25,7 @@
  *
  * ## Two things ask it, and they have to agree
  *
- * Which plane an option opens on, and which plane `brightness.js` reads a
+ * Which plane an option opens on, and which plane `brightness.ts` reads a
  * display window out of. A window measured on one plane and applied to another
  * describes a picture that is not on the screen, so both come from here.
  *
@@ -52,7 +52,7 @@ const READ_THE_MIDDLE_OF = new Set(["z"]);
  * of them changing its default would have gone unnoticed until somebody
  * photographed two engines showing different tissue.
  */
-export function theMiddlePlaneOf(howManyPlanes) {
+export function theMiddlePlaneOf(howManyPlanes: number): number {
   return Math.floor(Math.max(howManyPlanes, 1) / 2);
 }
 
@@ -67,8 +67,10 @@ export function theMiddlePlaneOf(howManyPlanes) {
  * @param {number[]} shape how long the image is along each of them.
  * @returns {Object<string, number>} an index per axis that is not `x` or `y`.
  */
-export function theMiddleOfEveryOtherAxis(labels, shape, { channel = 0 } = {}) {
-  const selection = {};
+export function theMiddleOfEveryOtherAxis(
+  labels: string[] | null | undefined, shape: number[] | null | undefined, { channel = 0 } = {},
+): Record<string, number> {
+  const selection: Record<string, number> = {};
   (labels || []).forEach((name, at) => {
     if (name === "x" || name === "y") return;
     const along = shape?.[at] ?? 1;

@@ -13,7 +13,7 @@
  * **This is the backend the page runs on.** Which driver the controller runs
  * behind the bridge -- the mock or a real microscope -- is chosen on the
  * Connect step, and either way every verb goes the whole way through the
- * controller and a driver. The in-browser rehearsal in `pretend.js` has the
+ * controller and a driver. The in-browser rehearsal in `pretend.ts` has the
  * same verbs, and is reachable only by `?backend=pretend`, for this page's
  * own browser tests.
  *

@@ -15,8 +15,8 @@
  * are wired after the canvas is.
  */
 
-import { mountTheAxes } from "./canvas/axes.js";
-import { showPublicationStatus } from "./canvas/publication-note.js";
+import { mountTheAxes } from "./canvas/axes.ts";
+import { showPublicationStatus } from "./canvas/publication-note.ts";
 import { css, el, sizeCanvas, status } from "../../api/index.ts";
 
 /* How the status bar begins a drive the microscope declined. */

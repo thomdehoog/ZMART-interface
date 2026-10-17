@@ -56,7 +56,7 @@ test("append preserves cached tiles; a source revision refreshes only the rewrit
       host.style.cssText = "width:100%;height:100%";
       underlay.append(host);
       document.body.append(underlay);
-      const { openerFor } = await import("/zmart_interface/workflows/target_acquisition/canvas/engines.js");
+      const { openerFor } = await import("/zmart_interface/workflows/target_acquisition/canvas/engines.ts");
       window.refreshAcquisitions = (count, revision = 1) => [{
         name: "overview", opaque: true, channels: [{ name: "signal", channelIndex: 0,
           colour: [1, 1, 1], window: { low: 0, high: 255 },

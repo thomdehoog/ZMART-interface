@@ -10,24 +10,25 @@
 
 import { describe, expect, it } from "vitest";
 
-import { theDrawingAbove, whoIsAt } from "./layers-above.js";
+import { theDrawingAbove, whoIsAt, type Layer } from "./layers-above.ts";
+import type { Frame } from "./surface.ts";
 
 /** A drawing surface that remembers what it was told, and nothing more. */
 function aPretendSurface() {
-  const done = [];
+  const done: { what: string; [more: string]: unknown }[] = [];
   const state = { globalAlpha: 1, globalCompositeOperation: "source-over", fillStyle: "#000" };
-  const kept = [];
+  const kept: (typeof state)[] = [];
   return {
     done,
     get globalAlpha() { return state.globalAlpha; },
-    set globalAlpha(v) { state.globalAlpha = v; },
+    set globalAlpha(v: number) { state.globalAlpha = v; },
     get globalCompositeOperation() { return state.globalCompositeOperation; },
-    set globalCompositeOperation(v) { state.globalCompositeOperation = v; },
+    set globalCompositeOperation(v: string) { state.globalCompositeOperation = v; },
     get fillStyle() { return state.fillStyle; },
-    set fillStyle(v) { state.fillStyle = v; },
+    set fillStyle(v: string) { state.fillStyle = v; },
     save() { kept.push({ ...state }); },
     restore() { Object.assign(state, kept.pop()); },
-    fillRect(x, y, w, h) {
+    fillRect(x: number, y: number, w: number, h: number) {
       done.push({ what: "fillRect", x, y, w, h,
         alpha: state.globalAlpha, how: state.globalCompositeOperation });
     },
@@ -42,20 +43,26 @@ function aPretendSurface() {
  * because a composer that took some other shape would work perfectly in a test
  * and draw nothing at all on a page.
  */
-const aFrame = (surface) => ({
-  context: surface,
+type Pretend = ReturnType<typeof aPretendSurface>;
+
+/* The pretend surface is what the drawing is handed in place of a canvas's. */
+const asPretend = (context: CanvasRenderingContext2D) => context as unknown as Pretend;
+
+const aFrame = (surface: Pretend): Frame => ({
+  context: surface as unknown as CanvasRenderingContext2D,
+  coverage: null,
   centre: { x: 50, y: 50 },
   zoom: 1,
   width: 100,
   height: 100,
   density: 1,
-  project: (x, y) => ({ x, y }),
-  unproject: (x, y) => ({ x, y }),
+  project: (x: number, y: number) => ({ x, y }),
+  unproject: (x: number, y: number) => ({ x, y }),
 });
 
 /** A layer that simply records that it was asked to draw, and how solidly. */
-const aLayerThatMarks = (name, extra = {}) => ({
-  paint: ({ context }) => context.done.push({ what: name, alpha: context.globalAlpha }),
+const aLayerThatMarks = (name: string, extra: Partial<Layer> = {}): Layer => ({
+  paint: ({ context }) => asPretend(context).done.push({ what: name, alpha: context.globalAlpha }),
   ...extra,
 });
 
@@ -67,7 +74,7 @@ describe("the drawing above the picture", () => {
 
   it("draws the layers bottom of the stack first", () => {
     const surface = aPretendSurface();
-    theDrawingAbove([aLayerThatMarks("carrier"), aLayerThatMarks("positions")])(aFrame(surface));
+    theDrawingAbove([aLayerThatMarks("carrier"), aLayerThatMarks("positions")])!(aFrame(surface));
     expect(surface.done.map((d) => d.what)).toEqual(["carrier", "positions"]);
   });
 
@@ -76,7 +83,7 @@ describe("the drawing above the picture", () => {
     theDrawingAbove([
       aLayerThatMarks("carrier", { shown: false }),
       aLayerThatMarks("positions"),
-    ])(aFrame(surface));
+    ])!(aFrame(surface));
     expect(surface.done.map((d) => d.what)).toEqual(["positions"]);
   });
 
@@ -85,7 +92,7 @@ describe("the drawing above the picture", () => {
     theDrawingAbove(
       [aLayerThatMarks("carrier", { opacity: 0.5 }), aLayerThatMarks("positions")],
       { dial: 0.5 },
-    )(aFrame(surface));
+    )!(aFrame(surface));
     // A layer already half faded ends up a quarter as solid; one that was solid
     // ends up half. The dial multiplies what is there, it does not replace it.
     expect(surface.done).toEqual([
@@ -96,13 +103,13 @@ describe("the drawing above the picture", () => {
 
   it("only ever makes a layer fainter, never more solid", () => {
     const surface = aPretendSurface();
-    theDrawingAbove([aLayerThatMarks("carrier", { opacity: 0.3 })], { dial: 1 })(aFrame(surface));
+    theDrawingAbove([aLayerThatMarks("carrier", { opacity: 0.3 })], { dial: 1 })!(aFrame(surface));
     expect(surface.done[0].alpha).toBeCloseTo(0.3);
   });
 
   it("does not ask a layer faded to nothing to draw at all", () => {
     const surface = aPretendSurface();
-    theDrawingAbove([aLayerThatMarks("carrier")], { dial: 0 })(aFrame(surface));
+    theDrawingAbove([aLayerThatMarks("carrier")], { dial: 0 })!(aFrame(surface));
     expect(surface.done).toEqual([]);
   });
 
@@ -111,7 +118,7 @@ describe("the drawing above the picture", () => {
     theDrawingAbove(
       [aLayerThatMarks("plan"), aLayerThatMarks("focus points", { staysSolid: true })],
       { dial: 0.2 },
-    )(aFrame(surface));
+    )!(aFrame(surface));
     expect(surface.done.map((d) => d.what)).toEqual(["plan", "focus points"]);
     // Faded with the rest, the plan is nearly gone; the focus points are untouched.
     expect(surface.done[0].alpha).toBeCloseTo(0.2);
@@ -123,7 +130,7 @@ describe("the drawing above the picture", () => {
     theDrawingAbove([
       { paint: ({ context }) => { context.globalAlpha = 0.01; context.fillStyle = "red"; } },
       aLayerThatMarks("positions"),
-    ])(aFrame(surface));
+    ])!(aFrame(surface));
     // The second layer draws at its own full strength, not at whatever the
     // first one happened to leave behind.
     expect(surface.done).toEqual([{ what: "positions", alpha: 1 }]);
@@ -131,7 +138,7 @@ describe("the drawing above the picture", () => {
 });
 
 describe("what a click reaches", () => {
-  const aTileAt = (key, x, y) => ({
+  const aTileAt = (key: string, x: number, y: number): Layer => ({
     key,
     paint: () => {},
     reaches: (at) => (at.x >= x && at.x < x + 10 && at.y >= y && at.y < y + 10 ? key : null),
@@ -145,23 +152,23 @@ describe("what a click reaches", () => {
 
   it("hands the click to the layer the operator can see, which is the top one", () => {
     const stack = [aTileAt("positions", 0, 0), aTileAt("targets", 0, 0)];
-    expect(whoIsAt(stack, { x: 5, y: 5 }).what).toBe("targets");
+    expect(whoIsAt(stack, { x: 5, y: 5 })!.what).toBe("targets");
   });
 
   it("falls through to the layer below where the top one does not claim it", () => {
     const stack = [aTileAt("positions", 0, 0), aTileAt("targets", 100, 100)];
-    expect(whoIsAt(stack, { x: 5, y: 5 }).what).toBe("positions");
+    expect(whoIsAt(stack, { x: 5, y: 5 })!.what).toBe("positions");
   });
 
   it("does not let a layer that is switched off catch a click", () => {
     const hidden = { ...aTileAt("targets", 0, 0), shown: false };
     const stack = [aTileAt("positions", 0, 0), hidden];
-    expect(whoIsAt(stack, { x: 5, y: 5 }).what).toBe("positions");
+    expect(whoIsAt(stack, { x: 5, y: 5 })!.what).toBe("positions");
   });
 
   it("passes over a layer that has nothing to say about being touched", () => {
     const stack = [aTileAt("positions", 0, 0), { key: "heatmap", paint: () => {} }];
-    expect(whoIsAt(stack, { x: 5, y: 5 }).what).toBe("positions");
+    expect(whoIsAt(stack, { x: 5, y: 5 })!.what).toBe("positions");
   });
 });
 describe("fade taken all the way down", () => {
@@ -170,7 +177,7 @@ describe("fade taken all the way down", () => {
     theDrawingAbove(
       [aLayerThatMarks("plan"), aLayerThatMarks("mark", { staysSolid: true })],
       { dial: 0 },
-    )(aFrame(surface));
+    )!(aFrame(surface));
     expect(surface.done).toEqual([]);
   });
 });

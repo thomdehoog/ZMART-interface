@@ -40,8 +40,8 @@ target_acquisition/
                  gallery.js — rather than for the kind of thing it is.
   shared/        what several steps of this workflow use: the carrier geometry,
                  the scan-field arithmetic, the layers the run draws, and the
-                 small things they share on the page (page-helpers.js).
-  backend/       the workflow's own verbs: live.js over the bridge, pretend.js
+                 small things they share on the page (page-helpers.ts).
+  backend/       the workflow's own verbs: live.ts over the bridge, pretend.ts
                  for the rehearsal, and the promises both keep.
   bridge/        the workflow's Python half on the bridge: the focus map, the
                  scans, finding and taking the targets, the plots and the
@@ -56,8 +56,8 @@ target_acquisition/
 Its tests sit beside what they test, its browser walks included: nothing
 outside the folder is about it, so taking the folder out takes all of it.
 
-Target acquisition's microscope seam is its `backend/`: `live.js`, which
-speaks to the bridge, and `pretend.js`, the in-browser rehearsal used by some
+Target acquisition's microscope seam is its `backend/`: `live.ts`, which
+speaks to the bridge, and `pretend.ts`, the in-browser rehearsal used by some
 of the page's own tests, with the same verbs. Its runs on the bridge are in
 its `bridge/`, the Python half with its routes under
 `/api/target_acquisition/`. Every call to the instrument lives behind that

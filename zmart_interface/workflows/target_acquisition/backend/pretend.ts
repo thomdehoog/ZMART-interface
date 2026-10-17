@@ -3,7 +3,7 @@
  *
  * Everything above this line — steps, widgets, the framework — talks to a backend
  * and awaits. Nothing above this line knows whether a real stage moved. The
- * live backend (`live.js`, speaking HTTP to the bridge and through it to the
+ * live backend (`live.ts`, speaking HTTP to the bridge and through it to the
  * zmart controller) implements this same shape; if wiring the real microscope
  * means editing a widget, the seam leaked. Only this page's own browser tests
  * ask for it, with `?backend=pretend`.

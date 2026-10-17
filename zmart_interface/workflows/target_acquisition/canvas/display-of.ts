@@ -16,11 +16,39 @@
  * The bridge reads six hex digits and draws white for anything else, which
  * is how every copy came back grey.
  */
-export function hexColour(colour, color) {
-  const hex = (parts) => `#${parts.map((v) => Math.round(Math.min(255, Math.max(0, v)))
+/** One channel row of the display panel, as its snapshot reports it. */
+export interface SnapshotRow {
+  acquisition?: string;
+  name?: string;
+  requested?: {
+    window?: { low: number; high: number } | null;
+    effectiveVisible?: boolean;
+    visible?: boolean;
+    colour?: unknown;
+    color?: unknown;
+  };
+  [more: string]: unknown;
+}
+
+/** What the display panel reports of itself: a row per channel. */
+export interface PanelSnapshot {
+  channels?: SnapshotRow[];
+  [more: string]: unknown;
+}
+
+/** One channel as the bridge is asked to draw it. */
+interface Display {
+  c: number | null;
+  visible: boolean;
+  window: [number, number] | null;
+  color: string | null;
+}
+
+export function hexColour(colour: unknown, color: unknown): string | null {
+  const hex = (parts: number[]) => `#${parts.map((v) => Math.round(Math.min(255, Math.max(0, v)))
     .toString(16).padStart(2, "0")).join("")}`;
   if (Array.isArray(colour) && colour.length === 3 && colour.every(Number.isFinite)) {
-    return hex(colour.map((v) => v * 255));
+    return hex(colour.map((v: number) => v * 255));
   }
   if (typeof color !== "string") return null;
   const rgb = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i.exec(color);
@@ -29,7 +57,7 @@ export function hexColour(colour, color) {
 }
 
 /** The channel index a row's name carries: "channel 2" -> 2, else null. */
-const channelIndexOf = (name) => {
+const channelIndexOf = (name: unknown): number | null => {
   const found = /channel\s+(\d+)/i.exec(String(name ?? ""));
   return found ? Number(found[1]) : null;
 };
@@ -39,15 +67,15 @@ const channelIndexOf = (name) => {
  * when the panel has no rows for it. Requested state is what the operator
  * asked for, which is what the canvas is told to draw.
  */
-export function displayFor(snapshot, acquisition) {
+export function displayFor(snapshot: PanelSnapshot | null | undefined, acquisition: string): Display[] {
   const rows = snapshot?.channels ?? [];
   return rows
     .filter((row) => row.acquisition === acquisition && channelIndexOf(row.name) !== null)
-    .map((row) => {
+    .map((row): Display => {
       const asked = row.requested ?? {};
       /* The panel keeps a window as the engine does, `low` to `high`. */
-      const window = asked.window && Number.isFinite(asked.window.low) && Number.isFinite(asked.window.high)
-        ? [asked.window.low, asked.window.high] : null;
+      const window: [number, number] | null = asked.window && Number.isFinite(asked.window.low)
+        && Number.isFinite(asked.window.high) ? [asked.window.low, asked.window.high] : null;
       return {
         c: channelIndexOf(row.name),
         visible: asked.effectiveVisible ?? asked.visible ?? true,
@@ -63,7 +91,7 @@ export function displayFor(snapshot, acquisition) {
  * settings, or "" when there is nothing to ask with -- then the copy as the
  * bridge made it is the honest fallback.
  */
-export function displayQueryFor(snapshot, acquisition) {
+export function displayQueryFor(snapshot: PanelSnapshot | null | undefined, acquisition: string): string {
   const display = displayFor(snapshot, acquisition);
   return display.length ? `?display=${encodeURIComponent(JSON.stringify(display))}` : "";
 }
@@ -78,7 +106,10 @@ export function displayQueryFor(snapshot, acquisition) {
  * told the operator nothing. The gallery is drawn again when the settings
  * arrive, and the copy with them takes the plain one's place.
  */
-export function displayedPictureAddress(where, label, snapshot, acquisition) {
+export function displayedPictureAddress(
+  where: string | null | undefined, label: string | null | undefined,
+  snapshot: PanelSnapshot | null | undefined, acquisition: string,
+): string | null {
   if (!where || !label) return null;
   return `${where}/${label}.jpg${displayQueryFor(snapshot, acquisition)}`;
 }

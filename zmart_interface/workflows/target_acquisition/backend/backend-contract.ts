@@ -1,8 +1,8 @@
 /**
  * What the page is entitled to expect of a backend, whichever one it has.
  *
- * There are two of them — `pretend.js`, which answers the page's verbs directly,
- * and `live.js`, which speaks HTTP to the bridge and through it to a real
+ * There are two of them — `pretend.ts`, which answers the page's verbs directly,
+ * and `live.ts`, which speaks HTTP to the bridge and through it to a real
  * driver — and the page is supposed not to be able to tell them apart. It
  * could. Every fault worth a fix in the operator page this week was one of
  * them behaving unlike the other: a pretend stage that never moved, so the
@@ -20,7 +20,7 @@
  * axis moves.
  *
  * Written as data rather than as tests so both runners can use them: the
- * offline suite runs them against `pretend.js` on every change, and
+ * offline suite runs them against `pretend.ts` on every change, and
  * `BACKEND_BRIDGE=http://127.0.0.1:8600 npx vitest run` runs the same list
  * against a bridge, which is the only way the two are ever held to each other.
  *

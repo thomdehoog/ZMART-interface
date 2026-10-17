@@ -6,8 +6,8 @@
  * from here on the run is something that happens on a stage.
  *
  * The controls this step docks beside the canvas live in `channel.js` and
- * `carrier-panel.js`, in this same folder; what a carrier *is* — where its
- * wells sit, how wide they are — lives in `../../shared/carriers.js`, because
+ * `carrier-panel.ts`, in this same folder; what a carrier *is* — where its
+ * wells sit, how wide they are — lives in `../../shared/carriers.ts`, because
  * the scan-area step needs the same geometry and two copies of a fact drift
  * apart in silence.
  */

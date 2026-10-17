@@ -27,8 +27,52 @@
  * marker is drawn wholly over the picture.
  */
 
-import { theDrawingAbove, whoClaims, whoIsAt } from "./layers-above.js";
-import { openTheSurface } from "./surface.js";
+import { theDrawingAbove, whoClaims, whoIsAt, type Layer } from "./layers-above.ts";
+import { openTheSurface, type Surface, type Where } from "./surface.ts";
+import type { Drag, DragHandler } from "./engines/gestures.ts";
+import type { View } from "./engines/opening-view.ts";
+
+/** A place, in micrometres on the sample or in pixels in the box. */
+interface XY {
+  x: number;
+  y: number;
+}
+
+/** A press a layer took: the layer, what of it was pressed, and where. */
+export interface Touch {
+  layer: Layer;
+  what: unknown;
+  at: XY;
+  screen: XY;
+}
+
+/** A press nothing took: where it landed, on the sample and in the box. */
+export type Press = XY & { at: XY; screen: XY };
+
+/** The canvas, as the workflow drives it. */
+export interface TheCanvas {
+  readonly layers: Record<string, boolean | undefined>;
+  fadeTo(howSolid: number): void;
+  showLayer(key: string, on: boolean): void;
+  layerShown(key: string): boolean;
+  readonly gesturing: boolean;
+  readonly locked: boolean;
+  lock(on?: boolean): void;
+  setLayersAbove(list?: Layer[]): void;
+  readonly layersAbove: Layer[];
+  readonly view: View | null;
+  lookAt(where: { centre?: XY; zoom?: number } | null | undefined): void;
+  project(x: number, y: number): XY;
+  unproject(px: number, py: number): XY;
+  whenShown(): Promise<Surface | null>;
+}
+
+declare global {
+  interface Window {
+    /** The canvas, for a browser test; nothing on the page reads it. */
+    __theCanvas?: TheCanvas;
+  }
+}
 
 /**
  * A drawing that draws nothing, for a layer that has been switched off.
@@ -57,11 +101,11 @@ const paintNothingAtAll = () => {};
  *   magnifies with the picture.
  * - `reaches(at)` — what of it is at a place on the sample, or nothing. This is
  *   what makes a layer something an operator can work with rather than look at.
- * - `claims(drag)` — whether it takes a drag (see `layers-above.js`).
+ * - `claims(drag)` — whether it takes a drag (see `layers-above.ts`).
  * - `has` — whether the run has anything for it; a layer that has nothing gets
  *   no button.
  * - `follows` — the key of the layer it is chrome for; it is shown with it.
- * - `shown`, `opacity`, `staysSolid` — see `layers-above.js`.
+ * - `shown`, `opacity`, `staysSolid` — see `layers-above.ts`.
  */
 
 /**
@@ -93,33 +137,45 @@ export function putTheCanvasIn({
   readoutSays = null,
   background = "#05070d",
   onViewMoved = null,
-}) {
-  readout = readout ?? Object.assign(document.createElement("div"), { hidden: true });
+}: {
+  box: HTMLElement;
+  layers: HTMLElement;
+  readout?: HTMLElement | null;
+  layersAbove?: Layer[];
+  pictureHost?: HTMLElement | null;
+  onTouched?: ((touch: Touch) => void) | null;
+  handDragsTo?: DragHandler | null;
+  onPressed?: ((press: Press) => void) | null;
+  readoutSays?: ((where: { at: XY; zoom: number }) => string) | null;
+  background?: string;
+  onViewMoved?: ((where: Where) => void) | null;
+}): TheCanvas {
+  const said: HTMLElement = readout ?? Object.assign(document.createElement("div"), { hidden: true });
 
-  let viewer = null;      // the canvas's surface, once opened
+  let viewer: Surface | null = null;      // the canvas's surface, once opened
 
   /* The layers, in drawing order, each carrying its own `shown`. Copied rather
      than used in place, because the canvas writes `shown` on them and a
      workflow's own list should not change under it. */
-  let stackAbove = layersAbove.map((layer) => ({ shown: false, ...layer }));
+  let stackAbove: Layer[] = layersAbove.map((layer) => ({ shown: false, ...layer }));
 
   /* How much of the stack over the picture to keep, 0 to 1. One control for
      all of it, because "let me see the picture" is one thought. */
   let dial = 1;
 
-  const buttons = new Map();
+  const buttons = new Map<string, HTMLButtonElement>();
 
   /* Which layers the operator has switched off, by key — kept apart from
      whether a layer has anything to draw, because they are two questions. */
-  const turnedOff = new Set();
+  const turnedOff = new Set<string>();
 
   /* Where the view is, in micrometres on the stage. */
-  function sayWhereTheViewIs(where) {
+  function sayWhereTheViewIs(where: View | null | undefined) {
     if (!where) {
-      readout.textContent = "—";
+      said.textContent = "—";
       return;
     }
-    readout.textContent =
+    said.textContent =
       `centre ${Math.round(where.centre.x)}, ${Math.round(where.centre.y)} µm` +
       ` · ${where.zoom.toFixed(2)} µm per pixel`;
   }
@@ -140,7 +196,7 @@ export function putTheCanvasIn({
    * @param openedJustNow true when the surfaces have only just been made, so
    *   there is nothing on them yet.
    */
-  function handTheSlotsTheirDrawings(picture = viewer, { openedJustNow = false } = {}) {
+  function handTheSlotsTheirDrawings(picture: Surface | null = viewer, { openedJustNow = false } = {}) {
     if (!picture) return;
     const nothingToDraw = openedJustNow ? null : paintNothingAtAll;
     const split = stackAbove.findIndex((layer) => layer.key === "picture");
@@ -158,7 +214,7 @@ export function putTheCanvasIn({
    * still.
    */
   const A_PRESS_THAT_DID_NOT_TRAVEL = 4;   // browser pixels
-  let pressedAt = null;
+  let pressedAt: XY | null = null;
 
   /**
    * Whether the layers may be touched at all. Locked, the canvas still pans and
@@ -178,7 +234,7 @@ export function putTheCanvasIn({
     if (!where?.unproject) return;
     const bounds = box.getBoundingClientRect();
     const at = where.unproject(event.clientX - bounds.left, event.clientY - bounds.top);
-    readout.textContent = readoutSays
+    said.textContent = readoutSays
       ? readoutSays({ at, zoom: where.zoom })
       : `${at.x.toFixed(0)}, ${at.y.toFixed(0)} µm · ${where.zoom.toFixed(2)} µm per pixel`;
   });
@@ -206,14 +262,14 @@ export function putTheCanvasIn({
 
   /* The layer holding the drag that is under way, if one is: what a drag means
      is settled when it begins and holds until the operator lets go. */
-  let holdingTheDrag = null;
+  let holdingTheDrag: Layer | null = null;
   let theHostHasTheDrag = false;
 
   /**
    * A drag, offered to the layers top of the stack down, then to the workflow,
    * before the picture takes it as a pan. Answers `false` when nobody wanted it.
    */
-  function theLayersMayHaveThisDrag(drag) {
+  function theLayersMayHaveThisDrag(drag: Drag): boolean | void {
     if (drag.phase === "started") {
       holdingTheDrag = locked ? null : whoClaims(stackAbove, drag);
       if (holdingTheDrag) return true;
@@ -221,13 +277,13 @@ export function putTheCanvasIn({
       return theHostHasTheDrag;
     }
     if (holdingTheDrag) {
-      const answer = holdingTheDrag.claims(drag);
+      const answer = holdingTheDrag.claims?.(drag);
       // Whoever borrowed it is always told it ended, however it ended.
       if (drag.phase === "finished") holdingTheDrag = null;
       return answer;
     }
     if (theHostHasTheDrag) {
-      const answer = handDragsTo(drag);
+      const answer = handDragsTo?.(drag);
       if (drag.phase === "finished") theHostHasTheDrag = false;
       return answer;
     }
@@ -249,25 +305,25 @@ export function putTheCanvasIn({
   }
 
   /** Whether the named layer is being drawn. */
-  function isShowing(key) {
+  function isShowing(key: string | undefined): boolean {
     return stackAbove.find((layer) => layer.key === key)?.shown ?? false;
   }
 
   /** Turn one layer on or off; the operator's choice is remembered. */
-  function showTheLayer(key, on) {
+  function showTheLayer(key: string | undefined, on: boolean) {
     if (!viewer || isShowing(key) === on) return;
     const layer = stackAbove.find((one) => one.key === key);
     if (!layer) return;
     layer.shown = on;
-    if (on) turnedOff.delete(key);
-    else turnedOff.add(key);
+    if (key !== undefined && on) turnedOff.delete(key);
+    else if (key !== undefined) turnedOff.add(key);
     letTheChromeFollow();
     handTheSlotsTheirDrawings();
     markTheButtons();
   }
 
   /** How solid the stack over the picture is drawn, 0 to 1. */
-  function fadeTo(howSolid) {
+  function fadeTo(howSolid: number) {
     dial = Math.min(1, Math.max(0, Number(howSolid)));
     handTheSlotsTheirDrawings();
   }
@@ -314,11 +370,11 @@ export function putTheCanvasIn({
       button.className = "layer-chip";
       button.disabled = true;      // until the canvas is open
       button.setAttribute("aria-pressed", String(layer.shown));
-      button.dataset.layer = layer.key;
+      button.dataset.layer = layer.key ?? "";
       button.title = layer.explains ?? "One of the operator's own layers.";
-      button.textContent = layer.label ?? layer.key;
+      button.textContent = layer.label ?? layer.key ?? "";
       button.addEventListener("click", () => showTheLayer(layer.key, !isShowing(layer.key)));
-      buttons.set(layer.key, button);
+      buttons.set(layer.key ?? "", button);
       layers.append(button);
     }
 
@@ -361,14 +417,14 @@ export function putTheCanvasIn({
 
   /* The lock's own button, remembered so its state can be shown when the lock
      is changed from somewhere other than the button itself. */
-  let lockButton = null;
+  let lockButton: HTMLButtonElement | null = null;
 
   buildTheLayerButtons();
 
-  const handle = {
+  const handle: TheCanvas = {
     /** Which layers are being drawn, for a test to read back. */
     get layers() {
-      return Object.fromEntries(stackAbove.map((layer) => [layer.key, layer.shown]));
+      return Object.fromEntries(stackAbove.map((layer) => [layer.key ?? "", layer.shown]));
     },
 
     fadeTo,
@@ -397,7 +453,7 @@ export function putTheCanvasIn({
       const before = new Map(stackAbove.map((layer) => [layer.key, layer.shown]));
       stackAbove = list.map((layer) => {
         if (layer.has !== undefined) {
-          return { ...layer, shown: layer.has !== false && !turnedOff.has(layer.key) };
+          return { ...layer, shown: layer.has !== false && !turnedOff.has(layer.key ?? "") };
         }
         return {
           ...layer,

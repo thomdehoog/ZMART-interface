@@ -1,10 +1,10 @@
 import { expect, test, vi } from "vitest";
-import { refreshSources } from "./engines/neuroglancer-under/source-refresh.js";
+import { refreshSources } from "./engines/neuroglancer-under/source-refresh.ts";
 
 test("only the changed source is invalidated, once across shared channel readers", () => {
   const changed = { invalidateCache: vi.fn() };
   const unchanged = { invalidateCache: vi.fn() };
-  const map = new Map([
+  const map = new Map<string, { invalidateCache?: () => void; metadata?: boolean }>([
     ['{"constructorId":1,"url":"http://viewer/data/0/tile.zarr/0/"}', changed],
     ['{"constructorId":2,"url":"http://viewer/data/0/tile.zarr/0/"}', changed],
     ['{"constructorId":1,"url":"http://viewer/data/0/tile.zarr-other/0/"}', unchanged],

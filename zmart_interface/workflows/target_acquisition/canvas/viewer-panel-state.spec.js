@@ -8,7 +8,7 @@ async function mountPanel(page) {
       <main class="canvas-body" style="display:grid;grid-template-columns:1fr auto;height:820px">
         <div class="plot-host" style="position:relative;min-width:600px"><div id="panel-host"></div></div>
       </main>`;
-    const module = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer-panel.js");
+    const module = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer-panel.ts");
     const source = (group, channel, position = 0) =>
       `${location.origin}/data/${group}-${channel}-${position}.ome.zarr/|zarr3:`;
     const acquisitions = ["overview", "focussing", "targets"].map((group, groupAt) => ({

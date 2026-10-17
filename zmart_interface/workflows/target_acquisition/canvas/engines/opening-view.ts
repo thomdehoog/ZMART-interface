@@ -1,7 +1,7 @@
 /**
  * The view an acquisition opens on, before anybody has said where to look.
  *
- * Shared by every option, the way `gestures.js` and `planes.js` are, and for the
+ * Shared by every option, the way `gestures.ts` and `planes.ts` are, and for the
  * same reason: it is not a property of a drawing engine. Where a picture starts
  * is a fact about the run and the box it is being drawn in, and three options
  * answering it differently is three different first impressions of one
@@ -47,7 +47,23 @@ const THE_SMALLEST_USEFUL_ZOOM = 1e-6;
  *   — or nothing when the acquisition has no size to show, in which case the
  *   caller keeps whatever it would have done.
  */
-export function theViewThatShowsAllOf(extent, box) {
+/** Where a picture sits on the stage and how wide it is, in micrometres; and, where it has been found, the specimen. */
+export interface Extent {
+  atUm?: { x: number; y: number };
+  wideUm?: number;
+  tallUm?: number;
+  specimenUm?: { x: number; y: number } | null;
+}
+
+/** A view of the stage: its middle, in micrometres, and micrometres to the screen pixel. */
+export interface View {
+  centre: { x: number; y: number };
+  zoom: number;
+}
+
+export function theViewThatShowsAllOf(
+  extent: Extent | null | undefined, box: { width: number; height: number } | null | undefined,
+): View | null {
   const wideUm = extent?.wideUm ?? 0;
   const tallUm = extent?.tallUm ?? 0;
   if (!(wideUm > 0) || !(tallUm > 0)) return null;
@@ -60,8 +76,8 @@ export function theViewThatShowsAllOf(extent, box) {
      laterally. See `where-the-specimen-is.js`. */
   return {
     centre: {
-      x: extent.specimenUm?.x ?? ((extent.atUm?.x ?? 0) + wideUm / 2),
-      y: extent.specimenUm?.y ?? ((extent.atUm?.y ?? 0) + tallUm / 2),
+      x: extent?.specimenUm?.x ?? ((extent?.atUm?.x ?? 0) + wideUm / 2),
+      y: extent?.specimenUm?.y ?? ((extent?.atUm?.y ?? 0) + tallUm / 2),
     },
     /* The larger of the two ratios, so that the long side is what fits: taking
        the smaller would fit one side and run the other off the edges, which is

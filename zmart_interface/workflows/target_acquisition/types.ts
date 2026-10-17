@@ -94,13 +94,3 @@ export type TaPage = Page<TargetAcquisition>;
 
 /** This workflow's run document: the framework's keys and its own. */
 export type TaRun = Run<TargetAcquisition>;
-
-/* What the page leaves on `window`: a test's way of asking a box what it
-   shows. One of them is read by the page itself as well -- the canvas's
-   display settings, which the previews are drawn with. */
-declare global {
-  interface Window {
-    /** The canvas's display panel, while one is mounted. */
-    __viewerPanel?: { snapshot?: () => unknown } | null;
-  }
-}

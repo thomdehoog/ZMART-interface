@@ -21,10 +21,10 @@
  * session there is a frame of its own, so the picture has something to draw.
  */
 
-import { putTheCanvasIn } from "../canvas/viewer.js";
+import { putTheCanvasIn } from "../canvas/viewer.ts";
 import { theCanvasOf } from "../microscope/canvas.ts";
 import { maskLayersOn } from "./mask-layers.ts";
-import { mountChannelBox } from "../canvas/channel-box.js";
+import { mountChannelBox } from "../canvas/channel-box.ts";
 
 /**
  * Open the picture on a canvas.
@@ -589,7 +589,7 @@ function drawnIn(frame) {
  * What each layer draws belongs to its step; where it sits belongs here.
  *
  * Within each drawing slot, layers that stay solid are drawn last. See
- * `workflows/target_acquisition/canvas/layers-above.js`.
+ * `workflows/target_acquisition/canvas/layers-above.ts`.
  */
 const THE_STACK = [
   "ground", "limits", "carrier", "focus", "plan", "testTiles",

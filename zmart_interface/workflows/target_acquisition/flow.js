@@ -9,7 +9,7 @@
  */
 
 import "./style.css";
-import { canvasPanel } from "./canvas/panel.js";
+import { canvasPanel } from "./canvas/panel.ts";
 /* The seam. Connecting, reading a preset off the instrument, measuring the
    focus map and driving the overview scan all go through the backend and are
    awaited; the page never knows whether a real stage moved. The page speaks

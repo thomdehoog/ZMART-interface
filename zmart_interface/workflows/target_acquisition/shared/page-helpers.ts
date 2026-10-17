@@ -8,7 +8,7 @@
  * a step calls them without knowing where they live.
  */
 
-import { displayedPictureAddress } from "../canvas/display-of.js";
+import { displayedPictureAddress } from "../canvas/display-of.ts";
 import { activeRecording, type Recording, type Slot } from "../microscope/recordings.ts";
 import type { Reading } from "../microscope/settings.ts";
 import type { TaPage, TaRun } from "../types.ts";

@@ -26,16 +26,45 @@
  *   place the slider accordingly. Call `refresh` whenever the picture opens,
  *   closes or changes what it draws.
  */
-export function mountTheAxes(parts, { picture, watchEveryMs = 1000, playEveryMs = 350 }) {
+/** How many moments the open picture has, and which it shows. */
+export interface Moments {
+  many: number;
+  at?: number;
+}
+
+/** What the slider asks of the open picture. */
+export interface ShowsMoments {
+  theMomentsItCanShow?: () => Moments | null;
+  setMoment?: (t: number) => void;
+}
+
+/** The row's elements. */
+export interface AxesParts {
+  axes: HTMLElement;
+  axisT: HTMLElement;
+  moment: HTMLInputElement;
+  momentPlay?: HTMLElement | null;
+  momentReadout: HTMLElement;
+}
+
+/** The mounted slider: ask the picture again, or stop watching it. */
+export interface Axes {
+  refresh(): void;
+  stop(): void;
+}
+
+export function mountTheAxes(parts: AxesParts, { picture, watchEveryMs = 1000, playEveryMs = 350 }: {
+  picture: () => ShowsMoments | null | undefined; watchEveryMs?: number; playEveryMs?: number;
+}): Axes {
   const { axes, axisT, moment, momentPlay, momentReadout } = parts;
-  let moments = null;
+  let moments: Moments | null = null;
 
   /* A drag asks oftener than a frame is drawn; only the last ask in any
      frame reaches the engine. */
-  const frame = globalThis.requestAnimationFrame ?? ((tick) => setTimeout(tick, 16));
-  let wanted = null;
+  const frame: (tick: () => void) => unknown = globalThis.requestAnimationFrame ?? ((tick) => setTimeout(tick, 16));
+  let wanted: (() => void) | null = null;
   let pending = false;
-  const soon = (go) => {
+  const soon = (go: () => void) => {
     wanted = go;
     if (pending) return;
     pending = true;
@@ -47,22 +76,22 @@ export function mountTheAxes(parts, { picture, watchEveryMs = 1000, playEveryMs 
     });
   };
 
-  const fill = (slider) => {
+  const fill = (slider: HTMLInputElement) => {
     const low = Number(slider.min), high = Number(slider.max);
     slider.style?.setProperty?.("--fill", `${((Number(slider.value) - low) / (high - low || 1)) * 100}%`);
   };
 
-  const sayMoment = (t) => {
+  const sayMoment = (t: number) => {
     if (!moments) return;
     momentReadout.textContent = `moment ${t + 1} of ${moments.many}`;
     fill(moment);
   };
-  const goToMoment = (t) => { sayMoment(t); soon(() => picture()?.setMoment?.(t)); };
+  const goToMoment = (t: number) => { sayMoment(t); soon(() => picture()?.setMoment?.(t)); };
   moment.addEventListener("input", () => goToMoment(Number(moment.value)));
 
   /* Play: the slider walks by itself, one step at a time, round to the
      start when it reaches the end, until it is pressed again. */
-  let playing = null;
+  let playing: ReturnType<typeof setInterval> | null = null;
   const say = () => momentPlay?.setAttribute("aria-pressed", String(Boolean(playing)));
   const stopPlaying = () => { if (playing) clearInterval(playing); playing = null; say(); };
   const startPlaying = () => {
@@ -80,14 +109,14 @@ export function mountTheAxes(parts, { picture, watchEveryMs = 1000, playEveryMs 
   function refresh() {
     const viewer = picture();
     moments = viewer?.theMomentsItCanShow?.() ?? null;
-    const long = Boolean(moments && moments.many > 1);
-    if (long) {
+    if (moments && moments.many > 1) {
       moment.min = "0";
       moment.max = String(moments.many - 1);
       moment.step = "1";
       if (globalThis.document?.activeElement !== moment) moment.value = String(moments.at ?? 0);
       sayMoment(Number(moment.value));
     }
+    const long = Boolean(moments && moments.many > 1);
     axisT.hidden = !long;
     if (!long) stopPlaying();
     axes.hidden = !long;
@@ -98,7 +127,7 @@ export function mountTheAxes(parts, { picture, watchEveryMs = 1000, playEveryMs 
      picture is opened and after every field that lands, and nothing
      announces that. So the slider looks for itself, now and then: once a
      second, and a redraw only when the answer has changed. */
-  let seen = null;
+  let seen: string | null = null;
   const look = () => {
     const viewer = picture();
     const now = JSON.stringify([Boolean(viewer), viewer?.theMomentsItCanShow?.() ?? null]);

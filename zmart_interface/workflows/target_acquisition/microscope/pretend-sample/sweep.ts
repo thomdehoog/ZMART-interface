@@ -56,7 +56,7 @@ export function debrisAt(index: number): { offset: number; amp: number; width: n
  *
  * @param focusZ  where the tissue is actually in focus, µm
  * @param index   which point this is — fixes the noise and the debris
- * @param metric  a key of METRICS (`shared/focus-curves.js`)
+ * @param metric  a key of METRICS (`shared/focus-curves.ts`)
  * @param startZ  where the search begins, µm: the objective is driven there and
  *                swept about it. Left out, it arrives somewhere near the tissue
  *                already, which is the best a first run can be said to do.

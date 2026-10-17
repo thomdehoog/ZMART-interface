@@ -8,7 +8,7 @@
  * The geometry editor and the grid this step docks beside the canvas live in
  * `channel.js` and `scanfield-editor.js`, in this same folder; the arithmetic
  * of the plan itself — how a drawn region becomes a grid of frames — lives in
- * `../../shared/scanfields.js`, where later steps that consume the plan can
+ * `../../shared/scanfields.ts`, where later steps that consume the plan can
  * read the same answer.
  */
 

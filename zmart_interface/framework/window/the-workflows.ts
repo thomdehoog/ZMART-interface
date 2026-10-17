@@ -7,7 +7,7 @@
  * which is why it is now read off the disk instead.
  *
  * A module of its own because the build puts the folder scan's imports at the
- * top of the module that holds it: here, they come after `main.js` has
+ * top of the module that holds it: here, they come after `main.ts` has
  * imported the frame's stylesheet, so each workflow's stylesheet follows it.
  */
 

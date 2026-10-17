@@ -4,7 +4,7 @@
  *
  * A recording is a readout: the operator sets the instrument up in its own
  * software, names what they have set up, and presses record. This file says
- * which kinds exist and what shape their readings take; `recordings.js` holds
+ * which kinds exist and what shape their readings take; `recordings.ts` holds
  * the slots a run keeps them in.
  */
 

@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { ask, backend } from "./live.ts";
-import { showPublicationStatus } from "../canvas/publication-note.js";
+import { showPublicationStatus } from "../canvas/publication-note.ts";
 import type { Answer } from "../testing/fake-bridge.ts";
 
 afterEach(() => vi.unstubAllGlobals());

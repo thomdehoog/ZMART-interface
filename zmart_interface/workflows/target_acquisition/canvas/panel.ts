@@ -19,6 +19,8 @@
  * steps'.
  */
 
+import type { Panel } from "../../../api/index.ts";
+
 export const canvasPanel = {
   key: "canvas",
   label: "Canvas",
@@ -39,7 +41,7 @@ export const canvasPanel = {
    * channel simply returns none, and the step's controls have to live in a
    * panel of their own.
    */
-  build(host) {
+  build(host: HTMLElement) {
     /* Named for this workflow's stylesheet: the canvas fills its panel. */
     host.classList.add("canvas-panel");
     host.innerHTML = `
@@ -278,7 +280,8 @@ export const canvasPanel = {
       </div>
       `;
 
-    const find = (id) => host.querySelector(`#${id}`);
+    /* Every id below is in the markup just written, so each is found. */
+    const find = <E extends HTMLElement = HTMLElement>(id: string) => host.querySelector<E>(`#${id}`)!;
     return {
       /* The channel, its edge, and the strip the framework puts a step's
          button in — the three things the framework does anything with. */
@@ -317,17 +320,17 @@ export const canvasPanel = {
         maskColours: find("mask-colours"),
         maskFill: find("mask-fill"),
         maskLine: find("mask-line"),
-        maskOpacity: find("mask-opacity"),
+        maskOpacity: find<HTMLInputElement>("mask-opacity"),
         rampChip: find("ramp-chip"),
         legend: find("canvas-legend"),
         publicationNote: find("publication-note"),
         pictureHost: find("picture-host"),
         axes: find("canvas-axes"),
         axisT: find("axis-t"),
-        moment: find("moment"),
+        moment: find<HTMLInputElement>("moment"),
         momentPlay: find("moment-play"),
         momentReadout: find("moment-readout"),
       },
     };
   },
-};
+} satisfies Panel;

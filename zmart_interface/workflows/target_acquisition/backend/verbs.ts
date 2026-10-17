@@ -155,7 +155,7 @@ export interface WrittenProtocol {
 export interface ViewerStatus {
   acquisitions?: unknown[];
   sources?: Record<string, { url: string; name: string }[]>;
-  publications?: Record<string, unknown>;
+  publications?: Record<string, { acquired?: number; published?: number; state?: string }>;
   error?: string;
   [more: string]: unknown;
 }

@@ -1,7 +1,7 @@
 /**
  * Where the specimen actually is, as against where the run declared room for it.
  *
- * Shared by every option, the way `planes.js` and `brightness.js` are, and for
+ * Shared by every option, the way `planes.ts` and `brightness.ts` are, and for
  * the same reason: it is a fact about the file rather than about a drawing
  * engine.
  *
@@ -40,7 +40,7 @@
  * towards the middle of the room — which is the very thing being corrected.
  */
 
-import { loadOmeZarr } from "@vivjs/loaders";
+import { loadOmeZarr, type ZarrPixelSource } from "@vivjs/loaders";
 
 /** What counts as specimen rather than background, when weighing where it is. */
 const THE_FLOOR = 0.8;
@@ -54,7 +54,9 @@ const THE_FLOOR = 0.8;
  *   nothing when there is no specimen to find — a flat picture has no centre of
  *   mass worth the name, and saying so lets the caller keep the geometric middle.
  */
-export function theMiddleOfWhatWasImaged(values, sizes) {
+export function theMiddleOfWhatWasImaged(
+  values: ArrayLike<number> | null | undefined, sizes: number[] | null | undefined,
+): number[] | null {
   if (!values?.length || !sizes?.length) return null;
   const sorted = Float64Array.from(values).sort();
   const floor = sorted[Math.round(THE_FLOOR * (sorted.length - 1))];
@@ -91,7 +93,7 @@ export function theMiddleOfWhatWasImaged(values, sizes) {
  *   *sharpest* copy, per axis name, or nothing when it cannot be read. Given in
  *   the sharpest copy's voxels because that is what every caller counts in.
  */
-async function whereTheSpecimenIs(sources) {
+async function whereTheSpecimenIs(sources: ZarrPixelSource<string[]>[] | null | undefined): Promise<Record<string, number> | null> {
   const smallest = sources?.[sources.length - 1];
   const sharpest = sources?.[0];
   if (!smallest || !sharpest) return null;
@@ -115,20 +117,20 @@ async function whereTheSpecimenIs(sources) {
      * that looks like a right one is the failure this project keeps meeting.
      */
     const asksAllowed = Math.min(deep, 12);
-    const alongZ = [];
-    let flat = null;
+    const alongZ: { plane: number; mass: number }[] = [];
+    let flat: Float64Array | null = null;
     let across = 0;
     for (let which = 0; which < asksAllowed; which += 1) {
       const plane = deep <= 1
         ? 0
         : Math.round((which + 0.5) * (deep / asksAllowed));
-      const selection = {};
+      const selection: Record<string, number> = {};
       labels.forEach((name) => {
         if (name === "x" || name === "y") return;
         selection[name] = name === "z" ? Math.min(plane, deep - 1) : 0;
       });
       const raster = await smallest.getRaster({ selection });
-      const values = raster?.data;
+      const values = raster?.data as ArrayLike<number> | undefined;
       if (!values?.length) continue;
       across = raster.width ?? across;
       if (!flat) flat = new Float64Array(values.length);
@@ -169,10 +171,11 @@ async function whereTheSpecimenIs(sources) {
       total += above;
     }
 
-    const coarse = { y: height, x: across, z: deep };
-    const at = {};
-    for (const [name, value] of [["y", middle[0]], ["x", middle[1]],
-                                 ["z", total > 0 ? weighted / total : null]]) {
+    const coarse: Record<string, number> = { y: height, x: across, z: deep };
+    const at: Record<string, number> = {};
+    const found: [string, number | null][] = [["y", middle[0]], ["x", middle[1]],
+                                              ["z", total > 0 ? weighted / total : null]];
+    for (const [name, value] of found) {
       if (value === null) continue;
       const which = sharpest.labels.indexOf(name);
       if (which < 0) continue;
@@ -199,7 +202,7 @@ async function whereTheSpecimenIs(sources) {
  * @param {string} url the store's address; anything after a `|` is a reader's own
  *   suffix and is taken off.
  */
-export async function whereTheSpecimenIsInThisStore(url) {
+export async function whereTheSpecimenIsInThisStore(url: string): Promise<Record<string, number> | null> {
   const bar = url.indexOf("|");
   const address = (bar < 0 ? url : url.slice(0, bar)).replace(/\/+$/, "");
   try {

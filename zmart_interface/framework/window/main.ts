@@ -3,14 +3,14 @@
  *
  * This file starts the page and nothing else: it reads which workflow to
  * open on, hands the workflows the build found to the composition
- * (`pages.js`), which builds the frame and each workflow's page over it, and
+ * (`pages.ts`), which builds the frame and each workflow's page over it, and
  * opens the page. Nothing here names a workflow, a backend or a panel: the
  * page would compose the same way for a workflow about e-learning or about
  * image analysis.
  *
  * What a workflow's page carries -- the run document, its steps and panels,
  * its backend, the boxes its steps show, what it lends and its hooks -- is
- * written out in `pages.js`, and what a workflow may rely on of it in
+ * written out in `pages.ts`, and what a workflow may rely on of it in
  * `workflows/README.md`.
  */
 

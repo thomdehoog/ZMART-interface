@@ -145,7 +145,7 @@ function planBox() {
  * A point sits on a scan position, never beside one: focus is measured where
  * the run will image, and a height read off the gap between positions is a
  * real number and a worthless one. Which positions is `sharePoints` in
- * `shared/scanfields.js`: the field is cut into as many equal blocks as points
+ * `shared/scanfields.ts`: the field is cut into as many equal blocks as points
  * were asked for, and the position nearest the middle of each is taken.
  */
 const inScanOrder = (tiles) => [...tiles].sort((a, b) => (a.y - b.y) || (a.x - b.x));

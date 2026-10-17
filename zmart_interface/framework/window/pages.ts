@@ -12,7 +12,7 @@
  *
  * The run document is one object, shared by every page and swapped with the
  * workflow: choosing another workflow starts the run over in place
- * (`run-state.js`).
+ * (`run-state.ts`).
  *
  * A workflow's page is built the first time the workflow is opened, once the
  * run is a run of it, and then kept: switching back shows its panels again

@@ -1,6 +1,6 @@
 /* What window an acquisition should open at, when nobody has said.
  *
- * `engines/brightness.js` answers that by reading the picture rather
+ * `engines/brightness.ts` answers that by reading the picture rather
  * than guessing at the camera, and what is checked here is the part of it that
  * needs no store and no server: what window it makes of a patch of pixels. Which
  * plane that patch comes from is the other half and is `planes.test.js`, because
@@ -23,7 +23,7 @@
 import { describe, it, expect } from "vitest";
 import {
   theWindowThesePixelsAskFor,
-} from "./engines/brightness.js";
+} from "./engines/brightness.ts";
 
 /** A plane like the real one: tissue around 1750, and a few pixels saturated. */
 function aTileWithHotPixels({ hot = 4 } = {}) {
@@ -35,14 +35,14 @@ function aTileWithHotPixels({ hot = 4 } = {}) {
 
 describe("the window a patch of pixels asks for", () => {
   it("is not stretched by a handful of saturated pixels", () => {
-    const window = theWindowThesePixelsAskFor(aTileWithHotPixels());
+    const window = theWindowThesePixelsAskFor(aTileWithHotPixels())!;
     expect(window.high).toBeLessThan(2_000);
     expect(window.low).toBeGreaterThan(1_600);
   });
 
   it("puts the tissue in the middle of the screen rather than at the bottom", () => {
     const values = aTileWithHotPixels();
-    const window = theWindowThesePixelsAskFor(values);
+    const window = theWindowThesePixelsAskFor(values)!;
     const middle = 1_760;
     const grey = ((middle - window.low) / (window.high - window.low)) * 255;
     expect(grey).toBeGreaterThan(40);
@@ -65,7 +65,7 @@ describe("the window a patch of pixels asks for", () => {
   it("still answers when nearly every pixel is the same, using what is left", () => {
     const values = new Uint16Array(1_000).fill(200);
     values[0] = 4_000;
-    const window = theWindowThesePixelsAskFor(values);
+    const window = theWindowThesePixelsAskFor(values)!;
     expect(window).not.toBeNull();
     expect(window.high).toBeGreaterThan(window.low);
   });

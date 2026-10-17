@@ -14,12 +14,12 @@
 import { describe, it, expect } from "vitest";
 import {
   theMiddleOfWhatWasImaged,
-} from "./engines/where-the-specimen-is.js";
+} from "./engines/where-the-specimen-is.ts";
 
 /** A stack with the bright material deliberately off the geometric middle. */
 function aStackWithTheSpecimenLow({ planes = 10, height = 8, width = 8 } = {}) {
   const values = new Uint16Array(planes * height * width).fill(200);
-  const put = (z, y, x, value) => { values[(z * height + y) * width + x] = value; };
+  const put = (z: number, y: number, x: number, value: number) => { values[(z * height + y) * width + x] = value; };
   // A blob around plane 7 of 10, and right of centre across.
   for (const z of [6, 7, 8]) {
     for (const y of [4, 5]) {
@@ -32,7 +32,7 @@ function aStackWithTheSpecimenLow({ planes = 10, height = 8, width = 8 } = {}) {
 describe("the middle of what was imaged", () => {
   it("finds the specimen rather than the middle of the room", () => {
     const { values, sizes } = aStackWithTheSpecimenLow();
-    const [z, y, x] = theMiddleOfWhatWasImaged(values, sizes);
+    const [z, y, x] = theMiddleOfWhatWasImaged(values, sizes)!;
     expect(z).toBeCloseTo(7, 1);
     expect(y).toBeCloseTo(4.5, 1);
     expect(x).toBeCloseTo(5.5, 1);
@@ -40,7 +40,7 @@ describe("the middle of what was imaged", () => {
 
   it("is not the geometric middle, which is the whole point", () => {
     const { values, sizes } = aStackWithTheSpecimenLow();
-    const [z] = theMiddleOfWhatWasImaged(values, sizes);
+    const [z] = theMiddleOfWhatWasImaged(values, sizes)!;
     const declaredMiddle = (sizes[0] - 1) / 2;
     expect(Math.abs(z - declaredMiddle)).toBeGreaterThan(2);
   });
@@ -51,8 +51,8 @@ describe("the middle of what was imaged", () => {
     /* The same specimen in four times the declared room. Weighed without a floor
        the answer would move towards the middle of whichever room it was put in;
        it does not move at all. */
-    expect(theMiddleOfWhatWasImaged(small.values, small.sizes)[0])
-      .toBeCloseTo(theMiddleOfWhatWasImaged(roomy.values, roomy.sizes)[0], 1);
+    expect(theMiddleOfWhatWasImaged(small.values, small.sizes)![0])
+      .toBeCloseTo(theMiddleOfWhatWasImaged(roomy.values, roomy.sizes)![0], 1);
   });
 
   it("says nothing about a picture with no specimen in it", () => {
@@ -68,7 +68,7 @@ describe("the middle of what was imaged", () => {
   it("works along however many axes the copy has", () => {
     const values = new Uint16Array(4 * 6).fill(100);
     values[3 * 6 + 5] = 9000;
-    const [a, b] = theMiddleOfWhatWasImaged(values, [4, 6]);
+    const [a, b] = theMiddleOfWhatWasImaged(values, [4, 6])!;
     expect(a).toBeCloseTo(3, 1);
     expect(b).toBeCloseTo(5, 1);
   });

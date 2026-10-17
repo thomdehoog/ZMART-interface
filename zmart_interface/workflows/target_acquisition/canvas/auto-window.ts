@@ -12,13 +12,26 @@
  * `saturate` is the percent set aside at each end. Null when the histogram
  * cannot say: no counts, or a single value.
  */
-export function windowFromHistogram(histogram, saturate) {
+/** A histogram: counts in equal bins from `low` to `high`. */
+export interface Histogram {
+  counts: number[];
+  low: number;
+  high: number;
+}
+
+/** A window to draw through, in stored counts. */
+export interface DisplayWindow {
+  low: number;
+  high: number;
+}
+
+export function windowFromHistogram(histogram: Histogram | null | undefined, saturate: unknown): DisplayWindow | null {
   const counts = histogram?.counts ?? [];
   const total = counts.reduce((sum, count) => sum + count, 0);
-  if (!counts.length || !total || !(histogram.high > histogram.low)) return null;
+  if (!histogram || !counts.length || !total || !(histogram.high > histogram.low)) return null;
   const share = Math.max(0, Math.min(49, Number(saturate) || 0)) / 100;
   const width = (histogram.high - histogram.low) / counts.length;
-  const at = (target) => {
+  const at = (target: number) => {
     let seen = 0;
     for (let i = 0; i < counts.length; i += 1) {
       seen += counts[i];
@@ -42,12 +55,14 @@ export function windowFromHistogram(histogram, saturate) {
  * stay inside the window rather than clipping. Null when the histogram
  * cannot say.
  */
-export function windowForTheLook(histogram, { tail = 0.05, brightest = 0.3 } = {}) {
+export function windowForTheLook(
+  histogram: Histogram | null | undefined, { tail = 0.05, brightest = 0.3 } = {},
+): DisplayWindow | null {
   const counts = histogram?.counts ?? [];
   const total = counts.reduce((sum, count) => sum + count, 0);
-  if (!counts.length || !total || !(histogram.high > histogram.low)) return null;
+  if (!histogram || !counts.length || !total || !(histogram.high > histogram.low)) return null;
   const width = (histogram.high - histogram.low) / counts.length;
-  const at = (target) => {
+  const at = (target: number) => {
     let seen = 0;
     for (let i = 0; i < counts.length; i += 1) {
       seen += counts[i];

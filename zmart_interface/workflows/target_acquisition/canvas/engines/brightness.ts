@@ -1,7 +1,7 @@
 /**
  * The brightness range an acquisition actually holds.
  *
- * Shared by every option, the way `gestures.js` is, and for the same reason: it
+ * Shared by every option, the way `gestures.ts` is, and for the same reason: it
  * is not part of what is being compared. How an engine draws a picture is the
  * question; what range of numbers that picture contains is a fact about the file,
  * and two options answering it differently would be a difference in the results
@@ -42,7 +42,7 @@
  * from where the operator pointed it, so the middle is where the specimen is
  * likeliest to be. A tile that happens to hold nothing has no range and says so.
  *
- * **The middle in every direction, depth included**, which is `planes.js` beside
+ * **The middle in every direction, depth included**, which is `planes.ts` beside
  * this file and not a decision taken here. Taking the first plane was tried and
  * is wrong in the one way that matters: on the tile measured above the first
  * plane holds 203 to 503 where the middle plane holds 609 to 23103, and a window
@@ -67,9 +67,9 @@
  * opens.
  */
 
-import { loadOmeZarr } from "@vivjs/loaders";
+import { loadOmeZarr, type ZarrPixelSource } from "@vivjs/loaders";
 
-import { theMiddleOfEveryOtherAxis } from "./planes.js";
+import { theMiddleOfEveryOtherAxis } from "./planes.ts";
 
 /** How much of each end of the picture is treated as outlying rather than signal. */
 const SET_ASIDE_AT_EACH_END = 0.01;
@@ -100,7 +100,10 @@ const ENOUGH_NUMBERS = 4096;
  * moves that hardly at all. The two changes belong together: taking percentiles
  * is what makes reading a coarse copy safe.
  */
-function theCopyToRead(sources) {
+/** One resolution of an opened image, as the loader hands it over. */
+type Source = ZarrPixelSource<string[]>;
+
+function theCopyToRead(sources: Source[]): Source {
   for (let level = sources.length - 1; level >= 0; level -= 1) {
     const source = sources[level];
     const across = source?.labels?.indexOf("x") ?? -1;
@@ -122,10 +125,10 @@ function theCopyToRead(sources) {
  * @returns {{low: number, high: number}|null} the window, or nothing when the
  *   patch holds a single value and there is no window to be had.
  */
-export function theWindowThesePixelsAskFor(values) {
+export function theWindowThesePixelsAskFor(values: ArrayLike<number> | null | undefined): { low: number; high: number } | null {
   const sorted = Float64Array.from(values ?? []).sort();
   if (!sorted.length) return null;
-  const at = (share) => sorted[Math.round(share * (sorted.length - 1))];
+  const at = (share: number) => sorted[Math.round(share * (sorted.length - 1))];
   const low = at(SET_ASIDE_AT_EACH_END);
   const high = at(1 - SET_ASIDE_AT_EACH_END);
   if (high > low) return { low, high };
@@ -151,7 +154,9 @@ export function theWindowThesePixelsAskFor(values) {
  *   or nothing when it cannot be read or holds a single value — in which case
  *   the caller keeps whatever it would have used.
  */
-async function theRangeTheseSourcesHold(sources, { channel = 0 } = {}) {
+async function theRangeTheseSourcesHold(
+  sources: Source[] | null | undefined, { channel = 0 } = {},
+): Promise<{ low: number; high: number } | null> {
   if (!sources?.length) return null;
   const reading = theCopyToRead(sources);
   if (!reading) return null;
@@ -176,7 +181,7 @@ async function theRangeTheseSourcesHold(sources, { channel = 0 } = {}) {
        container says almost nothing about what is in it. Guessing from the type
        is the same mistake as guessing from the camera, one step further back.
        The caller keeps whatever it had, and says nothing it cannot support. */
-    return theWindowThesePixelsAskFor(patch?.data);
+    return theWindowThesePixelsAskFor(patch?.data as ArrayLike<number> | undefined);
   } catch (whyNot) {
     /* An image that will not give up a piece of itself is not a reason to refuse
        to draw it — the caller keeps what it had and the picture still appears.
@@ -202,7 +207,7 @@ async function theRangeTheseSourcesHold(sources, { channel = 0 } = {}) {
  * @returns {Promise<{low: number, high: number}|null>} what the picture holds,
  *   or nothing, as above.
  */
-export async function theRangeAStoreHolds(url, { channel = 0 } = {}) {
+export async function theRangeAStoreHolds(url: string, { channel = 0 } = {}): Promise<{ low: number; high: number } | null> {
   const bar = url.indexOf("|");
   const address = (bar < 0 ? url : url.slice(0, bar)).replace(/\/+$/, "");
   try {

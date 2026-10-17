@@ -47,6 +47,30 @@
  * application's business entirely.
  */
 
+import type { View } from "./opening-view.ts";
+
+/** Where a pointer is: on the stage in micrometres, in the box in pixels, the zoom, and whether shift is held. */
+export interface Pointer {
+  at: { x: number; y: number };
+  screen: { x: number; y: number };
+  zoom: number;
+  shift: boolean;
+}
+
+/** One moment of a drag handed over: which, and where the pointer is. */
+export type Drag = Pointer & { phase: "started" | "moved" | "finished" };
+
+/** Whoever drags are handed to. `false` from the start turns the drag down. */
+export type DragHandler = (drag: Drag) => boolean | void;
+
+/** What the gestures answer: their tallies, the hand-over, and a stop. */
+export interface Gestures {
+  refused: { shiftDrag: number; rightButton: number; ctrlWheel: number; keys: number };
+  accepted: { drags: number; wheels: number; dragsHandedOver: number; dragsHandedBack: number };
+  handDragsTo(handler: DragHandler | null | undefined): void;
+  stop(): void;
+}
+
 /**
  * Listen on `element`, and turn the two allowed gestures into view changes.
  *
@@ -55,11 +79,13 @@
  * record of what was accepted and what was refused, the way to lend a drag out,
  * and the way to stop listening.
  */
-export function onlyPanAndZoom(element, { getView, setView }) {
-  let dragging = null;
+export function onlyPanAndZoom(
+  element: HTMLElement, { getView, setView }: { getView: () => View; setView: (view: View) => void },
+): Gestures {
+  let dragging: { x: number; y: number; handOver: DragHandler | null; neverPans?: boolean } | null = null;
   // What a drag means at this moment. Nothing here means it pans, which is what
   // it does unless the application has said otherwise.
-  let handDragOver = null;
+  let handDragOver: DragHandler | null = null;
 
   const refused = { shiftDrag: 0, rightButton: 0, ctrlWheel: 0, keys: 0 };
   const accepted = { drags: 0, wheels: 0, dragsHandedOver: 0, dragsHandedBack: 0 };
@@ -84,7 +110,7 @@ export function onlyPanAndZoom(element, { getView, setView }) {
    * moment the operator panned or zoomed, while a mark recorded in micrometres
    * stays on the part of the sample it was drawn on.
    */
-  const whereThePointerIs = (event) => {
+  const whereThePointerIs = (event: PointerEvent): Pointer => {
     const view = getView();
     const size = sizeOfTheBox();
     const bounds = element.getBoundingClientRect();
@@ -108,7 +134,7 @@ export function onlyPanAndZoom(element, { getView, setView }) {
     };
   };
 
-  const down = (event) => {
+  const down = (event: PointerEvent) => {
     // The right button used to recentre the view and shift with the left button
     // used to rotate it. Both are gone.
     if (event.button !== 0) {
@@ -166,7 +192,7 @@ export function onlyPanAndZoom(element, { getView, setView }) {
     event.preventDefault();
   };
 
-  const move = (event) => {
+  const move = (event: PointerEvent) => {
     if (!dragging) return;
     if (dragging.handOver) {
       // Lent out: the view does not move at all, and what the drag means is
@@ -190,7 +216,7 @@ export function onlyPanAndZoom(element, { getView, setView }) {
     event.preventDefault();
   };
 
-  const up = (event) => {
+  const up = (event: PointerEvent) => {
     // A drag the browser cancelled — the window losing focus, say — arrives here
     // too, and is reported as finished. Whoever borrowed the drag is always told
     // it has ended, however it ended, because a tool left waiting for an end
@@ -202,7 +228,7 @@ export function onlyPanAndZoom(element, { getView, setView }) {
     element.releasePointerCapture?.(event.pointerId);
   };
 
-  const wheel = (event) => {
+  const wheel = (event: WheelEvent) => {
     // Always prevented, whatever is then done with it, so the browser never
     // zooms the page itself. A page zoom changes how many real pixels there are
     // to a browser pixel underneath us, which is precisely the thing two stacked
@@ -249,7 +275,7 @@ export function onlyPanAndZoom(element, { getView, setView }) {
     refused.keys += 1;
   };
 
-  const swallowTheMenu = (event) => event.preventDefault();
+  const swallowTheMenu = (event: Event) => event.preventDefault();
 
   element.addEventListener("pointerdown", down);
   element.addEventListener("pointermove", move);
@@ -286,7 +312,7 @@ export function onlyPanAndZoom(element, { getView, setView }) {
      *
      * Alt+drag is never offered. The canvas keeps it for panning.
      */
-    handDragsTo(handler) {
+    handDragsTo(handler: DragHandler | null | undefined) {
       handDragOver = handler || null;
     },
 

@@ -34,7 +34,7 @@
  *
  * Dragging is a separate matter and already has an answer: the canvas can lend
  * a drag out with `handDragsTo`, which is what drawing a region by hand uses.
- * See `engines/gestures.js`.
+ * See `engines/gestures.ts`.
  *
  * ## Where the layers come from
  *
@@ -44,6 +44,28 @@
  * list in. The canvas is never told which step it is in; it is told what to
  * draw. That is what keeps it movable from one workflow to the next.
  */
+
+import type { Drag } from "./engines/gestures.ts";
+import type { Frame, Paint } from "./surface.ts";
+
+/** A layer over the picture: how it draws, whether and how solidly it is shown, and what of it is under a press or a drag. */
+export interface Layer {
+  key?: string;
+  label?: string;
+  /** One sentence, shown when the pointer rests on its button. */
+  explains?: string;
+  /** Whether the run has anything for it; one with nothing gets no button. */
+  has?: boolean;
+  /** The key of the layer it is chrome for; it is shown with it. */
+  follows?: string;
+  paint?: Paint | null;
+  shown?: boolean;
+  opacity?: number;
+  staysSolid?: boolean;
+  reaches?: (at: { x: number; y: number }) => unknown;
+  claims?: (drag: Drag) => boolean | void;
+  [more: string]: unknown;
+}
 
 /**
  * Turn a stack of layers into one drawing to hand to the canvas's top slot.
@@ -62,8 +84,10 @@
  *   which lets the canvas tell "this stack is empty" apart from "this stack
  *   drew nothing today", a distinction the engines care about.
  */
-export function theDrawingAbove(layers = [], { dial = 1 } = {}) {
-  const drawable = layers.filter((layer) => layer && typeof layer.paint === "function");
+export function theDrawingAbove(
+  layers: (Layer | null | undefined)[] = [], { dial = 1 } = {},
+): Paint | null {
+  const drawable = layers.filter((layer): layer is Layer & { paint: Paint } => !!layer && typeof layer.paint === "function");
   if (!drawable.length) return null;
 
   return (frame) => {
@@ -84,7 +108,7 @@ export function theDrawingAbove(layers = [], { dial = 1 } = {}) {
   };
 }
 
-const clamped = (value) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 1));
+const clamped = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 1));
 
 /**
  * Draw one layer at the strength it has ended up with.
@@ -95,7 +119,7 @@ const clamped = (value) => Math.min(1, Math.max(0, Number.isFinite(value) ? valu
  * cannot assume they tidy up after themselves, and one that does not would
  * otherwise show as a fault in a completely different layer.
  */
-function paintOneLayer(frame, layer, strength) {
+function paintOneLayer(frame: Frame, layer: Layer & { paint: Paint }, strength: number): void {
   if (strength <= 0) return;
   const { context } = frame;
   context.save();
@@ -126,7 +150,9 @@ function paintOneLayer(frame, layer, strength) {
  * @param at where the click landed on the sample, in micrometres.
  * @returns `{ layer, what }` for the topmost layer that claimed it, or `null`.
  */
-export function whoIsAt(layers = [], at) {
+export function whoIsAt(
+  layers: (Layer | null | undefined)[] = [], at: { x: number; y: number } | null | undefined,
+): { layer: Layer; what: unknown } | null {
   if (!at) return null;
   for (let index = layers.length - 1; index >= 0; index -= 1) {
     const layer = layers[index];
@@ -154,7 +180,7 @@ export function whoIsAt(layers = [], at) {
  * @param drag the opening of the gesture, `{ phase: "started", at, screen }`.
  * @returns the layer that took it, or `null` if none did and it should pan.
  */
-export function whoClaims(layers = [], drag) {
+export function whoClaims(layers: (Layer | null | undefined)[] = [], drag: Drag | null | undefined): Layer | null {
   if (!drag) return null;
   for (let index = layers.length - 1; index >= 0; index -= 1) {
     const layer = layers[index];

@@ -3,7 +3,7 @@
  * canvas, and the alignment marks that register it to the stage.
  *
  * The carrier is *what the canvas is drawing*, so its controls dock in the
- * column beside the picture (`carrier-panel.js` builds them and draws the
+ * column beside the picture (`carrier-panel.ts` builds them and draws the
  * carrier on the stage itself). The anchor points belong to the run, not to
  * the panel: the canvas draws them and the press that places them is the
  * canvas's; the panel is handed the few things it needs to show and change

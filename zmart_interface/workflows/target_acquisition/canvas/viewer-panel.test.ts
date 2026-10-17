@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { luminanceOf, viewerRowsFor } from "./viewer-panel.js";
+import { luminanceOf, viewerRowsFor } from "./viewer-panel.ts";
 
 
 describe("Smart Viewer rows at the operator boundary", () => {

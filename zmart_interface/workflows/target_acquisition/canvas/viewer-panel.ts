@@ -14,6 +14,166 @@
  * `viewer.setChannel(index, …)` names the same row on both sides.
  */
 
+import type { PanelSnapshot } from "./display-of.ts";
+import type { Acquisition } from "./engines/neuroglancer-under/viewer.ts";
+
+/** A colour as three numbers from 0 to 1. */
+type Rgb = number[];
+
+/** A stretch of stored counts. */
+interface Span {
+  low: number;
+  high: number;
+}
+
+/** A histogram the viewer measured: counts in equal bins from `low` to `high`, and the window it would open on. */
+interface Measured {
+  low: number;
+  high: number;
+  counts: number[];
+  autoWindow?: Span;
+}
+
+/** One channel row of the panel, numbered the way the engine numbers its own. */
+export interface PanelRow {
+  acquisition: string;
+  name: string;
+  color: string | null;
+  colour: Rgb | null;
+  window: Span | null;
+  within: number;
+  source: string;
+  sources: string[];
+  histogram: Measured | null;
+  range: Span | null;
+  visible: boolean;
+  weight: number;
+  gamma?: number;
+  saturate?: number;
+  log?: boolean;
+  axis?: Span | null;
+  grey?: boolean;
+  colorInColour?: string | null;
+  colourInColour?: Rgb | null;
+  colourWindow?: Span | null;
+  colourWeight?: number;
+}
+
+/** What the panel remembers of a channel across remounts. */
+type Remembered = Partial<Omit<PanelRow, "acquisition" | "name" | "within" | "source" | "sources" | "range">>;
+
+/** The operator's requested state, which outlives any one panel. */
+export interface PanelState {
+  acquisitions: Map<string, boolean>;
+  channels: Map<string, Remembered | boolean>;
+  collapsed: Map<string, boolean>;
+  selectedKey: string | null;
+  lastMismatch: { at: string; rows: unknown[] } | null;
+}
+
+/** One channel as the engine reports it holds it, for the panel to hold it to what was asked. */
+interface EngineRow {
+  visible?: boolean;
+  weight?: number;
+  window?: Span | null;
+  sources?: { error?: unknown; lower?: unknown; upper?: unknown }[];
+  [more: string]: unknown;
+}
+
+/** What the panel asks of the engine underneath. */
+export interface PanelViewer {
+  setChannel(index: number, change: { visible?: boolean; colour?: Rgb; window?: Span; weight?: number; gamma?: number }): void;
+  measurementBox?(index: number): [[number, number], [number, number]] | null;
+  layersForMeasurement?(): EngineRow[];
+}
+
+/** What a measurement by the viewer's server came to. */
+type Measurement =
+  | { ok: true; answer: { histogram: Measured; window: Span; [more: string]: unknown } }
+  | { ok: false; message?: string; empty?: boolean; aborted?: boolean };
+
+/** The grey channel an acquisition collapses to: its window as shares of each member's, its opacity as a factor. */
+interface Composite {
+  a: number;
+  b: number;
+  s: number;
+  log: boolean;
+}
+
+/** One channel as a chip in the canvas's row shows it. */
+interface ChannelChip {
+  index: number;
+  name: string;
+  color: string;
+  visible: boolean;
+  chosen: boolean;
+}
+
+/** A change to one channel, as the box under the canvas row asks for it. */
+interface ChannelAct {
+  window?: Span;
+  axis?: Span | null;
+  weight?: number;
+  log?: boolean;
+  gamma?: number;
+  saturate?: number;
+  colour?: string | Rgb;
+}
+
+/**
+ * The panel as the page reaches it: the element, and what it answers.
+ * The page reads it through `window.__viewerPanel`; nothing here exposes
+ * neuroglancer.
+ */
+export interface ViewerPanelElement extends HTMLElement {
+  snapshot: () => PanelSnapshot;
+  sourcesChanged: (next: Acquisition[]) => Promise<boolean>;
+  showAcquisition: (name: string, on: boolean) => void;
+  drawInGrey: (name: string, grey: boolean) => void;
+  acquisitions: () => { name: string; shown: boolean; channels: number }[];
+  channelsOf: (name: string) => ChannelChip[];
+  setChannelVisible: (index: number, on: boolean) => void;
+  chooseRow: (index: number) => void;
+  acquisitionShown: (name: string) => boolean;
+  onChanged: (hook: () => void) => () => boolean;
+  composite: (name: string) => (Composite & { counts: number[]; measured: number; channels: number }) | null;
+  setComposite: (name: string, next: Partial<Composite>) => void;
+  autoComposite: (name: string) => Promise<void>;
+  acquisitionGrey: (name: string) => boolean;
+  channelBox: (index: number) => {
+    name: string; color: string | null; hex: string; visible: boolean; counts: number[]; range: Span | null;
+    window: Span; axis: Span; weight: number; log: boolean; gamma: number; saturate: number; measured: boolean;
+  } | null;
+  channelAct: (index: number, next: ChannelAct) => void;
+  gammaOf: (name: string) => number;
+  setGammaOf: (name: string, gamma: number) => void;
+  makeItLook: (names?: string[] | null) => Promise<void>;
+  autoChannel: (index: number) => Promise<void>;
+  lendSettingsCard: (into: HTMLElement) => void;
+  reclaimSettingsCard: () => void;
+  requestedState: PanelState;
+}
+
+/** What `mountViewerPanel` answers. */
+export interface MountedPanel {
+  element: ViewerPanelElement;
+  snapshot: () => PanelSnapshot;
+  sourcesChanged: (next: Acquisition[]) => Promise<boolean>;
+  showAcquisition: (name: string, on: boolean) => void;
+  drawInGrey(name: string, grey: boolean): void;
+  destroy(): void;
+}
+
+declare global {
+  interface Window {
+    /** The canvas's display panel, while one is mounted. */
+    __viewerPanel?: ViewerPanelElement | null;
+  }
+}
+
+/** A slider, dressed: it can be asked to fill its track again. */
+type Dressed = HTMLInputElement & { refill: () => void };
+
 /* The viewer's light dress, inlined from its `theme.css` — the operator page
    has no dark mode, so only the light values travel. */
 const INK = {
@@ -34,7 +194,7 @@ const PALETTE = [
   { name: "red", rgb: [1.0, 0.15, 0.15] },
   { name: "grey", rgb: null },
 ];
-const cssOf = (rgb) =>
+const cssOf = (rgb: Rgb | null | undefined): string =>
   rgb ? `rgb(${rgb.map((v) => Math.round(v * 255)).join(",")})` : "#d8dee6";
 /**
  * A colour's share of the light: the luminance the eye reads it at, by the
@@ -43,12 +203,12 @@ const cssOf = (rgb) =>
  * coloured picture desaturated would -- three whites added clipped a
  * quarter of a three-channel field, and the operator saw it.
  */
-export const luminanceOf = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
-const hexOf = (rgb) => rgb
+export const luminanceOf = ([r, g, b]: Rgb): number => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+const hexOf = (rgb: Rgb | null | undefined): string => rgb
   ? `#${rgb.map((value) => Math.round(Math.min(1, Math.max(0, value)) * 255)
     .toString(16).padStart(2, "0")).join("")}`
   : "#ffffff";
-const rgbOf = (hex) => {
+const rgbOf = (hex: string): Rgb => {
   const value = parseInt(hex.replace("#", ""), 16);
   return [(value >> 16 & 255) / 255, (value >> 8 & 255) / 255, (value & 255) / 255];
 };
@@ -56,7 +216,7 @@ const rgbOf = (hex) => {
 /* The 15% rule: the window's edges are drawn at 15% and 85% of the axis. */
 const WINDOW_SITS_FROM = 0.15;
 
-const font = (weight, size) => `${weight} ${size}px/1 system-ui, sans-serif`;
+const font = (weight: number, size: number) => `${weight} ${size}px/1 system-ui, sans-serif`;
 
 /* The viewer's filled slider skin, said once per page. */
 const SLIDER_CSS = `
@@ -66,7 +226,8 @@ const SLIDER_CSS = `
 .zv-range::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; margin-top:-5px; border-radius:50%; border:none; background:${INK.accent}; }
 .zv-range:disabled { opacity:.45; cursor:default; }`;
 
-function dressed(slider) {
+function dressed(input: HTMLInputElement): Dressed {
+  const slider = input as Dressed;
   const fill = () => {
     const low = Number(slider.min), high = Number(slider.max);
     const share = high > low ? (Number(slider.value) - low) / (high - low) : 0;
@@ -80,13 +241,14 @@ function dressed(slider) {
 }
 
 /** The store's description, read where either generation of the format keeps it. */
-async function theStoresDescription(url) {
+async function theStoresDescription(url: string): Promise<any> {
   const bar = url.indexOf("|");
   const address = (bar < 0 ? url : url.slice(0, bar)).replace(/\/+$/, "");
-  for (const [file, unwrap] of [
+  const spellings: [string, (doc: any) => any][] = [
     [".zattrs", (doc) => doc],
     ["zarr.json", (doc) => doc?.attributes?.ome ?? doc?.attributes ?? doc],
-  ]) {
+  ];
+  for (const [file, unwrap] of spellings) {
     try {
       const answer = await fetch(`${address}/${file}`, { cache: "no-store" });
       if (answer.ok) return unwrap(await answer.json());
@@ -104,8 +266,8 @@ async function theStoresDescription(url) {
  * each row's spatial `sources` together.  Reading every store as though it
  * were a new acquisition is the 9 × 3 = 27 bug this adapter exists to prevent.
  */
-export async function viewerRowsFor(acquisitions) {
-  const rows = [];
+export async function viewerRowsFor(acquisitions: Acquisition[]): Promise<PanelRow[]> {
+  const rows: PanelRow[] = [];
   for (const acquisition of acquisitions) {
     const offered = Array.isArray(acquisition.channels) && acquisition.channels.length
       ? acquisition.channels
@@ -113,12 +275,12 @@ export async function viewerRowsFor(acquisitions) {
     const described = offered
       ? null
       : (await theStoresDescription(acquisition.url))?.omero?.channels;
-    const channels = offered
+    const channels: Omit<PanelRow, "acquisition">[] = offered
       ? offered.map((channel, at) => ({
         name: channel.name || `channel ${at}`,
         color: Array.isArray(channel.colour)
           ? cssOf(channel.colour)
-          : channel.color ?? null,
+          : (channel.color as string | undefined) ?? null,
         colour: Array.isArray(channel.colour) ? channel.colour : null,
         window: channel.window ?? null,
         within: Array.isArray(channel.localPosition)
@@ -126,17 +288,17 @@ export async function viewerRowsFor(acquisitions) {
           : channel.channelIndex ?? at,
         source: (channel.sources ?? [channel.source ?? acquisition.url])[0],
         sources: channel.sources ?? [channel.source ?? acquisition.url],
-        histogram: channel.histogram ?? null,
-        range: channel.range ?? null,
+        histogram: (channel.histogram as Measured | undefined) ?? null,
+        range: (channel.range as Span | undefined) ?? null,
         visible: channel.visible !== false,
         weight: channel.weight ?? 1,
       }))
       : Array.isArray(described) && described.length
-        ? described.map((channel, at) => ({
+        ? described.map((channel: any, at: number) => ({
           name: channel?.label || `channel ${at + 1}`,
           color: typeof channel?.color === "string" ? `#${channel.color}` : null,
           colour: typeof channel?.color === "string"
-            ? [0, 2, 4].map((at) => parseInt(channel.color.slice(at, at + 2), 16) / 255)
+            ? [0, 2, 4].map((from) => parseInt(channel.color.slice(from, from + 2), 16) / 255)
             : null,
           window: channel?.window && Number.isFinite(channel.window.start)
             ? { low: channel.window.start, high: channel.window.end }
@@ -173,7 +335,7 @@ export async function viewerRowsFor(acquisitions) {
 }
 
 /** Ask the real Viewer server about one channel without inventing a fallback. */
-import { windowFromHistogram, windowForTheLook } from "./auto-window.js";
+import { windowFromHistogram, windowForTheLook } from "./auto-window.ts";
 
 /**
  * The colours the one-press look dresses the channels in, by their order
@@ -193,10 +355,10 @@ const LOOK_COLOURS = [
   [0.45, 0.5, 1.0],   // blue
 ];
 
-async function measureViewerRow(row, {
+async function measureViewerRow(row: PanelRow, {
   signal = null,
   box = [[0, 0], [1, 1]],
-} = {}) {
+}: { signal?: AbortSignal | null; box?: [[number, number], [number, number]] } = {}): Promise<Measurement> {
   try {
     const origin = new URL(row.source).origin;
     const answer = await fetch(`${origin}/api/measure`, {
@@ -216,13 +378,13 @@ async function measureViewerRow(row, {
     }
     return { ok: true, answer: body };
   } catch (error) {
-    if (error?.name === "AbortError") return { ok: false, aborted: true };
+    if ((error as Error | null)?.name === "AbortError") return { ok: false, aborted: true };
     return { ok: false, message: "Measurement failed; the current window was kept." };
   }
 }
 
 /** A channel identity that survives source growth and panel remounting. */
-const viewerChannelKey = (row) =>
+const viewerChannelKey = (row: Pick<PanelRow, "acquisition" | "within" | "name">): string =>
   `${row.acquisition}\u0000${row.within}\u0000${row.name}`;
 
 /**
@@ -235,7 +397,7 @@ const viewerChannelKey = (row) =>
  * @public — the browser specs take it by the page's address, which knip
  * cannot follow (`workflows/target_acquisition/testing/page-addresses.test.js` holds them to it).
  */
-export function createViewerPanelState() {
+export function createViewerPanelState(): PanelState {
   return {
     acquisitions: new Map(),
     channels: new Map(),
@@ -245,8 +407,8 @@ export function createViewerPanelState() {
   };
 }
 
-function completePanelState(given) {
-  const state = given ?? createViewerPanelState();
+function completePanelState(given: Partial<PanelState> | null | undefined): PanelState {
+  const state = (given ?? createViewerPanelState()) as PanelState;
   state.acquisitions ??= new Map();
   state.channels ??= new Map();
   state.collapsed ??= new Map();
@@ -255,18 +417,18 @@ function completePanelState(given) {
   return state;
 }
 
-function rememberedChannel(state, row) {
+function rememberedChannel(state: PanelState, row: PanelRow): Remembered {
   const saved = state.channels.get(viewerChannelKey(row));
   /* Visibility-only maps were used by the cleanup before the rest of the
      panel became persistent. Accept them so a running session upgrades rather
      than forgetting the eyes the operator already set. */
-  const remembered = typeof saved === "boolean" ? { visible: saved } : (saved ?? {});
+  const remembered: Remembered = typeof saved === "boolean" ? { visible: saved } : (saved ?? {});
   /* Older running panels remembered the temporary grey RGB triplet but not
      that it was temporary. On remount that made the button say "colour"
      while another press merely greyed an already-grey acquisition again.
      A coloured fresh channel paired with an achromatic remembered one is the
      recoverable signature of that state. */
-  const isGrey = (colour) => Array.isArray(colour) && colour.length >= 3
+  const isGrey = (colour: Rgb | null | undefined) => Array.isArray(colour) && colour.length >= 3
     && Math.abs(colour[0] - colour[1]) < 1e-9
     && Math.abs(colour[1] - colour[2]) < 1e-9;
   const legacyGrey = remembered.grey === undefined
@@ -291,7 +453,7 @@ function rememberedChannel(state, row) {
   };
 }
 
-const el = (tag, style, text) => {
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, style?: string | null, text?: string) => {
   const made = document.createElement(tag);
   if (style) made.style.cssText = style;
   if (text !== undefined) made.textContent = text;
@@ -302,7 +464,7 @@ const HEADING = `font:${font(600, 11)};letter-spacing:.08em;text-transform:upper
 const CARD = `border-top:1px solid ${INK.panelBorder};border-bottom:1px solid ${INK.panelBorder};padding:8px 0 12px;margin-bottom:12px;background:${INK.cardBg};flex-shrink:0;`;
 
 /** The viewer's eye, verbatim proportions. */
-function anEye(open) {
+function anEye(open: boolean): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
   svg.style.cssText = "width:14px;height:14px;display:block;";
@@ -321,7 +483,7 @@ function anEye(open) {
  * settings, a tab away from the step's channel, where the tab is the fold
  * and the column is the width.
  */
-export async function mountViewerPanel(near, {
+export async function mountViewerPanel(near: HTMLElement | null, {
   viewer,
   acquisitions,
   into = null,
@@ -329,7 +491,14 @@ export async function mountViewerPanel(near, {
   changed = null,
   /* Kept for callers from the first cleanup checkpoint. */
   requestedVisibility = null,
-}) {
+}: {
+  viewer: PanelViewer;
+  acquisitions: Acquisition[];
+  into?: HTMLElement | null;
+  requestedState?: Partial<PanelState> | null;
+  changed?: (() => void) | null;
+  requestedVisibility?: Partial<PanelState> | null;
+}): Promise<MountedPanel> {
   const rows = await viewerRowsFor(acquisitions);
   /* Source/config growth may replace this DOM, never the operator's choices.
      Acquisition and channel visibility are deliberately separate: hiding a
@@ -338,19 +507,19 @@ export async function mountViewerPanel(near, {
   const rememberedGroups = panelState.acquisitions;
   const rememberedChannels = panelState.channels;
   let visibilityReady = false;
-  let observationTimer = null;
-  let changedTimer = null;
+  let observationTimer: ReturnType<typeof setInterval> | null = null;
+  let changedTimer: ReturnType<typeof setTimeout> | null = null;
   /* A slider can produce dozens of inputs in one gesture. The canvas should
      follow all of them immediately, while consumers of rendered JPEG copies
      need only the settled display request. */
-  const changedHooks = new Set();
+  const changedHooks = new Set<() => void>();
   const displayChangedSoon = () => {
     for (const hook of changedHooks) { try { hook(); } catch { /* a hook's own business */ } }
     if (typeof changed !== "function") return;
     if (changedTimer !== null) clearTimeout(changedTimer);
     changedTimer = setTimeout(() => {
       changedTimer = null;
-      changed();
+      changed?.();
     }, 80);
   };
   rows.forEach((row) => {
@@ -366,11 +535,12 @@ export async function mountViewerPanel(near, {
   }
 
   const body = near?.closest?.(".canvas-body");
-  const plotHost = body?.querySelector(".plot-host");
+  const plotHost = body?.querySelector<HTMLElement>(".plot-host");
 
   /* The strip and the bar, the viewer's own arrangement: the 14px fold strip
      stands between the picture and the bar and stays when the bar goes. */
-  const panel = el("aside", "display:flex;flex-direction:row;min-height:0;overflow:hidden;");
+  /* The element, and below, what it answers: the page reaches both through it. */
+  const panel = el("aside", "display:flex;flex-direction:row;min-height:0;overflow:hidden;") as ViewerPanelElement;
   panel.className = "viewer-panel";
 
   const fold = el("button", [
@@ -402,7 +572,7 @@ export async function mountViewerPanel(near, {
     bar.style.padding = "var(--box-gap) 14px 0";
     bar.style.gap = "var(--box-gap)";
   }
-  function aCard(title) {
+  function aCard(title: string) {
     if (!inPage) {
       const card = el("div", CARD);
       card.append(el("div", HEADING, title));
@@ -464,7 +634,7 @@ export async function mountViewerPanel(near, {
   const histogramValue = el("output", "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);", "");
   histogramValue.setAttribute("aria-label", "histogram value");
 
-  const valueInput = (label) => {
+  const valueInput = (label: string) => {
     const input = el("input", [
       "width:54px", "height:24px", "box-sizing:border-box",
       `background:${INK.inputBg}`, `border:1px solid ${INK.subtleBorder}`,
@@ -484,7 +654,7 @@ export async function mountViewerPanel(near, {
     "border-radius:3px", `background:${INK.ghost}`, `color:${INK.textPrimary}`,
     `font:${font(600, 11)}`, "cursor:pointer",
   ].join(";"), "Auto");
-  const logButton = autoButton.cloneNode(false);
+  const logButton = autoButton.cloneNode(false) as HTMLButtonElement;
   logButton.textContent = "Log";
   for (const button of [autoButton, logButton]) button.type = "button";
   autoButton.setAttribute("aria-label", "auto contrast");
@@ -501,7 +671,7 @@ export async function mountViewerPanel(near, {
   const axisHigh = valueInput("axis to");
   axisRow.append(axisLow, axisButtons, axisHigh);
 
-  const controlRow = (label) => {
+  const controlRow = (label: string) => {
     const line = el("label",
       `display:grid;grid-template-columns:58px 1fr 58px;gap:6px;align-items:center;padding:2px 12px;font-size:10px;color:${INK.textMuted};`);
     line.append(el("span", "", label));
@@ -528,15 +698,15 @@ export async function mountViewerPanel(near, {
   );
 
   /* ---- the state the settings act on ---- */
-  let chosen = null;   // the flat row index picked out
-  let shape = null;    // its measured histogram {low, high, counts, autoWindow}
+  let chosen: number | null = null;   // the flat row index picked out
+  let shape: Measured | null = null;    // its measured histogram {low, high, counts, autoWindow}
   let logScale = false;
   let measurementGeneration = 0;
-  let measurementController = null;
-  let measurementTimer = null;
-  const actionRevision = new Map();
+  let measurementController: AbortController | null = null;
+  let measurementTimer: ReturnType<typeof setTimeout> | null = null;
+  const actionRevision = new Map<string, number>();
 
-  const remember = (row) => {
+  const remember = (row: PanelRow) => {
     rememberedChannels.set(viewerChannelKey(row), {
       visible: row.visible,
       color: row.color,
@@ -554,13 +724,13 @@ export async function mountViewerPanel(near, {
     });
   };
 
-  const windowOf = (row) => row.window
+  const windowOf = (row: PanelRow): Span => row.window
     ?? (shape?.autoWindow && chosen !== null && rows[chosen] === row ? shape.autoWindow : null)
     ?? { low: 0, high: 65535 };
 
-  const imageRange = (row) => {
+  const imageRange = (row: PanelRow): Span => {
     const declared = row.range;
-    if (Number.isFinite(declared?.high) && declared.high > (declared.low ?? 0)) {
+    if (declared && Number.isFinite(declared.high) && declared.high > (declared.low ?? 0)) {
       return { low: declared.low ?? 0, high: declared.high };
     }
     const window_ = windowOf(row);
@@ -570,7 +740,7 @@ export async function mountViewerPanel(near, {
     };
   };
 
-  function restingAxis(row) {
+  function restingAxis(row: PanelRow): Span {
     /* The window aims to sit at 15%..85% of the drawn axis. The image range
        is the wall; an axis must not describe brightness the source cannot hold. */
     const window_ = windowOf(row);
@@ -583,11 +753,11 @@ export async function mountViewerPanel(near, {
     };
   }
 
-  function theAxis(row) {
+  function theAxis(row: PanelRow): Span {
     return row.axis ?? restingAxis(row);
   }
 
-  function heldAxis(row, next) {
+  function heldAxis(row: PanelRow, next: Span): Span {
     const bounds = imageRange(row);
     const total = bounds.high - bounds.low;
     const width = Math.min(Math.max(next.high - next.low, total / 256), total);
@@ -595,14 +765,14 @@ export async function mountViewerPanel(near, {
     return { low, high: low + width };
   }
 
-  function setTheAxis(row, next) {
+  function setTheAxis(row: PanelRow, next: Span | null) {
     markOperatorAction(row);
     row.axis = next ? heldAxis(row, next) : null;
     remember(row);
     refreshControls();
   }
 
-  const sayMeasurement = (state, message = "") => {
+  const sayMeasurement = (state: string, message = "") => {
     measurementNotice.dataset.measurementState = state;
     measurementNotice.textContent = message;
     measurementNotice.style.display = message ? "block" : "none";
@@ -617,7 +787,7 @@ export async function mountViewerPanel(near, {
     measurementTimer = null;
   };
 
-  const markOperatorAction = (row) => {
+  const markOperatorAction = (row: PanelRow) => {
     const key = viewerChannelKey(row);
     actionRevision.set(key, (actionRevision.get(key) ?? 0) + 1);
     cancelMeasurement();
@@ -633,23 +803,24 @@ export async function mountViewerPanel(near, {
     plot.setAttribute("viewBox", `0 0 ${Math.max(counts.length, 1)} 24`);
     const axis = theAxis(row);
     const span = axis.high - axis.low || 1;
-    const at = (value) =>
+    const at = (value: number) =>
       Math.min(Math.max((value - axis.low) / span, 0), 1) * Math.max(counts.length, 1);
-    if (shape && counts.length) {
-      const bins = shape.high - shape.low || 1;
-      const brightnessOf = (index) => shape.low + ((index + 0.5) * bins) / counts.length;
+    const measured = shape;
+    if (measured && counts.length) {
+      const bins = measured.high - measured.low || 1;
+      const brightnessOf = (index: number) => measured.low + ((index + 0.5) * bins) / counts.length;
       const peak = Math.max(...counts, 1);
       counts.forEach((count, index) => {
         const share = logScale ? Math.log1p(count) / Math.log1p(peak) : count / peak;
         const height = share * 22;
         const inside = brightnessOf(index) >= window_.low && brightnessOf(index) <= window_.high;
-        const starts = at(shape.low + (index * bins) / counts.length);
-        const ends = at(shape.low + ((index + 1) * bins) / counts.length);
+        const starts = at(measured.low + (index * bins) / counts.length);
+        const ends = at(measured.low + ((index + 1) * bins) / counts.length);
         const barEl = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        barEl.setAttribute("x", starts);
-        barEl.setAttribute("y", 24 - height);
-        barEl.setAttribute("width", Math.max(ends - starts, 0.0001));
-        barEl.setAttribute("height", height);
+        barEl.setAttribute("x", String(starts));
+        barEl.setAttribute("y", String(24 - height));
+        barEl.setAttribute("width", String(Math.max(ends - starts, 0.0001)));
+        barEl.setAttribute("height", String(height));
         barEl.setAttribute("fill", "currentColor");
         barEl.setAttribute("opacity", inside ? "1" : "0.25");
         plot.append(barEl);
@@ -662,7 +833,7 @@ export async function mountViewerPanel(near, {
       const x = at(edge);
       if (x <= 0 || x >= counts.length) continue;
       const line = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-      line.setAttribute("x", x);
+      line.setAttribute("x", String(x));
       line.setAttribute("y", "0");
       line.setAttribute("width", "0.8");
       line.setAttribute("height", "24");
@@ -698,13 +869,14 @@ export async function mountViewerPanel(near, {
     }
     minRow.slider.value = String(Math.floor(window_.low));
     maxRow.slider.value = String(Math.ceil(window_.high));
-    for (const [input, value] of [
+    const said: [HTMLInputElement, number | string][] = [
       [axisLow, Math.round(axis.low)],
       [axisHigh, Math.round(axis.high)],
       [minRow.box, Math.floor(window_.low)],
       [maxRow.box, Math.ceil(window_.high)],
       [opacityRow.box, `${Math.round(row.weight * 100)}%`],
-    ]) {
+    ];
+    for (const [input, value] of said) {
       input.disabled = false;
       if (document.activeElement !== input) input.value = String(value);
     }
@@ -719,7 +891,7 @@ export async function mountViewerPanel(near, {
     drawTheHistogram();
   }
 
-  function takeTheWindow(next, { operator = true, reframe = false } = {}) {
+  function takeTheWindow(next: Span, { operator = true, reframe = false } = {}) {
     if (chosen === null) return;
     const row = rows[chosen];
     if (operator) {
@@ -742,20 +914,22 @@ export async function mountViewerPanel(near, {
     displayChangedSoon();
   }
 
+  /* The sliders stand disabled until a row is chosen. */
   minRow.slider.addEventListener("input", () => takeTheWindow({
-    low: Number(minRow.slider.value), high: windowOf(rows[chosen]).high,
+    low: Number(minRow.slider.value), high: windowOf(rows[chosen!]).high,
   }));
   maxRow.slider.addEventListener("input", () => takeTheWindow({
-    low: windowOf(rows[chosen]).low, high: Number(maxRow.slider.value),
+    low: windowOf(rows[chosen!]).low, high: Number(maxRow.slider.value),
   }));
   opacityRow.slider.addEventListener("input", () => {
     if (chosen === null) return;
-    rows[chosen].weight = Number(opacityRow.slider.value);
-    remember(rows[chosen]);
-    viewer.setChannel(chosen, { weight: rows[chosen].weight });
-    opacityRow.box.value = `${Math.round(rows[chosen].weight * 100)}%`;
+    const row = rows[chosen];
+    row.weight = Number(opacityRow.slider.value);
+    remember(row);
+    viewer.setChannel(chosen, { weight: row.weight });
+    opacityRow.box.value = `${Math.round(row.weight * 100)}%`;
   });
-  const takeTheGamma = (index, gamma) => {
+  const takeTheGamma = (index: number, gamma: number) => {
     const row = rows[index];
     if (!row) return;
     row.gamma = Math.max(0.1, Math.min(4, gamma));
@@ -775,7 +949,7 @@ export async function mountViewerPanel(near, {
     if (chosen !== null && Number.isFinite(value) && value > 0) takeTheGamma(chosen, value);
     else refreshControls();
   });
-  const takeTheSaturation = (index, percent) => {
+  const takeTheSaturation = (index: number, percent: number) => {
     const row = rows[index];
     if (!row) return;
     row.saturate = Math.max(0.01, Math.min(20, percent));
@@ -788,7 +962,7 @@ export async function mountViewerPanel(near, {
     else refreshControls();
   });
 
-  const commitOnLeaving = (input, take) => {
+  const commitOnLeaving = (input: HTMLInputElement, take: (value: number) => void) => {
     const commit = () => {
       const value = Number(input.value.replace("%", ""));
       if (Number.isFinite(value)) take(value);
@@ -869,7 +1043,7 @@ export async function mountViewerPanel(near, {
     }
   }
 
-  async function requestMeasurement(index, { auto = false, debounce = 0 } = {}) {
+  async function requestMeasurement(index: number, { auto = false, debounce = 0 } = {}): Promise<Measurement | null> {
     cancelMeasurement();
     const generation = measurementGeneration;
     const row = rows[index];
@@ -879,9 +1053,9 @@ export async function mountViewerPanel(near, {
     measurementController = controller;
     sayMeasurement("measuring", "Measuring with Smart Viewer…");
     if (debounce) {
-      await new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
         measurementTimer = setTimeout(resolve, debounce);
-        controller.signal.addEventListener("abort", resolve, { once: true });
+        controller.signal.addEventListener("abort", () => resolve(), { once: true });
       });
       measurementTimer = null;
     }
@@ -940,14 +1114,15 @@ export async function mountViewerPanel(near, {
 
   /* Window edges drag; the remaining histogram surface pans its brightness
      axis. The two actions share the Viewer 0.2 six-pixel edge hit zone. */
-  let held = null;
-  const valueUnder = (event) => {
+  let held: { bar: "low" | "high" } | { panFrom: number; axisWas: Span } | null = null;
+  /* Asked only while a row is chosen: every handle below returns first when none is. */
+  const valueUnder = (event: MouseEvent) => {
     const face = plot.getBoundingClientRect();
-    const axis = theAxis(rows[chosen]);
+    const axis = theAxis(rows[chosen!]);
     const share = Math.min(1, Math.max(0, (event.clientX - face.left) / face.width));
     return axis.low + share * (axis.high - axis.low);
   };
-  const barUnder = (event) => {
+  const barUnder = (event: MouseEvent): "low" | "high" | null => {
     if (!shape || chosen === null) return null;
     const window_ = windowOf(rows[chosen]);
     const face = plot.getBoundingClientRect();
@@ -958,7 +1133,7 @@ export async function mountViewerPanel(near, {
     if (Math.abs(value - window_.high) <= grace) return "high";
     return null;
   };
-  const showValueUnder = (event) => {
+  const showValueUnder = (event: MouseEvent) => {
     if (!shape?.counts?.length) {
       histogramValue.textContent = `value ${Math.round(valueUnder(event))}`;
       return;
@@ -987,7 +1162,7 @@ export async function mountViewerPanel(near, {
       plot.style.cursor = barUnder(event) ? "ew-resize" : "grab";
       return;
     }
-    if (held.bar) {
+    if ("bar" in held) {
       const value = valueUnder(event);
       takeTheWindow(held.bar === "low"
         ? { low: Math.min(value, window_.high - 1), high: window_.high }
@@ -1041,24 +1216,24 @@ export async function mountViewerPanel(near, {
   engineNotice.dataset.engineState = "agrees";
   data.append(engineNotice);
 
-  let chooserOpen = null;
+  let chooserOpen: HTMLElement | null = null;
   const closeChooser = () => { chooserOpen?.remove(); chooserOpen = null; };
-  const closeChooserOnOutsidePress = (event) => {
-    if (chooserOpen?.contains(event.target)) return;
+  const closeChooserOnOutsidePress = (event: Event) => {
+    if (chooserOpen?.contains(event.target as Node | null)) return;
     closeChooser();
   };
   document.addEventListener("pointerdown", closeChooserOnOutsidePress, true);
 
-  const swatches = rows.map(() => new Set());
-  const channelEyes = rows.map(() => new Set());
+  const swatches = rows.map(() => new Set<HTMLElement>());
+  const channelEyes = rows.map(() => new Set<HTMLElement>());
 
-  const paintSwatches = (index) => {
+  const paintSwatches = (index: number) => {
     for (const swatch of swatches[index] ?? []) {
       swatch.style.background = rows[index].color ?? cssOf(null);
     }
   };
 
-  const paintChannelEyes = (index) => {
+  const paintChannelEyes = (index: number) => {
     const row = rows[index];
     for (const eye of channelEyes[index] ?? []) {
       eye.replaceChildren(anEye(row.visible));
@@ -1068,7 +1243,7 @@ export async function mountViewerPanel(near, {
     }
   };
 
-  const setChannelVisible = (index, visible) => {
+  const setChannelVisible = (index: number, visible: boolean) => {
     const row = rows[index];
     row.visible = visible;
     remember(row);
@@ -1081,7 +1256,7 @@ export async function mountViewerPanel(near, {
     displayChangedSoon();
   };
 
-  function aChannelEye(index, { chosenControl = false } = {}) {
+  function aChannelEye(index: number, { chosenControl = false } = {}) {
     const row = rows[index];
     const eye = el("button",
       `background:none;border:none;color:${INK.textPrimary};cursor:pointer;padding:0;`);
@@ -1098,7 +1273,7 @@ export async function mountViewerPanel(near, {
     return eye;
   }
 
-  function aSwatch(index, row) {
+  function aSwatch(index: number, row: PanelRow) {
     const swatch = el("button", [
       "width:13px", "height:13px", "border-radius:3px",
       `border:1px solid ${INK.controlBorder}`, "display:inline-block",
@@ -1177,23 +1352,23 @@ export async function mountViewerPanel(near, {
     return swatch;
   }
 
-  const rowLines = [];
-  const groupShown = new Map();
+  const rowLines: HTMLElement[] = [];
+  const groupShown = new Map<string, boolean>();
   /* Each acquisition's eye, by name, for the page to press: walking to the
      overview scan puts the focus stack away. */
-  const groupSwitches = new Map();
-  const greySwitches = new Map();
+  const groupSwitches = new Map<string, (on: boolean) => void>();
+  const greySwitches = new Map<string, (grey: boolean) => void>();
   /* The one grey channel each acquisition collapses to while grey is on:
      its window as shares a and b of every member's colour window, its
      opacity as a factor s on every member's colour weight. */
-  const composites = new Map();
-  const compositeMembers = new Map();
+  const composites = new Map<string, Composite>();
+  const compositeMembers = new Map<string, { one: PanelRow; at: number }[]>();
   /* Whether each acquisition is drawn in grey now, beside the switch that
      changes it, so the canvas's own Grayscale press can say which way it
      will go. */
-  const greyStates = new Map();
-  let heading = null;
-  let groupBox = null;
+  const greyStates = new Map<string, () => { grey: boolean; visible: boolean }>();
+  let heading: string | null = null;
+  let groupBox: HTMLElement | null = null;
   rows.forEach((row, index) => {
     if (row.acquisition !== heading) {
       heading = row.acquisition;
@@ -1208,9 +1383,7 @@ export async function mountViewerPanel(near, {
       const groupEye = el("button",
         `background:none;border:none;color:${INK.textPrimary};cursor:pointer;padding:0;`);
       groupEye.type = "button";
-      const initiallyOn = rememberedGroups.has(groupName)
-        ? rememberedGroups.get(groupName)
-        : true;
+      const initiallyOn = rememberedGroups.get(groupName) ?? true;
       groupShown.set(groupName, initiallyOn);
       groupEye.dataset.on = initiallyOn ? "1" : "0";
       groupEye.dataset.acquisition = groupName;
@@ -1221,7 +1394,7 @@ export async function mountViewerPanel(near, {
       groupEye.title = initiallyOn ? "Hide this acquisition" : "Show this acquisition";
       const members = rows.map((one, at) => ({ one, at }))
         .filter(({ one }) => one.acquisition === groupName);
-      const showTheGroup = (on) => {
+      const showTheGroup = (on: boolean) => {
         groupEye.dataset.on = on ? "1" : "0";
         groupShown.set(groupName, on);
         rememberedGroups.set(groupName, on);
@@ -1264,7 +1437,7 @@ export async function mountViewerPanel(near, {
          grey goes on, and one control over the sum moves all of them in
          proportion: a window as a share of each member's own, an opacity
          as a factor on each member's weight. Colour restores them all. */
-      const drawInGrey = (grey) => {
+      const drawInGrey = (grey: boolean) => {
         for (const { one, at } of members) {
           if (grey && !one.grey) {
             one.colourInColour = one.colour;
@@ -1278,13 +1451,13 @@ export async function mountViewerPanel(near, {
             one.colour = one.colourInColour ?? one.colour;
             one.color = one.colorInColour ?? one.color;
             if (one.colourWindow) one.window = { ...one.colourWindow };
-            if (Number.isFinite(one.colourWeight)) one.weight = one.colourWeight;
-            viewer.setChannel(at, { window: one.window, weight: one.weight });
+            if (one.colourWeight !== undefined && Number.isFinite(one.colourWeight)) one.weight = one.colourWeight;
+            viewer.setChannel(at, { window: one.window ?? undefined, weight: one.weight });
           }
           one.grey = grey;
           remember(one);
           paintSwatches(at);
-          viewer.setChannel(at, { colour: one.colour });
+          viewer.setChannel(at, { colour: one.colour ?? undefined });
         }
         if (grey) composites.set(groupName, { a: 0, b: 1, s: 1, log: false });
         else composites.delete(groupName);
@@ -1307,7 +1480,7 @@ export async function mountViewerPanel(near, {
         groupName), greyPick);
       const thisGroupBox = el("div", `padding-left:8px;border-left:2px solid ${INK.subtleBorder};margin-left:16px;`);
       groupBox = thisGroupBox;
-      const showMembers = (show) => {
+      const showMembers = (show: boolean) => {
         panelState.collapsed.set(groupName, !show);
         thisGroupBox.style.display = show ? "block" : "none";
         disclosure.textContent = show ? "▾" : "▸";
@@ -1332,26 +1505,26 @@ export async function mountViewerPanel(near, {
     line.append(inner);
     line.addEventListener("click", () => chooseRow(index));
     rowLines.push(line);
-    groupBox.append(line);
+    groupBox!.append(line);
   });
   const observedRows = () => viewer.layersForMeasurement?.() ?? null;
-  const effectiveVisibility = (row) =>
+  const effectiveVisibility = (row: PanelRow) =>
     groupShown.get(row.acquisition) !== false && row.visible;
-  const sameWindow = (a, b) => !a || (!!b
+  const sameWindow = (a: Span | null, b: Span | null | undefined) => !a || (!!b
     && Math.abs(a.low - b.low) < 0.01
     && Math.abs(a.high - b.high) < 0.01);
 
-  const applyRequested = (index) => {
+  const applyRequested = (index: number) => {
     const row = rows[index];
     viewer.setChannel(index, {
       visible: effectiveVisibility(row),
-      colour: row.colour,
-      window: row.window,
+      colour: row.colour ?? undefined,
+      window: row.window ?? undefined,
       weight: row.weight,
     });
   };
 
-  const readyEngineRows = () => {
+  const readyEngineRows = (): EngineRow[] | null => {
     const standing = observedRows();
     if (standing === null) return [];
     const ready = standing.length === rows.length
@@ -1376,7 +1549,7 @@ export async function mountViewerPanel(near, {
       return true;
     }
     if (!standing.length && !viewer.layersForMeasurement) return true;
-    const mismatches = [];
+    const mismatches: unknown[] = [];
     standing.forEach((seen, index) => {
       const row = rows[index];
       const wanted = {
@@ -1385,7 +1558,7 @@ export async function mountViewerPanel(near, {
         weight: row.weight,
       };
       if (seen.visible !== wanted.visible
-          || (Number.isFinite(seen.weight) && Math.abs(seen.weight - wanted.weight) > 0.001)
+          || (seen.weight !== undefined && Number.isFinite(seen.weight) && Math.abs(seen.weight - wanted.weight) > 0.001)
           || !sameWindow(wanted.window, seen.window)) {
         mismatches.push({
           key: viewerChannelKey(row),
@@ -1411,7 +1584,7 @@ export async function mountViewerPanel(near, {
   refreshObserved();
   observationTimer = setInterval(refreshObserved, 100);
 
-  const panelSnapshot = () => {
+  const panelSnapshot = (): PanelSnapshot => {
     const standing = observedRows() ?? [];
     return {
       selectedKey: panelState.selectedKey,
@@ -1450,7 +1623,7 @@ export async function mountViewerPanel(near, {
     };
   };
 
-  const sourcesChanged = async (nextAcquisitions) => {
+  const sourcesChanged = async (nextAcquisitions: Acquisition[]) => {
     const next = await viewerRowsFor(nextAcquisitions);
     if (next.length !== rows.length
         || next.some((row, index) => viewerChannelKey(row) !== viewerChannelKey(rows[index]))) {
@@ -1471,7 +1644,7 @@ export async function mountViewerPanel(near, {
     return true;
   };
 
-  function chooseRow(index) {
+  function chooseRow(index: number) {
     cancelMeasurement();
     chosen = index;
     const row = rows[index];
@@ -1545,7 +1718,7 @@ export async function mountViewerPanel(near, {
      taken back into the column when the card closes. One box, one truth. */
   /* The grey channel: what it stands at, its histogram over the sum, and
      the three things that move it -- the window, the opacity, Auto. */
-  const applyComposite = (name) => {
+  const applyComposite = (name: string) => {
     const state = composites.get(name);
     const members = compositeMembers.get(name);
     if (!state || !members) return;
@@ -1568,7 +1741,7 @@ export async function mountViewerPanel(near, {
     /* One histogram over the sum: each member's counts laid along the
        share of its own colour window, each member weighed by its total so
        a bright channel and a faint one count alike. */
-    const bins = new Array(64).fill(0);
+    const bins: number[] = new Array(64).fill(0);
     let measured = 0;
     for (const { one } of members) {
       const shape = one.histogram;
@@ -1600,13 +1773,13 @@ export async function mountViewerPanel(near, {
     for (const { one, at } of members) {
       if (!one.source) continue;
       const result = await measureViewerRow(one, { box: viewer.measurementBox?.(at) ?? [[0, 0], [1, 1]] });
-      if (!result?.ok || !result.answer?.window) continue;
+      if (!result.ok || !result.answer?.window) continue;
       const { low, high } = result.answer.window;
       one.histogram = result.answer.histogram ?? one.histogram;
       one.colourWindow = { low, high: Math.max(high, low + 1) };
     }
     if (!composites.get(name)) return;
-    Object.assign(composites.get(name), { a: 0, b: 1 });
+    Object.assign(composites.get(name)!, { a: 0, b: 1 });
     applyComposite(name);
   };
   panel.acquisitionGrey = (name) => Boolean(greyStates.get(name)?.().grey);
@@ -1623,8 +1796,8 @@ export async function mountViewerPanel(near, {
       counts: hist?.counts ?? [], range: hist ? { low: hist.low, high: hist.high } : null,
       window: { ...windowOf(row) }, axis: { ...theAxis(row) },
       weight: Number.isFinite(row.weight) ? row.weight : 1, log: Boolean(row.log),
-      gamma: Number.isFinite(row.gamma) ? row.gamma : 1,
-      saturate: Number.isFinite(row.saturate) ? row.saturate : 1,
+      gamma: row.gamma !== undefined && Number.isFinite(row.gamma) ? row.gamma : 1,
+      saturate: row.saturate !== undefined && Number.isFinite(row.saturate) ? row.saturate : 1,
       measured: Boolean(hist?.counts?.length),
     };
   };
@@ -1633,8 +1806,8 @@ export async function mountViewerPanel(near, {
     if (!row) return;
     if (chosen !== index) chooseRow(index);
     if (next.window) takeTheWindow(next.window);
-    if ("axis" in next) setTheAxis(row, next.axis);
-    if (Number.isFinite(next.weight)) {
+    if ("axis" in next) setTheAxis(row, next.axis ?? null);
+    if (next.weight !== undefined && Number.isFinite(next.weight)) {
       row.weight = Math.max(0, Math.min(1, next.weight));
       remember(row);
       viewer.setChannel(index, { weight: row.weight });
@@ -1642,10 +1815,11 @@ export async function mountViewerPanel(near, {
       displayChangedSoon();
     }
     if (typeof next.log === "boolean" && next.log !== logScale) logButton.click();
-    if (Number.isFinite(next.gamma)) takeTheGamma(index, next.gamma);
-    if (Number.isFinite(next.saturate)) takeTheSaturation(index, next.saturate);
+    if (next.gamma !== undefined && Number.isFinite(next.gamma)) takeTheGamma(index, next.gamma);
+    if (next.saturate !== undefined && Number.isFinite(next.saturate)) takeTheSaturation(index, next.saturate);
     if (next.colour) {
-      row.colour = rgbOf(next.colour);
+      /* A colour typed as `#rrggbb`, or the look's own three numbers. */
+      row.colour = typeof next.colour === "string" ? rgbOf(next.colour) : next.colour;
       row.color = cssOf(row.colour);
       row.grey = false;
       remember(row);

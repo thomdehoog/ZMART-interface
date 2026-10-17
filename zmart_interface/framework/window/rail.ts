@@ -1,7 +1,7 @@
 /**
  * The left rail: the steps in order, and the rules about reaching and
  * editing them. The workflow chooser over it is the composition's
- * (`pages.js`), since it is one for every workflow.
+ * (`pages.ts`), since it is one for every workflow.
  *
  * The rail is navigation. It shows each step's number and title, green once
  * done, orange when done under settings that have since changed, and locked
