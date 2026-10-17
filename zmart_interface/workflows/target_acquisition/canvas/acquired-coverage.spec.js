@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { pythonForTheBridge } from "../testing/python.js";
-import { readPng } from "../testing/pixels.js";
+import { pythonForTheBridge } from "../testing/python.ts";
+import { readPng } from "../testing/pixels.ts";
 
 const fixture = fileURLToPath(new URL("./fixtures/write-coverage-source.py", import.meta.url));
 const count = (shot, colour) => {

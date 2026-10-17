@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const PACKAGE = fileURLToPath(new URL("../../..", import.meta.url));
 const ROOT = join(PACKAGE, "..");
 
-const specs = (folder) => readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
+const specs = (folder: string): string[] => readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
   const at = join(folder, entry.name);
   if (entry.isDirectory()) return ["build", "node_modules", "__pycache__"].includes(entry.name) ? [] : specs(at);
   return /\.spec\.[jt]s$/.test(entry.name) ? [at] : [];
@@ -26,24 +26,24 @@ const specs = (folder) => readdirSync(folder, { withFileTypes: true }).flatMap((
 const DESTRUCTURED = /(?:const|let)\s*\{([^{}]*)\}\s*=\s*await import\(\s*["'](\/zmart_interface\/[^"']+)["']\s*\)/g;
 const WHOLE = /(?:const|let)\s+(\w+)\s*=\s*await import\(\s*["'](\/zmart_interface\/[^"']+)["']\s*\)/g;
 
-function exportsOf(file) {
+function exportsOf(file: string): Set<string> {
   const text = readFileSync(file, "utf8");
-  const names = new Set();
+  const names = new Set<string>();
   for (const m of text.matchAll(/^export\s+(?:async\s+)?(?:function\*?|const|let|class)\s+(\w+)/gm)) names.add(m[1]);
   /* `export const { a, b } = ...`: each name taken apart. */
   for (const m of text.matchAll(/^export\s+(?:const|let)\s*\{([^}]*)\}/gm)) {
-    for (const part of m[1].split(",")) names.add(part.trim().split(/\s*:\s*/).pop());
+    for (const part of m[1].split(",")) names.add(part.trim().split(/\s*:\s*/).pop() ?? "");
   }
   for (const m of text.matchAll(/^export\s*\{([^}]*)\}/gm)) {
-    for (const part of m[1].split(",")) names.add(part.trim().split(/\s+as\s+/).pop());
+    for (const part of m[1].split(",")) names.add(part.trim().split(/\s+as\s+/).pop() ?? "");
   }
   if (/^export\s+default\b/m.test(text)) names.add("default");
   return names;
 }
 
-function takenBy(spec) {
+function takenBy(spec: string): { address: string; name: string | null }[] {
   const text = readFileSync(spec, "utf8");
-  const taken = [];
+  const taken: { address: string; name: string | null }[] = [];
   for (const m of text.matchAll(DESTRUCTURED)) {
     for (const part of m[1].split(",")) {
       const name = part.trim().split(":")[0].trim();

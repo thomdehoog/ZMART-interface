@@ -26,8 +26,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { operateTheInstrument, rest, setAcquisitionShown, showTheChannel, startTheBridge }
-  from "./testing/live-bridge.js";
-import { bestShift, fractionLit, photograph } from "./testing/pixels.js";
+  from "./testing/live-bridge.ts";
+import { bestShift, fractionLit, photograph } from "./testing/pixels.ts";
 
 /** How far two photographs of the same box differ: the mean absolute gap
  * per sample. Zero when nothing on the picture changed. */

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { rest, setAcquisitionShown, startTheBridge } from
-  "../../testing/live-bridge.js";
+  "../../testing/live-bridge.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(HERE, "test-results", "step-five-kidney");

@@ -31,6 +31,6 @@ export const pythonForTheBridge = () => process.env.PYTHON ?? "python";
  * A developer with an editable install still gets their working copy, since
  * the installation itself points Python there.
  */
-export const bridgePython = (...args) => ({
+export const bridgePython = (...args: string[]) => ({
   command: pythonForTheBridge(), args: ["-P", ...args], cwd: REPO,
 });

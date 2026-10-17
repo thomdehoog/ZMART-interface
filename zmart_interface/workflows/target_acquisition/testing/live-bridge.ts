@@ -18,12 +18,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isTheMock } from "../microscope/instruments.ts";
-import { bridgePython } from "./python.js";
+import { bridgePython } from "./python.ts";
+import type { Page } from "@playwright/test";
 
-export const rest = (ms) => new Promise((done) => setTimeout(done, ms));
+export const rest = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 /** The step's channel beside the canvas, on screen. */
-export async function showTheChannel(page) {
+export async function showTheChannel(page: Page) {
   await expect(page.locator("#canvas-side")).toBeVisible();
 }
 
@@ -33,7 +34,7 @@ export async function showTheChannel(page) {
  * line carries the acquisition's eye. Waits for the strip, since it arrives
  * with the picture.
  */
-export async function setAcquisitionShown(page, name, shown) {
+export async function setAcquisitionShown(page: Page, name: string, shown: boolean) {
   const eye = page.locator(`#acquisition-menu button[aria-label="show or hide ${name}"]`);
   await expect(page.locator("#acquisition-name"), "the acquisitions strip is there").toBeVisible({ timeout: 30_000 });
   await page.locator("#acquisition-name").click();
@@ -62,7 +63,7 @@ export async function setAcquisitionShown(page, name, shown) {
  * buttons take -- so nothing here writes the instrument's settings behind the
  * driver's back.
  */
-export function operateTheInstrument(method, ...args) {
+export function operateTheInstrument(method: string, ...args: unknown[]) {
   const program = [
     "import json, sys",
     "from zmart_interface.workflows.target_acquisition.mock_microscope.window import Api",
@@ -73,7 +74,7 @@ export function operateTheInstrument(method, ...args) {
   return JSON.parse(said);
 }
 
-export async function startTheBridge({ port, connect = true } = {}) {
+export async function startTheBridge({ port, connect = true }: { port: number; connect?: boolean }) {
   /* A folder of its own, well away from the page's own source: a run written
      inside the project looks to the development server like somebody editing
      the page, which reloads the browser mid-test. */
@@ -84,7 +85,7 @@ export async function startTheBridge({ port, connect = true } = {}) {
   const bridge = spawn(python.command, python.args, { stdio: "inherit", cwd: python.cwd });
 
   const at = `http://127.0.0.1:${port}`;
-  const ask = async (route, payload) => {
+  const ask = async (route: string, payload?: unknown) => {
     const answer = await fetch(at + route, payload === undefined ? undefined : {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -131,7 +132,7 @@ export async function startTheBridge({ port, connect = true } = {}) {
       return runs[0] ?? opened?.run;
     },
     folder,
-    async image(positions) {
+    async image(positions: { x: number; y: number; z?: number }[]) {
       if ((process.env.LIVE_BRIDGE_SABOTAGE ?? "") === "stalled") return;
       await ask("/api/target_acquisition/scan", { positions });
       for (let waited = 0; waited < 300; waited++) {

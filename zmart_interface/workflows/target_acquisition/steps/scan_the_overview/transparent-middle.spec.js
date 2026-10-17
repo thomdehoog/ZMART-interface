@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { operateTheInstrument, startTheBridge } from "../../testing/live-bridge.js";
-import { readPng } from "../../testing/pixels.js";
+import { operateTheInstrument, startTheBridge } from "../../testing/live-bridge.ts";
+import { readPng } from "../../testing/pixels.ts";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

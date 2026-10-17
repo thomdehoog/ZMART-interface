@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { pythonForTheBridge } from "../../testing/python.js";
-import { readPng } from "../../testing/pixels.js";
+import { pythonForTheBridge } from "../../testing/python.ts";
+import { readPng } from "../../testing/pixels.ts";
 
 for (const bake of [false, true]) test(`publication failure preserves valid pixels, bake ${bake}`, async ({ page }, info) => {
   test.setTimeout(60_000);

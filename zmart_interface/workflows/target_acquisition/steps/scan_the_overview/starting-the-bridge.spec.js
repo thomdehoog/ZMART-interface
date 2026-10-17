@@ -15,7 +15,7 @@
 import { execFileSync } from "node:child_process";
 import os from "node:os";
 import { expect, test } from "@playwright/test";
-import { bridgePython, pythonForTheBridge } from "../../testing/python.js";
+import { bridgePython, pythonForTheBridge } from "../../testing/python.ts";
 
 const WHERE_FROM = [
   "import json, os, sys, zmart_interface",

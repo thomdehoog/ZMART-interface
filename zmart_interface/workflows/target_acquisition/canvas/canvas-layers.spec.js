@@ -530,7 +530,7 @@ test("the picture sits between the layers below its place in the stack and those
   });
   expect(shares).toBe(true);
   const shot = await page.locator("#stacked").screenshot();
-  const { readPng } = await import("../testing/pixels.js");
+  const { readPng } = await import("../testing/pixels.ts");
   const pixels = readPng(shot);
   const at = (x, y) => {
     const i = (y * pixels.width + x) * pixels.channels;

@@ -20,6 +20,15 @@
  */
 
 import zlib from "node:zlib";
+import type { Page } from "@playwright/test";
+
+/** A photograph read into pixels: `data` runs row by row, `channels` numbers a pixel. */
+export interface Pixels {
+  width: number;
+  height: number;
+  channels: number;
+  data: Buffer;
+}
 
 /* How much of the picture to look at: the middle half of it, in both
    directions. The middle rather than the whole, because the page draws its own
@@ -43,12 +52,12 @@ const LIT = 40;
  * @returns `{ width, height, channels, data }`, where `data` runs row by row and
  *   left to right, with `channels` numbers per pixel.
  */
-export function readPng(buffer) {
+export function readPng(buffer: Buffer): Pixels {
   if (buffer.readUInt32BE(0) !== 0x89504e47) throw new Error("this is not a PNG");
 
   let at = 8;                       // past the eight bytes that say "PNG"
-  let header = null;
-  const parts = [];
+  let header: { width: number; height: number; depth: number; colour: number; interlace: number } | null = null;
+  const parts: Buffer[] = [];
   while (at < buffer.length) {
     const length = buffer.readUInt32BE(at);
     const kind = buffer.toString("ascii", at + 4, at + 8);
@@ -124,7 +133,7 @@ export function readPng(buffer) {
  * @param selector which canvas to photograph.
  * @returns the pixels, ready for the two measurements below.
  */
-export async function photograph(page, selector, share = MIDDLE) {
+export async function photograph(page: Page, selector: string, share = MIDDLE): Promise<Pixels> {
   const box = await page.locator(selector).boundingBox();
   if (!box) throw new Error(`there is no ${selector} on the page to photograph`);
   const margin = (1 - share) / 2;
@@ -149,7 +158,7 @@ export async function photograph(page, selector, share = MIDDLE) {
  * the overlap at that shift as a fraction of the first map's area, so a
  * drawing that lands on nothing at any shift scores near zero.
  */
-export function bestShift(first, second, width, height, reach = 12) {
+export function bestShift(first: ArrayLike<unknown>, second: ArrayLike<unknown>, width: number, height: number, reach = 12) {
   let best = { dx: 0, dy: 0, score: -1 };
   let area = 0;
   for (let i = 0; i < first.length; i++) area += first[i] ? 1 : 0;
@@ -190,7 +199,7 @@ export function bestShift(first, second, width, height, reach = 12) {
  *
  * @returns a share between 0 and 1.
  */
-export function fractionLit({ data, channels }, floor = LIT) {
+export function fractionLit({ data, channels }: Pixels, floor = LIT): number {
   let lit = 0;
   let pixels = 0;
   for (let at = 0; at < data.length; at += channels) {

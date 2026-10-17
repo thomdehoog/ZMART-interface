@@ -21,7 +21,7 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     // `import.meta.glob`, `?raw` and stylesheet imports, as Vite answers them.
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     // Neuroglancer's insides by the names it offers them under, mapped as
     // `vite.config.js` maps them.
     "paths": {

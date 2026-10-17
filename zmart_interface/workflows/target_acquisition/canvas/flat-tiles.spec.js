@@ -8,8 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { pythonForTheBridge } from "../testing/python.js";
-import { readPng } from "../testing/pixels.js";
+import { pythonForTheBridge } from "../testing/python.ts";
+import { readPng } from "../testing/pixels.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const heights = [62.99, 62.79, 64.26, 64.01, 61.10, 60.40, 62.20, 61.40];
