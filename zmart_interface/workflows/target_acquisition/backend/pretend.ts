@@ -592,12 +592,12 @@ const pretendPositionUm = () => ({ x: TRAVEL_UM.x * 0.04, y: TRAVEL_UM.y * 0.04,
 let where = pretendPositionUm();
 
 /** A position, shaped the way the controller reports one: each axis gives
-    its position in micrometres from the origin, the unit, every motor of the
-    axis with its own raw reading, and the canvas. The pretend stage has one
-    motor per axis, and it reads what the axis reads. */
+    its position in micrometres from the origin, the unit, the motor it moves
+    by, every motor of the axis with its own raw reading, and the canvas. The
+    pretend stage has one motor per axis, and it reads what the axis reads. */
 const standingAt = (at: { x: number; y: number; z: number }): XyzReading => {
   const axis = (name: "x" | "y" | "z") => ({
-    position: at[name], unit: "micrometer", actuators: { motoric: at[name] },
+    position: at[name], unit: "micrometer", actuator: "motoric", actuators: { motoric: at[name] },
     canvas: [...TRAVEL_RANGE_UM[name]] as [number, number],
   });
   return { x: axis("x"), y: axis("y"), z: axis("z") };

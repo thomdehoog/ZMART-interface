@@ -22,9 +22,11 @@ export type Span = [number, number];
 /** One axis as `get_xyz` reports it. */
 interface AxisReading {
   position: number;
-  unit?: string;
-  actuators?: Record<string, number>;
-  canvas?: Span;
+  unit: string;
+  /** The motor this axis moved by: one of `actuators`. */
+  actuator: string;
+  actuators: Record<string, number>;
+  canvas: Span;
 }
 
 /** Where the stage is, per axis, as `get_xyz` reports it; `busy` while a run holds the instrument. */

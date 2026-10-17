@@ -236,12 +236,15 @@ function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
         /* The page lays the stage out from `get_xyz`'s canvas and lists the
            checks under Connect. The mock always reported both; the Leica once
            reported neither, so a real connect drew a stage of no size with
-           nothing to say. Each axis says exactly its position, its unit, its
-           motors and its canvas; the travel stays inside the driver. */
+           nothing to say. Each axis says exactly what the controller says of
+           it: its position, its unit, the motor it moved by, every motor's
+           reading and its canvas; the travel stays inside the driver. */
         const at = await backend.get_xyz();
         for (const axis of ["x", "y", "z"] as const) {
-          expect(Object.keys(at[axis]).sort(), `${axis} reads position, unit, actuators and canvas`)
-            .toEqual(["actuators", "canvas", "position", "unit"]);
+          expect(Object.keys(at[axis]).sort(), `${axis} reads position, unit, actuator, actuators and canvas`)
+            .toEqual(["actuator", "actuators", "canvas", "position", "unit"]);
+          expect(Object.keys(at[axis].actuators), `${axis}'s actuator is one of its motors`)
+            .toContain(at[axis].actuator);
           const { canvas } = at[axis];
           expect(Array.isArray(canvas) && canvas.length === 2, `${axis} has a canvas`).toBe(true);
           const [low, high] = canvas as Span;
@@ -252,7 +255,8 @@ function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
           expect(high, `${axis}'s canvas spans something`).toBeGreaterThan(low);
         }
         expect(checks.length, "the checks are named as they are asked").toBeGreaterThan(0);
-        await backend.disconnect();
+        /* Left open: the promises after this one stand on the session the
+           live suite opened, and closing it here took it from all of them. */
       },
     },
     {
