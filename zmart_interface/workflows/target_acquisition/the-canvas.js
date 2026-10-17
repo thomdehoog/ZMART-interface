@@ -26,6 +26,15 @@ import carrierWidget from "./shared/carrier-panel.js";
 import scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.js";
 import { watchTheRun } from "./steps/scan_the_overview/watching-the-run.js";
 import { openTheStage } from "./shared/stage.js";
+/* What each step draws on the picture, in no particular order: the stack's
+   order is the picture's own (`THE_STACK` in `shared/stage.js`). */
+import { carrierLayers } from "./steps/define_carrier/layers.js";
+import { scanAreaLayers } from "./steps/define_scan_area/layers.js";
+import { focusLayers } from "./steps/focus_strategy/layers.js";
+import { overviewLayers } from "./steps/scan_the_overview/layers.js";
+import { targetLayers } from "./steps/discover_targets/layers.js";
+import { acquiredLayers } from "./steps/acquire_targets/layers.js";
+import { MASK_RAINBOW } from "./steps/discover_targets/mask-dress.js";
 
 /**
  * Open the canvas on the page. Answers `stage`, `view`, `drawStage`,
@@ -123,6 +132,8 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
     css, sizeCanvas, el,
     run: state,
     carrierWidget, scanfieldsWidget,
+    stepLayers: [carrierLayers, scanAreaLayers, focusLayers, overviewLayers, targetLayers, acquiredLayers],
+    maskRainbow: MASK_RAINBOW,
     activePreset: () => page.activePreset(),
     indexOfStep,
     sideWidget: () => page.sideWidget(),

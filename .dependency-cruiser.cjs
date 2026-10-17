@@ -45,6 +45,13 @@ module.exports = {
       to: { path: "^zmart_interface/workflows/[^/]+/steps/", pathNot: "^zmart_interface/workflows/[^/]+/steps/$1/" },
     },
     {
+      name: "below-the-steps-imports-no-step",
+      comment: "What several steps use sits below them -- shared code, the canvas, the microscope seam, the backend, the test helpers -- and imports no step; only the workflow's root composes the steps.",
+      severity: "error",
+      from: { path: "^zmart_interface/workflows/[^/]+/(shared|canvas|microscope|backend|testing)/" },
+      to: { path: "^zmart_interface/workflows/[^/]+/steps/" },
+    },
+    {
       name: "resolvable",
       comment: "An import that leads nowhere fails in the build; say so before it does. The viewer's drawing files are found by the build itself, in the installed viewer (tools/the-installed-viewer.mjs).",
       severity: "error",

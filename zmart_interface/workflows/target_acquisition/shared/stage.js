@@ -23,18 +23,8 @@
 
 import { putTheCanvasIn } from "../canvas/viewer.js";
 import { theCanvasOf } from "../microscope/canvas.js";
-/* What each step draws on the picture. A step owns its own layers — what they
-   are, when the run has anything for them, and what a press on one means — and
-   the workflow says only where each sits in the stack. */
-import { carrierLayers } from "../steps/define_carrier/layers.js";
-import { scanAreaLayers } from "../steps/define_scan_area/layers.js";
-import { focusLayers } from "../steps/focus_strategy/layers.js";
-import { MASK_RAINBOW } from "../steps/discover_targets/mask-dress.js";
 import { maskLayersOn } from "./mask-layers.js";
 import { mountChannelBox } from "../canvas/channel-box.js";
-import { overviewLayers } from "../steps/scan_the_overview/layers.js";
-import { targetLayers } from "../steps/discover_targets/layers.js";
-import { acquiredLayers } from "../steps/acquire_targets/layers.js";
 
 /**
  * Open the picture on a canvas.
@@ -43,6 +33,12 @@ import { acquiredLayers } from "../steps/acquire_targets/layers.js";
  * the sample being drawn, the panels that draw their own layers, the focus
  * gestures, the presses other steps own, and what to call when something the
  * rest of the page shows has changed.
+ *
+ * `stepLayers` is what each step draws on the picture, one function per step
+ * that answers its layers for the run. A step owns its own layers — what they
+ * are, when the run has anything for them, and what a press on one means —
+ * and the workflow's root hands them over, so this picture imports no step.
+ * `maskRainbow` is how "each object its own colour" is shown on a swatch.
  */
 export function openTheStage(ctx) {
   const {
@@ -703,13 +699,8 @@ function theStageLayers({ shown, editing }) {
   const supplied = {
     picture: { key: "picture", has: false },
     ...thePicturesOwnLayers(theRun),
-    ...carrierLayers(theRun),
-    ...scanAreaLayers(theRun),
-    ...focusLayers(theRun),
-    ...overviewLayers(theRun),
-    ...targetLayers(theRun),
-    ...acquiredLayers(theRun),
   };
+  for (const layersOf of ctx.stepLayers) Object.assign(supplied, layersOf(theRun));
 
   return THE_STACK.map((key) => supplied[key]).filter(Boolean);
 }
@@ -1455,7 +1446,7 @@ if (ctx.maskColours) {
   rainbow.type = "button";
   rainbow.className = "mask-colour";
   rainbow.dataset.colour = "";
-  rainbow.style.background = MASK_RAINBOW;
+  rainbow.style.background = ctx.maskRainbow;
   rainbow.title = "Each object its own colour";
   rainbow.addEventListener("click", () => dressTheChosen((layer) => { layer.dress.colour = null; }));
   ctx.maskColours.append(rainbow);
