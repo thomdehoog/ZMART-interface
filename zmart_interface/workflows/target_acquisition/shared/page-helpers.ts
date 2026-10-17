@@ -23,7 +23,7 @@ export const pictureOf = (
   { displayAs = kind }: { displayAs?: string } = {},
 ): string | null => {
   const where = page.backend.viewOf(kind);
-  const snapshot = window.__viewerPanel?.snapshot?.() ?? null;
+  const snapshot = page.thePicture.panel()?.snapshot?.() ?? null;
   return displayedPictureAddress(where, label, snapshot, displayAs);
 };
 

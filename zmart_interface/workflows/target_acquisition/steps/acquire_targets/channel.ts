@@ -77,9 +77,8 @@ export function acquisitionArrived(page: TaPage): void {
      rendered: the panel rebuilds its rows for the step, and a switch
      thrown before that was thrown at the old rows. */
   setTimeout(() => {
-    if (window.__viewerPanel?.acquisitionGrey?.("overview")) {
-      window.__viewerPanel?.drawInGrey?.("overview", false);
-    }
+    const panel = page.thePicture.panel();
+    if (panel?.acquisitionGrey?.("overview")) panel.drawInGrey?.("overview", false);
   }, 0);
   /* The gallery's pictures wear the canvas's display settings, which may
      have changed since they were drawn: coming back to the step draws

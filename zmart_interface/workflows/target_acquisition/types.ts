@@ -17,6 +17,8 @@
 import type { Page, Run, Step, WorkflowTypes } from "../../api/index.ts";
 import type { Backend } from "./backend/verbs.ts";
 import type { View } from "./canvas/engines/opening-view.ts";
+import type { EngineViewer } from "./canvas/engines/neuroglancer-under/viewer.ts";
+import type { ViewerPanelElement } from "./canvas/viewer-panel.ts";
 import type { freshState } from "./shared/run-document.ts";
 import type { StageWatch } from "./shared/stage-position.ts";
 import type { ProgressBox } from "./shared/progress.ts";
@@ -117,6 +119,11 @@ export interface ThePicture {
   mayHaveLanded(): unknown;
   /** The session is over, and what was opened belongs to it. */
   reset(): void;
+  /** The drawing engine's picture, while one is open. */
+  engine(): EngineViewer | null;
+  /** The picture's display settings -- its acquisitions, their eyes and
+      greys, its channels -- while they are on the page. */
+  panel(): ViewerPanelElement | null;
 }
 
 /** The scan-field editor, while it is on screen. */

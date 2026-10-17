@@ -102,8 +102,9 @@ export function installTheCanvas(page: TaPage): CanvasOnThePage {
 
   /* The canvas panel this workflow declared, and everything that draws in it. */
   const theCanvas = thePanels.canvas as TheCanvasPanel;
-  /* The T slider under the picture, on whichever picture is open. */
-  const theAxes = mountTheAxes(theCanvas.parts, { picture: () => window.__thePicture ?? null });
+  /* The T slider under the picture, on whichever picture is open. It asks
+     only once the page is running, so the picture below is there by then. */
+  const theAxes = mountTheAxes(theCanvas.parts, { picture: () => thePicture.engine() });
   window.__theAxes = theAxes;
 
   /* The picture of a real run: the scan beneath the plan. The scan step's, so

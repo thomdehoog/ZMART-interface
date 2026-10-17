@@ -122,8 +122,8 @@ interface ChannelAct {
 
 /**
  * The panel as the page reaches it: the element, and what it answers.
- * The page reads it through `window.__viewerPanel`; nothing here exposes
- * neuroglancer.
+ * The page reads it through the picture (`page.thePicture.panel()`), the
+ * tests through `window.__viewerPanel`; nothing here exposes neuroglancer.
  */
 export interface ViewerPanelElement extends HTMLElement {
   snapshot: () => PanelSnapshot;

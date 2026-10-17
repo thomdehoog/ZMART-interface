@@ -408,6 +408,8 @@ export function watchTheRun(ctx: WatchContext): { thePicture: ThePicture } {
           is a fresh session: its run starts with nothing scanned, and the
           picture of the last one must not stand in for it. */
       reset() { closePicture({ forgetVisibility: true }); },
+      engine: () => viewer,
+      panel: () => panel?.element ?? null,
     };
   })();
 

@@ -142,6 +142,6 @@ export const scanChannel: Channel<TargetAcquisition> = {
 /** Arriving at the scan: the focus stack was there to judge the focus; over
     the overview it is a square of other pixels on the picture the operator
     came to look at. Its eye is pressed for them on the way to the scan. */
-export function scanArrived() {
-  window.__viewerPanel?.showAcquisition?.("focussing", false);
+export function scanArrived(page: TaPage) {
+  page.thePicture.panel()?.showAcquisition?.("focussing", false);
 }

@@ -1432,7 +1432,7 @@ const theMaskKind = () => theAcquisitionOnShow() ?? "overview";
    still drawn under them -- and a mask on the picture with no chip in the
    strip cannot be dressed or put away. */
 const theMaskLayers = (): StripLayer[] => {
-  const shown = new Set((window.__viewerPanel?.acquisitions?.() ?? [])
+  const shown = new Set((thePicture.panel()?.acquisitions?.() ?? [])
     .filter((one) => one.shown).map((one) => one.name));
   const masks = shown.size
     ? (run.masks ?? []).filter((one) => shown.has(one.kind))
@@ -1547,7 +1547,7 @@ let greyBox: { refresh(): void } | null = null;
 if (ctx.greyPop) cards.push([ctx.greyPop, ctx.greyChipMore]);
 const openTheGreyBox = (e: Event) => {
   e.stopPropagation();
-  const panel = window.__viewerPanel;
+  const panel = thePicture.panel();
   const names = panel?.acquisitions?.().map((one) => one.name) ?? [];
   const shown = theRowsAcquisition(names);
   if (!panel || !shown) return;
@@ -1682,9 +1682,9 @@ pickButton?.addEventListener("keydown", (e) => {
    in the press and on its line in the menu -- is the one switch, shown
    twice. */
 const theAcquisitionOnShow = () =>
-  theRowsAcquisition((window.__viewerPanel?.acquisitions?.() ?? []).map((one) => one.name));
+  theRowsAcquisition((thePicture.panel()?.acquisitions?.() ?? []).map((one) => one.name));
 const drawTheAcquisitionIn = (name: string, grey: boolean) => {
-  window.__viewerPanel?.drawInGrey?.(name, grey);
+  thePicture.panel()?.drawInGrey?.(name, grey);
   sayWhatThePressesDo();
 };
 ctx.rampChip?.addEventListener("click", (e) => {
@@ -1698,7 +1698,7 @@ ctx.rampChip?.addEventListener("click", (e) => {
 ctx.acquisitionEye?.addEventListener("click", (e) => {
   e.stopPropagation();
   const shown = theAcquisitionOnShow();
-  if (shown) window.__viewerPanel?.showAcquisition?.(shown, ctx.acquisitionEye!.getAttribute("aria-pressed") !== "true");
+  if (shown) thePicture.panel()?.showAcquisition?.(shown, ctx.acquisitionEye!.getAttribute("aria-pressed") !== "true");
   sayWhatThePressesDo();
 });
 
@@ -1706,7 +1706,7 @@ ctx.acquisitionEye?.addEventListener("click", (e) => {
    put on whichever panel stands now, once. */
 let hookedPanel: ViewerPanelElement | null = null;
 function followThePanel() {
-  const panel = window.__viewerPanel;
+  const panel = thePicture.panel();
   if (!panel || panel === hookedPanel) return;
   hookedPanel = panel;
   panel.onChanged?.(() => sayWhatThePressesDo());
@@ -1841,7 +1841,7 @@ function drawTheMenu(panel: ViewerPanelElement, acquisitions: { name: string; sh
    draw, on every change the panel reports, and after a press. */
 function sayWhatThePressesDo() {
   followThePanel();
-  const panel = window.__viewerPanel;
+  const panel = thePicture.panel();
   const acquisitions = panel?.acquisitions?.() ?? [];
   const names = acquisitions.map((one) => one.name);
   const shown = theRowsAcquisition(names);

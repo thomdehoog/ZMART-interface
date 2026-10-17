@@ -12,14 +12,15 @@ import { css, sizeCanvas, status } from "../../../../api/index.ts";
 import detectionPanel from "./detection.ts";
 import type { TestAnswer } from "./detection.ts";
 import type { Channel } from "../../../../api/index.ts";
-import type { TargetAcquisition } from "../../types.ts";
+import type { TaPage, TargetAcquisition } from "../../types.ts";
 
 /* Detection is judged by its masks, and coloured masks read best on
    quiet ground: running one, on a tile or over the sample, draws the
    overview in grey if it was not already. The chip in the canvas's row
    and the card's Grey press are the way back; nothing else switches it. */
-export const overviewGoesGreyForTheMasks = (): void => {
-  if (!window.__viewerPanel?.acquisitionGrey?.("overview")) window.__viewerPanel?.drawInGrey?.("overview", true);
+export const overviewGoesGreyForTheMasks = (page: TaPage): void => {
+  const panel = page.thePicture.panel();
+  if (!panel?.acquisitionGrey?.("overview")) panel?.drawInGrey?.("overview", true);
 };
 
 export const detectionChannel: Channel<TargetAcquisition> = {
@@ -32,11 +33,11 @@ export const detectionChannel: Channel<TargetAcquisition> = {
       /* Colour or grey is the overview's own, held on its chip in the
          canvas's row; the card reads it there and its Grey press flips
          the same switch. */
-      inGrey: () => Boolean(window.__viewerPanel?.acquisitionGrey?.("overview")),
-      setGrey: (grey: boolean) => window.__viewerPanel?.drawInGrey?.("overview", grey),
+      inGrey: () => Boolean(page.thePicture.panel()?.acquisitionGrey?.("overview")),
+      setGrey: (grey: boolean) => page.thePicture.panel()?.drawInGrey?.("overview", grey),
       plan: () => page.scannedPlan(),
       tryOn: (field: number, settings: Record<string, unknown>): Promise<TestAnswer> => {
-        overviewGoesGreyForTheMasks();
+        overviewGoesGreyForTheMasks(page);
         /* The bridge reads a field's name as its number, and so does the pretend backend. */
         return page.backend.discoverTargets({ fields: [String(field)], settings }).then(({ fields, failed, stopped }): TestAnswer => {
           const found = fields?.[0];
