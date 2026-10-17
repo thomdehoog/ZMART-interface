@@ -24,10 +24,8 @@ export const focusStrategy: TaStep = {
   panels: [],
   ms: 0,
   mode: "focus",
-  /* Measuring a surface is the optional extra, not the step: either kind of
-     focussing is already a complete answer on its own — the stand holds focus,
-     or the run finds it at every position. So the only thing this waits for is
-     the reading it is taken with.
+  /* What the press needs: the reading the map is measured with, and points
+     to measure.
 
      Not for three points, though a plane needs three: the fit chooses what the
      geometry buys — one point is a height, a few are a plane, enough are a
@@ -39,13 +37,12 @@ export const focusStrategy: TaStep = {
       : focus.points.length ? null
         : "no points to measure yet"),
 
-  /* Recording the preset finishes the step: both kinds keep every image sharp
-     on their own, one by holding focus off the coverslip and the other by
-     finding it at every position. Measuring a map is the extra on top, so the
-     press that measures it stands in its box from the moment the box is there
-     — greyed while there is nothing to measure, and saying so. It used to
-     disappear instead, which made clearing the points look like it had broken
-     the step. */
+  /* Running the map finishes the step, not recording the preset: the scan
+     stands on the heights the map measured on this sample (Thom,
+     2026-09-28). The press that measures it stands in its box from the moment
+     the box is there — greyed while there is nothing to measure, and saying
+     so. It used to disappear instead, which made clearing the points look
+     like it had broken the step. */
   run: runFocus,
   finished: focusFinished,
   /* The map's own brake, so a run of new points stops between two points
