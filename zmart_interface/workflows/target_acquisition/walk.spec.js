@@ -753,13 +753,13 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
           void second;
           await shot(page, "acquire-tile-from-the-list");
         }
-        await expect.poll(async () => (await ask(page, PORT, "/api/viewer")).error,
+        await expect.poll(async () => (await ask(page, PORT, "/api/target_acquisition/viewer")).error,
           { timeout: 60_000 }).toBeNull();
-        await expect.poll(async () => (await ask(page, PORT, "/api/viewer")).publications.targets,
+        await expect.poll(async () => (await ask(page, PORT, "/api/target_acquisition/viewer")).publications.targets,
           { timeout: 60_000 }).toEqual({ acquired: run.targetTiles, published: run.targetTiles,
             state: "ready", error: null });
         await rest(3000);
-        const publication = await ask(page, PORT, "/api/viewer");
+        const publication = await ask(page, PORT, "/api/target_acquisition/viewer");
         expect(publication.acquisitions.some(a => a.name === "targets")).toBe(true);
         for (const acquisition of publication.acquisitions) for (const row of acquisition.channels) {
           expect(row.sources.length).toBe(1);

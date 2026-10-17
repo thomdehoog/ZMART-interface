@@ -16,8 +16,8 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-from zmart_interface import mock_microscope
-from zmart_interface.framework.bridge import connecting, state
+from .. import mock_microscope
+from . import connecting, state
 
 
 def offered() -> dict[str, tuple[object, dict]]:
@@ -36,7 +36,7 @@ def pixels_for(*, simulator_pixels: bool):
         return None
 
     def a_synthetic_specimen(z_um: float):
-        from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels  # noqa: PLC0415
+        from ..microscope.simulator_pixels import KidneyPixels  # noqa: PLC0415
 
         specimen = KidneyPixels(focus_z_um=z_um)
         specimen.recipe["focus_reference"] = "session-connect"
@@ -46,15 +46,23 @@ def pixels_for(*, simulator_pixels: bool):
 
 
 def add_arguments(group) -> None:
-    """``--simulator-pixels``."""
+    """``--output-root`` and ``--simulator-pixels``."""
+    group.add_argument("--output-root",
+                       help="where runs go, for a driver that cannot discover its own")
     group.add_argument("--simulator-pixels", action="store_true",
                        help="synthetic pixels, only for captures identified as LAS X SIMULATOR")
 
 
 def start(args) -> str | None:
-    """Offer the mock, and the simulator's pixels when asked; name the window when they are."""
+    """Offer the mock, and the simulator's pixels when asked; name the window when they are.
+
+    Everything a start sets is set afresh, so a bridge started twice in one
+    process (as the tests do) carries nothing over from the first.
+    """
     simulator_pixels = bool(getattr(args, "simulator_pixels", False))
     connecting.offered = offered()
+    state.output_root = getattr(args, "output_root", None)
+    state.pixel_provider = None
     state.pixels_for = pixels_for(simulator_pixels=simulator_pixels)
     return "ZMART — LAS X SIMULATOR / SYNTHETIC PIXELS" if simulator_pixels else None
 

@@ -11,12 +11,10 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-from zmart_interface.framework.bridge import pictures, stage, state
-from zmart_interface.parts.analysis import focus_score, warm
-from zmart_interface.parts.microscope.focus_run import FOCUSSING, measure_one_stack
-from zmart_interface.parts.storage.output import position_label, prepare_acquisition
-
-from . import ledgers, views
+from ..analysis import focus_score, warm
+from ..microscope.focus_run import FOCUSSING, measure_one_stack
+from ..storage.output import position_label, prepare_acquisition
+from . import ledgers, pictures, stage, state, views
 
 
 def score_a_stack():
@@ -24,7 +22,7 @@ def score_a_stack():
 
     Through the warm analysis, which is shared with every other step that
     measures pixels and outlives any one focus map. See
-    :mod:`zmart_interface.parts.analysis.warm`.
+    :mod:`zmart_interface.workflows.target_acquisition.analysis.warm`.
     """
     return focus_score.through(warm.the_analysis())
 

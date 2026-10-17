@@ -65,7 +65,7 @@ export async function setAcquisitionShown(page, name, shown) {
 export function operateTheInstrument(method, ...args) {
   const program = [
     "import json, sys",
-    "from zmart_interface.mock_microscope.window import Api",
+    "from zmart_interface.workflows.target_acquisition.mock_microscope.window import Api",
     `print(json.dumps(getattr(Api(), ${JSON.stringify(method)})(*json.loads(sys.argv[1]))))`,
   ].join("\n");
   const python = bridgePython("-c", program, JSON.stringify(args));
@@ -97,7 +97,7 @@ export async function startTheBridge({ port, connect = true } = {}) {
   const until = Date.now() + 30_000;
   for (;;) {
     try {
-      await ask("/api/instruments");
+      await ask("/api/target_acquisition/instruments");
       break;
     } catch {
       if (Date.now() > until) throw new Error("the bridge never started answering");
@@ -105,16 +105,16 @@ export async function startTheBridge({ port, connect = true } = {}) {
     }
   }
 
-  const { instruments } = await ask("/api/instruments");
+  const { instruments } = await ask("/api/target_acquisition/instruments");
   const scope = instruments.find(isTheMock);
   if (!scope) throw new Error("the bridge has no mock microscope to connect to");
-  const opened = connect ? await ask("/api/connect", { instrument: scope, experiment: "target-acquisition" }) : null;
+  const opened = connect ? await ask("/api/target_acquisition/connect", { instrument: scope, experiment: "target-acquisition" }) : null;
 
   return {
     /* Where the pictures of the overview are served — the same address the
        page asks its backend for, spelt out here because a test points the page
        at it rather than walking the operator's Connect. */
-    pictures: `${at}/view/overview`,
+    pictures: `${at}/api/target_acquisition/view/overview`,
     /* Where the bridge serves the built page, for a walk of the page itself. */
     at,
     /* Where this session's run landed. The bridge makes it at connect and
@@ -145,7 +145,7 @@ export async function startTheBridge({ port, connect = true } = {}) {
       throw new Error("the scan never finished");
     },
     async stop() {
-      try { await ask("/api/disconnect", {}); } catch { /* going away anyway */ }
+      try { await ask("/api/target_acquisition/disconnect", {}); } catch { /* going away anyway */ }
       bridge.kill();
     },
   };

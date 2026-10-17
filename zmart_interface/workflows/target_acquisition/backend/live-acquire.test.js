@@ -24,9 +24,9 @@ function bridgeTakingTargets({ peak = 12, curve = true, declining = false } = {}
     if (route === "/api/target_acquisition/targets/acquire/begin") {
       return answer({ running: true, labels: body.positions.map((_, i) => `L${i}`) });
     }
-    if (route === "/api/xyz") return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
-    if (route === "/api/state") return answer({ applied: body });
-    if (route === "/api/acquire") {
+    if (route === "/api/target_acquisition/xyz") return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
+    if (route === "/api/target_acquisition/state") return answer({ applied: body });
+    if (route === "/api/target_acquisition/acquire") {
       if (declining) return answer({ success: false, content: { reason: "the laser is off", files: [], planes: [] } });
       return answer({ success: true, content: { position_label: body.position_label } });
     }
@@ -54,9 +54,9 @@ describe("the live target run", () => {
       onProgress: (done, of, at, records) => seen.push([done, of, at?.z, records.length]),
     });
     expect(calls.map(([route]) => route)).toEqual([
-      "/api/target_acquisition/targets/acquire/begin", "/api/state",
-      "/api/xyz", "/api/acquire", "/api/target_acquisition/targets/acquire/landed",
-      "/api/xyz", "/api/acquire", "/api/target_acquisition/targets/acquire/landed",
+      "/api/target_acquisition/targets/acquire/begin", "/api/target_acquisition/state",
+      "/api/target_acquisition/xyz", "/api/target_acquisition/acquire", "/api/target_acquisition/targets/acquire/landed",
+      "/api/target_acquisition/xyz", "/api/target_acquisition/acquire", "/api/target_acquisition/targets/acquire/landed",
       "/api/target_acquisition/targets/acquire/end",
     ]);
     expect(calls[0][1]).toEqual({ positions, append: false });
@@ -80,8 +80,8 @@ describe("the live target run", () => {
     });
     expect(calls.map(([route]) => route)).toEqual([
       "/api/target_acquisition/targets/acquire/begin",
-      "/api/state", "/api/xyz", "/api/acquire", "/api/target_acquisition/targets/acquire/focus",
-      "/api/state", "/api/xyz", "/api/acquire", "/api/target_acquisition/targets/acquire/landed",
+      "/api/target_acquisition/state", "/api/target_acquisition/xyz", "/api/target_acquisition/acquire", "/api/target_acquisition/targets/acquire/focus",
+      "/api/target_acquisition/state", "/api/target_acquisition/xyz", "/api/target_acquisition/acquire", "/api/target_acquisition/targets/acquire/landed",
       "/api/target_acquisition/targets/acquire/end",
     ]);
     expect(calls[1][1]).toEqual({ job: "Focussing" });
@@ -103,7 +103,7 @@ describe("the live target run", () => {
       positions: [{ ...positions[0], focusAt: { x: 14, y: 23 } }], state: { job: "Target" },
       focus: { state: { job: "Focussing" }, metric: "brenner" },
     });
-    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body);
+    const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body);
     expect(drives).toEqual([{ x: 14, y: 23, z: 5 }, { x: 10, y: 20, z: 12 }]);
     const scored = calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/focus")[1];
     expect(scored).toMatchObject({ x: 14, y: 23 });
@@ -115,7 +115,7 @@ describe("the live target run", () => {
       positions: [{ ...positions[0], focusAt: { x: 14, y: 23 } }], state: { job: "Target" },
       focus: { state: { job: "Focussing" }, metric: "brenner" },
     });
-    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body);
+    const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body);
     expect(drives).toEqual([{ x: 14, y: 23, z: 5 }, { x: 10, y: 20, z: 5 }]);
   });
 
@@ -125,7 +125,7 @@ describe("the live target run", () => {
       positions: positions.slice(0, 1), state: { job: "Target" },
       focus: { state: { job: "Focussing" }, metric: "brenner" },
     });
-    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body.z);
+    const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body.z);
     expect(drives).toEqual([5]);
     const landed = calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/landed")[1];
     expect(landed.position.z).toBe(5);
@@ -138,9 +138,9 @@ describe("the live target run", () => {
        record carries that height, not nothing. */
     const calls = bridgeTakingTargets({ curve: false });
     globalThis.fetch = ((inner) => async (url, init) => {
-      if (url.endsWith("/api/xyz")) {
+      if (url.endsWith("/api/target_acquisition/xyz")) {
         const body = JSON.parse(init.body);
-        calls.push(["/api/xyz", body]);
+        calls.push(["/api/target_acquisition/xyz", body]);
         return { ok: true, json: async () => ({ x: { position: body.x }, y: { position: body.y }, z: { position: 33 } }) };
       }
       return inner(url, init);
@@ -164,7 +164,7 @@ describe("the live target run", () => {
       positions: [{ x: 10, y: 20, z: 100, position_index: 0 }], state: { job: "Target" },
       focus: { state: { job: "Focussing" }, metric: "brenner" }, zOffsetUm: 5,
     });
-    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body.z);
+    const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body.z);
     expect(drives).toEqual([100, 105]);
     const landed = calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/landed")[1];
     expect(landed.position.z).toBe(105);
@@ -176,7 +176,7 @@ describe("the live target run", () => {
       positions: positions.slice(0, 1), state: { job: "Target" },
       focus: { state: { job: "Focussing" }, metric: "brenner" }, zOffsetUm: 5,
     });
-    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body.z);
+    const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body.z);
     expect(drives).toEqual([5, 17]);
     expect(calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/focus")[1]).toMatchObject({ centre: 5 });
   });
@@ -184,7 +184,7 @@ describe("the live target run", () => {
   it("adds the offset to the map's height when there is no focussing", async () => {
     const calls = bridgeTakingTargets();
     await backend.acquireTargets({ positions: positions.slice(0, 1), state: null, zOffsetUm: 5 });
-    const drives = calls.filter(([route]) => route === "/api/xyz").map(([, body]) => body.z);
+    const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body.z);
     expect(drives).toEqual([10]);
   });
 
@@ -212,7 +212,7 @@ describe("the live target run", () => {
     const out = await run;
     expect(out.done).toBe(1);
     expect(out.stopped).toBe(true);
-    expect(calls.filter(([route]) => route === "/api/acquire")).toHaveLength(1);
+    expect(calls.filter(([route]) => route === "/api/target_acquisition/acquire")).toHaveLength(1);
     expect(calls.at(-1)).toEqual(["/api/target_acquisition/targets/acquire/end", { stopped: true }]);
   });
 });

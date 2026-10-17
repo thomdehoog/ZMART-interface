@@ -90,6 +90,15 @@ python -c "import zmart_drivers.leica.stellaris5_y42h93.navigator_expert as d, z
 
 The Connect step then offers it under that name, beside the two pretend microscopes.
 
+The interface's own mock microscope needs no registering: the interface offers it itself. A
+computer that registered it by its folder anyway, before it moved into target acquisition
+(`zmart_interface/mock_microscope`, under the name `interface-mock`), lists a driver whose
+folder is gone. Take it off the list once:
+
+```powershell
+python -c "import zmart_controller; print(zmart_controller.remove_driver('interface-mock'))"
+```
+
 ### 5. Launch
 
 The vendor's software (LAS X, with the CAM API and the intended jobs set up, on the Leica) must

@@ -10,15 +10,15 @@ parts that plug into the interface's sides:
    the page (JavaScript)            the bridge (Python)              beside it
    ---------------------            -------------------              ---------
    steps, panels, canvas  --HTTP-->  framework/bridge/    --------->  ZMART Controller --> driver --> microscope
-   workflows/target_acquisition/backend/live.js            parts/microscope/instrument.py      (any ZMART driver, or the mock)
-                                     parts/storage/      ----------->  ZMART-viewer (serves the run's pictures)
+   workflows/target_acquisition/backend/live.js            ta/microscope/instrument.py      (any ZMART driver, or the mock)
+                                     ta/storage/      ----------->  ZMART-viewer (serves the run's pictures)
    workflows/target_acquisition/canvas/engines/  <--HTTP--  (the viewer's own server)
-                                     parts/analysis/warm.py -------->  ZMART-analysis (focus, detection, plots)
+                                     ta/analysis/warm.py -------->  ZMART-analysis (focus, detection, plots)
 ```
 
 - **The controller.** Every command the bridge sends (`get_xyz`, `set_xyz`,
   `get_state`, `set_state`, `acquire`, `get_info`, ...) answers
-  `{"success": ..., "content": ...}`. `parts/microscope/instrument.py` reads those
+  `{"success": ..., "content": ...}`. `ta/microscope/instrument.py` reads those
   answers once for everyone: it hands back the content, and turns
   `success: False` into `InstrumentDeclined`, a sentence the page shows where
   the operator pressed. A capture is the exception the page sees: `/api/acquire`
@@ -51,17 +51,17 @@ parts that plug into the interface's sides:
   `set_xyz` gives, read back after the stage arrived, instead of asking the
   stage a second time.
 - **ZMART-viewer.** Every capture is converted the moment it lands into one
-  OME-Zarr image per position (`parts/storage/zarr_positions.py`, declared by
-  the small writer in `zmart_interface/zmart_storage/`). The viewer's server,
-  started beside the run by `parts/storage/viewer_service.py`, links each
+  OME-Zarr image per position (`ta/storage/zarr_positions.py`, declared by
+  the small writer in `workflows/target_acquisition/storage/images.py`). The viewer's server,
+  started beside the run by `ta/storage/viewer_service.py`, links each
   acquisition's positions into one live picture and serves it to the page's
   drawing engine.
 - **ZMART-analysis.** Focus scoring, object detection and the population plots
   run as ZMART-analysis pipelines, each step in its own conda environment.
-  `parts/analysis/warm.py` keeps one engine running for the whole session, and
-  `parts/analysis/workflows.py` finds the pipelines in a ZMART-analysis
+  `ta/analysis/warm.py` keeps one engine running for the whole session, and
+  `ta/analysis/workflows.py` finds the pipelines in a ZMART-analysis
   checkout.
-- **The mock microscope** (`zmart_interface/mock_microscope/`) is a complete
+- **The mock microscope** (`zmart_interface/workflows/target_acquisition/mock_microscope/`) is a complete
   ZMART driver with no hardware: the package itself holds one function per
   command, so it plugs into the controller like any other driver, and it is
   what every test runs on.
@@ -187,7 +187,7 @@ else decides what
 counts as too narrow. If a constant or a rule has to appear in two files, the
 split was wrong — merge them back rather than keeping both in step.
 
-## The seam: `parts/microscope/`
+## The seam: target acquisition's `backend/` and `microscope/`
 
 Nothing above this line knows which microscope it is talking to. A step never
 calls `setTimeout`, never reaches for a synthetic sample, and never touches
@@ -399,7 +399,7 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `ta/shared/carriers.js` | built, unit-tested, **used by the app, the carrier widget and the scan-field grid** |
 | `ta/shared/scanfields.js` | built, unit-tested, **used by the scan-area widget** |
 | `workflows/target_acquisition/microscope/instruments.js` | used by the app |
-| `parts/microscope/pretend-sample/` | built, unit-tested, **used by the app** (the focus sweep and the surface fit) |
+| `ta/microscope/pretend-sample/` | built, unit-tested, **used by the app** (the focus sweep and the surface fit) |
 | `workflows/target_acquisition/backend/pretend.js` | built, used by the app only with `?backend=pretend`, for the page's own tests |
 | `framework/rules/steps.js` | built, unit-tested, **used by the app** — numbering, ordering, readiness and panels |
 | `framework/rules/finding-workflows.js` | built, unit-tested, **used by the app: turns the workflow folders into the chooser's list** |

@@ -5,9 +5,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from zmart_interface.parts.storage import viewer_service as service
-from zmart_interface.parts.storage.zarr_positions import _describe_mean_pyramid
-from zmart_interface.zmart_storage import declare_image
+from zmart_interface.workflows.target_acquisition.storage import viewer_service as service
+from zmart_interface.workflows.target_acquisition.storage.images import declare_image
+from zmart_interface.workflows.target_acquisition.storage.zarr_positions import (
+    _describe_mean_pyramid,
+)
 
 root = Path(sys.argv[1])
 

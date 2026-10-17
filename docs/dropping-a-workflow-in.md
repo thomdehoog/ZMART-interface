@@ -107,30 +107,15 @@ Target acquisition's half, `zmart_interface/workflows/target_acquisition/bridge/
 is the complete example to read, with its own routes for the focus map, the
 scans, finding and taking the targets, the plots and the protocols.
 
-## What a Python half may tell the bridge
+## A half that drives a microscope
 
-The bridge's general part knows no workflow, so a half that runs things on
-its own tells the bridge about them, in `zmart_interface.framework.bridge.hooks`:
-
-```python
-from zmart_interface.framework.bridge import hooks
-
-hooks.plug(
-    "my_workflow",
-    holds_the_stage=lambda: my_scan["running"],  # while true, nothing else drives the stage
-    let_go=stop_and_wait,                        # before another session opens: stop between fields
-    forget=reset_my_ledgers,                     # when a fresh session opens
-    raw_kinds={"my-stacks"},                     # view folders served as they are
-    picture_endings={".mask.png": draw_a_mask},  # pictures drawn on request, by name
-)
-```
-
-Each is optional. `let_go(wait_s)` is called without holding the
-instrument's lock, because a run needs that lock to finish its field.
-
-The run folder the bridge makes at connect is named by the page:
-`backend.connect(session, { experiment: "my-workflow" })` makes
-`<output root>/my-workflow_<hash>`.
+The bridge knows no microscope: it serves the page and hands each request to
+the half that registered its route. A half that drives an instrument does so
+itself, through the ZMART Controller, and keeps the session, its run folder
+and a lock of its own, so two requests never move the stage at once.
+Target acquisition's half shows how: `bridge/connecting.py` opens the session
+and makes the run folder, `bridge/state.py` holds the session and the lock,
+and its routes take that lock around every command to the instrument.
 
 From the page, your steps reach the routes at the bridge's address, which
 `framework/window/bridge-address.js` knows:
@@ -144,8 +129,4 @@ const answer = await fetch(atBridge("/api/my_workflow/count"), {
 const { counted } = await answer.json();
 ```
 
-A handler runs on the bridge's request thread with no lock held. If your
-half drives the instrument through the controller, take the bridge's lock
-around that work yourself, `with zmart_interface.framework.bridge.state.the_instruments_turn:`,
-so two requests never move the stage at once; the bridge's own routes do the
-same.
+A handler runs on the bridge's request thread with no lock held.

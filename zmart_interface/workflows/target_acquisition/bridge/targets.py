@@ -15,12 +15,10 @@ import shutil
 import time
 from pathlib import Path
 
-from zmart_interface.framework.bridge import pictures, stage, state
-from zmart_interface.parts.microscope.focus_run import measure_one_stack
-from zmart_interface.parts.storage import output, viewer_service
-from zmart_interface.parts.storage.output import prepare_acquisition
-
-from . import focus, ledgers, scan
+from ..microscope.focus_run import measure_one_stack
+from ..storage import output, viewer_service
+from ..storage.output import prepare_acquisition
+from . import focus, ledgers, pictures, scan, stage, state
 
 #: The stacks taken before a target when the operator asked for focussing
 #: there: an acquisition of their own, beside the targets they were taken for.

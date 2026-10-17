@@ -9,20 +9,15 @@ ZMART driver.
 What is where:
 
 - ``framework/``: the shell that runs a workflow -- the window (``window/``,
-  in JavaScript), the rules for steps,
-  and ``bridge.py``, the HTTP door through which the page reaches the
-  controller.
-- ``parts/``: what more than one workflow is built from. Its Python is on
-  its way to the one workflow that uses it; a part arrives here when a
-  second workflow needs it (``parts/README.md``).
+  in JavaScript), the rules for steps, and ``bridge/``, the HTTP door through
+  which the page reaches each workflow's Python half.
+- ``parts/``: what more than one workflow is built from. Empty today: a part
+  arrives here when a second workflow needs it (``parts/README.md``).
 - ``workflows/``: one folder per workflow, all built into the page;
-  ``target_acquisition`` today. A workflow written in another repository is
-  dropped into this folder and the page is built again
-  (``docs/dropping-a-workflow-in.md``).
-- ``mock_microscope/``: a pretend microscope, plugged in like any driver, to
-  try and test the interface without hardware.
-- ``zmart_storage/``: declaring one OME-Zarr image, the part of ZMART's
-  storage writer the interface uses.
+  ``target_acquisition`` today, with everything it asks of a microscope --
+  its Python half, the mock microscope, the storage of what a run captures
+  and the analysis. A workflow written in another repository is dropped into
+  this folder and the page is built again (``docs/dropping-a-workflow-in.md``).
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).

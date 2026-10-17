@@ -17,7 +17,9 @@ from pathlib import Path
 import numpy as np
 import tifffile
 
-from zmart_interface.parts.storage.zarr_positions import position_store_from_record
+from zmart_interface.workflows.target_acquisition.storage.zarr_positions import (
+    position_store_from_record,
+)
 
 folder = Path(sys.argv[1])
 tiles = int(sys.argv[2])

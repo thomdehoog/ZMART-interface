@@ -17,11 +17,11 @@ function bridgeMeasuringFocus() {
     if (route === "/api/target_acquisition/focus/begin") {
       return answer({ labels: Array.from({ length: body.of }, (_, i) => `P${i}`) });
     }
-    if (route === "/api/xyz") {
+    if (route === "/api/target_acquisition/xyz") {
       drives.push(body);
       return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
     }
-    if (route === "/api/acquire") return answer({ success: true, content: { position_label: body.position_label } });
+    if (route === "/api/target_acquisition/acquire") return answer({ success: true, content: { position_label: body.position_label } });
     if (route === "/api/target_acquisition/focus/score") {
       return answer({ ...body.point, z: body.centre - 10, zAuto: body.centre - 10, lost: false });
     }
@@ -57,7 +57,7 @@ describe("the live focus map", () => {
        that found no peak. */
     bridgeMeasuringFocus();
     const inner = globalThis.fetch;
-    globalThis.fetch = async (url, init) => (url.endsWith("/api/xyz")
+    globalThis.fetch = async (url, init) => (url.endsWith("/api/target_acquisition/xyz")
       ? { ok: false, json: async () => ({ error: "the stage cannot go beyond its travel" }) }
       : inner(url, init));
     const { points } = await backend.measureFocus([{ x: 1, y: 1 }], { metric: "brenner" });
@@ -93,7 +93,7 @@ describe("the live focus map", () => {
     expect(asked).toContain("/api/target_acquisition/focus/stop");
     expect(stopped).toBe(true);
     expect(points).toEqual([]);
-    expect(asked.filter((route) => route === "/api/xyz")).toHaveLength(1);
+    expect(asked.filter((route) => route === "/api/target_acquisition/xyz")).toHaveLength(1);
   });
 
   it("keeps the point's own startZ when beginAt has no answer", async () => {

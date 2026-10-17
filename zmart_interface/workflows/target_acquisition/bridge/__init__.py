@@ -1,9 +1,17 @@
-"""Target acquisition's Python half: its routes, and what it tells the bridge.
+"""Target acquisition's Python half: everything it asks of the microscope, and its routes.
 
-The bridge's general part connects, drives the stage, captures and serves
-the pictures; it knows no workflow. Everything Target acquisition runs on
-top of that lives here:
+The bridge's general part serves the page and dispatches the routes; it
+knows no workflow and no instrument. Everything target acquisition does with
+the microscope lives here:
 
+- ``connecting``: what this computer can drive, opening and closing the
+  session through the ZMART Controller, and the run folder made at connect;
+- ``readings`` and ``stage``: the instrument's settings, a capture, and
+  where the stage is and where it is sent;
+- ``pictures``: each capture kept as an OME-Zarr position, and the pictures
+  the page fetches, made from the records on request;
+- ``state``: what is kept between two requests, and the instrument's lock;
+- ``starting``: what this half does when the interface starts and closes;
 - ``focus``: the focus map, driven by the page one stack at a time;
 - ``scan``: the overview scan, run in the bridge's own thread;
 - ``discovery``: finding the targets in the overview, through the analysis;
@@ -15,19 +23,54 @@ top of that lives here:
 
 Its routes are registered by :func:`routes` under ``/api/target_acquisition/``,
 the way every workflow's are (``framework/bridge/workflows.py``).
-Importing this package plugs the workflow into the bridge (``hooks.py``):
-its runs may hold the stage, it lets them go before another session opens,
-it forgets them when a fresh one does, and it draws its own pictures.
+Importing this package plugs its runs into ``hooks.py``: they may hold the
+stage, they are let go before another session opens and forgotten when a
+fresh one does, and some pictures are drawn on request.
 
 Its routes, and what they are made of
 -------------------------------------
 
 Each path below is under ``/api/target_acquisition/``.
 
+* ``POST connect`` — open the session through the controller. The reply
+  carries the driver's own account of itself (``get_info``), which is what the
+  window's connection checks show. ``GET instruments`` lists what can be
+  connected to, ``GET info`` is the driver's account of the open session,
+  and ``POST disconnect`` closes it.
+* ``GET setting`` — **a readout, never a procedure.** The instrument's
+  current state (``get_state``), shaped into the reading the window records:
+  a one-line summary, the detail rows behind it, and the frame size the plan
+  is laid with. Recording a preset — the acquisition settings and the
+  focussing preset alike — is this, and nothing more: nothing on the
+  instrument moves.
+* ``GET xyz`` — where the stage is (``get_xyz``), and
+  ``POST xyz`` — drive it there (``set_xyz``), answering with where it
+  ended up. One noun, the method saying which of the controller's two verbs is
+  meant. The page's backend calls them ``get_xyz`` and ``set_xyz`` too — the
+  controller's own names, carried through the browser unchanged, because a
+  verb that is spelled one way here and another way there is a verb somebody
+  will eventually wire to the wrong one. A driven stage is a procedure and not
+  a readout, which is why it is a POST and why nothing else on this route
+  moves anything.
+* ``GET acquisition_settings`` — what the instrument offers for a capture
+  and what is chosen now (``get_acquisition_settings``), in the driver's own
+  words. A readout: asking changes nothing.
+* ``POST state`` — change settings on the instrument (``set_state``),
+  answering with what the driver says it applied. The body is the settings
+  themselves; the bridge puts them in ``changeable``, which is where the
+  contract says a client's instructions go.
+* ``POST acquire`` — capture once where the stage is standing
+  (``acquire``), answering with the controller's own answer, untouched:
+  ``{"success", "content"}``, the content's ``files`` naming every file saved and
+  its ``planes`` which channel, depth and stage position each picture is. The
+  one place a client learns the paths of the files a run made.
+* ``GET viewer`` — whether the picture server beside the run is up, and
+  what it serves. ``GET view/<acquisition>/<name>`` hands out one of a run's
+  pictures.
 * ``POST focus/begin``, ``POST focus/score`` and ``POST focus/end``
   — the focus map, driven by the page one stack at a time: begin clears the
-  focussing acquisition and names the stacks; the page drives (``/api/xyz``)
-  and captures (``/api/acquire``) each; score files the stack, scores it and
+  focussing acquisition and names the stacks; the page drives (``xyz``)
+  and captures (``acquire``) each; score files the stack, scores it and
   answers the point; end closes the map. ``POST focus/stop`` is the
   operator's Interrupt reaching a scoring that has hung: it puts the analysis
   workers down, so that scoring answers. ``GET focus/measure`` is the
@@ -63,6 +106,11 @@ Each path below is under ``/api/target_acquisition/``.
   writes the run's settings beside it, ``POST protocol/save`` into the
   machine's library by name.
 
+One thread owns the instrument. Every route that touches the session takes
+``state.the_instruments_turn`` first, so two requests can never move the
+stage at once — the scan holds it per position, not for the whole run, so a
+readout during a scan waits briefly rather than failing.
+
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 """
@@ -72,10 +120,24 @@ from __future__ import annotations
 import time
 import urllib.parse
 
-from zmart_interface.framework.bridge import connecting, hooks
-from zmart_interface.parts.microscope.focus_run import FOCUSSING
-
-from . import discovery, focus, ledgers, plots, protocols, scan, targets, views
+from ..microscope.focus_run import FOCUSSING
+from ..storage import viewer_service
+from . import (
+    connecting,
+    discovery,
+    focus,
+    hooks,
+    ledgers,
+    pictures,
+    plots,
+    protocols,
+    readings,
+    scan,
+    stage,
+    state,
+    targets,
+    views,
+)
 from .starting import add_arguments, close, start
 
 #: What the bridge asks of this half (``framework/bridge/api.py``).
@@ -120,6 +182,23 @@ hooks.plug(
 )
 
 
+def connect(asked: dict) -> dict:
+    """Open a session, after the last one's runs have let go of the stage.
+
+    Letting go happens outside the instrument's turn: a running scan needs
+    the turn to finish its field.
+    """
+    connecting.let_the_last_session_go()
+    with state.the_instruments_turn:
+        return connecting.connect(asked)
+
+
+def in_the_instruments_turn(do):
+    """``do()`` while no other request holds the instrument."""
+    with state.the_instruments_turn:
+        return do()
+
+
 def since(query: str) -> int | None:
     """The ``since=N`` a ledger is read from, when the page has part of it already."""
     asked = urllib.parse.parse_qs(query or "").get("since", [None])[0]
@@ -130,9 +209,26 @@ def routes(register) -> None:
     """Every route of the workflow, each ``register(method, path, handler)``.
 
     ``handler(asked, query)`` takes the request's JSON body and the raw query
-    string, as the bridge's own routes do. The paths are under
-    ``/api/target_acquisition/``.
+    string. The paths are under ``/api/target_acquisition/``.
     """
+    # The session, the stage, the instrument's settings and a capture, in
+    # the order the page meets them.
+    register("GET", "instruments", lambda asked, query: {"instruments": connecting.instruments()})
+    register("POST", "connect", lambda asked, query: connect(asked))
+    register("POST", "disconnect", lambda asked, query: in_the_instruments_turn(connecting.disconnect))
+    register("GET", "info", lambda asked, query: in_the_instruments_turn(
+        lambda: state.require_session().get_info()))
+    register("GET", "setting", lambda asked, query: in_the_instruments_turn(lambda: readings.reading(
+        urllib.parse.parse_qs(query or "").get("type", ["acquisition"])[0])))
+    register("GET", "xyz", lambda asked, query: stage.where_the_stage_is())
+    register("POST", "xyz", lambda asked, query: in_the_instruments_turn(lambda: stage.drive_to(asked)))
+    register("GET", "acquisition_settings", lambda asked, query: in_the_instruments_turn(
+        readings.acquisition_settings))
+    register("POST", "state", lambda asked, query: in_the_instruments_turn(lambda: readings.apply_state(asked)))
+    register("POST", "acquire", lambda asked, query: in_the_instruments_turn(lambda: readings.capture(asked)))
+    # The pictures: what the viewer holds of the run, and the small copies.
+    register("GET", "viewer", lambda asked, query: viewer_service.status())
+    register("GET", "view/", pictures.a_picture, prefix=True)
     # The focus map: the page drives each point and ends the map.
     register("POST", "focus/begin", lambda asked, query: focus.begin_focus(asked))
     register("POST", "focus/score", lambda asked, query: focus.score_focus(asked))

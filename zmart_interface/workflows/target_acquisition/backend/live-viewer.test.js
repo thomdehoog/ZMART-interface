@@ -25,7 +25,7 @@ it("keeps valid acquisitions and reports partial publication without another req
 
 it("still rejects command errors and does not treat HTTP failure as an empty picture", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({ error: "failed" }) })));
-  await expect(ask("/api/connect", {})).rejects.toThrow("failed");
+  await expect(ask("/api/target_acquisition/connect", {})).rejects.toThrow("failed");
   fetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({ error: "offline" }) });
   const report = vi.fn();
   expect(await backend.viewerSources(report)).toBeNull();

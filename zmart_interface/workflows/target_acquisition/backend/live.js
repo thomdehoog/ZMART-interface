@@ -17,11 +17,11 @@
  * same verbs, and is reachable only by `?backend=pretend`, for this page's
  * own browser tests.
  *
- * The verbs come in two kinds. The controller's own -- connecting, the
- * stage, the instrument's settings, a capture -- go to the bridge's general
- * routes; this workflow's -- the focus map, the overview scan, finding and
- * taking the targets, the plots and the protocols -- go to its own Python
- * half, under `/api/target_acquisition/` (`../bridge/__init__.py`).
+ * Every verb goes to this workflow's own Python half, under
+ * `/api/target_acquisition/` (`../bridge/__init__.py`): the controller's own
+ * -- connecting, the stage, the instrument's settings, a capture -- and the
+ * workflow's -- the focus map, the overview scan, finding and taking the
+ * targets, the plots and the protocols.
  *
  * Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -34,6 +34,10 @@
 import { atBridge } from "../../../framework/window/bridge-address.js";
 import { PENDING, isFailed } from "../microscope/connection-status.js";
 import { findCandidates, pickPeak } from "../shared/focus-curves.js";
+
+/** Where this workflow's routes answer on the bridge: every verb below,
+    the controller's and the workflow's own, under its folder's name. */
+const OURS = "/api/target_acquisition";
 
 /** What a run of this workflow is called on disk: `target-acquisition_<hash>`.
     Sent when connecting, and never changed, so the runs and protocols saved
@@ -116,12 +120,12 @@ export const backend = {
    * reachable is a fact about the instrument's end.
    */
   viewOf(acquisitionType) {
-    return atBridge(`/view/${acquisitionType}`);
+    return atBridge(`${OURS}/view/${acquisitionType}`);
   },
 
   /** What can be connected to: the interface's list of microscopes, from the bridge. */
   async instruments() {
-    return (await ask("/api/instruments")).instruments;
+    return (await ask(`${OURS}/instruments`)).instruments;
   },
 
   /**
@@ -140,7 +144,7 @@ export const backend = {
     try {
       // A successful status response can contain both available images and a
       // failed acquisition. Its error must not discard the available images.
-      const state = await request("/api/viewer");
+      const state = await request(`${OURS}/viewer`);
       onStatus?.(state);
       if (Array.isArray(state?.acquisitions) && state.acquisitions.length) {
         return state.acquisitions;
@@ -173,7 +177,7 @@ export const backend = {
     /* The password travels with the connection: a gate that demanded it and
        then discarded it authenticated nothing. What a driver does with it is
        the driver's business. */
-    await ask("/api/connect", {
+    await ask(`${OURS}/connect`, {
       instrument: session?.instrument, password: session?.password, experiment: EXPERIMENT,
     });
     let keys = null;
@@ -204,17 +208,17 @@ export const backend = {
 
   /** Close the session at the bridge, so the next connect is not refused. */
   async disconnect() {
-    await ask("/api/disconnect", {});
+    await ask(`${OURS}/disconnect`, {});
   },
 
   /** The driver's account of the session: `get_info` through the controller. */
   async info() {
-    return ask("/api/info");
+    return ask(`${OURS}/info`);
   },
 
   /** Where the stage is: `get_xyz` through the controller. */
   async get_xyz() {
-    return ask("/api/xyz");
+    return ask(`${OURS}/xyz`);
   },
 
   /**
@@ -223,7 +227,7 @@ export const backend = {
    * meant, and the same two names the controller uses.
    */
   async set_xyz({ x, y, z }) {
-    return ask("/api/xyz", { x, y, z });
+    return ask(`${OURS}/xyz`, { x, y, z });
   },
 
   /**
@@ -233,7 +237,7 @@ export const backend = {
    * same shape goes back to `acquire`.
    */
   async get_acquisition_settings() {
-    return ask("/api/acquisition_settings");
+    return ask(`${OURS}/acquisition_settings`);
   },
 
   /**
@@ -246,7 +250,7 @@ export const backend = {
    * It is here because the seam mirrors the controller's surface.
    */
   async set_state(settings) {
-    return ask("/api/state", settings);
+    return ask(`${OURS}/state`, settings);
   },
 
   /**
@@ -257,7 +261,7 @@ export const backend = {
    * set up in its own software -- LAS X, or the mock instrument window.
    */
   async readSetting(type) {
-    return ask(`/api/setting?type=${encodeURIComponent(type)}`);
+    return ask(`${OURS}/setting?type=${encodeURIComponent(type)}`);
   },
 
   /**
@@ -274,7 +278,7 @@ export const backend = {
    * under the page's own label, with that stem as `file_stem`.
    */
   async acquire({ position_label, acquisition_settings = null, folder = null }) {
-    return ask("/api/acquire", { position_label, acquisition_settings, folder });
+    return ask(`${OURS}/acquire`, { position_label, acquisition_settings, folder });
   },
 
   /**
@@ -282,7 +286,7 @@ export const backend = {
    * targets picture: the chosen one, whose pair the gallery shows.
    */
   async raiseTarget(position_label) {
-    return ask("/api/target_acquisition/targets/raise", { position_label });
+    return ask(`${OURS}/targets/raise`, { position_label });
   },
 
   /**
@@ -308,8 +312,8 @@ export const backend = {
   async measureFocus(points, { metric, state = null, onPoint, onDoing, beginAt } = {}) {
     void metric; // which curve decides is the page's rule, applied to what comes back
     focusStopAsked = false;
-    if (state) await ask("/api/state", state);
-    const { labels } = await ask("/api/target_acquisition/focus/begin", { of: points.length });
+    if (state) await ask(`${OURS}/state`, state);
+    const { labels } = await ask(`${OURS}/focus/begin`, { of: points.length });
     const measured = [];
     let stopped = false;
     try {
@@ -324,15 +328,15 @@ export const backend = {
         let landed;
         try {
           say("driving");
-          const at = await ask("/api/xyz", {
+          const at = await ask(`${OURS}/xyz`, {
             x: point.x, y: point.y, ...(Number.isFinite(startZ) ? { z: startZ } : {}),
           });
           say("capturing");
-          const record = capturedBy(await ask("/api/acquire", {
+          const record = capturedBy(await ask(`${OURS}/acquire`, {
             folder: "focussing", position_label: labels[index],
           }));
           say("scoring");
-          landed = await ask("/api/target_acquisition/focus/score", { record, centre: at.z.position, point });
+          landed = await ask(`${OURS}/focus/score`, { record, centre: at.z.position, point });
         } catch (why) {
           /* Cut off by the operator's own Interrupt (the bridge put the
              analysis down to reach a scoring that hung): not a point the
@@ -351,7 +355,7 @@ export const backend = {
       }
     } finally {
       onDoing?.(null);
-      await ask("/api/target_acquisition/focus/end", { stopped }).catch(() => {});
+      await ask(`${OURS}/focus/end`, { stopped }).catch(() => {});
     }
     return { points: measured, stopped };
   },
@@ -362,7 +366,7 @@ export const backend = {
       drive"; its stop puts the analysis down, and that scoring answers. */
   async stopFocusMeasure() {
     focusStopAsked = true;
-    await ask("/api/target_acquisition/focus/stop", {}).catch(() => {});
+    await ask(`${OURS}/focus/stop`, {}).catch(() => {});
     return { stopped: true };
   },
 
@@ -375,14 +379,14 @@ export const backend = {
   async discoverTargets({
     fields = null, settings = {}, onField, onDoing, onProgress,
   } = {}) {
-    await ask("/api/target_acquisition/targets/discover", { fields, settings });
+    await ask(`${OURS}/targets/discover`, { fields, settings });
     /* The bridge lists fields in the order they land and keeps that order,
        so the fields held here are the cursor: each poll asks only for the
        ones landed since, and a run of hundreds of fields is not carried
        whole three times a second. */
     const landed = [];
     for (;;) {
-      const progress = await askedPatiently(`/api/target_acquisition/targets/discover?since=${landed.length}`);
+      const progress = await askedPatiently(`${OURS}/targets/discover?since=${landed.length}`);
       onDoing?.(progress.running ? progress.doing : null);
       onProgress?.(progress.done, progress.of, {
         phase: progress.phase,
@@ -410,7 +414,7 @@ export const backend = {
       re-runs from its checkpoint -- and the poll above ends with what was
       found. */
   async stopTargets() {
-    return ask("/api/target_acquisition/targets/discover/stop", {});
+    return ask(`${OURS}/targets/discover/stop`, {});
   },
 
   /**
@@ -423,12 +427,12 @@ export const backend = {
     positions, acquisition_type = "overview", state = null, onProgress,
     append = false, planned = null,
   } = {}) {
-    await ask("/api/target_acquisition/scan", { positions, acquisition_type, state, append, planned });
+    await ask(`${OURS}/scan`, { positions, acquisition_type, state, append, planned });
     /* The records so far, kept here: each poll asks only for the ones that
        landed since, so a long scan is not carried whole three times a second. */
     const records = [];
     for (;;) {
-      const progress = await askedPatiently(`/api/target_acquisition/scan?since=${records.length}`);
+      const progress = await askedPatiently(`${OURS}/scan?since=${records.length}`);
       records.push(...(progress.records ?? []));
       /* Where the scan stood when it answered -- the last record's own plane,
          which is the only account of the stage that is already in hand. */
@@ -453,7 +457,7 @@ export const backend = {
   /** The operator's Interrupt for the scan: the bridge stops between two
       fields, and the poll above ends with what was captured. */
   async stopScan() {
-    return ask("/api/target_acquisition/scan/stop", {});
+    return ask(`${OURS}/scan/stop`, {});
   },
 
   /**
@@ -476,8 +480,8 @@ export const backend = {
     positions, state = null, append = false, focus = null, zOffsetUm = 0, onProgress, onDoing,
   } = {}) {
     targetsStopAsked = false;
-    const { labels } = await ask("/api/target_acquisition/targets/acquire/begin", { positions, append });
-    if (!focus && state) await ask("/api/state", state);
+    const { labels } = await ask(`${OURS}/targets/acquire/begin`, { positions, append });
+    if (!focus && state) await ask(`${OURS}/state`, state);
     const records = [];
     let stopped = false;
     try {
@@ -499,19 +503,19 @@ export const backend = {
         let standing = null;
         if (focus) {
           say("focussing on");
-          if (focus.state) await ask("/api/state", focus.state);
+          if (focus.state) await ask(`${OURS}/state`, focus.state);
           /* The stack is taken at the map's own height, without the offset:
              the offset is for the target, and is added once to the height
              chosen from the stack. Taken at the lifted height, a stack with
              no peak lifted the target a second time. */
-          const stood = await ask("/api/xyz", {
+          const stood = await ask(`${OURS}/xyz`, {
             x: focusXY.x, y: focusXY.y, ...(Number.isFinite(zMap) ? { z: zMap } : {}),
           });
           standing = stood.z.position;
-          const stack = capturedBy(await ask("/api/acquire", {
+          const stack = capturedBy(await ask(`${OURS}/acquire`, {
             folder: "target-focussing", position_label: labels[index], acquisition_settings: null,
           }));
-          const scored = await ask("/api/target_acquisition/targets/acquire/focus", {
+          const scored = await ask(`${OURS}/targets/acquire/focus`, {
             record: stack, centre: standing, x: focusXY.x, y: focusXY.y,
           });
           const curve = scored.traces?.[focus.metric];
@@ -522,16 +526,16 @@ export const backend = {
           };
           if (peak) at = { x, y, z: lifted(peak.z) };
           else if (Number.isFinite(standing)) at = { x, y, z: lifted(standing) };
-          if (state) await ask("/api/state", state);
+          if (state) await ask(`${OURS}/state`, state);
         }
         say("imaging");
         /* Already standing there after a stack with no peak: no second drive. */
         const stood = focus && !found.found && !focusMoves && !zOffsetUm
-          ? { z: { position: standing } } : await ask("/api/xyz", at);
-        const record = capturedBy(await ask("/api/acquire", {
+          ? { z: { position: standing } } : await ask(`${OURS}/xyz`, at);
+        const record = capturedBy(await ask(`${OURS}/acquire`, {
           folder: "targets", position_label: labels[index], acquisition_settings: null,
         }));
-        const landed = await ask("/api/target_acquisition/targets/acquire/landed", {
+        const landed = await ask(`${OURS}/targets/acquire/landed`, {
           record, position: { x, y, z: stood.z.position }, focus: found,
         });
         records.push(landed);
@@ -539,7 +543,7 @@ export const backend = {
       }
     } finally {
       onDoing?.(null);
-      await ask("/api/target_acquisition/targets/acquire/end", { stopped }).catch(() => {});
+      await ask(`${OURS}/targets/acquire/end`, { stopped }).catch(() => {});
     }
     return { done: records.length, of: positions.length, records, stopped };
   },
@@ -550,18 +554,18 @@ export const backend = {
    * so there is nothing to fetch a second time.
    */
   async protocols(instrument = null) {
-    const { protocols } = await ask("/api/target_acquisition/protocols", instrument ? { instrument } : undefined);
+    const { protocols } = await ask(`${OURS}/protocols`, instrument ? { instrument } : undefined);
     return protocols ?? [];
   },
 
   /** The run's settings, written as `protocol.json` into the run folder. */
   async saveProtocol(protocol) {
-    return ask("/api/target_acquisition/protocol", { protocol });
+    return ask(`${OURS}/protocol`, { protocol });
   },
 
   /** The settings saved by name into this machine's library, under ProgramData. */
   async saveProtocolAs(protocol, name) {
-    return ask("/api/target_acquisition/protocol/save", { protocol, name });
+    return ask(`${OURS}/protocol/save`, { protocol, name });
   },
 
   /**
@@ -572,16 +576,16 @@ export const backend = {
    * (`{columns, ids, values}`), a UMAP bringing the components it stood on.
    */
   async computePlot({ kind, ids = null, onDoing } = {}) {
-    await ask("/api/target_acquisition/plots/compute", { kind, ids });
+    await ask(`${OURS}/plots/compute`, { kind, ids });
     for (;;) {
-      const progress = await askedPatiently("/api/target_acquisition/plots/compute");
+      const progress = await askedPatiently(`${OURS}/plots/compute`);
       onDoing?.(progress.running ? progress.doing : null);
       if (!progress.running) {
         if (progress.error) throw new Error(progress.error);
         if (progress.stopped) return { stopped: true, columns: [] };
         const columns = [];
         for (const one of progress.kinds ?? []) {
-          columns.push(await ask(`/api/target_acquisition/plots/columns?kind=${encodeURIComponent(one)}`));
+          columns.push(await ask(`${OURS}/plots/columns?kind=${encodeURIComponent(one)}`));
         }
         return { stopped: false, objects: progress.objects, seconds: progress.took_s, columns };
       }
@@ -591,7 +595,7 @@ export const backend = {
 
   /** The operator's Interrupt for a plot: the bridge puts its worker down. */
   async stopPlot() {
-    return ask("/api/target_acquisition/plots/compute/stop", {});
+    return ask(`${OURS}/plots/compute/stop`, {});
   },
 
   /** The operator's Interrupt for the target run: the loop above stops

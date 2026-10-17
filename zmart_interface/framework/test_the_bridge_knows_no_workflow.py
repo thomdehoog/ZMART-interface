@@ -1,14 +1,14 @@
-"""The bridge's general part imports nothing of any workflow.
+"""The bridge's general part imports nothing of any workflow, and no instrument.
 
 The twin of ``knows-no-workflow.test.js``, which keeps the page's framework
-free of workflows. Until 11 October 2026 the bridge held Target
-acquisition's focus map, scans, discovery, plots, target run and protocols
-in its general part; they moved into the workflow's own Python half
-(``zmart_interface/workflows/target_acquisition/bridge``), and the general
-part learns what it needs through ``framework/bridge/hooks.py``. This test
-reads the general part's modules and refuses an import of anything under
-``zmart_interface.workflows``, however it is written, so the tie cannot come
-back without a red test saying where.
+free of workflows. Until October 2026 the bridge's general part opened the
+session, drove the stage, captured and served the pictures, so it imported
+the controller and target acquisition's microscope, storage and analysis.
+They all moved into the workflow's own Python half
+(``zmart_interface/workflows/target_acquisition/bridge``). This test reads
+the framework's modules and refuses an import of anything of the interface
+outside ``framework/``, and of the controller, however it is written, so the
+tie cannot come back without a red test saying where.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -26,18 +26,18 @@ PACKAGE = "zmart_interface.framework"
 
 
 def modules_of_the_framework() -> list[Path]:
-    """Every Python module of the framework, leaving out the tests beside it."""
+    """Every Python module of the framework, leaving out the tests and their fixtures."""
     return sorted(
         path for path in FRAMEWORK.rglob("*.py")
         if not path.name.startswith("test_") and path.name != "conftest.py"
-        and "__pycache__" not in path.parts and "build" not in path.parts
+        and "__pycache__" not in path.parts and "fixtures" not in path.parts
     )
 
 
-def imported_by(path: Path) -> list[str]:
+def imported_by(path: Path, root: Path = FRAMEWORK, package: str = PACKAGE) -> list[str]:
     """The full names of the modules ``path`` imports, relative imports resolved."""
-    here = f"{PACKAGE}.{'.'.join(path.relative_to(FRAMEWORK).with_suffix('').parts)}"
-    package = here if path.name == "__init__.py" else here.rpartition(".")[0]
+    here = f"{package}.{'.'.join(path.relative_to(root).with_suffix('').parts)}"
+    within = here if path.name == "__init__.py" else here.rpartition(".")[0]
     names = []
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Import):
@@ -45,36 +45,42 @@ def imported_by(path: Path) -> list[str]:
         elif isinstance(node, ast.ImportFrom):
             base = node.module or ""
             if node.level:
-                parent = package.rsplit(".", node.level - 1)[0] if node.level > 1 else package
+                parent = within.rsplit(".", node.level - 1)[0] if node.level > 1 else within
                 base = f"{parent}.{base}" if base else parent
             names += [base, *(f"{base}.{alias.name}" for alias in node.names)]
     return names
 
 
+def outside_the_framework(names: list[str]) -> list[str]:
+    """The names that reach past the framework: the rest of the interface, or the controller."""
+    return [
+        name for name in names
+        if (name.startswith("zmart_interface") and not name.startswith(PACKAGE) and name != "zmart_interface")
+        or name.split(".")[0] == "zmart_controller"
+    ]
+
+
 def test_there_are_modules_to_read():
-    assert len(modules_of_the_framework()) > 10
+    assert modules_of_the_framework()
 
 
 @pytest.mark.parametrize("path", modules_of_the_framework(), ids=lambda path: path.relative_to(FRAMEWORK).as_posix())
-def test_a_framework_module_imports_no_workflow(path):
-    workflows = [name for name in imported_by(path) if name.startswith("zmart_interface.workflows")]
-    assert workflows == [], f"{path.relative_to(FRAMEWORK)} imports {workflows}"
+def test_a_framework_module_imports_nothing_outside_the_framework(path):
+    reached = outside_the_framework(imported_by(path))
+    assert reached == [], f"{path.relative_to(FRAMEWORK)} imports {reached}"
 
 
-#: What would tie the framework to one instrument: the interface's own mock
-#: microscope and the LAS X simulator's stand-in pixels. Target acquisition's
-#: half hands those over (``workflows/target_acquisition/bridge/starting.py``).
-ONE_INSTRUMENT = ("zmart_interface.mock_microscope", "zmart_interface.parts.microscope.simulator")
-
-
-@pytest.mark.parametrize("path", modules_of_the_framework(), ids=lambda path: path.relative_to(FRAMEWORK).as_posix())
-def test_a_framework_module_imports_no_instrument(path):
-    instruments = [name for name in imported_by(path) if name.startswith(ONE_INSTRUMENT)]
-    assert instruments == [], f"{path.relative_to(FRAMEWORK)} imports {instruments}"
-
-
-def test_the_check_would_catch_a_relative_import(tmp_path, monkeypatch):
+def test_the_check_would_catch_a_relative_import(monkeypatch):
     """The positive control: a relative import of a workflow is seen for what it is."""
     sneaky = FRAMEWORK / "bridge" / "sneaky_example_for_the_test.py"
     monkeypatch.setattr(Path, "read_text", lambda self, encoding=None: "from ...workflows.target_acquisition import bridge\n")
-    assert "zmart_interface.workflows.target_acquisition" in imported_by(sneaky)
+    assert outside_the_framework(imported_by(sneaky)) == [
+        "zmart_interface.workflows.target_acquisition",
+        "zmart_interface.workflows.target_acquisition.bridge",
+    ]
+
+
+def test_the_check_would_catch_the_controller(monkeypatch):
+    sneaky = FRAMEWORK / "bridge" / "sneaky_example_for_the_test.py"
+    monkeypatch.setattr(Path, "read_text", lambda self, encoding=None: "from zmart_controller import ZmartController\n")
+    assert outside_the_framework(imported_by(sneaky)) == ["zmart_controller", "zmart_controller.ZmartController"]

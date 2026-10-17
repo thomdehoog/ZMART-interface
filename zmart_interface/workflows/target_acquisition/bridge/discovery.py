@@ -15,10 +15,8 @@ from __future__ import annotations
 import json
 import threading
 
-from zmart_interface.framework.bridge import readings, state
-from zmart_interface.parts.analysis import detection, warm
-
-from . import ledgers, plots
+from ..analysis import detection, warm
+from . import ledgers, plots, readings, state
 
 
 def find_targets():

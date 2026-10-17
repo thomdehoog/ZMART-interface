@@ -16,10 +16,10 @@ function bridgeAnswering(statuses) {
   const calls = [];
   globalThis.fetch = vi.fn(async (url) => {
     calls.push(url);
-    if (url.endsWith("/api/connect")) {
+    if (url.endsWith("/api/target_acquisition/connect")) {
       return { ok: true, json: async () => ({ context: {}, info: {} }) };
     }
-    if (url.endsWith("/api/info")) {
+    if (url.endsWith("/api/target_acquisition/info")) {
       const status = statuses[Math.min(polls, statuses.length - 1)];
       polls += 1;
       return { ok: true, json: async () => ({ connection_status: status, setup: { saving: { done: true, says: "D:/runs" } } }) };
@@ -50,7 +50,7 @@ describe("the live connect", () => {
     expect(seen.keys).toEqual(["driver", "client", "stage"]);
     expect(seen.answers).toEqual([[0, "mock"], [1, "mock-client"], [2, "x 0 · y 0"]]);
     expect(info.setup.saving.says).toBe("D:/runs");
-    expect(calls.filter((u) => u.endsWith("/api/info"))).toHaveLength(3);
+    expect(calls.filter((u) => u.endsWith("/api/target_acquisition/info"))).toHaveLength(3);
   });
 
   it("rejects naming the check that failed, after showing it", async () => {
@@ -76,7 +76,7 @@ describe("the live connect", () => {
     });
     const xyz = await backend.get_xyz();
     expect(xyz.x.position).toBe(1);
-    expect(calls.at(-1)).toMatch(/\/api\/xyz$/);
+    expect(calls.at(-1)).toMatch(/\/api\/target_acquisition\/xyz$/);
   });
 
   it("drives the stage through the same route, as a post", async () => {
@@ -90,7 +90,7 @@ describe("the live connect", () => {
     /* The controller's two verbs on one noun: `get_xyz` reads it, `set_xyz`
        drives it, and the method is what says which. */
     const at = await backend.set_xyz({ x: 900, y: 800, z: 7 });
-    expect(calls.at(-1)).toMatch(/\/api\/xyz$/);
+    expect(calls.at(-1)).toMatch(/\/api\/target_acquisition\/xyz$/);
     expect(sent.method).toBe("POST");
     expect(sent.body).toEqual({ x: 900, y: 800, z: 7 });
     /* Answered with where the stage ended up, not with what was asked for. */

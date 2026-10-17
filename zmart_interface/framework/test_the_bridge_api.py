@@ -24,7 +24,6 @@ from pathlib import Path
 import pytest
 
 from zmart_interface.framework.bridge import api, server, workflows
-from zmart_interface.parts.microscope.instrument import InstrumentDeclined
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -84,14 +83,15 @@ def test_a_refusal_answers_with_its_own_status_and_sentence(a_running_bridge):
     assert json.loads(body) == {"error": "nothing has been imaged there"}
 
 
-def test_the_instrument_declining_answers_409(a_running_bridge):
+def test_a_refusal_without_a_status_answers_409(a_running_bridge):
+    """The instrument's own "I could not", told apart from a broken bridge."""
     def declines(asked, query):
-        raise InstrumentDeclined("move", {"reason": "outside the travel"})
+        raise api.Refusal("the microscope could not move: outside the travel")
 
     server.add_route("GET", "/api/somewhere/declined", declines)
     status, _, body = ask(f"{a_running_bridge}/api/somewhere/declined")
     assert status == 409
-    assert "the microscope could not move" in json.loads(body)["error"]
+    assert json.loads(body) == {"error": "the microscope could not move: outside the travel"}
 
 
 def test_the_fixtures_half_is_found_and_its_routes_land_under_its_folder(monkeypatch):

@@ -18,7 +18,7 @@ from pathlib import Path
 
 from zmart_controller.registry import config_root
 
-from zmart_interface.framework.bridge import state
+from . import state
 
 #: What a run of this workflow is called on disk: ``target-acquisition_<hash>``.
 #: The page names it when it connects (the bridge makes the run folder), and

@@ -1,22 +1,21 @@
 """The HTTP shell: routes in, JSON out, errors as sentences.
 
-Every route is one of the page's backend verbs, dispatched to the module
-that does the work. The server also hands out the built page and the
-pictures a run makes, so the microscope computer runs one program on one
-address.
+Every route is one of the page's backend verbs, dispatched to the workflow's
+Python half that does the work. The server also hands out the built page, so
+the microscope computer runs one program on one address. It knows no
+workflow and no instrument: each workflow's half registers its own routes.
 
 Standard library only, on purpose. The microscope computer has no network
 to install packages from, and this server is a handful of routes: a
 framework would save thirty lines and cost a dependency forever.
 
 The routes are a table, ``ROUTES``, from ``(method, path)`` to the function
-that answers it. A function is put there with the :func:`route` decorator
-below, takes ``(asked, query)`` -- the request's JSON body as a dictionary
-(empty for a GET) and the raw query string -- and answers the dictionary the
-page receives; an exception it raises becomes the sentence the page shows,
-with the status :meth:`Bridge._fail` gives it. A workflow's Python half
-adds its own routes to the same table through :func:`add_route`, under
-``/api/<its folder>/``.
+that answers it. A workflow's Python half puts its routes there through
+:func:`add_route`, under ``/api/<its folder>/``. A handler takes
+``(asked, query)`` -- the request's JSON body as a dictionary (empty for a
+GET) and the raw query string -- and answers the dictionary the page
+receives, or bytes (:class:`api.Bytes`); an exception it raises becomes the
+sentence the page shows, with the status :meth:`Bridge._fail` gives it.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -32,18 +31,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from zmart_interface.parts.microscope.instrument import InstrumentDeclined
-from zmart_interface.parts.storage import viewer_service
-
-from . import (
-    connecting,
-    hooks,
-    pictures,
-    readings,
-    stage,
-    state,
-    workflows,
-)
+from . import workflows
 from .api import Bytes, Refusal
 
 #: Where ``npm run build`` leaves the page: ``zmart_interface/build``.
@@ -67,87 +55,6 @@ def add_route(method: str, path: str, handler, prefix: bool = False) -> None:
     half needs when the bridge is built twice in one process, as the tests do.
     """
     (PREFIX_ROUTES if prefix else ROUTES)[(method.upper(), path)] = handler
-
-
-def route(method: str, path: str):
-    """Mark a function as the answer to ``method path``: ``@route("GET", "/api/xyz")``."""
-
-    def put(handler):
-        add_route(method, path, handler)
-        return handler
-
-    return put
-
-
-# --- the routes, in the order the page meets them ------------------------------
-
-
-@route("GET", "/api/instruments")
-def _instruments(asked, query):
-    return {"instruments": connecting.instruments()}
-
-
-@route("POST", "/api/connect")
-def _connect(asked, query):
-    # Outside the instrument's turn: a running scan needs it to finish its field.
-    connecting.let_the_last_session_go()
-    with state.the_instruments_turn:
-        return connecting.connect(asked)
-
-
-@route("POST", "/api/disconnect")
-def _disconnect(asked, query):
-    with state.the_instruments_turn:
-        return connecting.disconnect()
-
-
-@route("GET", "/api/info")
-def _info(asked, query):
-    # The driver's account of the session: its connection checks (polled
-    # while they answer).
-    with state.the_instruments_turn:
-        return state.require_session().get_info()
-
-
-@route("GET", "/api/setting")
-def _setting(asked, query):
-    kind = urllib.parse.parse_qs(query or "").get("type", ["acquisition"])[0]
-    with state.the_instruments_turn:
-        return readings.reading(kind)
-
-
-@route("GET", "/api/xyz")
-def _where_the_stage_is(asked, query):
-    return stage.where_the_stage_is()
-
-
-@route("POST", "/api/xyz")
-def _drive_to(asked, query):
-    with state.the_instruments_turn:
-        return stage.drive_to(asked)
-
-
-@route("GET", "/api/acquisition_settings")
-def _acquisition_settings(asked, query):
-    with state.the_instruments_turn:
-        return readings.acquisition_settings()
-
-
-@route("POST", "/api/state")
-def _apply_state(asked, query):
-    with state.the_instruments_turn:
-        return readings.apply_state(asked)
-
-
-@route("POST", "/api/acquire")
-def _capture(asked, query):
-    with state.the_instruments_turn:
-        return readings.capture(asked)
-
-
-@route("GET", "/api/viewer")
-def _viewer(asked, query):
-    return viewer_service.status()
 
 
 #: The names this computer answers to. A request that arrives under any other
@@ -238,15 +145,14 @@ class Bridge(BaseHTTPRequestHandler):
         """A failure as the sentence the page shows.
 
         A microscope that answered "I could not" is not a broken bridge, so it
-        is told apart as 409: whoever reads the log sees the instrument's own
-        refusal rather than an internal error. The page shows the sentence
-        either way, where the press was made.
+        is told apart: a workflow raises it as a :class:`api.Refusal`, with a
+        status of its own (409 by default), so whoever reads the log sees the
+        instrument's own refusal rather than an internal error. The page shows
+        the sentence either way, where the press was made.
         """
         said = str(why)
         if isinstance(why, Refusal):
             kind = why.status
-        elif isinstance(why, InstrumentDeclined):
-            kind = 409
         elif isinstance(why, KeyError):
             # Python says only the missing name, in quotes: "'record'".
             kind, said = 400, f"the request is missing {why.args[0]!r}" if why.args else said
@@ -287,65 +193,13 @@ class Bridge(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    #: What a view folder is allowed to hold, and what to call it when sent.
-    #: A short list rather than a guess, because this hands out files by a name
-    #: the page chose: anything not on it is not a picture and is not sent.
-    PICTURES = {".jpg": "image/jpeg", ".png": "image/png", "tiles.json": "application/json"}
-
-    def _send_a_picture(self, path: str, query: str = "") -> None:
-        """Hand out one file from a scan's view folder.
-
-        ``/view/<acquisition type>/<name>``. Browsers will not let a page read
-        files off a disk, so the pictures a scan makes have to be served, and
-        this is the only reason the bridge serves anything that is not JSON.
-
-        The name is taken apart rather than joined on: a name with a path in it
-        would otherwise reach out of the folder and hand out any file this
-        process can read.
-        """
-        _, _, rest = path.partition("/view/")
-        kind, _, name = rest.partition("/")
-        wanted = self.PICTURES.get(name if name in self.PICTURES else Path(name).suffix)
-        if not kind or not name or name != Path(name).name or wanted is None:
-            self._answer({"error": f"no picture {rest!r}"}, status=404)
-            return
-        display = pictures.the_display_asked_for(query)
-        raw = hooks.is_raw(kind)
-        if display is not None and name.endswith(".jpg") and not raw:
-            # The copy drawn with the picture's own display settings: what
-            # the page's canvas shows, not the scan-wide stretch the small
-            # copies wear. Rendered on request and remembered by its asking.
-            body = pictures.a_picture_as_displayed(kind, name[: -len(".jpg")], display)
-            if body is None:
-                self._answer({"error": f"nothing has been imaged at {rest}"}, status=404)
-                return
-            self._send_bytes(body, wanted)
-            return
-        drawn = hooks.drawing_for(name)
-        if drawn is not None:
-            # A picture a workflow draws on request (a field's detection
-            # mask, say), asked for by the field's label; one it cannot draw
-            # answers 404 rather than a broken picture.
-            ending, draw = drawn
-            where = draw(kind, name[: -len(ending)])
-        elif raw:
-            # A kind whose files a workflow writes into its view folder as
-            # they land (a focus stack's slices), served as they are.
-            where = pictures.view_of(kind) / name
-        else:
-            note = pictures.the_view_of(kind)
-            where = None if note is None else (note if name == "tiles.json" else note.parent / name)
-        if where is None or not where.is_file():
-            self._answer({"error": f"nothing has been imaged at {rest}"}, status=404)
-            return
-        self._send_bytes(where.read_bytes(), wanted)
-
     def _send_bytes(self, body: bytes, content_type: str) -> None:
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        # A scan's note and its pictures change as it runs, so nothing here is
-        # worth keeping: a cached note is a canvas that stops growing.
+        # What a workflow answers in bytes is a picture of a run that is still
+        # going (a scan's note, a field as it lands), so nothing here is worth
+        # keeping: a cached note is a canvas that stops growing.
         self.send_header("Cache-Control", "no-store")
         self.allow_the_page()
         self.end_headers()
@@ -392,14 +246,12 @@ class Bridge(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 — http.server's naming
         if self.refused():
             return
-        path, _, query = self.path.partition("?")
+        path = self.path.partition("?")[0]
         try:
-            if path.startswith("/view/"):
-                self._send_a_picture(path, query)
-            elif not path.startswith("/api/"):
-                self._send_the_page(path)
-            else:
+            if path.startswith("/api/"):
                 self._dispatch("GET", {})
+            else:
+                self._send_the_page(path)
         except Exception as why:  # noqa: BLE001
             self._fail(why)
 
@@ -418,15 +270,11 @@ class Bridge(BaseHTTPRequestHandler):
 def a_bridge_on(port: int, args=None, *, halves=None) -> ThreadingHTTPServer:
     """A bridge ready to answer, with every workflow's Python half started.
 
-    ``args`` are the parsed options (``--output-root`` and each half's own);
-    ``halves`` are the halves as :func:`workflows.load_halves` answers them,
-    loaded here when not given. Each half's ``start(args)`` runs, and the first
-    title one answers names the window (``listening.title``).
+    ``args`` are the parsed options, each half's own among them; ``halves``
+    are the halves as :func:`workflows.load_halves` answers them, loaded here
+    when not given. Each half's ``start(args)`` runs, and the first title one
+    answers names the window (``listening.title``).
     """
-    connecting.offered = {}
-    state.pixels_for = None
-    state.pixel_provider = None
-    state.output_root = getattr(args, "output_root", None)
     if halves is None:
         halves = workflows.load_halves(add_route)
     titles = [half.start(args) for _, half in halves if hasattr(half, "start")]
@@ -467,9 +315,7 @@ def shut_down(listening: ThreadingHTTPServer) -> None:
 
 
 def add_arguments(parser: argparse.ArgumentParser, halves=()) -> None:
-    """The bridge's options, and each workflow's half's own, in a group named for it."""
-    parser.add_argument("--output-root",
-                        help="where runs go, for a driver that cannot discover its own")
+    """Each workflow's half's own options, in a group named for it."""
     for name, half in halves:
         if hasattr(half, "add_arguments"):
             half.add_arguments(parser.add_argument_group(name))

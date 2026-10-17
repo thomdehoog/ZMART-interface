@@ -1470,7 +1470,7 @@ function countFromTheCornerOfTheVoxelRatherThanItsMiddle(own) {
          with the flag true. The flag says how the engine labels its axes; it
          does not say where the picture landed. Every store this project writes
          puts the corner of the first voxel in the translation
-         (`zmart_interface/zmart_storage/images.py`, `zmart_interface/parts/storage/zarr_positions.py`),
+         (`zmart_interface/workflows/target_acquisition/storage/images.py`, `zmart_interface/workflows/target_acquisition/storage/zarr_positions.py`),
          so every source drawn here is moved back by the same half voxel. */
       const moved = Float64Array.from(placed.transform);
       let anythingMoved = false;

@@ -14,11 +14,9 @@ import threading
 import time
 from pathlib import Path
 
-from zmart_interface.framework.bridge import state
-from zmart_interface.parts.analysis import warm
-from zmart_interface.parts.storage.output import run_hash
-
-from . import ledgers
+from ..analysis import warm
+from ..storage.output import run_hash
+from . import ledgers, state
 
 
 def the_population_table() -> Path:

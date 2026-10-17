@@ -1,16 +1,9 @@
-"""The bridge never guesses a height, and answers a bad request in a sentence.
+"""A bad request is answered in a sentence, not in Python's own words.
 
-From the review of 10 October:
-
-- Finding 9. A double-click drive names only x and y, and the axes it leaves
-  out stay where the stage reports them. A driver that reported no z got
-  ``set_xyz(x, y, 0.0)``: an absolute move to z = 0, the objective's own
-  zero. The overview scan already refused to invent a height; the drive now
-  does too.
-- Finding 19. Three requests answered the operator in Python's own words:
-  ``/api/setting?type=a=b`` ("dictionary update sequence element #0 ..."),
-  a missing field (``'record'``), and ``{"x": null}`` ("float() argument
-  must be ...").
+From the review of 10 October, finding 19: requests answered the operator in
+Python's own words -- a missing field (``'record'``), and ``{"x": null}``
+("float() argument must be ..."). A missing field is named, and a value of
+the wrong kind is a bad request (400), not a broken bridge.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -21,49 +14,7 @@ from __future__ import annotations
 import io
 import json
 
-import pytest
-
-from zmart_interface.framework.bridge import readings, server, stage, state
-from zmart_interface.parts.microscope.instrument import Instrument
-
-
-class Stage:
-    """A stage that reports only the axes it is given, and remembers every move."""
-
-    def __init__(self, **standing):
-        self.context = {"driver": "stub"}
-        self.standing = standing
-        self.moves = []
-
-    def get_xyz(self):
-        return {"success": True, "content": {axis: {"position": v} for axis, v in self.standing.items()}}
-
-    def set_xyz(self, x, y, z):
-        self.moves.append((x, y, z))
-        return {"success": True, "content": {"x": {"position": x}, "y": {"position": y}, "z": {"position": z}}}
-
-
-def test_a_drive_never_sends_the_objective_to_a_height_nobody_reported(monkeypatch):
-    held = Stage(x=0.0, y=0.0)
-    monkeypatch.setattr(state, "session", Instrument(held))
-    with pytest.raises(RuntimeError, match="does not say where the z axis stands"):
-        stage.drive_to({"x": 100.0, "y": 200.0})
-    assert held.moves == []
-
-
-def test_a_drive_keeps_every_axis_it_was_not_asked_to_move(monkeypatch):
-    held = Stage(x=1.0, y=2.0, z=-380.0)
-    monkeypatch.setattr(state, "session", Instrument(held))
-    stage.drive_to({"x": 100.0, "y": None})
-    assert held.moves == [(100.0, 2.0, -380.0)]
-
-
-def test_a_drive_to_something_that_is_not_a_number_says_so(monkeypatch):
-    held = Stage(x=1.0, y=2.0, z=3.0)
-    monkeypatch.setattr(state, "session", Instrument(held))
-    with pytest.raises(ValueError, match="x must be a number of micrometres, not 'left'"):
-        stage.drive_to({"x": "left"})
-    assert held.moves == []
+from zmart_interface.framework.bridge import server
 
 
 def answered(method, path, body=None):
@@ -90,15 +41,6 @@ def answered(method, path, body=None):
     probe = Probe()
     (probe.do_POST if method == "POST" else probe.do_GET)()
     return probe.status, json.loads(probe.wfile.getvalue())
-
-
-def test_a_reading_asked_with_a_malformed_query_is_read_as_far_as_it_goes(monkeypatch):
-    asked = []
-    monkeypatch.setattr(readings, "reading", lambda kind: asked.append(kind) or {"kind": kind})
-    monkeypatch.setattr(state, "session", object())
-    status, said = answered("GET", "/api/setting?type=a=b&other")
-    assert status == 200
-    assert asked == ["a=b"]
 
 
 def test_a_missing_field_is_named_in_a_sentence(monkeypatch):

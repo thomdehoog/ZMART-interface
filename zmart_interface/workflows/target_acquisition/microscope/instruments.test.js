@@ -1,5 +1,5 @@
 /**
- * The Connect card's lists come from the bridge (`/api/instruments`) as
+ * The Connect card's lists come from the bridge (`/api/target_acquisition/instruments`) as
  * names: the interface's own mock, then the drivers registered on this
  * computer. `choicesFrom` shapes them the way the card asks, and keeps the
  * name under each, because the name is what Connect sends.

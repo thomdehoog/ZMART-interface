@@ -15,12 +15,10 @@ import sys
 import threading
 import time
 
-from zmart_interface.framework.bridge import pictures, stage, state
-from zmart_interface.parts.microscope.focus_run import as_state
-from zmart_interface.parts.storage import output
-from zmart_interface.parts.storage.output import position_label, prepare_acquisition
-
-from . import ledgers
+from ..microscope.focus_run import as_state
+from ..storage import output
+from ..storage.output import position_label, prepare_acquisition
+from . import ledgers, pictures, stage, state
 
 
 def scan_worker(

@@ -8,7 +8,7 @@ import numpy as np
 import zarr
 from zmart_viewer import make_server
 
-from zmart_interface.zmart_storage import declare_image
+from zmart_interface.workflows.target_acquisition.storage.images import declare_image
 
 folder = Path(sys.argv[1])
 for name, depth, x, z, reference in (() if "--existing" in sys.argv else (
