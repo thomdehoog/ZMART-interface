@@ -19,7 +19,6 @@ import { placingFinished } from "./run.js";
 export const targetScanArea = {
   id: "select",
   title: "Target scan area",
-  why: "Import the settings the targets are imaged with, then place scan areas over a sample of the gated targets.",
   btn: "Place scan areas",
   panels: [],
   ms: 600,

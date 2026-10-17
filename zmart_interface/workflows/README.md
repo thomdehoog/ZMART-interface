@@ -69,22 +69,11 @@ it, at the lowest folder that covers them all.** Used by one step → in that
 step's folder. Used by several steps of one workflow → that workflow's
 `shared/`. Used by any workflow → `../parts/`.
 
-## Borrowing steps instead of retyping them
+## A step belongs to its workflow
 
-A step belongs to the workflow that owns it, and other workflows import it;
-`target_acquisition/flow.js` is little more than the list in `the-run.js`.
-A workflow that wants a borrowed step to say something different wraps it in
-`reworded()` (from `../framework/rules/steps.js`), which changes the wording and
-nothing else. That keeps what a step *does* written down once, so a fix
-reaches every workflow at the same moment.
-
-One limit, today: a borrowed step brings its declaration, not the wiring its
-owner does in `install`. Target acquisition's steps reach the page's `stage`,
-`listInstruments`, `renderPointList` and the rest, which exist only once
-target acquisition's own `install` has run, so a workflow written in another
-repository can borrow one of them only if it uses nothing its owner lends.
-Letting a step declare its own wiring is the next cut; until then, borrow
-steps within this repository, or write the step afresh.
+A workflow shares nothing with another: not a step, not a panel. A step that a
+second workflow would also need is written again there, or, if it is truly
+general, its general part becomes a part (`../parts/`).
 
 ## What a step is made of
 
@@ -93,7 +82,6 @@ fields, all optional except the first two.
 
 - `id` — the short name the page files this step's result under.
 - `title` — what the step is called in the rail down the left.
-- `why` — one sentence saying what the step is for.
 - `panels` — which modules the step wants on screen, named. An empty list means
   "nothing of my own"; see `../framework/rules/steps.js`, which decides what that
   comes to once the canvas is in play.
@@ -156,8 +144,6 @@ fields, all optional except the first two.
   rather than the page around it: only the focus step knows what a focus map
   needs, and putting the rule on the step is what lets a new workflow be a list
   of steps instead of another rule added to the shell.
-- `note` — what the step writes beside itself in the rail once it has finished,
-  for steps whose result is always the same sentence.
 - `nothingWaitsOnThis` — the steps after this one do not wait for it. A run is
   walked in order because each step usually produces something the next one
   needs; a step that only shows the operator something produces nothing to wait
@@ -194,8 +180,6 @@ it knows nothing about:
 - `page.onChannelMounted` — called with the channel's host and the step's
   channel after the step's controls were mounted. Target acquisition puts
   the protocol's progress over them.
-- `page.onThemeChanged` — called when the page's theme switches, for
-  whatever chose its colours itself.
 
 ## What a flow is made of
 

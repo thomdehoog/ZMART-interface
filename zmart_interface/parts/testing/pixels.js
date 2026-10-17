@@ -196,7 +196,7 @@ const isLit = ({ data, channels }, x, y, width, floor, only = null) => {
  * @returns `{ left, top, right, bottom }`, the last two not included, or `null`
  *   if nothing at all was drawn.
  */
-export function litBounds(pixels, { floor = LIT, only = null } = {}) {
+function litBounds(pixels, { floor = LIT, only = null } = {}) {
   const { width, height } = pixels;
   let left = width;
   let top = height;
@@ -232,7 +232,7 @@ export function litBounds(pixels, { floor = LIT, only = null } = {}) {
  * @returns rows of numbers between 0 and 1, top row first, or `null` when
  *   nothing was drawn at all.
  */
-export function litGrid(pixels, cells, { floor = LIT, over = null, inset = 0.3 } = {}) {
+function litGrid(pixels, cells, { floor = LIT, over = null, inset = 0.3 } = {}) {
   const bounds = over ?? litBounds(pixels, { floor });
   if (!bounds) return null;
   const { width } = pixels;
@@ -297,44 +297,6 @@ export function fractionLit({ data, channels }, floor = LIT) {
 }
 
 /**
- * The average colour of each square of a grid laid over the picture.
- *
- * Where {@link litGrid} asks "is there anything here", this asks "what colour is
- * it" — which is the question when something has been drawn *underneath* the
- * image and what matters is whether it shows through.
- *
- * @returns rows of `[red, green, blue]`, top row first.
- */
-export function meanGrid(pixels, cells, { over = null } = {}) {
-  const bounds = over ?? { left: 0, top: 0, right: pixels.width, bottom: pixels.height };
-  const { width, data, channels } = pixels;
-  const across = (bounds.right - bounds.left) / cells;
-  const down = (bounds.bottom - bounds.top) / cells;
-  const grid = [];
-  for (let row = 0; row < cells; row++) {
-    const line = [];
-    for (let col = 0; col < cells; col++) {
-      const x0 = Math.round(bounds.left + (col + 0.3) * across);
-      const x1 = Math.round(bounds.left + (col + 0.7) * across);
-      const y0 = Math.round(bounds.top + (row + 0.3) * down);
-      const y1 = Math.round(bounds.top + (row + 0.7) * down);
-      const total = [0, 0, 0];
-      let seen = 0;
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          const at = (y * width + x) * channels;
-          for (let c = 0; c < 3; c++) total[c] += data[at + c];
-          seen += 1;
-        }
-      }
-      line.push(seen ? total.map((sum) => Math.round(sum / seen)) : [0, 0, 0]);
-    }
-    grid.push(line);
-  }
-  return grid;
-}
-
-/**
  * How much of the picture is one particular colour.
  *
  * This is the measurement for a layer the page drew itself. Asking whether
@@ -376,7 +338,7 @@ export function fractionNear({ data, channels }, [red, green, blue], allowance =
  * (one means every pixel is identical), and how far a typical pixel sits from
  * the average (zero means perfectly flat).
  */
-export function colourSpread({ data, channels }) {
+function colourSpread({ data, channels }) {
   const seen = new Map();
   let total = 0;
   let sum = 0;

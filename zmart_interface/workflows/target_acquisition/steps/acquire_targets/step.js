@@ -15,7 +15,6 @@ import {
 export const acquireAndCurate = {
   id: "acquire",
   title: "Acquire Targets",
-  why: "Image every planned target tile, then inspect its low- and high-resolution image pair.",
   btn: "Acquire Targets",
   panels: [],
   ms: 2200,

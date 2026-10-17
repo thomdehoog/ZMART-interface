@@ -15,7 +15,7 @@ import { protocolFrom } from "../../shared/protocol.js";
 /** The operator looked at every orange step and agrees with them as they
     stand: one press, in Step 10's box, there only while something is
     orange (Thom, 2026-09-28). */
-export function confirmAllSettings(page) {
+function confirmAllSettings(page) {
   page.run.stale.clear();
   page.run.sideMounted = null;
   page.renderAll();

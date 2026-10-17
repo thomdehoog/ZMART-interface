@@ -16,7 +16,7 @@
    Cellpose: a model, about a minute a field on the card and ten on the CPU.
    Fast is what QuPath's cell detection does -- background off, a blob
    response, a watershed -- a second or two a field with no model to load. */
-export const ALGOS = {
+const ALGOS = {
   fast: {
     label: "Fast",
     blurb: "Watershed, as QuPath does it. Diameter sets its scale; threshold is how bright a nucleus must be above the background, in counts.",
@@ -38,7 +38,7 @@ export const settingsFor = (settings) => ({
 });
 
 /** Golden-angle hues, so neighbouring labels never share a colour. */
-export const labelColour = (n, alpha = 1) =>
+const labelColour = (n, alpha = 1) =>
   `hsla(${(n * 137.508) % 360}, 68%, 58%, ${alpha})`;
 
 import { dressTheMask } from "./mask-dress.js";

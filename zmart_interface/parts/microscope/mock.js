@@ -206,15 +206,6 @@ export const backend = {
 
 };
 
-/* What METRICS looks like is display metadata the window shares (labels,
-   colours); re-exported so the page reads it through the seam rather than
-   reaching into the pretend sample. */
-export { METRICS, METRIC_KEYS };
-
-/* A deterministic random stream for the window's rehearsal drawings (the
-   pretend image textures in previews). Re-exported for the same reason. */
-export { makeRng };
-
 
 /* ==========================================================================
    what this pretend instrument answers about itself
@@ -227,7 +218,7 @@ const TRAVEL_UM = { x: 120_000, y: 80_000 };
  *  offer: the interface's mock first, then the controller's list. */
 export const pretendInstruments = () => [THE_MOCK, "mock", "stellaris"];
 
-export const pretendConnectionStatus = ({ instrument }) => ({
+const pretendConnectionStatus = ({ instrument }) => ({
   "Microscope reachable": MICROSCOPES[instrument] ? "in-process" : "127.0.0.1:8895",
   "Credentials accepted": "token valid",
   "API version": MICROSCOPES[instrument]?.apiDetail ?? "LAS X 4.9",

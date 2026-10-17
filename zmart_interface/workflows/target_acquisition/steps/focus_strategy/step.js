@@ -19,7 +19,6 @@ import { focusFinished, runFocus } from "./run.js";
 export const focusStrategy = {
   id: "focus",
   title: "Focus strategy",
-  why: "Record the focussing preset, then choose how this run keeps every image sharp across the sample.",
   btn: "Run focus map",
   panels: [],
   ms: 0,

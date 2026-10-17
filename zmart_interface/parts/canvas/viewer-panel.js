@@ -193,7 +193,7 @@ const LOOK_COLOURS = [
   [0.45, 0.5, 1.0],   // blue
 ];
 
-export async function measureViewerRow(row, {
+async function measureViewerRow(row, {
   signal = null,
   box = [[0, 0], [1, 1]],
 } = {}) {
@@ -222,7 +222,7 @@ export async function measureViewerRow(row, {
 }
 
 /** A channel identity that survives source growth and panel remounting. */
-export const viewerChannelKey = (row) =>
+const viewerChannelKey = (row) =>
   `${row.acquisition}\u0000${row.within}\u0000${row.name}`;
 
 /**
@@ -232,7 +232,7 @@ export const viewerChannelKey = (row) =>
  * asked for and can be handed to a replacement panel or Viewer without making
  * either of them the owner of the controls.
  */
-export function createViewerPanelState() {
+function createViewerPanelState() {
   return {
     acquisitions: new Map(),
     channels: new Map(),

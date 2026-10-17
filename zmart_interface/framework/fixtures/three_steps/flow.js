@@ -51,7 +51,6 @@ const tick = (ms) => new Promise((done) => setTimeout(done, ms));
 const begin = {
   id: "begin",
   title: "Begin",
-  why: "Standing on this step is all it asks.",
   panels: ["card"],
   settledByStanding(page) {
     page.run.done.add("begin");
@@ -62,7 +61,6 @@ const begin = {
 const countToThree = {
   id: "count",
   title: "Count to three",
-  why: "Counts to three, one tick at a time, and can be stopped between two ticks.",
   btn: "Count",
   panels: ["card"],
   ms: 0,
@@ -89,7 +87,6 @@ const countToThree = {
 const finish = {
   id: "finish",
   title: "Finish",
-  why: "Ends the run with a word.",
   btn: "Finish",
   panels: ["card"],
   ms: 0,

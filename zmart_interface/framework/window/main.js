@@ -25,9 +25,8 @@
  *   by each step's channel when it mounts; empty until a workflow fills it.
  * - the hook lists, each an array a workflow's `install` pushes to:
  *   `onRender` after every render, `onPanelShown` whenever a panel is drawn,
- *   `onReset` when the run starts over, `onChannelMounted` after a step's
- *   controls were mounted in the channel, and `onThemeChanged` when the
- *   page's theme switches, for the parts that chose their colours themselves.
+ *   `onReset` when the run starts over, and `onChannelMounted` after a
+ *   step's controls were mounted in the channel.
  * - and the functions the modules lend it, named as they are installed.
  */
 
@@ -86,7 +85,6 @@ const page = {
   onPanelShown: [],
   onReset: [],
   onChannelMounted: [],
-  onThemeChanged: [],
 };
 
 /* The backend is asked of the workflow being opened, before there is a run to
@@ -122,13 +120,6 @@ page.installWorkflow(OPENS_ON);
 /* Left where a test can reach it: the framework's fields, and whatever the
    workflow of the moment exposes of its own. */
 exposeTheRunForTests(page.run, page.flow);
-
-/* A change of theme repaints everything that chose its colours itself; the
-   workflows say what that is. */
-const mo = new MutationObserver(() => {
-  for (const repaint of page.onThemeChanged) repaint();
-});
-mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
 /* The page as it opens: on the first step. */
 page.focusPanelsFor(0);

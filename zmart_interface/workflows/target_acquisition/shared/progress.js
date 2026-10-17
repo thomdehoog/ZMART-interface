@@ -25,7 +25,7 @@
 import { sideGroup } from "../../../framework/window/panels.js";
 
 /** A duration in the box's own words. */
-export const saySpan = (s) => (s >= 90
+const saySpan = (s) => (s >= 90
   ? `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, "0")} s`
   : `${s >= 10 ? Math.round(s) : Math.max(0.1, s).toFixed(1)} s`);
 

@@ -127,7 +127,7 @@ const hardwareAutofocus = ({ objective, pixelUm, framePx, source, offset, hold }
  * software or hardware and through which lens; the rest of it is one fold
  * away.
  */
-export const SETTING_TYPES = [
+const SETTING_TYPES = [
   {
     key: "acquisition",
     label: "Acquisition",
@@ -204,7 +204,7 @@ export const SETTING_TYPES = [
   },
 ];
 
-export const settingType = (key) => SETTING_TYPES.find((t) => t.key === key);
+const settingType = (key) => SETTING_TYPES.find((t) => t.key === key);
 
 /** What the controller reports for the nth recording of a kind. */
 export const sampleReading = (key, nth) => {

@@ -23,7 +23,6 @@ import { afterTheProtocolPress, interruptProtocol, runProtocol } from "./run.js"
 export const runProtocolStep = {
   id: "protocol",
   title: "Run protocol",
-  why: "Runs the steps above in order over the whole scan area, keeping a focus map already measured, and writes the protocol.",
   btn: "Run protocol",
   panels: [],
   ms: 0,

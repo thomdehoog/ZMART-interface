@@ -19,19 +19,10 @@ import { targetScanArea } from "./steps/target_scan_area/step.js";
 import { acquireAndCurate } from "./steps/acquire_targets/step.js";
 import { runProtocolStep } from "./steps/run_protocol/step.js";
 
-/* Every run that drives the microscope starts the same way: open the session,
-   say what the sample is mounted in, and say where on it to look. Written once
-   here so the workflows that share these steps cannot drift apart — the
-   overview-only and focus-check flows import this list rather than retyping
-   it. */
-export const setUpTheRun = [
+export const steps = [
   connect,
   carrierConfiguration,
   initialScanfields,
-];
-
-export const steps = [
-  ...setUpTheRun,
   focusStrategy,
   scanOverview,
   detectCells,

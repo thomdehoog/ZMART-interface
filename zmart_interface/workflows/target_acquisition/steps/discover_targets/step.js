@@ -12,7 +12,6 @@ import { detectionFinished, runDetection } from "./run.js";
 export const detectCells = {
   id: "detect",
   title: "Detect objects",
-  why: "Detects objects and measures their features in every overview position. Each object becomes one target candidate.",
   btn: "Detect objects",
   panels: [],
   ms: 1600,

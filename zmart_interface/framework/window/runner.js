@@ -65,7 +65,6 @@ export function installRunner(page) {
       state.interrupting = null;
       state.done.add(s.id);
       state.ran.add(s.id);
-      if (s.note) state.notes[s.id] = s.note;
       /* Run afresh, the step is green -- and everything after it was made
          from what it was before, so that goes orange. Not under the
          protocol, which makes every step afresh in turn. */

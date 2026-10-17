@@ -18,7 +18,7 @@
  * only the walk of the steps in turn (`page.run.protocol`).
  */
 
-export const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 1;
 
 const AUTOMATABLE_GATE = /^(?!pca_|umap_)/;
 

@@ -105,7 +105,7 @@ export function protocolWithin(page, done, of) {
    The steps' own `ready` rules cannot be asked here for what an earlier
    step of the run produces (gated objects, target tiles), so this asks
    for the settings only. */
-export function protocolBlockers(page) {
+function protocolBlockers(page) {
   const state = page.run;
   const blockers = [];
   const focus = page.step(page.indexOfStep("focus"));

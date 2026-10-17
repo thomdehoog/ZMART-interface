@@ -17,7 +17,6 @@ import { carrierChannel, carrierSettled } from "./channel.js";
 export const carrierConfiguration = {
   id: "carrier",
   title: "Define Carrier",
-  why: "Tell the run what the sample is mounted in — it says where within the stage the sample sits.",
   panels: ["canvas"],
   mode: "carrier",
   /* Configuring the carrier is the work: standing on the step settles it. */

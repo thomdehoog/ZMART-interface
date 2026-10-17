@@ -28,7 +28,7 @@ export const METRICS = {
 export const METRIC_KEYS = Object.keys(METRICS);
 
 export const SWEEP_N = 61;
-export const SWEEP_HALF_UM = 34;
+const SWEEP_HALF_UM = 34;
 
 /** Whether this position happens to have a speck in the field, and what it is. */
 export function debrisAt(index) {

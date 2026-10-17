@@ -330,7 +330,7 @@ export const howManyAnchorsFit = (config) => anchorsUm(config, Infinity).length;
  * way the sixth does; the sixth does the same down the first column, on the
  * top edge of its lowest area. A carrier one area wide or tall simply has fewer.
  */
-export function robustAnchorsUm(config) {
+function robustAnchorsUm(config) {
   const halfW = config.w / 2, halfH = config.h / 2;
   const areas = centres(config);
   if (!areas.length) return [];

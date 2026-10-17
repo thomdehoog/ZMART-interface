@@ -170,7 +170,6 @@ is the one open (`page.run.wf === folder`):
 | `onPanelShown(step, key)` | whenever a panel is drawn | which picture the live overview shows |
 | `onReset` | when the run starts over (Disconnect, or another workflow chosen) | stop the stage clock, ask for the instruments again, refit the picture |
 | `onChannelMounted(host, channel)` | after a step's controls were mounted in the channel | the protocol's progress bar over them |
-| `onThemeChanged` | when the page's theme switches | redraw the stage, the trace, the detection card, the gating plot |
 
 Two more things a workflow declares take the place of names the framework
 used to know. A step that walks the other steps in turn says `runsTheOthers`,
@@ -322,10 +321,7 @@ the page should carry out for it:
 
 Every field is written out in `workflows/README.md`. A step is declared in
 its own folder, under the workflow that owns it — `steps/focus_strategy/step.js`
-— and other workflows share it by importing it; the point is to mix and match,
-not to retype. A workflow that wants a shared step to say something different
-wraps it in `reworded()` (from `framework/rules/steps.js`), which changes the
-wording and nothing else.
+— and no other workflow imports it: workflows share nothing.
 
 A workflow is a folder with a `flow.js` in it: the folder's name is the
 chooser's entry, and the flow is the list of steps in order plus a blurb.

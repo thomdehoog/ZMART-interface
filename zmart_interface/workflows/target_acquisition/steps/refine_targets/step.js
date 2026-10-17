@@ -11,7 +11,6 @@ import { gatesArrived, gatesSettledByStanding, gatingChannel } from "./channel.j
 export const selectCells = {
   id: "gate",
   title: "Discover Targets",
-  why: "Gate the targets worth imaging — draw on the plot; the step after restricts them.",
   panels: [],
   mode: "gate",
   /* The gates have no press: looking at them applies them. */

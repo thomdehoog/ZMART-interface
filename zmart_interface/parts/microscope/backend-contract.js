@@ -29,7 +29,7 @@
  */
 
 /** Micrometres per axis, out of the reading either backend answers with. */
-export const um = (reading) => ({
+const um = (reading) => ({
   x: reading.x.position,
   y: reading.y.position,
   z: reading.z.position,
@@ -41,7 +41,7 @@ export const um = (reading) => ({
  * than written down, because the two backends are two different instruments
  * and only one of them is pretend.
  */
-export const somewhereElse = (from, travel) => {
+const somewhereElse = (from, travel) => {
   const mid = (range) => (range[0] + range[1]) / 2;
   const step = (range) => (range[1] - range[0]) / 6;
   return {

@@ -81,13 +81,6 @@ export function installTargetAcquisition(page, { folder } = {}) {
   /* The protocol's progress stands over whichever step's controls the walk
      is standing in, so it is put there whenever a step's controls go in. */
   page.onChannelMounted.push(() => { if (isOpen()) page.renderProtocolProgress(); });
-  /* A change of theme repaints everything here that chose its colours
-     itself: the stage, the trace, the detection card and the gating plot. */
-  page.onThemeChanged.push(() => {
-    if (!isOpen()) return;
-    page.drawStage(); page.drawTrace();
-    page.shown.detection?.redraw(); page.shown.gating?.redraw();
-  });
 
   /* The instruments, asked for once the backend is known; the card fills in
      when the answer lands. The focus list and the plan drawn once, empty. */

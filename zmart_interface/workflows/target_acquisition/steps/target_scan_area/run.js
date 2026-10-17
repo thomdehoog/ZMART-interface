@@ -15,7 +15,7 @@ import { planScanAreas } from "./scan-areas.js";
    scan-areas.js under the levers the box holds. The sampled targets go
    in their systematic order, cells and all: the object's own size is what
    the margin is measured in. */
-export function placeTheScanAreas(page) {
+function placeTheScanAreas(page) {
   const state = page.run;
   const p = state.placing;
   /* The frame is the recording's, read here rather than remembered from

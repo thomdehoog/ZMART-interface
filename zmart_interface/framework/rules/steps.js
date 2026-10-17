@@ -129,21 +129,3 @@ export function panelsFor(steps, index, staying = []) {
   });
   return [...stays, ...own];
 }
-
-/**
- * The same step, in different words.
- *
- * A calibration run and an imaging run both save at the end, but they are
- * saving different things and should say so. This returns a copy of a step
- * with some of its wording replaced, which keeps what the step *does* in one
- * place while letting each workflow explain it in its own terms.
- */
-export const reworded = (step, changes) => ({ ...step, ...changes });
-
-/**
- * A step that brought its own panel is not finished when its run is — the
- * gallery is still being curated, the trace still being read. Nothing
- * advances by itself; the operator moves on by clicking. This is here so the
- * rule is written down once, in the layer that owns ordering.
- */
-export const advancesOnItsOwn = () => false;

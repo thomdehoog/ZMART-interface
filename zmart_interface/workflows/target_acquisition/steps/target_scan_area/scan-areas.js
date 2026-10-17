@@ -72,7 +72,7 @@ export function reachUm(cell, margin, frameUm) {
 
 /** The margin one frame can give a target that fits it, as a fraction of
     its reach; the margin asked for when it fits whole. */
-export function marginGiven(cell, margin, frameUm) {
+function marginGiven(cell, margin, frameUm) {
   const own = objectReachUm(cell);
   return own > 0 ? reachUm(cell, margin, frameUm) / own - 1 : margin;
 }

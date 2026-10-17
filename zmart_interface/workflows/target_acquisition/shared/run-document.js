@@ -55,7 +55,7 @@ export function newFocus() {
 
 // detection settings live next to the focus strategy: chosen, tried on one
 // tile, then applied to the rest
-export function newDetect() {
+function newDetect() {
   return {
     algo: "fast",  // how objects are found: fast (watershed) | robust (Cellpose)
     diameter: 30,
@@ -75,7 +75,7 @@ export function newDetect() {
 }
 
 /** The placing levers as a run starts, as `scan-areas.js` reads them. */
-export const newPlacing = () => ({ margin: 1, objectsMax: 50, minimise: true, overlapMin: 0.2 });
+const newPlacing = () => ({ margin: 1, objectsMax: 50, minimise: true, overlapMin: 0.2 });
 
 /**
  * The workflow's keys of a fresh run, for the backend it will speak to.

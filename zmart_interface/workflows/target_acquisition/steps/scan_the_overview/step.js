@@ -17,7 +17,6 @@ import { runScan, scanFinished } from "./run.js";
 export const scanOverview = {
   id: "scan",
   title: "Scan the overview",
-  why: "Drives the stage through every position, stitching tiles as they are saved.",
   btn: "Start",
   panels: [],
   ms: 0,

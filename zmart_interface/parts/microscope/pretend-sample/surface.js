@@ -17,11 +17,11 @@
  * autofocus that landed on a speck of dust.
  */
 
-export const FLAT_TOLERANCE_UM = 0.1;
-export const SPLINE_SMOOTHING = 0.1;
+const FLAT_TOLERANCE_UM = 0.1;
+const SPLINE_SMOOTHING = 0.1;
 
 /** The thin-plate basis r² ln r — the function that minimises bending energy. */
-export const kernelU = (r) => (r < 1e-9 ? 0 : r * r * Math.log(r));
+const kernelU = (r) => (r < 1e-9 ? 0 : r * r * Math.log(r));
 
 /** Dense gaussian elimination with partial pivoting. n stays tiny here. */
 export function solve(A, b) {

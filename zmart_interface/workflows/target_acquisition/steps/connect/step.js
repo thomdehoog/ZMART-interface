@@ -14,7 +14,6 @@ import { connectFinished, runConnect } from "./run.js";
 export const connect = {
   id: "connect",
   title: "Connect",
-  why: "Choose the microscope, its API and the password, then open the session.",
   btn: "Connect",
   ownButton: true,
   /* The first step asks for the canvas, so the stage is there from the start:

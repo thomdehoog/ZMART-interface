@@ -19,7 +19,7 @@ import { numbered } from "./steps.js";
 
 /** The name the chooser shows for a workflow folder: underscores become
  * spaces, and the first letter is capitalised. */
-export function workflowName(folder) {
+function workflowName(folder) {
   const words = folder.replaceAll("_", " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

@@ -16,8 +16,6 @@ import { emptySlot, withRecording } from "../../parts/microscope/recordings.js";
 import { sampleReading } from "../../parts/microscope/settings.js";
 import * as threeSteps from "../../framework/fixtures/three_steps/flow.js";
 import * as targetAcquisition from "./flow.js";
-import { connect } from "./steps/connect/step.js";
-import { initialScanfields } from "./steps/define_scan_area/step.js";
 
 const { WORKFLOWS } = assembleWorkflows({ "target_acquisition/flow.js": targetAcquisition });
 
@@ -207,13 +205,6 @@ describe("workflows compose the catalogue rather than restating it", () => {
     expect(Object.values(WORKFLOWS).map((w) => w.name))
       .toEqual(["Target acquisition"]);
     for (const w of Object.values(WORKFLOWS)) expect(w.blurb).toBeTruthy();
-  });
-
-  it("shares a step's wording, so a fix reaches every workflow at once", () => {
-    for (const wf of ["target_acquisition"]) {
-      expect(stepOf(wf, "connect").why).toBe(connect.why);
-      expect(stepOf(wf, "scanfields").why).toBe(initialScanfields.why);
-    }
   });
 
   it("every step names panels the page can supply", () => {

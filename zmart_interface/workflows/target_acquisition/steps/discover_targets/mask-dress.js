@@ -59,11 +59,6 @@ export function dressTheMask(mask, { size, colour = null, mode = "fill" }) {
   return cv;
 }
 
-/** The colours a mask can be worn in: null is each object's own. */
-export const MASK_COLOURS = [
-  null, "#ffffff", "#ffd400", "#00e5ff", "#ff3fd1", "#3dff6a", "#ff4444", "#4c8dff",
-];
-
 /** How "each object its own colour" is shown on a swatch. */
 export const MASK_RAINBOW =
   "conic-gradient(#ff5c7a, #ffb340, #ffe066, #6be585, #4fd1ff, #8f7bff, #ff5c7a)";

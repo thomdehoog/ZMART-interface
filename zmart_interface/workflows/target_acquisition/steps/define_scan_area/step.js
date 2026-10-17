@@ -17,7 +17,6 @@ import { scanfieldsChannel, scanfieldsSettled } from "./channel.js";
 export const initialScanfields = {
   id: "scanfields",
   title: "Overview scan area",
-  why: "Record the preset the overview is taken with, then say where on the carrier it is taken.",
   panels: [],
   mode: "scanfields",
   /* Drawing fields is the work: standing on the step settles it. */

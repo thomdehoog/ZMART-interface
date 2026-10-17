@@ -46,18 +46,6 @@ export async function setAcquisitionShown(page, name, shown) {
 }
 
 /**
- * Open a channel's box under the row over the picture, where its histogram,
- * Auto and sliders are, the way an operator does: from the triangle beside
- * the channel's dot.
- */
-export async function openTheChannelBox(page, channel) {
-  const chip = page.locator(`#canvas-chips .chip[data-channel="${channel}"]`);
-  await expect(chip, `the ${channel} chip is in the row`).toHaveCount(1, { timeout: 30_000 });
-  await chip.locator(".chip-more").click();
-  await expect(page.locator("#channel-pop")).toBeVisible();
-}
-
-/**
  * Start a bridge on *port*, connected to the mock microscope.
  *
  * The scan is not started: `image(positions)` drives it one call at a time, so

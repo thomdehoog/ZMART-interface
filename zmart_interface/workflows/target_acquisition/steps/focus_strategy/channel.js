@@ -74,7 +74,7 @@ function inheritedFocus(leaving) {
    Forgetting the last reading takes the map with it, the way forgetting the
    last acquisition preset takes the plan: points measured through optics
    nobody can see any more are not points. */
-export function focusSettled(page) {
+function focusSettled(page) {
   const state = page.run;
   const kind = activeRecording(state.focusPreset)?.kind;
   if (!kind) {

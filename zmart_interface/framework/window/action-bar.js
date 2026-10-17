@@ -38,10 +38,6 @@ export function installActionBar(page) {
     const host = document.querySelector(`.${s.id}-action`) ?? el(`foot-${shown}`);
     if (!host) return;
     if (s.ownButton || !s.btn) return;
-    /* Some steps have nothing to run under the state they are in — a focus
-       step is finished by the recording itself until a map is made to measure.
-       A step says so for itself; the framework only asks. */
-    if (s.acts && !s.acts(state)) return;
 
     const done = state.done.has(s.id);
     const running = state.running === s.id;
