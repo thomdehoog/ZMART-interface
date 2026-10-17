@@ -73,9 +73,9 @@ change belongs to, you know which file to open.
 zmart_interface/
   framework/        the engine. It knows how to run any workflow and none in particular:
                     nothing under it names a step, a workflow or an instrument, and two
-                    unit tests (`framework/knows-no-workflow.test.js` for the page,
-                    `framework/test_the_bridge_knows_no_workflow.py` for the bridge)
-                    keep it so.
+                    unit tests (`framework/knows-no-workflow.test.js` for the page and
+                    the parts, `framework/test_the_bridge_knows_no_workflow.py` for the
+                    bridge) keep it so.
     window/     what the operator sees: the rail, the chooser, the panels, the
                 channel, the press, the runner, and the framework's half of the
                 run document.
@@ -97,6 +97,8 @@ zmart_interface/
                 and — in Python, on the other side of the same seam — the
                 procedures that drive the instrument through the controller.
     analysis/, storage/   the analysis seam and the storage of what a run captures.
+    testing/    what the browser tests share: measuring a screenshot, and
+                starting the interface's Python.
   workflows/    what plugs into the engine. One folder per workflow, and the
                 folder's name is the chooser's entry: `target_acquisition`
                 appears as "Target acquisition".
@@ -117,6 +119,9 @@ zmart_interface/
     <name>/bridge/   the workflow's Python half: its runs on the bridge, its
                      routes under `/api/<name>/`, and what it tells the
                      bridge through `hooks.py`.
+    <name>/style.css the workflow's own look, after the frame's.
+    <name>/*.test.js, *.spec.js   its tests, beside what they test; a
+                     workflow's folder holds everything that is about it.
 ```
 
 The rule between the three: what several workflows share belongs in `parts/`

@@ -7,7 +7,7 @@
  * its way, which the press's hint does.
  */
 
-import { burst } from "../../../../framework/window/confetti.js";
+import { burst } from "../../../../parts/confetti.js";
 import { css } from "../../../../framework/window/dom.js";
 import { sideGroup } from "../../../../framework/window/panels.js";
 import { protocolFrom } from "../../shared/protocol.js";

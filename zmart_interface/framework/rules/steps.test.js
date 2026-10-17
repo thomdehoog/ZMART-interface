@@ -1,33 +1,19 @@
-/* The workflows, as the operator meets them.
- *
- * Everything here reads the folders under `workflows/` — every folder with
- * a `flow.js` is one workflow — through the same `assembleWorkflows` that
- * `framework/window/main.js` uses. That is the point of this suite: for a while the
- * workflows were declared twice, once here and once inside `main.js`, and
- * these tests went green against a list the page did not offer while the page
- * offered a list no test had ever seen. Neither half looked wrong on its own.
- *
- * So when a step is added, removed or reworded below, the page changes with it —
- * and if it does not, something has gone back to being written down twice.
+/* The rules about steps, which every workflow is walked by: how steps are
+ * numbered, which one may be reached, what goes stale when one is edited, and
+ * which panels each stands on. They are tried on steps made up here and on the
+ * framework's own fixture, `framework/fixtures/three_steps/`; each workflow
+ * tests its own steps in its own folder.
  */
 
 import { describe, it, expect } from "vitest";
 import {
-  numbered, firstIncomplete, isReachable, blockedBecause, panelsFor, editedAt, staleSteps,
+  numbered, firstIncomplete, isReachable, panelsFor, editedAt, staleSteps,
 } from "../../framework/rules/steps.js";
 import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
-import { connect } from "../../workflows/target_acquisition/steps/connect/step.js";
-import { initialScanfields } from "../../workflows/target_acquisition/steps/define_scan_area/step.js";
-import { scanOverview } from "../../workflows/target_acquisition/steps/scan_the_overview/step.js";
-import { emptySlot, withRecording } from "../../parts/microscope/recordings.js";
-import { sampleReading } from "../../parts/microscope/settings.js";
 
 const { WORKFLOWS } = assembleWorkflows(
   import.meta.glob("../../workflows/*/flow.js", { eager: true }),
 );
-
-const ids = (wf) => WORKFLOWS[wf].steps.map((s) => s.id);
-const stepOf = (wf, id) => WORKFLOWS[wf].steps.find((s) => s.id === id);
 
 describe("numbering is derived, so reordering costs nothing", () => {
   it("numbers by position", () => {
@@ -40,10 +26,6 @@ describe("numbering is derived, so reordering costs nothing", () => {
     expect(out.map((s) => s.n)).toEqual(["1", "2a", "2b", "3"]);
   });
 
-  it("numbers target acquisition straight through, one to ten", () => {
-    expect(WORKFLOWS.target_acquisition.steps.map((s) => s.n))
-      .toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
-  });
 });
 
 /* A step that was settled once and then had something before it changed is
@@ -51,53 +33,48 @@ describe("numbering is derived, so reordering costs nothing", () => {
    Editing a step stales every done step after it and leaves the edited step
    green — the operator just settled it. */
 describe("editing a step stales the ones after it", () => {
-  const steps = WORKFLOWS.target_acquisition.steps;
+  const steps = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
   const all = new Set(steps.map((s) => s.id));
 
   it("stales every done step after the edited one, not the edited one", () => {
-    const stale = editedAt(steps, all, new Set(), "scanfields");
-    expect([...stale]).toEqual(["focus", "scan", "detect", "gate", "select", "acquire", "protocol"]);
+    expect([...editedAt(steps, all, new Set(), "b")]).toEqual(["c", "d", "e"]);
   });
 
   it("leaves steps that are not done alone", () => {
-    const done = new Set(["connect", "carrier", "scanfields", "focus"]);
-    expect([...editedAt(steps, done, new Set(), "carrier")]).toEqual(["scanfields", "focus"]);
+    expect([...editedAt(steps, new Set(["a", "b", "c"]), new Set(), "a")]).toEqual(["b", "c"]);
   });
 
   it("keeps what was already stale", () => {
-    const stale = editedAt(steps, all, new Set(["acquire"]), "gate");
-    expect([...stale].sort()).toEqual(["acquire", "protocol", "select"]);
+    expect([...editedAt(steps, all, new Set(["e"]), "c")].sort()).toEqual(["d", "e"]);
   });
 
   it("editing the edited step again unstales it", () => {
-    const stale = editedAt(steps, all, new Set(["focus", "scan"]), "focus");
-    expect(stale.has("focus")).toBe(false);
-    expect(stale.has("scan")).toBe(true);
+    const stale = editedAt(steps, all, new Set(["b", "c"]), "b");
+    expect(stale.has("b")).toBe(false);
+    expect(stale.has("c")).toBe(true);
   });
 
   it("names the stale steps in rail order", () => {
-    const stale = new Set(["acquire", "focus", "connect"]);
-    expect(staleSteps(steps, all, stale).map((s) => s.id)).toEqual(["connect", "focus", "acquire"]);
+    expect(staleSteps(steps, all, new Set(["e", "b", "a"])).map((s) => s.id)).toEqual(["a", "b", "e"]);
   });
 
   it("a step that is not done is never stale, whatever the set says", () => {
-    expect(staleSteps(steps, new Set(["connect"]), new Set(["focus"]))).toEqual([]);
+    expect(staleSteps(steps, new Set(["a"]), new Set(["b"]))).toEqual([]);
   });
 });
 
 describe("ordering", () => {
-  const steps = WORKFLOWS.target_acquisition.steps;
+  const steps = ["a", "b", "c", "d"].map((id) => ({ id }));
 
   it("only the next unfinished step is reachable", () => {
-    const done = new Set(["connect"]);
+    const done = new Set(["a"]);
     expect(isReachable(steps, done, 0)).toBe(true);
     expect(isReachable(steps, done, 1)).toBe(true);
     expect(isReachable(steps, done, 2)).toBe(false);
   });
 
   it("finds the first gap, not the last completed step", () => {
-    // every step of a real run waits for the one before it
-    expect(firstIncomplete(steps, new Set(["connect", "carrier"]))).toBe(2);
+    expect(firstIncomplete(steps, new Set(["a", "b"]))).toBe(2);
     expect(firstIncomplete(steps, new Set())).toBe(0);
   });
 
@@ -121,99 +98,9 @@ describe("ordering", () => {
   });
 });
 
-describe("readiness belongs to the step, not the frame", () => {
-  /* These are the rules an operator actually meets: the greyed-out button and
-     the short phrase beside it saying what is still missing. The frame only
-     asks; each step answers for itself. */
-  const byId = (id) => stepOf("target_acquisition", id);
-  /* Real slots, read the way the panel reads them: a hand-made stand-in with
-     the right shape is how a gate went on asking for a field the recordings
-     stopped having while this suite stayed green. */
-  const recorded = (type) => withRecording(emptySlot(type), {
-    name: "overview",
-    reading: sampleReading(type, 0),
-  });
-  /* A run standing on the focus step with a point or two down. The points are
-     what the button measures, so the rules about them are rules about a run
-     that has some. */
-  const run = (over = {}) => ({
-    focus: { strategy: "plane", points: [1] },
-    focusPreset: recorded("autofocus"),
-    detect: { tested: false },
-    gated: new Set(),
-    targetTiles: [],
-    targetType: recorded("acquisition"),
-    ...over,
-  });
-
-  /* The press stays where it is with nothing to measure and says what it waits
-     for. It used to vanish instead, which made clearing the points look like it
-     had broken the step. */
-  it("with no points, the press says what it waits for", () => {
-    expect(blockedBecause(byId("focus"), run({
-      focus: { strategy: "plane", points: [] },
-    }))).toMatch(/no points to measure/);
-  });
-
-  it("the focus strategy wants its focussing preset recorded first", () => {
-    expect(blockedBecause(byId("focus"), run({
-      focus: { strategy: "plane", points: [1, 2, 3] },
-      focusPreset: emptySlot("autofocus"),
-    }))).toMatch(/focussing preset/);
-  });
-
-  it("detection never blocks: trying a tile first is offered, not demanded", () => {
-    expect(blockedBecause(byId("detect"), run())).toBeNull();
-    expect(blockedBecause(byId("detect"), run({ detect: { tested: true } }))).toBeNull();
-  });
-
-  it("restriction wants something gated; acquisition wants the tiles laid", () => {
-    /* Two different answers: no objects on this sample at all, and objects
-       that no gate lets through. */
-    expect(blockedBecause(byId("select"), run())).toMatch(/detect objects/);
-    expect(blockedBecause(byId("select"), run({ cells: new Map([[1, {}]]) }))).toMatch(/nothing gated/);
-    expect(blockedBecause(byId("acquire"), run())).toMatch(/add the tiles/);
-    expect(blockedBecause(byId("acquire"), run({ gated: new Set([1]) }))).toMatch(/add the tiles/);
-    expect(blockedBecause(byId("acquire"), run({ targetTiles: [{ id: 1 }] }))).toBeNull();
-  });
-
-  it("acquisition also wants the acquisition type recorded", () => {
-    expect(blockedBecause(byId("acquire"),
-      run({ targetTiles: [{ id: 1 }], targetType: emptySlot("acquisition") })))
-      .toMatch(/acquisition type/);
-  });
-
-  it("a step with no rule is always ready", () => {
-    expect(blockedBecause(byId("connect"), run())).toBeNull();
-    expect(blockedBecause(byId("carrier"), run())).toBeNull();
-  });
-});
-
 describe("panels follow the step", () => {
-  /* What each step is given on screen. Which panels stay once asked for is the
-     workflow's own declaration, so the test reads it from there rather than
-     naming the canvas: the rule is handed the keys and knows nothing about
-     what any of them draws. */
-  const staying = (wf) => WORKFLOWS[wf].panels.filter((p) => p.stays).map((p) => p.key);
-  const panelsOf = (wf) =>
-    Object.fromEntries(WORKFLOWS[wf].steps.map((s, i) =>
-      [s.id, panelsFor(WORKFLOWS[wf].steps, i, staying(wf))]));
-
-  it("gives target acquisition the panels the operator sees", () => {
-    expect(panelsOf("target_acquisition")).toEqual({
-      connect: ["canvas"],
-      carrier: ["canvas"],
-      scanfields: ["canvas"],
-      focus: ["canvas"],
-      scan: ["canvas"],
-      detect: ["canvas"],
-      gate: ["canvas"],
-      select: ["canvas"],
-      acquire: ["canvas"],
-      protocol: ["canvas"],
-    });
-  });
-
+  /* Which panels stay once asked for is the workflow's own declaration: the
+     rule is handed the keys and knows nothing about what any of them draws. */
   it("a workflow that declares no panel that stays gives each step its own", () => {
     /* The point of the rule: nothing in it is about a canvas. A run whose
        steps each bring their own panel — a report, a set of forms — keeps
@@ -236,86 +123,6 @@ describe("panels follow the step", () => {
       .toEqual([[], ["map"], ["map", "notes"]]);
   });
 
-  it("puts the canvas on stage from the first step of every run", () => {
-    for (const wf of ["target_acquisition"]) {
-      expect(panelsOf(wf).connect).toContain("canvas");
-      expect(panelsOf(wf).carrier).toContain("canvas");
-    }
-  });
-
-});
-
-describe("workflows compose the catalogue rather than restating it", () => {
-  it("offers target acquisition, named from its folder", () => {
-    expect(Object.keys(WORKFLOWS)).toEqual(["target_acquisition"]);
-    expect(WORKFLOWS.target_acquisition.name).toBe("Target acquisition");
-  });
-
-  /* The order an operator walks, spelled out. If a step moves, is dropped, or
-     is added, this is where it shows — and because the page reads the same
-     declaration, what it shows is what the page will do. */
-  it("walks target acquisition in this order", () => {
-    expect(ids("target_acquisition")).toEqual([
-      "connect", "carrier", "scanfields", "focus",
-      "scan", "detect", "gate", "select", "acquire", "protocol",
-    ]);
-  });
-
-
-  it("names every workflow in plain words for the chooser", () => {
-    expect(Object.values(WORKFLOWS).map((w) => w.name))
-      .toEqual(["Target acquisition"]);
-    for (const w of Object.values(WORKFLOWS)) expect(w.blurb).toBeTruthy();
-  });
-
-  it("shares a step's wording, so a fix reaches every workflow at once", () => {
-    for (const wf of ["target_acquisition"]) {
-      expect(stepOf(wf, "connect").why).toBe(connect.why);
-      expect(stepOf(wf, "scanfields").why).toBe(initialScanfields.why);
-    }
-  });
-
-
-
-  it("every step names panels the page can supply", () => {
-    /* Every working step is a channel beside the canvas now, not a panel —
-       a step that named one of the old panels here would ask for a tab that
-       is gone. */
-    const known = new Set(["canvas", "setup"]);
-    for (const wf of Object.keys(WORKFLOWS)) {
-      for (const s of WORKFLOWS[wf].steps) {
-        for (const p of s.panels ?? []) expect(known.has(p), `${s.id} -> ${p}`).toBe(true);
-      }
-    }
-  });
-
-  /* `mode` is how a step says which piece of work the page should carry out for
-     it. A mode nobody recognises is a silent failure: the button still appears,
-     the step still completes, and nothing happens in between. */
-  it("every step names work the page knows how to do, or none", () => {
-    const known = new Set([
-      "carrier", "scanfields", "focus", "scan", "detect", "gate", "select", "targets", "protocol"]);
-    for (const wf of Object.keys(WORKFLOWS)) {
-      for (const s of WORKFLOWS[wf].steps) {
-        if (s.mode) expect(known.has(s.mode), `${s.id} -> ${s.mode}`).toBe(true);
-      }
-    }
-  });
-
-  /* A step that offers an action has to have something behind it. Not every step
-     does, and that is not a gap: some are finished by doing the thing they are
-     about — the carrier is settled by being configured, the scan fields by being
-     drawn, the viewer by being looked at — so a button would only ask the
-     operator to confirm what they have already done. */
-  it("a step that offers a button has work behind it", () => {
-    for (const wf of Object.keys(WORKFLOWS)) {
-      for (const s of WORKFLOWS[wf].steps) {
-        if (!s.btn) continue;
-        expect(s.mode ?? s.id, `${wf}/${s.id}`).toBeTruthy();
-        expect(typeof s.ms, `${wf}/${s.id} says how long it takes`).toBe("number");
-      }
-    }
-  });
 });
 
 /* The framework runs a workflow that knows nothing about a microscope. The
@@ -372,14 +179,10 @@ describe("a workflow that knows nothing about a microscope", () => {
 
   it("names the step that runs the others only where there is one", () => {
     expect(three.steps.filter((s) => s.runsTheOthers)).toEqual([]);
-    expect(WORKFLOWS.target_acquisition.steps.filter((s) => s.runsTheOthers).map((s) => s.id)).toEqual(["protocol"]);
   });
 });
 
-/* What the real run must never carry: the bench (the canvas demonstration,
-   since removed) had steps that produced nothing and could be walked past;
-   a run is the opposite, every step feeding the next. */
-describe("the real run", () => {
+describe("every workflow in the chooser", () => {
   /* A name has to fit the rail, which is a fixed column, and no workflow name
      may be longer than the longest one this page has always carried. That is
      not fussiness about tidiness: the chooser used to take whatever width its
@@ -393,17 +196,5 @@ describe("the real run", () => {
     }
   });
 
-  it("leaves target acquisition exactly as it was", () => {
-    for (const s of WORKFLOWS.target_acquisition.steps) {
-      expect(s.id).not.toMatch(/^canvas-/);
-      expect(s.panels.some((p) => p.startsWith("viewer"))).toBe(false);
-      /* And nothing in a real run may skip its place in the queue: every step
-         of an acquisition produces something the next one needs. The flag that
-         lets a step be walked past belongs to the bench, where a step only
-         shows you something — a placeholder in a real run wearing it is an
-         empty stop in the rail, which is how the one there was got dropped. */
-      expect(s.nothingWaitsOnThis).toBeUndefined();
-    }
-  });
 });
 

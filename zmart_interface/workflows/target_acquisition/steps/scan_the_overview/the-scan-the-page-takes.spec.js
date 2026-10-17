@@ -37,7 +37,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { rest, startTheBridge, theFirst, throughToAPlan } from "./live-bridge.js";
-import { fractionNear, photograph } from "./pixels.js";
+import { fractionNear, photograph } from "../../../../parts/testing/pixels.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(HERE, "..", "test-results", "the-scan-the-page-takes");

@@ -18,7 +18,7 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 import { rest, startTheBridge }
-  from "../workflows/target_acquisition/steps/scan_the_overview/live-bridge.js";
+  from "./steps/scan_the_overview/live-bridge.js";
 
 const PORT = Number(process.env.BUILT_PAGE_PORT ?? 8825);
 

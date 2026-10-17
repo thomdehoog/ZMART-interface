@@ -50,7 +50,11 @@ target_acquisition/
                  live picture of the run, the axes under them.
   on-the-page.js how the workflow is wired to the page when it opens: the
                  canvas, and the functions its steps lend the page.
+  style.css      the workflow's own look, loaded after the frame's.
 ```
+
+Its tests sit beside what they test, its browser walks included: nothing
+outside the folder is about it, so taking the folder out takes all of it.
 
 The microscope seam is a part, not the workflow's: `../parts/microscope/`
 holds the verbs every workflow shares, `live.js`, which speaks to the bridge,

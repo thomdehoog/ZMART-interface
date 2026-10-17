@@ -2,14 +2,14 @@ import { test, expect } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { assembleWorkflows } from "../framework/rules/finding-workflows.js";
+import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
 
 /* The workflows, found the way the page finds them: every folder under
  * `workflows/` with a `flow.js` inside it. The page uses the build tool's
  * folder scan; a test running in Node reads the folder itself. Both hand what
  * they found to the same `assembleWorkflows`, so this suite and the page
  * cannot disagree about what the folders mean. */
-const workflowsDir = fileURLToPath(new URL("../workflows/", import.meta.url));
+const workflowsDir = fileURLToPath(new URL("../", import.meta.url));
 const flowFiles = {};
 for (const folder of fs.readdirSync(workflowsDir)) {
   const flowPath = path.join(workflowsDir, folder, "flow.js");

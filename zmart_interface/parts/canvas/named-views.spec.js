@@ -11,8 +11,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { pythonForTheBridge } from "../../workflows/target_acquisition/steps/scan_the_overview/live-bridge.js";
-import { readPng } from "../../workflows/target_acquisition/steps/scan_the_overview/pixels.js";
+import { pythonForTheBridge } from "../testing/python.js";
+import { readPng } from "../testing/pixels.js";
 
 const fixture = fileURLToPath(new URL("./fixtures/serve-mixed-acquisition.py", import.meta.url));
 /* What the fixture writes: a flat of 80 everywhere, a three-plane stack of

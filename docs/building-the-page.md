@@ -94,7 +94,7 @@ of the reasons for one file were about the copying: the microscope PC still does
 not build anything, the files still arrive already built, and Python still hands
 them out. A folder copies as easily as a file so long as it is copied *whole* —
 which is the one new way to get this wrong, and why the build produces exactly
-three files and `zmart_interface/framework/the-built-page.spec.js` says so out loud.
+three files and `zmart_interface/workflows/target_acquisition/the-built-page.spec.js` says so out loud.
 
 **Opened straight off the disk — a `file:///…` address, which double-clicking
 the page does — the third engine cannot work.** A browser gives such a page no

@@ -1,16 +1,16 @@
-/* The framework knows no workflow, and no instrument.
+/* The framework and the parts know no workflow, and the framework no instrument.
  *
  * `framework/` is the engine: it runs whatever workflow it is handed and
- * asks the workflow's declarations for everything particular. That rule
- * used to be broken quietly -- the run document imported the workflow's
- * carrier geometry, the page imported the microscope's two backends -- and
- * nothing said so until the second workflow was tried. This test reads the
- * framework's source files and refuses an import of anything under
- * `workflows/` or `parts/microscope/`, so the tie cannot come back without a
- * red test saying where.
- *
- * The tests beside the framework are left out: a test about the rail may
- * drive it with a real workflow's steps, which is what the test is for. */
+ * asks the workflow's declarations for everything particular. `parts/` is a
+ * toolbox any workflow may use. Neither may lean on one workflow, or that
+ * workflow could not be taken out, and another could not be dropped in
+ * beside it. That rule used to be broken quietly -- the run document imported
+ * the workflow's carrier geometry, the page imported the microscope's two
+ * backends, the canvas tests borrowed a workflow's helpers -- and nothing
+ * said so until it was tried. This test reads every file under `framework/`
+ * and `parts/`, their tests included, and refuses an import of anything under
+ * `workflows/`, and in the framework of anything under `parts/microscope/`,
+ * so the tie cannot come back without a red test saying where. */
 
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
@@ -18,7 +18,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FOLDERS = ["window", "rules"];
+const PACKAGE = join(HERE, "..");
 
 /* A static import's source: `import ... from "..."`, `import "..."`, and a
    re-export's `export ... from "..."`. A dynamic `import("...")` too. The
@@ -26,27 +26,47 @@ const FOLDERS = ["window", "rules"];
    anything in particular and is left alone. */
 const IMPORTED_FROM = /(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s+["']([^"']+)["']|(?:^|\n)\s*import\s+["']([^"']+)["']|\bimport\(\s*["']([^"']+)["']\s*\)/g;
 
-const sourceFiles = (folder) => readdirSync(join(HERE, folder))
-  .filter((name) => name.endsWith(".js") && !name.endsWith(".test.js") && !name.endsWith(".spec.js"))
-  .map((name) => join(HERE, folder, name));
+const sourceFiles = (folder) => readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
+  const at = join(folder, entry.name);
+  if (entry.isDirectory()) return entry.name === "__pycache__" ? [] : sourceFiles(at);
+  return /\.m?js$/.test(entry.name) ? [at] : [];
+});
 
 const importsOf = (file) => {
   const text = readFileSync(file, "utf8");
   return [...text.matchAll(IMPORTED_FROM)].map((m) => m[1] ?? m[2] ?? m[3]);
 };
 
+const name = (file) => relative(PACKAGE, file).replaceAll("\\", "/");
+
 describe("the framework imports nothing of any workflow or instrument", () => {
-  const files = FOLDERS.flatMap(sourceFiles);
+  const files = sourceFiles(HERE);
 
   it("has files to read", () => {
     expect(files.length).toBeGreaterThan(5);
   });
 
   for (const file of files) {
-    it(`${relative(HERE, file).replaceAll("\\", "/")} stays agnostic`, () => {
+    it(`${name(file)} stays agnostic`, () => {
       for (const from of importsOf(file)) {
-        expect(from, `${relative(HERE, file)} imports ${from}`).not.toMatch(/(^|\/)workflows\//);
-        expect(from, `${relative(HERE, file)} imports ${from}`).not.toMatch(/(^|\/)parts\/microscope\//);
+        expect(from, `${name(file)} imports ${from}`).not.toMatch(/(^|\/)workflows\//);
+        expect(from, `${name(file)} imports ${from}`).not.toMatch(/(^|\/)parts\/microscope\//);
+      }
+    });
+  }
+});
+
+describe("the parts import nothing of any workflow", () => {
+  const files = sourceFiles(join(PACKAGE, "parts"));
+
+  it("has files to read", () => {
+    expect(files.length).toBeGreaterThan(5);
+  });
+
+  for (const file of files) {
+    it(`${name(file)} stays general`, () => {
+      for (const from of importsOf(file)) {
+        expect(from, `${name(file)} imports ${from}`).not.toMatch(/(^|\/)workflows\//);
       }
     });
   }

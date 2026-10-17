@@ -32,7 +32,6 @@
  */
 
 import "./style.css";
-import { assembleWorkflows } from "../rules/finding-workflows.js";
 import { panelsFor } from "../rules/steps.js";
 import { installActionBar } from "./action-bar.js";
 import { buildThePanels } from "./panels.js";
@@ -41,16 +40,7 @@ import { installRunner } from "./runner.js";
 import { exposeTheRunForTests, freshRun } from "./run-state.js";
 import { installSide } from "./side.js";
 import { installTabs } from "./tabs.js";
-
-/* The workflows this page offers: every folder in `workflows/` with a
-   `flow.js` inside it, found by the build tool's folder scan and assembled by
-   the framework. The unit tests read the same folders, so a workflow the tests
-   can see is a workflow the operator can choose. The list used to be written
-   out by hand — twice, at one point — and the copies drifted apart in silence,
-   which is why it is now read off the disk instead. */
-const { WORKFLOWS, DEFAULT_WORKFLOW } = assembleWorkflows(
-  import.meta.glob("../../workflows/*/flow.js", { eager: true }),
-);
+import { DEFAULT_WORKFLOW, WORKFLOWS } from "./the-workflows.js";
 
 /* What a workflow that drives nothing is handed as its backend: nothing to
    call, and nothing that answers. A workflow's steps that never speak to an

@@ -8,6 +8,7 @@
  * speaks to the controller through the bridge either way.
  */
 
+import "./style.css";
 import { canvasPanel } from "../../parts/canvas/panel.js";
 /* The seam. Connecting, reading a preset off the instrument, measuring the
    focus map and driving the overview scan all go through the backend and are

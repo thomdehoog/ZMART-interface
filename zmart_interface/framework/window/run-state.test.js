@@ -7,7 +7,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { exposeTheRunForTests, freshRun, startOver } from "./run-state.js";
 import * as threeSteps from "../fixtures/three_steps/flow.js";
-import * as targetAcquisition from "../../workflows/target_acquisition/flow.js";
 
 const NO_BACKEND = Object.freeze({});
 
@@ -18,7 +17,7 @@ const THE_FRAMEWORKS_KEYS = [
   "protocol", "notes", "tabs", "tab", "sideMounted", "editor", "sideFolded",
 ];
 
-/* A few of target acquisition's, as the keys a run of another workflow must
+/* A few of a microscope workflow's, as the keys a run of the fixture must
    not have. */
 const A_MICROSCOPES_KEYS = ["session", "instruments", "carrier", "focus", "plan", "cells", "acquired"];
 
@@ -36,11 +35,6 @@ describe("a fresh run", () => {
   it("holds only the framework's keys for a flow with no state of its own", () => {
     const run = freshRun({ workflow: "plain", backend: NO_BACKEND, flow: { steps: [] } });
     expect(Object.keys(run).sort()).toEqual([...THE_FRAMEWORKS_KEYS].sort());
-  });
-
-  it("holds target acquisition's keys when that is the workflow", () => {
-    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
-    for (const key of [...THE_FRAMEWORKS_KEYS, ...A_MICROSCOPES_KEYS]) expect(run, key).toHaveProperty(key);
   });
 
   it("never lets a workflow overwrite one of the framework's keys", () => {
@@ -75,40 +69,6 @@ describe("starting over", () => {
     expect(run.counted).toBe(0);
   });
 
-  it("takes the previous workflow's keys off the document when another is chosen", () => {
-    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
-    run.carrier.kind = "slide"; run.cells.set(1, {});
-    run.staleSteps = () => [];
-    run.wf = "three_steps";
-    startOver(run, NO_BACKEND, threeSteps);
-    for (const key of A_MICROSCOPES_KEYS) expect(run, key).not.toHaveProperty(key);
-    expect(run.counted).toBe(0);
-    /* What the page attached stays: it is the page's, not a workflow's. */
-    expect(typeof run.staleSteps).toBe("function");
-    expect(run.wf).toBe("three_steps");
-  });
-
-  it("lays a kept key afresh when another workflow took it off the document in between", () => {
-    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
-    run.session.password = "hunter2";
-    run.wf = "three_steps";
-    startOver(run, NO_BACKEND, threeSteps);
-    expect(run).not.toHaveProperty("session");
-    run.wf = "target_acquisition";
-    startOver(run, NO_BACKEND, targetAcquisition);
-    expect(run.session).toBeDefined();
-    expect(run.session.password).not.toBe("hunter2");
-    expect(run.instruments).toEqual([]);
-  });
-
-  it("keeps target acquisition's session and instruments, as before", () => {
-    const run = freshRun({ workflow: "target_acquisition", backend: NO_BACKEND, flow: targetAcquisition });
-    run.session.password = "hunter2"; run.instruments = [{ key: "mock" }]; run.carrier.kind = "slide";
-    startOver(run, NO_BACKEND, targetAcquisition);
-    expect(run.session.password).toBe("hunter2");
-    expect(run.instruments).toEqual([{ key: "mock" }]);
-    expect(run.carrier.kind).not.toBe("slide");
-  });
 });
 
 describe("what a browser test may read", () => {
