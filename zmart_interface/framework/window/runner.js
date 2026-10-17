@@ -77,7 +77,7 @@ export function installRunner(page) {
          the page to the next one takes that away. Advancing is a click. */
       page.focusPanelsFor(state.activeIdx);
       page.renderAll();
-      settle({ outcome: "finished", failed: state.notes[s.id]?.startsWith("finished —") ? 1 : 0 });
+      settle({ outcome: "finished" });
     }
 
     /** The operator's own Interrupt: not a failure, and not a finish either.

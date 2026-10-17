@@ -56,7 +56,7 @@ export const gatingChannel = {
         state.done.delete("select");
         state.ran.delete("select");
         page.stateEdited("gate");
-        page.drawStage(); page.renderTabs(); page.renderActionBar(); page.renderRail();
+        page.drawStage(); page.renderAll();
       },
       /* A dimensionality reduction over every candidate: its two columns
          land in each object's features by id, which is all the axis

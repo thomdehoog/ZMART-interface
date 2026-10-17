@@ -38,5 +38,6 @@ export const selectionChannel = {
         page.shown.gating?.redraw(); page.shown.selection?.redraw?.();
       },
     });
+    return { actionSlot: page.shown.selection.actionSlot };
   },
 };

@@ -19,8 +19,7 @@ export const blurb = "Three steps that know nothing about a microscope: begin, c
 
 /* The card: this workflow's one panel. The framework builds the box and
    this fills it -- a heading, a line that follows the run, and the foot the
-   framework puts a step's press in (`foot-<key>`, as the action bar looks
-   it up). */
+   framework puts a step's press in, handed back as `foot`. */
 const cardPanel = {
   key: "card",
   label: "Card",
@@ -36,7 +35,6 @@ const cardPanel = {
     box.append(made.group);
     const foot = document.createElement("div");
     foot.className = "panel-foot";
-    foot.id = "foot-card";
     host.append(box, foot);
     return { foot, line };
   },

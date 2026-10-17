@@ -920,7 +920,8 @@ export default {
        beside it, the areas are those two multiplied, and the size is in the
        rail. Restating the controls under the controls is the panel talking
        about itself. */
-    card.append(el("div", "carrier-action"));
+    const actionSlot = el("div", "carrier-action");
+    card.append(actionSlot);
 
     function sync() {
       const type = carrierType(cfg.type);
@@ -942,5 +943,8 @@ export default {
     }
 
     sync();
+    /* The step's press goes at the end of the card: applying reads as the
+       end of the editing. */
+    return { actionSlot };
   },
 };

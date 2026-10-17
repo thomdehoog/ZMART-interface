@@ -43,7 +43,7 @@ import { mountChannelBox } from "../canvas/channel-box.js";
 export function openTheStage(ctx) {
   const {
     css, sizeCanvas, el, run, carrierWidget, scanfieldsWidget,
-    activePreset, indexOfStep, sideWidget, step,
+    activePreset, indexOfStep, activeStep, step,
     anchorPressed, detectPressed, targetPressed, targetAt,
     renderActionBar, renderRail, thePicture,
   } = ctx;
@@ -710,7 +710,7 @@ function drawStage() {
   if (ctx.tilesetButton) ctx.tilesetButton.disabled = !run.plan.length;
   legendSettles();
 
-  const editing = sideWidget()?.id === "scanfields" ? ctx.shown.editor : null;
+  const editing = activeStep()?.id === "scanfields" ? ctx.shown.editor : null;
   const stack = theStageLayers({
     shown: Math.max(run.tilesShown, 0),
     /* Which channels are mixed is a question about a picture, and the
@@ -855,7 +855,7 @@ function editorTook(kind, e) {
   /* Locked, nothing can be drawn or moved by accident. Panning and zooming
      are untouched — the lock is about picking, not about looking. */
   if (layersLocked()) return false;
-  if (sideWidget()?.id !== "scanfields" || !ctx.shown.editor) return false;
+  if (activeStep()?.id !== "scanfields" || !ctx.shown.editor) return false;
   const { x, y } = pointerInCarrier(e.offsetX, e.offsetY);
   const took = ctx.shown.editor.pointer(kind, { x, y, shift: e.shiftKey, scale: view.scale });
   // the redraw is also what puts the cursor right, and it has to happen after

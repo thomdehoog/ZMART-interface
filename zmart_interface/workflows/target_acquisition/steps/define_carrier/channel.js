@@ -62,7 +62,7 @@ export const carrierChannel = {
   label: carrierWidget.label,
   mount(host, page, { locked }) {
     const state = page.run;
-    carrierWidget.render(host, {
+    return carrierWidget.render(host, {
       config: state.carrier,
       locked,
       anchors: {

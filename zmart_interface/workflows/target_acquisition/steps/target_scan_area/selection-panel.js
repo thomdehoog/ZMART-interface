@@ -175,6 +175,6 @@ export const selectionPanel = {
     });
     seat();
     say();
-    return { redraw: () => { seat(); say(); } };
+    return { actionSlot: act, redraw: () => { seat(); say(); } };
   },
 };

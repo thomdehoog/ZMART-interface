@@ -54,7 +54,7 @@ if (typeof document !== "undefined" && !document.getElementById("focus-controls"
 export function openTheFocusMap(ctx) {
   const {
     run, backend, stage, el, css, sizeCanvas, step,
-    focusControls, renderActionBar, renderSide, tileChosen, edited, runTheMap,
+    focusControls, renderActionBar, tileChosen, edited, runTheMap,
   } = ctx;
 
 const carrierSpan = () => carrierWidget.extentUm(run.carrier);
@@ -712,7 +712,6 @@ function anchorPressed(px, py) {
   const [x, y] = pointerInCarrier(px, py);
   run.anchors = [...run.anchors, { x, y }];
   run.anchoring = false;
-  renderSide(true);
   stage.draw();
   return true;
 }
@@ -844,7 +843,7 @@ function renderFocusBar() {
   /* One slot for the one act: the step's own press makes the map, and
      Rerun takes the cell once there is one to measure again — the two were
      briefly on screen together, both meaning measure it. */
-  document.querySelector(".focus-action").hidden = ran;
+  focusControls.querySelector(".focus-action").hidden = ran;
   el("fp-rerun").hidden = !ran;
   /* While a run is out, the Rerun cell is the brake — one press, one place,
      whichever press started the run. The backend stops between two points,
@@ -1740,7 +1739,7 @@ el("fp-clear").addEventListener("click", () => {
      press at the foot of the panel makes one for the first time again. */
   run.done.delete(step(run.activeIdx).id);
   run.ran.delete(step(run.activeIdx).id);
-  stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar(); renderSide();
+  stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar();
 });
 
 /* Measuring an existing map again. Both presses re-run every point that is
@@ -1766,7 +1765,7 @@ const runAgain = (from, button) => {
       status.quiet();
     }
     f.selected = Math.max(0, Math.min(f.selected, f.points.length - 1));
-    stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar(); renderSide();
+    stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar();
   });
 };
 
@@ -1828,7 +1827,7 @@ el("fp-runnew").addEventListener("click", (e) => {
     }
     refitSurface();
     f.selected = Math.max(0, Math.min(f.selected, f.points.length - 1));
-    stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar(); renderSide();
+    stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar();
   });
 });
 

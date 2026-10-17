@@ -64,7 +64,7 @@ export function installTabs(page) {
        alternative to the canvas, it is the controls for what the canvas is
        showing — so it says whose controls those are rather than offering a
        switch. */
-    const owner = thePanels[shownPanel()]?.channel ? page.sideWidget() : null;
+    const owner = thePanels[shownPanel()]?.channel ? page.activeStep()?.channel : null;
     /* A folded column has no heading: the strip on its edge is all that is
        left of it, and the name would stand over the canvas. */
     if (owner && !state.sideFolded) {

@@ -11,17 +11,23 @@
  * on.
  */
 
-/** Put the channel on the page: `sideWidget()`, `renderSide(show)` and `remountChannel()`. */
+/** Put the channel on the page: `activeStep()`, `actionSlot()`,
+    `renderSide(show)` and `remountChannel()`. */
 export function installSide(page) {
   const { run: state, panels: thePanels, step } = page;
 
-  /* What the step's controls answered when they were mounted: a `destroy`
-     to call when the channel changes hands, so an editor a step put there
-     is put away cleanly. */
+  /* What the step's controls answered when they were mounted: the slot their
+     press goes in (`actionSlot`), and a `destroy` to call when the channel
+     changes hands, so an editor a step put there is put away cleanly. */
   let mounted = null;
 
-  /* A step's channel: the controls the step declared, or none. */
-  const sideWidget = () => step(state.activeIdx)?.channel ?? null;
+  /* The step being stood on, and its channel: the controls it declared, or none. */
+  const activeStep = () => step(state.activeIdx) ?? null;
+  const sideWidget = () => activeStep()?.channel ?? null;
+
+  /** Where the standing step's press goes, when its controls have a place
+      for it at their end; null otherwise. */
+  const actionSlot = () => mounted?.actionSlot ?? null;
 
   function renderSide(show) {
     /* Only a panel with a channel down its side has anywhere to put a step's
@@ -133,5 +139,5 @@ export function installSide(page) {
     state.sideMounted = null;
   }
 
-  return { sideWidget, renderSide, remountChannel };
+  return { activeStep, actionSlot, renderSide, remountChannel };
 }

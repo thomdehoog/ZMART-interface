@@ -152,6 +152,7 @@ export const focusChannel = {
     host.append(focusControls);
     page.renderPointList();
     page.drawTrace();
+    return { actionSlot: focusControls.querySelector(".focus-action") };
   },
 };
 
@@ -186,7 +187,6 @@ export function installFocus(page) {
     step: () => page.step(state.activeIdx),
     focusControls,
     renderActionBar: () => page.renderActionBar(),
-    renderSide: (...a) => page.renderSide(...a),
     edited: () => page.stateEdited("focus"),
     /* The panel's own Rerun, Run new points and one point measured again
        are the step run again, through the runner like its own press: the

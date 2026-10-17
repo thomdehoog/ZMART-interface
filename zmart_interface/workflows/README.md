@@ -131,7 +131,10 @@ fields, all optional except the first two.
 - `channel` — the step's controls in the column beside the canvas:
   `{ id, label, mount(host, page, { locked }) }`. Mounted once per step and
   kept, so a field being typed into is never destroyed; a channel that
-  `rebuildsOnEveryRender` says so. `mount` may answer `{ destroy() }`, called
+  `rebuildsOnEveryRender` says so. `mount` may answer `{ actionSlot, destroy }`:
+  `actionSlot` is the element at the end of the controls where the step's
+  press goes (without one, the press goes in the foot of the panel being
+  looked at, the `foot` its `build` handed back), and `destroy()` is called
   when the channel changes hands, to put away what it holds outside the
   column (an editor drawing on the canvas, say).
 - `arrived(page)` — what the step does to the picture when the operator
@@ -198,9 +201,8 @@ drives nothing and keeps nothing of its own needs only the first two.
   whatever the steps need of it. Of what `build` hands back, the framework
   reads these, every one optional: `channel`, the column a step's controls
   are mounted in; `divider`, the draggable edge of that column, and `fold`,
-  the press that puts the column away; `display`, a box the framework keeps
-  hidden beside the column; `foot`, where a step's press goes when the step
-  has no slot of its own (give it the id `foot-<key>`); and `shown()`, which
+  the press that puts the column away; `foot`, where a step's press goes
+  when the step's controls have no slot of their own; and `shown()`, which
   the framework calls when the panel comes on screen or its room changes,
   since a hidden box has no size to draw into. A panel with a channel but no
   divider simply has a column of fixed width.

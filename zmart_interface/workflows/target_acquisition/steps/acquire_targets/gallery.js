@@ -345,6 +345,7 @@ export default {
 
     rebuild();
     return {
+      actionSlot: act,
       rebuild,
       progress: (snap) => {
         progress.say(snap);

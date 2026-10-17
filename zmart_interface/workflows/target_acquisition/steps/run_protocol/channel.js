@@ -149,7 +149,7 @@ export const protocolChannel = {
     keep.body.append(saveRow, exportRow);
     pad.append(keep.group);
     host.append(pad);
-    page.renderActionBar();
+    return { actionSlot: action };
   },
 };
 

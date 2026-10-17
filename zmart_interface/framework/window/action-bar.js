@@ -16,8 +16,6 @@
  * written out in `workflows/README.md`.
  */
 
-import { el } from "./dom.js";
-
 /** Put the action bar on the page: `renderStepAction(shown)` and `renderActionBar()`. */
 export function installActionBar(page) {
   const { run: state, panels: thePanels, step } = page;
@@ -26,16 +24,16 @@ export function installActionBar(page) {
     for (const panel of Object.values(thePanels)) {
       if (panel.foot) panel.foot.textContent = "";
     }
-    /* Every step's own slot is emptied, whichever step is standing: a press
-       left in a hidden step's box is a press that can still be found. */
-    for (const slot of document.querySelectorAll("[class*='-action']")) {
-      slot.textContent = "";
-    }
+    /* A step's controls that are kept between mounts keep their slot too, so
+       it is emptied before the press goes in again. */
+    const slot = page.actionSlot();
+    if (slot) slot.textContent = "";
     if (!shown) return;
     const i = state.activeIdx, s = step(i);
-    /* A step with controls of its own puts its action at the end of them; the
-       rest fall back to the bar under the panel they are looking at. */
-    const host = document.querySelector(`.${s.id}-action`) ?? el(`foot-${shown}`);
+    /* A step whose controls have a place for its press puts it at the end of
+       them (the slot their mount answered); the rest fall back to the foot of
+       the panel they are looking at. */
+    const host = slot ?? thePanels[shown]?.foot ?? null;
     if (!host) return;
     if (s.ownButton || !s.btn) return;
 

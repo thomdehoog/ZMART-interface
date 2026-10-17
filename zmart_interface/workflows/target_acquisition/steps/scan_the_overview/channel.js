@@ -133,7 +133,7 @@ export const scanChannel = {
     const action = document.createElement("div");
     action.className = "scan-action side-act";
     pad.append(action);
-    page.renderActionBar();
+    return { actionSlot: action };
   },
 };
 

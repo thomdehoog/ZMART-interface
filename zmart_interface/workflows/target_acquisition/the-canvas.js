@@ -138,7 +138,7 @@ export function installTheCanvas(page, { isOpen = () => true } = {}) {
     maskRainbow: MASK_RAINBOW,
     activePreset: () => page.activePreset(),
     indexOfStep,
-    sideWidget: () => page.sideWidget(),
+    activeStep: () => page.activeStep(),
     step: () => step(state.activeIdx),
     anchorPressed: (...a) => page.anchorPressed(...a),
     /* The list of anchors is drawn by the carrier panel, so a mark dragged on

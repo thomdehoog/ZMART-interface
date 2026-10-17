@@ -552,6 +552,7 @@ export default {
     drawTheControls();
     drawTheTile();
     return {
+      actionSlot: act,
       redraw: () => { drawTheControls(); drawTheTile(); },
       progress: (snap) => {
         progress.say(snap);

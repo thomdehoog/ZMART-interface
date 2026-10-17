@@ -157,5 +157,6 @@ export const galleryChannel = {
         return hit ? hit[1] : null;
       },
     });
+    return { actionSlot: page.shown.gallery.actionSlot };
   },
 };

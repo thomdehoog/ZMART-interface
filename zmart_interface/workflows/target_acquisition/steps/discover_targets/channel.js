@@ -67,5 +67,6 @@ export const detectionChannel = {
       changed: () => { page.renderActionBar(); page.drawStage(); },
       edited: () => page.stateEdited("detect"),
     });
+    return { actionSlot: page.shown.detection.actionSlot };
   },
 };
