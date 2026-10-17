@@ -44,6 +44,9 @@ export const MIN_TISSUE_WIDTH_UM = 4.5;
  * the half-height width that tells tissue from a speck.
  */
 export function findCandidates(samples: Sample[]): Candidate[] {
+  /* A peak is a height with a plane either side of it. A curve of one plane or
+     two has none, and nothing to search: no candidate, and the point is lost. */
+  if (samples.length < 3) return [];
   const stepUm = samples[1].z - samples[0].z;
   const floor = Math.min(...samples.map((q) => q.s));
   const out: Candidate[] = [];

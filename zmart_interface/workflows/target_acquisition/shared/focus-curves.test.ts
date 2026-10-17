@@ -33,6 +33,15 @@ describe("finding the peaks", () => {
     const flat = Array.from({ length: 21 }, (_, i) => ({ z: i, s: 0.5 }));
     expect(findCandidates(flat)).toHaveLength(1);
   });
+
+  /* A focussing setting that takes one plane, or two, gives a curve with no
+     plane either side of any height: there is nothing to search. It used to
+     throw, reading a plane that is not there, and the whole focus run failed. */
+  it("finds no peak in a curve of fewer than three planes, rather than failing", () => {
+    expect(findCandidates([{ z: 5, s: 0.7 }])).toEqual([]);
+    expect(findCandidates([{ z: 5, s: 0.7 }, { z: 6, s: 0.9 }])).toEqual([]);
+    expect(pickPeak(findCandidates([{ z: 5, s: 0.7 }]))).toBeNull();
+  });
 });
 
 describe("debris is the failure the rule exists for", () => {

@@ -8,7 +8,7 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
-import { rest, startTheBridge } from "../../testing/live-bridge.ts";
+import { operateTheInstrument, rest, startTheBridge } from "../../testing/live-bridge.ts";
 
 const PORT = Number(process.env.LIVE_FOCUS_PORT ?? 8809);
 
@@ -38,10 +38,14 @@ test("points appear in the list one at a time while the map is measured", async 
   await page.locator(".carrier-preset").selectOption({ label: "6-well · Nunc Nunclon" });
   await page.waitForTimeout(600);
   await gotoStep(page, "Overview scan area");
+  /* As an operator does: the job in the vendor's software first, then the
+     page records it. The focussing job is a stack; the overview is one plane. */
+  operateTheInstrument("choose", "Overview");
   await record(page, "sf-preset", "overview");
   await page.locator(".sf-apply-grid").click();
   await page.waitForTimeout(600);
   await gotoStep(page, "Focus strategy");
+  operateTheInstrument("choose", "Focussing");
   await record(page, "focus-preset", "af");
   await page.locator("#fp-place").click();
   await page.waitForTimeout(400);
