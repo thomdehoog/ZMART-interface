@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { operateTheInstrument, startTheBridge } from "./live-bridge.js";
+import { operateTheInstrument, startTheBridge } from "../../testing/live-bridge.js";
 import { readPng } from "../../testing/pixels.js";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";

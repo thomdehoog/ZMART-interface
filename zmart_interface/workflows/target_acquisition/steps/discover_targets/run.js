@@ -5,7 +5,7 @@
 
 import { status } from "../../../../framework/window/status.js";
 import { newMaskLayer, replaceMaskLayer } from "../../shared/mask-layers.js";
-import { cellsInAllGates } from "../refine_targets/gating.js";
+import { cellsInAllGates } from "../../shared/gating.js";
 import { settingsFor } from "./detection.js";
 import { forgetTheMasks } from "./layers.js";
 

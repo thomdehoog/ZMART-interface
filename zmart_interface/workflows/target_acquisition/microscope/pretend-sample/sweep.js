@@ -14,18 +14,13 @@
 
 import { makeRng } from "./rng.js";
 
-export const METRICS = {
-  brenner: {
-    label: "Gradient-based", short: "Gradient-based", token: "--m-brenner",
-    width: 9.0, bias: 0.0, skew: 0.16, noise: 0.045, speckGain: 1.0,
-  },
-  dct: {
-    label: "Entropy-based", short: "Entropy-based", token: "--m-dct",
-    width: 6.2, bias: -0.7, skew: 0.03, noise: 0.028, speckGain: 0.72,
-  },
+/** How each sharpness measure's curve is pretended: its width and offset
+    about the focus, its skew, its noise, and how hard a speck answers it.
+    The measures' names are the page's (`shared/focus-curves.js`). */
+const CURVE_OF = {
+  brenner: { width: 9.0, bias: 0.0, skew: 0.16, noise: 0.045, speckGain: 1.0 },
+  dct: { width: 6.2, bias: -0.7, skew: 0.03, noise: 0.028, speckGain: 0.72 },
 };
-
-export const METRIC_KEYS = Object.keys(METRICS);
 
 export const SWEEP_N = 61;
 const SWEEP_HALF_UM = 34;
@@ -46,13 +41,13 @@ export function debrisAt(index) {
  *
  * @param focusZ  where the tissue is actually in focus, µm
  * @param index   which point this is — fixes the noise and the debris
- * @param metric  a key of METRICS
+ * @param metric  a key of METRICS (`shared/focus-curves.js`)
  * @param startZ  where the search begins, µm: the objective is driven there and
  *                swept about it. Left out, it arrives somewhere near the tissue
  *                already, which is the best a first run can be said to do.
  */
 export function sweep({ focusZ, index, metric, startZ }) {
-  const m = METRICS[metric];
+  const m = CURVE_OF[metric];
   const centre = focusZ + m.bias;
   /* A sweep is taken about where the objective started, not about where the
      answer turns out to be. That is what makes the starting height worth

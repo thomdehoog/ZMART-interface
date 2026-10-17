@@ -7,7 +7,7 @@
  */
 
 import { css, sizeCanvas } from "../../../../framework/window/dom.js";
-import { cellsInAllGates } from "./gating.js";
+import { cellsInAllGates } from "../../shared/gating.js";
 import gatingPanel from "./gate.js";
 
 /** The gates have no press: looking at them applies them to the objects

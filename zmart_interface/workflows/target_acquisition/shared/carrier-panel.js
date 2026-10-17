@@ -16,12 +16,12 @@
  * controls that are already there and leaves the focused one alone.
  */
 
-import { sideGroup } from "../../../../framework/window/panels.js";
+import { sideGroup } from "../../../framework/window/panels.js";
 import { anchorWarning } from "./alignment.js";
 import {
   CARRIER_TYPES, carrierType, fromPreset, matchingPreset, geometry, maxRadius,
   centres, areaLabels, depthMm,
-} from "../../shared/carriers.js";
+} from "./carriers.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 const svgEl = (tag, attrs = {}) => {

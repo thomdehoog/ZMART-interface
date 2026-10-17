@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { startTheBridge } from "./live-bridge.js";
+import { startTheBridge } from "../../testing/live-bridge.js";
 
 const PORT = Number(process.env.LIVE_BRIDGE_PORT ?? 8791);
 

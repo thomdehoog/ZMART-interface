@@ -22,7 +22,7 @@ import { status } from "../../framework/window/status.js";
 
 /* How the status bar begins a drive the microscope declined. */
 const REFUSED = "The stage did not go there: ";
-import carrierWidget from "./steps/define_carrier/carrier-panel.js";
+import carrierWidget from "./shared/carrier-panel.js";
 import scanfieldsWidget from "./steps/define_scan_area/scanfield-editor.js";
 import { watchTheRun } from "./steps/scan_the_overview/watching-the-run.js";
 import { openTheStage } from "./shared/stage.js";

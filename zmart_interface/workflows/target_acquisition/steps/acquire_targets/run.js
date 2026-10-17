@@ -11,7 +11,7 @@
 
 import { status } from "../../../../framework/window/status.js";
 import { activeRecording } from "../../microscope/recordings.js";
-import carrierWidget from "../define_carrier/carrier-panel.js";
+import carrierWidget from "../../shared/carrier-panel.js";
 
 /* The pause before the picture moves on to the tile being taken, which
    gives the pair that just landed a moment in view. */

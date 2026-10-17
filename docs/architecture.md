@@ -182,7 +182,7 @@ channel beside it is dragged or folded.
 ## The rule that keeps it honest
 
 **One owner per fact.** Sample geometry belongs to `pretend-sample/sample.js`;
-nothing re-derives it. Peak rules belong to `pretend-sample/sweep.js`; nothing
+nothing re-derives it. Peak rules belong to `shared/focus-curves.js`; nothing
 else decides what
 counts as too narrow. If a constant or a rule has to appear in two files, the
 split was wrong — merge them back rather than keeping both in step.
@@ -404,7 +404,7 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `framework/rules/steps.js` | built, unit-tested, **used by the app** — numbering, ordering, readiness and panels |
 | `framework/rules/finding-workflows.js` | built, unit-tested, **used by the app: turns the workflow folders into the chooser's list** |
 | `workflows/*/flow.js` | built, unit-tested, **used by the app: the only declaration of the workflows** |
-| `ta/steps/define_carrier/carrier-panel.js` | built, used — the first widget, and the shape the rest should follow |
+| `ta/shared/carrier-panel.js` | built, used — the first widget, and the shape the rest should follow |
 | `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |
 | `workflows/target_acquisition/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
 | `framework/window/main.js` | composes the page and nothing else: it builds the one `page` object every module shares, installs the framework's parts, then calls every workflow's own `install`; it names no workflow, backend or panel |
@@ -446,7 +446,7 @@ reached for.
 One rule it establishes, which the next widget should keep: **a widget redraws
 itself.** Asking the framework to rebuild the panel on every change destroys the
 field being typed into — the defect this page has produced twice.
-`define_carrier/carrier-panel.js` writes new values into the controls that already exist and skips the focused
+`shared/carrier-panel.js` writes new values into the controls that already exist and skips the focused
 one.
 
 Every step's controls now live beside the step, in its `channel.js`, and
@@ -461,8 +461,8 @@ session, the carrier, the focus map, the targets -- is the workflow's, in its
 without reading it.
 
 **The hazard used to be three facts defined twice, and two of them are closed.**
-Surface fitting and the sweep-and-peak rules now have one owner each —
-`microscope/pretend-sample/surface.js` and `sweep.js` — imported by the page and
+Surface fitting and the peak rules now have one owner each —
+`steps/focus_strategy/surface.js` and `shared/focus-curves.js` — imported by the page and
 read by the unit tests, so the arithmetic the trace draws is the arithmetic the
 suite measures. The workflow declarations went the same way earlier: the folders
 under `workflows/` are the only place the workflows are written down, and

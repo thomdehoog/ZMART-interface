@@ -33,7 +33,7 @@
    the vite server holds the page instead. */
 import { atBridge } from "../../../framework/window/bridge-address.js";
 import { PENDING, isFailed } from "../microscope/connection-status.js";
-import { findCandidates, pickPeak } from "../microscope/focus-peaks.js";
+import { findCandidates, pickPeak } from "../shared/focus-curves.js";
 
 /** What a run of this workflow is called on disk: `target-acquisition_<hash>`.
     Sent when connecting, and never changed, so the runs and protocols saved

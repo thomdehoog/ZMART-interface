@@ -19,14 +19,12 @@
  * about this step, whoever owns the canvas.
  */
 
-import carrierWidget from "../define_carrier/carrier-panel.js";
-import { METRICS, METRIC_KEYS }
-  from "../../microscope/pretend-sample/sweep.js";
-import { MIN_TISSUE_WIDTH_UM, findCandidates, pickPeak }
-  from "../../microscope/focus-peaks.js";
+import carrierWidget from "../../shared/carrier-panel.js";
+import { METRICS, METRIC_KEYS, MIN_TISSUE_WIDTH_UM, findCandidates, pickPeak }
+  from "../../shared/focus-curves.js";
 import {
   fitSurface, residualsUm, surfaceZ,
-} from "../../microscope/pretend-sample/surface.js";
+} from "./surface.js";
 import { sharePoints } from "../../shared/scanfields.js";
 import { visitOrder } from "./visit-order.js";
 import { zColourScale } from "./z-domain.js";
@@ -73,8 +71,8 @@ function focusSurface() {
 }
 
 /* Fitting the focus surface — which model the geometry buys, the fit, the
-   height it predicts anywhere, and the residuals — lives in
-   `microscope/pretend-sample/surface.js`, imported above. */
+   height it predicts anywhere, and the residuals — lives in `surface.js`
+   beside this file, imported above. */
 
 // viridis — multi-hue but monotone in lightness, which is the property that
 // matters: it stays readable in greyscale and for every kind of colour vision
@@ -749,9 +747,8 @@ const LEGEND_FONT = "600 11px system-ui, sans-serif";
    start on the same line the heading above it starts on. */
 const BOX_PAD = 14;
 
-/* The rehearsed autofocus sweep — the two sharpness metrics, the debris a
-   position may carry, every candidate peak and the one worth trusting —
-   lives in `microscope/pretend-sample/sweep.js`, imported above. The trace
+/* The two sharpness metrics, every candidate peak in a curve and the one
+   worth trusting live in `shared/focus-curves.js`, imported above. The trace
    below draws exactly the curve the unit tests measure. */
 
 /** How tall another peak has to stand, against the tallest in the sweep,

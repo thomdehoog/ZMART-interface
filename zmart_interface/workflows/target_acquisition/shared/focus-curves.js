@@ -1,11 +1,21 @@
 /**
- * Reading a focus curve: which heights are peaks, and which one to take.
+ * Reading a focus curve: what the sharpness measures are called, which
+ * heights are peaks, and which one to take.
  *
  * A backend measures sharpness and hands back a curve. What counts as a peak
  * in it, and which peak is the tissue rather than a speck of dust, is one
  * rule and it is the same rule whoever measured — so it lives here, beside
  * the seam, rather than in either backend or in the step that draws it.
  */
+
+/** The two sharpness measures, by the key a curve is filed under: the name
+    the page shows, and the colour token its line is drawn in. */
+export const METRICS = {
+  brenner: { label: "Gradient-based", short: "Gradient-based", token: "--m-brenner" },
+  dct: { label: "Entropy-based", short: "Entropy-based", token: "--m-dct" },
+};
+
+export const METRIC_KEYS = Object.keys(METRICS);
 
 /** Tissue stays sharp over microns. Anything narrower than this is not tissue. */
 export const MIN_TISSUE_WIDTH_UM = 4.5;

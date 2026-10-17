@@ -24,7 +24,7 @@ import { describe, it, expect } from "vitest";
 import { anchorsUm, howManyAnchorsFit }
   from "./carrier-panel.js";
 import { carrierType, centres, fromPreset, geometry }
-  from "../../shared/carriers.js";
+  from "./carriers.js";
 
 const MM_UM = 1000;
 

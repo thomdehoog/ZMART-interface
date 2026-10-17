@@ -10,7 +10,7 @@
  * them.
  */
 
-import carrierWidget from "./carrier-panel.js";
+import carrierWidget from "../../shared/carrier-panel.js";
 import { describeCarrier } from "../../shared/carriers.js";
 
 /** Standing on the step settles it: the carrier is whatever is configured. */

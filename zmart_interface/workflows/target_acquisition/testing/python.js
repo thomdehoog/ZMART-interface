@@ -8,7 +8,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 
 /**
  * The Python the bridge runs in: the one the interface is installed in.

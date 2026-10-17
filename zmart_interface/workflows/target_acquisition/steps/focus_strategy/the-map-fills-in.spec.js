@@ -8,7 +8,7 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { rest, startTheBridge } from "../scan_the_overview/live-bridge.js";
+import { rest, startTheBridge } from "../../testing/live-bridge.js";
 
 const PORT = Number(process.env.LIVE_FOCUS_PORT ?? 8809);
 

@@ -1,8 +1,8 @@
 /** Reading a focus curve: the peaks in it, and which one is the tissue. */
 
 import { describe, it, expect } from "vitest";
-import { findCandidates, pickPeak, MIN_TISSUE_WIDTH_UM } from "./focus-peaks.js";
-import { sweep, debrisAt, METRIC_KEYS } from "./pretend-sample/sweep.js";
+import { findCandidates, pickPeak, MIN_TISSUE_WIDTH_UM, METRIC_KEYS } from "./focus-curves.js";
+import { sweep, debrisAt } from "../microscope/pretend-sample/sweep.js";
 
 const FOCUS_Z = -412;
 

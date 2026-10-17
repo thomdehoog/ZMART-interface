@@ -38,6 +38,13 @@ module.exports = {
       to: { path: "^zmart_interface/workflows/", pathNot: "^zmart_interface/workflows/$1/" },
     },
     {
+      name: "a-step-imports-no-step",
+      comment: "A step is its own folder. What two steps use sits below them, in the workflow's shared/; only the workflow's root composes the steps.",
+      severity: "error",
+      from: { path: "^zmart_interface/workflows/[^/]+/steps/([^/]+)/" },
+      to: { path: "^zmart_interface/workflows/[^/]+/steps/", pathNot: "^zmart_interface/workflows/[^/]+/steps/$1/" },
+    },
+    {
       name: "resolvable",
       comment: "An import that leads nowhere fails in the build; say so before it does. The viewer's drawing files are found by the build itself, in the installed viewer (tools/the-installed-viewer.mjs).",
       severity: "error",

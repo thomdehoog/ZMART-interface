@@ -35,7 +35,8 @@
 import { MICROSCOPES, THE_MOCK } from "../microscope/instruments.js";
 import { sampleReading } from "../microscope/settings.js";
 import { makeRng } from "../microscope/pretend-sample/rng.js";
-import { METRIC_KEYS, sweep } from "../microscope/pretend-sample/sweep.js";
+import { sweep } from "../microscope/pretend-sample/sweep.js";
+import { METRIC_KEYS } from "../shared/focus-curves.js";
 
 /** A pause, for the pretend instrument's timers. */
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
