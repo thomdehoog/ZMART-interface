@@ -72,9 +72,10 @@ def test_failed_canonical_ingestion_never_scores_vendor_pixels():
 def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypatch, enabled):
     import json
 
-    from zmart_interface import mock_microscope, serving
+    from zmart_interface import mock_microscope
     from zmart_interface.framework.bridge import connecting, hooks, state
     from zmart_interface.parts.storage import viewer_service
+    from zmart_interface.workflows.target_acquisition.bridge import starting
 
     class Session:
         """A controller session answering in its two-part shape."""
@@ -101,7 +102,7 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
     monkeypatch.setattr(connecting, "ZmartController", lambda *_: session)
     monkeypatch.setattr(viewer_service, "start", lambda *a, **k: None)
     monkeypatch.setattr(viewer_service, "stop", lambda: None)
-    monkeypatch.setattr(state, "pixels_for", serving.pixels_for(simulator_pixels=enabled))
+    monkeypatch.setattr(state, "pixels_for", starting.pixels_for(simulator_pixels=enabled))
     monkeypatch.setattr(state, "output_root", str(tmp_path))
     for name in ("session", "run", "pixel_provider"):
         monkeypatch.setattr(state, name, None)

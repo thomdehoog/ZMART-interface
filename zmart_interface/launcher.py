@@ -57,15 +57,15 @@ def _dev_server_is_up(url: str, timeout: float = 1.5) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from zmart_interface import serving
-    from zmart_interface.framework import bridge
+    from zmart_interface.framework.bridge import server, workflows
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--dev", nargs="?", const=DEV_URL, default=None, metavar="URL",
         help=f"open the development server's page instead of the built one (default {DEV_URL})",
     )
-    serving.add_arguments(parser)
+    halves = workflows.load_halves(server.add_route)
+    server.add_arguments(parser, halves)
     args = parser.parse_args(argv)
 
     if args.dev and not _dev_server_is_up(args.dev):
@@ -79,11 +79,11 @@ def main(argv: list[str] | None = None) -> int:
         import webview
     except ModuleNotFoundError:
         print("this needs the 'pywebview' package; or run "
-              "`python -m zmart_interface.serving` and open its address in a browser")
+              "`python -m zmart_interface.framework.bridge` and open its address in a browser")
         return 1
 
-    server = serving.serve(0, args.output_root, simulator_pixels=args.simulator_pixels)
-    bridge_at = f"http://127.0.0.1:{server.server_address[1]}"
+    listening = server.serve(0, args, halves=halves)
+    bridge_at = f"http://127.0.0.1:{listening.server_address[1]}"
     if args.dev:
         # The development server holds the page so edits reload live, which
         # puts it on another address from the bridge -- so the page is told.
@@ -93,14 +93,13 @@ def main(argv: list[str] | None = None) -> int:
         target, note = bridge_at, f"built page · served with the bridge at {bridge_at}"
 
     print(f"opening the {note}")
-    title = "ZMART — LAS X SIMULATOR / SYNTHETIC PIXELS" if args.simulator_pixels else "ZMART"
-    webview.create_window(title, target, width=1500, height=950)
+    webview.create_window(listening.title, target, width=1500, height=950)
     try:
         webview.start()
     finally:
         # The window is closed: the session with the microscope software is
         # closed with it, rather than left open until the process is killed.
-        bridge.shut_down(server)
+        server.shut_down(listening)
     return 0
 
 

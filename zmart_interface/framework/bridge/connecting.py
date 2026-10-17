@@ -29,9 +29,9 @@ from . import hooks, state
 #: The microscopes whoever started the bridge offers beside the controller's
 #: list, by name: ``{name: (driver, connection)}``, where ``driver`` is what
 #: ``ZmartController`` is handed (a driver package, plugged in directly) and
-#: ``connection`` what it is connected with. The interface offers its own
-#: mock here (``zmart_interface/serving.py``); the bridge itself offers
-#: nothing and knows no instrument.
+#: ``connection`` what it is connected with. Target acquisition offers its
+#: own mock here (``workflows/target_acquisition/bridge/starting.py``); the
+#: bridge itself offers nothing and knows no instrument.
 offered: dict[str, tuple[object, dict]] = {}
 
 

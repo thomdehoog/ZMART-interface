@@ -19,15 +19,18 @@ import types
 
 import pytest
 
-from zmart_interface import launcher, serving
+from zmart_interface import launcher
 from zmart_interface.framework.bridge import connecting, server
+from zmart_interface.workflows.target_acquisition.bridge import starting
 
 
 class Listening:
     server_address = ("127.0.0.1", 8601)
+    title = "ZMART"
 
     def __init__(self):
         self.done = []
+        self.halves = [("target_acquisition", starting)]
 
     def shutdown(self):
         self.done.append("shutdown")
@@ -46,7 +49,7 @@ def a_window(monkeypatch, tmp_path):
         start=lambda: events.append("closed"),
     )
     monkeypatch.setitem(sys.modules, "webview", window)
-    monkeypatch.setattr(serving, "serve", lambda *a, **kw: listening)
+    monkeypatch.setattr(server, "serve", lambda *a, **kw: listening)
     monkeypatch.setattr(launcher, "BUILT", tmp_path)
     monkeypatch.setattr(connecting, "let_the_last_session_go", lambda wait_s=None: events.append("scan stopped"))
     monkeypatch.setattr(connecting, "disconnect", lambda: events.append("disconnected"))

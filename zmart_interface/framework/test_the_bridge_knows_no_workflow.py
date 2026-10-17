@@ -62,8 +62,8 @@ def test_a_framework_module_imports_no_workflow(path):
 
 
 #: What would tie the framework to one instrument: the interface's own mock
-#: microscope and the LAS X simulator's stand-in pixels. Whoever starts the
-#: bridge hands those over (``zmart_interface/serving.py``).
+#: microscope and the LAS X simulator's stand-in pixels. Target acquisition's
+#: half hands those over (``workflows/target_acquisition/bridge/starting.py``).
 ONE_INSTRUMENT = ("zmart_interface.mock_microscope", "zmart_interface.parts.microscope.simulator")
 
 

@@ -44,6 +44,7 @@ from . import (
     state,
     workflows,
 )
+from .api import Bytes, Refusal
 
 #: Where ``npm run build`` leaves the page: ``zmart_interface/build``.
 THE_PAGE = Path(__file__).resolve().parents[2] / "build"
@@ -52,15 +53,20 @@ THE_PAGE = Path(__file__).resolve().parents[2] / "build"
 #: ``ROUTES[("GET", "/api/instruments")]``.
 ROUTES: dict[tuple[str, str], object] = {}
 
+#: The routes that answer every path beginning with theirs, by method and
+#: that beginning; their handler is handed the rest of the path too.
+PREFIX_ROUTES: dict[tuple[str, str], object] = {}
 
-def add_route(method: str, path: str, handler) -> None:
+
+def add_route(method: str, path: str, handler, prefix: bool = False) -> None:
     """Put a route in the table: ``handler(asked, query)`` answers ``method path``.
 
-    Adding a route again replaces the earlier one, which is what an installed
-    workflow's Python half needs when the bridge is built twice in one
-    process, as the tests do.
+    With ``prefix``, the route answers every path that begins with ``path``,
+    and ``handler(asked, query, rest)`` is handed what follows it. Adding a
+    route again replaces the earlier one, which is what a workflow's Python
+    half needs when the bridge is built twice in one process, as the tests do.
     """
-    ROUTES[(method.upper(), path)] = handler
+    (PREFIX_ROUTES if prefix else ROUTES)[(method.upper(), path)] = handler
 
 
 def route(method: str, path: str):
@@ -237,7 +243,9 @@ class Bridge(BaseHTTPRequestHandler):
         either way, where the press was made.
         """
         said = str(why)
-        if isinstance(why, InstrumentDeclined):
+        if isinstance(why, Refusal):
+            kind = why.status
+        elif isinstance(why, InstrumentDeclined):
             kind = 409
         elif isinstance(why, KeyError):
             # Python says only the missing name, in quotes: "'record'".
@@ -358,13 +366,28 @@ class Bridge(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _dispatch(self, method: str, asked: dict) -> None:
-        """Answer one request from the route table, or say there is no such route."""
+        """Answer one request from the route table, or say there is no such route.
+
+        An exact route first; then the longest prefix route the path begins with.
+        """
         path, _, query = self.path.partition("?")
         handler = ROUTES.get((method, path))
         if handler is not None:
-            self._answer(handler(asked, query))
+            self._reply(handler(asked, query))
+            return
+        begins = [key for key in PREFIX_ROUTES if key[0] == method and path.startswith(key[1])]
+        if begins:
+            longest = max(begins, key=lambda key: len(key[1]))
+            self._reply(PREFIX_ROUTES[longest](asked, query, path[len(longest[1]):]))
+            return
+        self._answer({"error": f"no route {path}"}, status=404)
+
+    def _reply(self, answer) -> None:
+        """A handler's answer: bytes as they are, anything else as JSON."""
+        if isinstance(answer, Bytes):
+            self._send_bytes(answer.body, answer.content_type)
         else:
-            self._answer({"error": f"no route {path}"}, status=404)
+            self._answer(answer)
 
     def do_GET(self) -> None:  # noqa: N802 — http.server's naming
         if self.refused():
@@ -392,83 +415,76 @@ class Bridge(BaseHTTPRequestHandler):
         """Quiet: the terminal is the operator's too."""
 
 
-def a_bridge_on(
-    port: int, output_root: str | None = None, *, offered: dict | None = None, pixels_for=None,
-) -> ThreadingHTTPServer:
-    """A bridge ready to answer, with every driver this machine has.
+def a_bridge_on(port: int, args=None, *, halves=None) -> ThreadingHTTPServer:
+    """A bridge ready to answer, with every workflow's Python half started.
 
-    Every way in builds it here, so all offer the same list of microscopes
-    and have the routes of every workflow's Python half. ``offered`` are the
-    microscopes the starter offers before the controller's list
-    (``{name: (driver, connection)}``, see :data:`connecting.offered`), and
-    ``pixels_for`` how to make pixels that stand in for the captured ones
-    (see :data:`state.pixels_for`); the bridge itself offers nothing and
-    keeps the captured pixels. The interface's own way in is
-    ``zmart_interface/serving.py``.
+    ``args`` are the parsed options (``--output-root`` and each half's own);
+    ``halves`` are the halves as :func:`workflows.load_halves` answers them,
+    loaded here when not given. Each half's ``start(args)`` runs, and the first
+    title one answers names the window (``listening.title``).
     """
-
-    connecting.offered = dict(offered or {})
-    state.pixels_for = pixels_for
+    connecting.offered = {}
+    state.pixels_for = None
     state.pixel_provider = None
-    state.output_root = output_root
-    workflows.load_halves(add_route)
-    return ThreadingHTTPServer(("127.0.0.1", port), Bridge)
+    state.output_root = getattr(args, "output_root", None)
+    if halves is None:
+        halves = workflows.load_halves(add_route)
+    titles = [half.start(args) for _, half in halves if hasattr(half, "start")]
+    listening = ThreadingHTTPServer(("127.0.0.1", port), Bridge)
+    listening.halves = halves
+    listening.title = next((title for title in titles if title), "ZMART")
+    return listening
 
 
-def serve(
-    port: int = 8600, output_root: str | None = None, *, offered: dict | None = None, pixels_for=None,
-) -> ThreadingHTTPServer:
+def serve(port: int = 8600, args=None, *, halves=None) -> ThreadingHTTPServer:
     """Start a bridge in a background thread and hand back its server; see :func:`a_bridge_on`."""
-    server = a_bridge_on(port, output_root, offered=offered, pixels_for=pixels_for)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server
+    listening = a_bridge_on(port, args, halves=halves)
+    threading.Thread(target=listening.serve_forever, daemon=True).start()
+    return listening
 
 
 #: How long closing the window waits for a running scan to finish its field.
 CLOSING_WAIT_S = 60.0
 
 
-def shut_down(server: ThreadingHTTPServer) -> None:
+def shut_down(listening: ThreadingHTTPServer) -> None:
     """Close everything a bridge holds, when the window it served is closed.
 
-    A running scan is asked to stop between two fields, the session with the
-    microscope is closed (which also stops the picture server and the
-    analysis workers), and the bridge stops listening. Each part is closed
-    even when the one before it fails -- a microscope that no longer answers
-    must not keep the bridge open -- and what failed is said in the terminal.
+    Each workflow's half closes what it holds (``close(wait_s)``), and the
+    bridge stops listening. Each part is closed even when the one before it
+    fails -- a microscope that no longer answers must not keep the bridge open
+    -- and what failed is said in the terminal.
     """
-    for closing in (
-        lambda: connecting.let_the_last_session_go(wait_s=CLOSING_WAIT_S),
-        connecting.disconnect,
-        server.shutdown,
-        server.server_close,
-    ):
+    closings = [
+        (lambda half=half: half.close(CLOSING_WAIT_S))
+        for _, half in getattr(listening, "halves", []) if hasattr(half, "close")
+    ]
+    for closing in (*closings, listening.shutdown, listening.server_close):
         try:
             closing()
         except Exception as why:  # noqa: BLE001 -- the rest must still close
             print(f"while closing the interface: {why}", file=sys.stderr, flush=True)
 
 
-def add_arguments(parser: argparse.ArgumentParser) -> None:
-    """The choices the bridge takes, shared with whoever starts it."""
+def add_arguments(parser: argparse.ArgumentParser, halves=()) -> None:
+    """The bridge's options, and each workflow's half's own, in a group named for it."""
     parser.add_argument("--output-root",
                         help="where runs go, for a driver that cannot discover its own")
+    for name, half in halves:
+        if hasattr(half, "add_arguments"):
+            half.add_arguments(parser.add_argument_group(name))
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the bridge on its own, serving the built page and the instruments the controller lists.
-
-    The general bridge only: no microscope of the interface's own is offered.
-    The interface's way in, with its mock first, is
-    ``python -m zmart_interface.serving``.
-    """
+    """Run the bridge on its own, for a browser: ``python -m zmart_interface.framework.bridge``."""
     parser = argparse.ArgumentParser(
-        description="The bridge: the operator page's backend, serving the page and the instrument",
+        description="The bridge: the operator page's backend, serving the page and every workflow's routes",
     )
     parser.add_argument("--port", type=int, default=8600)
-    add_arguments(parser)
+    halves = workflows.load_halves(add_route)
+    add_arguments(parser, halves)
     args = parser.parse_args(argv)
-    server = a_bridge_on(args.port, args.output_root)
+    listening = a_bridge_on(args.port, args, halves=halves)
     print(f"bridge listening on 127.0.0.1:{args.port}")
-    server.serve_forever()
+    listening.serve_forever()
     return 0

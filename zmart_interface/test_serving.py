@@ -1,11 +1,9 @@
-"""The interface's bridge offers its own mock first; the general bridge knows no instrument.
+"""Target acquisition offers its own mock first; the general bridge knows no instrument.
 
-Step 5 of ``docs/plan-the-bridge-knows-no-workflow.md``. The bridge's general
-part used to import the mock microscope, put it first in the list, open its
-window, and carry the LAS X simulator's ``--simulator-pixels`` switch. Now
-whoever starts the bridge says what it offers: ``serving.py`` starts it for
-the interface, with the mock first and the simulator's stand-in pixels when
-asked, and the mock opens its own window when its connection says so.
+The bridge's general part offers only what the controller lists. Target
+acquisition's Python half, started with the bridge, puts its own mock first
+and the simulator's stand-in pixels when asked, and the mock opens its own
+window when its connection says so.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -13,16 +11,19 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
+import argparse
+
 import pytest
 
-from zmart_interface import mock_microscope, serving
-from zmart_interface.framework.bridge import connecting, server, state
+from zmart_interface import mock_microscope
+from zmart_interface.framework.bridge import connecting, server, state, workflows
 from zmart_interface.mock_microscope import driver
+from zmart_interface.workflows.target_acquisition.bridge import starting
 
 
-def test_the_interfaces_bridge_offers_its_mock_first(monkeypatch):
+def test_target_acquisition_offers_its_mock_first(monkeypatch):
     monkeypatch.setattr(connecting, "get_instruments", lambda: ["stellaris", mock_microscope.NAME])
-    bridge = serving.serve(0)
+    bridge = server.serve(0)
     try:
         assert connecting.instruments() == [mock_microscope.NAME, "stellaris"]
     finally:
@@ -30,17 +31,17 @@ def test_the_interfaces_bridge_offers_its_mock_first(monkeypatch):
         bridge.server_close()
 
 
-def test_the_general_bridge_offers_only_what_it_is_handed(monkeypatch):
+def test_the_general_bridge_offers_only_what_the_controller_lists(monkeypatch):
     monkeypatch.setattr(connecting, "get_instruments", lambda: ["stellaris"])
-    bridge = server.a_bridge_on(0)
+    bridge = server.a_bridge_on(0, halves=[])
     try:
         assert connecting.instruments() == ["stellaris"]
     finally:
         bridge.server_close()
 
 
-def test_the_mock_is_offered_with_its_window(monkeypatch):
-    name, (plugged, connection) = next(iter(serving.offered().items()))
+def test_the_mock_is_offered_with_its_window():
+    name, (plugged, connection) = next(iter(starting.offered().items()))
     assert name == mock_microscope.NAME and plugged is mock_microscope
     assert connection["open_window"] is True
 
@@ -55,20 +56,24 @@ def test_the_mock_opens_its_own_window_only_when_its_connection_asks(monkeypatch
 
 
 def test_stand_in_pixels_are_made_only_when_asked_for():
-    assert serving.pixels_for(simulator_pixels=False) is None
-    make = serving.pixels_for(simulator_pixels=True)
+    assert starting.pixels_for(simulator_pixels=False) is None
+    make = starting.pixels_for(simulator_pixels=True)
     provider = make(420.0)
     assert provider.focus_z_um == 420.0
     assert provider.recipe["focus_reference"] == "session-connect"
 
 
-def test_the_switch_belongs_to_the_interface_not_the_general_bridge():
-    import argparse
-
+def test_the_switch_belongs_to_target_acquisition_and_names_the_window():
     general = argparse.ArgumentParser()
     server.add_arguments(general)
     assert "--simulator-pixels" not in general.format_help()
     ours = argparse.ArgumentParser()
-    serving.add_arguments(ours)
+    halves = workflows.load_halves(server.add_route)
+    server.add_arguments(ours, halves)
     assert "--simulator-pixels" in ours.format_help()
-    assert not hasattr(state, "simulator_pixels_enabled")
+    bridge = server.a_bridge_on(0, ours.parse_args(["--simulator-pixels"]), halves=halves)
+    try:
+        assert bridge.title == "ZMART — LAS X SIMULATOR / SYNTHETIC PIXELS"
+        assert state.pixels_for is not None
+    finally:
+        bridge.server_close()

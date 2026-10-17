@@ -76,6 +76,10 @@ from zmart_interface.framework.bridge import connecting, hooks
 from zmart_interface.parts.microscope.focus_run import FOCUSSING
 
 from . import discovery, focus, ledgers, plots, protocols, scan, targets, views
+from .starting import add_arguments, close, start
+
+#: What the bridge asks of this half (``framework/bridge/api.py``).
+__all__ = ["add_arguments", "close", "routes", "start"]
 
 #: How long letting the last session go waits for the running scan to finish
 #: the field it is capturing. A field is never cut off halfway, and one slow

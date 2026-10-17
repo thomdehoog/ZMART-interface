@@ -14,9 +14,9 @@ other driver::
     import zmart_controller
     zmart_controller.register_driver("path/to/zmart_interface/mock_microscope")
 
-The interface does not need that: when it starts its bridge
-(``zmart_interface/serving.py``) it offers the mock first and plugs this
-package in directly, with ``open_window`` set so the mock's own window opens
+The interface does not need that: when its bridge starts, target
+acquisition (``workflows/target_acquisition/bridge/starting.py``) offers the
+mock first and plugs this package in directly, with ``open_window`` set so the mock's own window opens
 beside the session.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),

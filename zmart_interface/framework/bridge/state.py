@@ -55,7 +55,8 @@ output_root: str | None = None
 #: the bridge asked for them: ``pixels_for(z_um)`` answers a provider anchored
 #: at the height the stage stands at. The interface hands over the LAS X
 #: simulator's synthetic specimen when started with ``--simulator-pixels``
-#: (``zmart_interface/serving.py``); None means the captured pixels are kept.
+#: (``workflows/target_acquisition/bridge/starting.py``); None means the
+#: captured pixels are kept.
 pixels_for = None
 
 #: The provider made from ``pixels_for`` for the session that is open, or

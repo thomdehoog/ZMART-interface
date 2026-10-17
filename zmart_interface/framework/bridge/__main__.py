@@ -1,7 +1,7 @@
-"""``python -m zmart_interface.framework.bridge``: the general bridge on its own, for a browser.
+"""``python -m zmart_interface.framework.bridge``: the bridge on its own, for a browser.
 
-It offers only the microscopes the controller lists; the interface's own way
-in, with its mock microscope, is ``python -m zmart_interface.serving``.
+Every workflow's Python half starts with it, so this offers what the
+interface's window offers, the mock microscope first.
 """
 
 import sys

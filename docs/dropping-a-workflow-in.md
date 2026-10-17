@@ -96,6 +96,13 @@ dictionary; an exception it raises reaches the page as a sentence, with status
 400 for a `ValueError`. A half that fails to import stops the bridge, saying
 why.
 
+A half may also answer bytes (a picture, a file), refuse with a status of its
+own, take every path under a prefix, and take part in starting and closing the
+interface: its own command-line options, what it does at start (which may name
+the window), and what it closes at the end. All of that is
+`zmart_interface/framework/bridge/api.py`, the one module of the framework a
+half imports.
+
 Target acquisition's half, `zmart_interface/workflows/target_acquisition/bridge/`,
 is the complete example to read, with its own routes for the focus map, the
 scans, finding and taking the targets, the plots and the protocols.
