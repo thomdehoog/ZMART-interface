@@ -73,6 +73,19 @@ async function frontSourceCount(page: Page, acquisition: string) {
     .reduce((count, row) => count + (row.sources?.length ?? 0), 0), acquisition);
 }
 
+/** How many of an acquisition's fields the viewer has published, as the
+    bridge's viewer status counts them -- and whether it is caught up. Each
+    channel is one picture that grows as fields land, so the page's sources
+    stay one per channel however many fields there are; this is where the
+    growth is counted. */
+async function publishedFields(acquisition: string) {
+  const status = await (await fetch(`${bridge!.at}/api/target_acquisition/viewer`)).json() as {
+    publications?: Record<string, { published?: number; state?: string }>;
+  };
+  const one = status.publications?.[acquisition];
+  return one?.state === "ready" ? one.published ?? 0 : -1;
+}
+
 async function setAcquisitionVisible(page: Page, acquisition: string, visible: boolean) {
   await setAcquisitionShown(page, acquisition, visible);
   await expect.poll(() => acquisitionVisible(page, acquisition)).toBe(visible);
@@ -156,10 +169,19 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
     }
     sourceFailures.push({ url: request.url(), error });
   });
+  /* A picture that grows field by field answers a chunk not written yet with
+     404, which the engine draws as empty, and a chunk being rewritten just
+     now with 503, which the engine asks again. Those are the store speaking,
+     counted apart; anything else -- metadata, another status -- is a loss. */
+  const growingChunkAnswers: { url: string; status: number }[] = [];
   page.on("response", (response) => {
-    if (response.url().includes("/data/") && response.status() >= 400) {
-      sourceFailures.push({ url: response.url(), status: response.status() });
+    if (!response.url().includes("/data/") || response.status() < 400) return;
+    const answer = { url: response.url(), status: response.status() };
+    if (/\/c\//.test(response.url()) && (answer.status === 404 || answer.status === 503)) {
+      growingChunkAnswers.push(answer);
+      return;
     }
+    sourceFailures.push(answer);
   });
 
   await walkToScan(page);
@@ -202,10 +224,12 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
   // arrival checks; sending only the delta would deliberately replace the
   // acquisition's record with that delta.
   await bridge!.image(positions.slice(0, 8));
-  await expect.poll(() => frontSourceCount(page, "overview"), {
+  await expect.poll(() => publishedFields("overview"), {
     timeout: 60_000,
-    message: "later overview sources never opened in Smart Viewer",
-  }).toBe(24);
+    message: "later overview fields were never published",
+  }).toBe(8);
+  expect(await frontSourceCount(page, "overview"),
+    "the later fields grow the same three channel pictures").toBe(3);
   await rest(2000);
   const afterLater = await stageSnapshot(page, "after source 8 of 9");
   expectSameView(chosen, afterLater, "later source arrival");
@@ -218,10 +242,12 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
   await rest(500);
   const wholePlate = await stageSnapshot(page, "whole-plate Fit before source 9");
   await bridge!.image(positions);
-  await expect.poll(() => frontSourceCount(page, "overview"), {
+  await expect.poll(() => publishedFields("overview"), {
     timeout: 60_000,
-    message: "the final overview source never opened in Smart Viewer",
-  }).toBe(27);
+    message: "the final overview field was never published",
+  }).toBe(9);
+  expect(await frontSourceCount(page, "overview"),
+    "the final field grows the same three channel pictures").toBe(3);
   await rest(2000);
   const afterFitArrival = await stageSnapshot(page, "whole-plate Fit after source 9");
   expectSameView(wholePlate, afterFitArrival, "source arrival after Fit");
@@ -238,6 +264,6 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
       fit: projectionDrift(wholePlate, afterFitArrival),
     },
     requestedVisibility: { focussing: false, overview: true },
-    browserErrors, sourceFailures, engineCancellations,
+    browserErrors, sourceFailures, engineCancellations, growingChunkAnswers,
   }, null, 2));
 });

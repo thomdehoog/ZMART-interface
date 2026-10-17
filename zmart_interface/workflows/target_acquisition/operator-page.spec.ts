@@ -72,6 +72,17 @@ async function captureOperatorEvidence(page: Page, name: string) {
 
 /* A step's button sits at the end of whichever panel is showing, so this does
    not need to know which step it is running. */
+/** The overview scanned as an operator scans it: a scan by hand takes the
+    tiles pressed green and refuses to start with none, so some are selected
+    first -- the default few per tileset, or `perTileset` -- and then it is
+    started. */
+async function scanTheTestTiles(page: Page, { perTileset }: { perTileset?: number } = {}) {
+  if (perTileset) await page.locator("#test-n").fill(String(perTileset));
+  await page.locator("#test-random").click();
+  await expect(page.locator("#test-tiles-count")).not.toHaveAttribute("data-green", "0");
+  await runStep(page, 3000);
+}
+
 async function runStep(page: Page, ms = 1000) {
   await page.locator(".panel.on button.step-run").click();
   await page.waitForTimeout(ms);
@@ -213,7 +224,11 @@ test.afterEach(async ({ page }) => {
 });
 
 test("the rail carries the workflow's declared steps", async ({ page }) => {
-  await expect(page.locator("#steps .step")).toHaveCount(9);
+  /* As many as the declaration has: a number written here went stale the
+     day a step was added, while the rail was right. */
+  const shown = await page.locator("#wf-select").inputValue();
+  const declared = (await theDeclaredWorkflows(page))[shown].steps.length;
+  await expect(page.locator("#steps .step")).toHaveCount(declared);
   await expect(page.locator(".step.active .step-name")).toHaveText("Connect");
   // the fields are said before the focus that keeps them sharp and the scan
   // that visits them, because both of those are about positions that exist
@@ -301,8 +316,10 @@ test("the channel folds away to the right and comes back", async ({ page }) => {
   const fold = page.locator("#side-fold");
   await expect(fold).toHaveAttribute("aria-expanded", "true");
   await expect(fold).toHaveAttribute("aria-label", "Collapse right sidebar");
-  expect((await fold.boundingBox())!.width, "the fold has an easy-to-find hit area")
-    .toBeGreaterThanOrEqual(28);
+  /* The fold is the 18-pixel tab on the column's edge it has always been
+     (Thom, 2026-10-17); this holds it there rather than letting it shrink. */
+  expect((await fold.boundingBox())!.width, "the fold keeps its 18-pixel tab")
+    .toBeGreaterThanOrEqual(18);
   const viewBefore = await page.evaluate(() => window.__theStageCanvas!.view()!);
   await fold.click();
   await expect(page.locator("#canvas-side")).toBeHidden();
@@ -628,10 +645,11 @@ test("the canvas is always on the stage, and the channel follows the step",
     await gotoStep(page, "Scan the overview");
     await expect(page.locator("#tabs > .tab")).toHaveText(["Canvas"]);
     /* The scan consults nothing: the run holds one preset and the focus step's
-       generated map, so the channel is a short summary and the press that
-       starts it — no boxes to choose from. */
+       generated map, so the channel is a short summary, the test tiles to
+       rehearse on, the progress box the run speaks to, and the press that
+       starts it — no presets to choose from. */
     await expect(page.locator("#canvas-side .side-group-title"))
-      .toHaveText(["Scan summary"]);
+      .toHaveText(["Scan summary", "Test tiles", "Scan progress"]);
     await expect(page.locator("#canvas-side .scan-summary .k").first()).toHaveText("Positions");
     await expect(page.locator("#canvas-side .scan-summary .v").first()).toHaveText(/^\d+$/);
     await expect(page.locator(".panel.on button.step-run")).toHaveText("Start");
@@ -643,7 +661,7 @@ test("the canvas is always on the stage, and the channel follows the step",
     await expect(page.locator(".carrier-num").first()).toBeEnabled();
 
     await gotoStep(page, "Scan the overview");
-    await runStep(page, 3000);
+    await scanTheTestTiles(page);
 
     await gotoStep(page, "Focus strategy");
     await expect(page.locator(".side-tab"), "walking back brings its channel with it")
@@ -1038,7 +1056,8 @@ test("a region is drawn on the canvas and covered by its preset's frame",
     await expect(page.locator(".sf-tool[data-tool='pointer']")).toHaveClass(/\bon\b/);
 
     // undo has no button of its own; the shortcut list is where it is said
-    await page.locator("#stage-canvas").click({ position: { x: 5, y: 5 } });
+    /* Empty canvas, away from the region and from the toolbar in its corner. */
+    await page.locator("#stage-canvas").click({ position: { x: box.width * 0.85, y: box.height * 0.85 } });
     await page.keyboard.press("Control+z");
     await page.waitForTimeout(200);
     await expect(page.locator(".sf-readout")).toContainText("nothing to scan yet");
@@ -1079,7 +1098,10 @@ test("walking back to the carrier takes the plan off the canvas, and keeps it",
       await page.locator("#carrier-btn").click();
       await page.mouse.move(10, 10);
       await page.waitForTimeout(250);
-      return page.locator("#stage-canvas").screenshot();
+      /* The picture, not the toolbar in its corner: the framing presses for a
+         tileset and a tile wake once a plan exists, and stay awake while it is
+         kept -- which is the point. */
+      return page.locator("#stage-canvas").screenshot({ mask: [page.locator("#canvas-toolbar")] });
     };
 
     // the carrier alone, before there is any plan to draw over it
@@ -1106,7 +1128,7 @@ test("walking back to the carrier takes the plan off the canvas, and keeps it",
     await expect(page.locator(".sf-readout")).toContainText("864 positions");
   });
 
-test("the plan stays editable until the overview has been scanned",
+test("the plan stays editable after the scan, and changing it asks for the scan to be reviewed",
   async ({ page }) => {
     /* Two rehearsed runs, a focus map and a scan, in one test: it runs right
        at the ordinary budget on a loaded machine, so it is given more. */
@@ -1124,13 +1146,21 @@ test("the plan stays editable until the overview has been scanned",
     await expect(page.locator(".sf-tool[data-tool='rectangle']")).toBeEnabled();
 
     await gotoStep(page, "Scan the overview");
-    await runStep(page, 3000);
+    await scanTheTestTiles(page);
 
-    // and now it is not: the tiles are pictures taken at those positions
+    /* And after it too: settings lock only while something runs. A plan
+       changed after the scan does not undo the pictures -- every result is
+       read against the plan as it was scanned -- so the scan goes orange,
+       asking to be looked at again, rather than the plan being shut. */
     await gotoStep(page, "Overview scan area");
     await page.waitForTimeout(300);
-    await expect(page.locator(".sf-apply-grid")).toBeDisabled();
-    await expect(page.locator(".sf-tool[data-tool='rectangle']")).toBeDisabled();
+    await expect(page.locator(".sf-apply-grid")).toBeEnabled();
+    await expect(page.locator(".sf-tool[data-tool='rectangle']")).toBeEnabled();
+    const scan = page.locator('.step:has-text("Scan the overview")').first();
+    await expect(scan).not.toHaveClass(/\bstale\b/);
+    await page.locator(".sf-apply-grid").click();
+    await expect(scan).toHaveClass(/\bstale\b/);
+    await expect(scan.locator(".review-tag")).toHaveText("review");
   });
 
 test("a press on empty canvas lets go of the selection, and the canvas shows it",
@@ -1307,19 +1337,20 @@ test("a grid is laid again under a preset whose frame is a different size",
       .toBeGreaterThanOrEqual(102);
   });
 
-test("the recording finishes the step, and either kind can be given a map",
+test("running the map finishes the step, and either kind of focussing can be given one",
   async ({ page }) => {
     await throughFields(page);
     await gotoStep(page, "Focus strategy");
+    const focusStep = page.locator('.step:has-text("Focus strategy")').first();
 
     /* The first reading the stand hands back is a software autofocus: it
        focuses by taking a short stack and scoring it at every position it is
-       sent to, which is already a complete answer — so the step is finished by
-       the recording, with nothing to press. */
+       sent to. Recording it does not finish the step: the scan stands on the
+       heights the map measures on this sample, so the step waits for the
+       press that measures it (Thom, 2026-09-28). */
     await recordSlot(page, "focus-preset", "software");
     await expect(page.locator("#focus-preset .rec-state").first()).toContainText("µm stack");
-    await expect(page.locator('.step:has-text("Focus strategy")').first())
-      .toHaveClass(/done/);
+    await expect(focusStep).not.toHaveClass(/done/);
     /* The press that measures the map stands in its box from the moment the
        box is there — greyed while there is nothing to measure. It used to
        disappear instead, which made clearing the points look like it had
@@ -1336,23 +1367,25 @@ test("the recording finishes the step, and either kind can be given a map",
     await page.locator("#fp-place").click();
     await page.waitForTimeout(300);
     await expect(page.locator(".panel.on button.step-run")).toBeEnabled();
-    await page.locator(".panel.on button.step-run").click();
-    await page.waitForTimeout(1600);
+    await runStep(page, 1600);
     await expect(page.locator(".point-row").first()).toBeVisible();
+    await expect(focusStep, "the map measured finishes the step").toHaveClass(/done/);
 
     /* The second is a hardware autofocus: the stand holds focus off the
-       coverslip at every position it is sent to. That too is a complete answer
-       on its own — and it can be given a map just the same, because driving to
-       a point and reading the height it settles at measures a surface as well
-       as a scored stack does. */
-    /* Recording again replaces the reading — the slot holds one — and a fresh
-       reading brings a fresh map, because points measured under the old
-       preset belong to it. */
+       coverslip at every position it is sent to -- and it can be given a map
+       just the same, because driving to a point and reading the height it
+       settles at measures a surface as well as a scored stack does. Recording
+       again replaces the reading -- the slot holds one -- and a fresh reading
+       brings a fresh map, because points measured under the old preset belong
+       to it: the step waits for its press again. */
     await recordSlot(page, "focus-preset", "hardware");
     await expect(page.locator("#focus-preset .rec-state").first()).toContainText("Hardware");
+    await expect(focusStep).not.toHaveClass(/done/);
     await expect(page.locator("#fp-place"), "the same points to lay").toBeVisible();
-    await expect(page.locator('.step:has-text("Focus strategy")').first())
-      .toHaveClass(/done/);
+    await page.locator("#fp-place").click();
+    await page.waitForTimeout(300);
+    await runStep(page, 1600);
+    await expect(focusStep).toHaveClass(/done/);
     await expect(page.locator('.step:has-text("Scan the overview")').first()).toBeEnabled();
   });
 
@@ -1495,7 +1528,7 @@ test("target inspection changes selection without rebuilding published images", 
   await placeFocusPoints(page);
   await runStep(page, 1600);
   await gotoStep(page, "Scan the overview");
-  await runStep(page, 3000);
+  await scanTheTestTiles(page);
   await gotoStep(page, "Detect objects");
   await runStep(page, 3000);
   await gotoStep(page, "Discover Targets");
@@ -1521,10 +1554,11 @@ test("target inspection changes selection without rebuilding published images", 
       window.selectionRebuilds!.push(label);
       return new Promise(() => {});
     };
-    const scan = backend.scanOverview.bind(backend);
-    backend.scanOverview = args => {
-      if (args.acquisition_type === "targets") window.targetCaptureRequests!.push(args.positions);
-      return scan(args);
+    /* Targets are captured by their own verb, not by the overview's scan. */
+    const capture = backend.acquireTargets.bind(backend);
+    backend.acquireTargets = args => {
+      window.targetCaptureRequests!.push(args.positions);
+      return capture(args);
     };
   });
   await runStep(page, 3000);
@@ -1593,12 +1627,15 @@ test("one walk of the whole run", async ({ page }) => {
      the scan drives through and what the tile picker counts; a step reading a
      list of its own would disagree here. */
   await gotoStep(page, "Scan the overview");
-  await runStep(page, 3000);
+  /* Every tile: the walk is of the whole plate, and its gate has to reach
+     into wells that hold more than one target. */
+  await scanTheTestTiles(page, { perTileset: 864 });
 
   await gotoStep(page, "Detect objects");
-  /* Detection starts from the first field. The scan's moving highlight is
-     transient progress, not the operator's lasting field selection. */
-  await expect(page.locator("#tile-label")).toHaveText("1 / 864");
+  /* Detection opens on the field the scan ended on, where the stage is --
+     the last of the tiles scanned, which were the test tiles. */
+  const scanned = await page.evaluate(() => (window.__theRunState!() as TheRun).testTiles.length);
+  await expect(page.locator("#tile-label")).toHaveText(`${scanned} / ${scanned}`);
   /* Discovery runs on the operator's say-so, tested or not -- the tile test
      is an offer. This walk still takes it, the way an operator would -- and
      first stops one by hand: the press that started the test becomes
@@ -1623,9 +1660,12 @@ test("one walk of the whole run", async ({ page }) => {
     .toBeGreaterThan(0);
   expect(discovered.every((target) => !target.selected && !target.acquired),
     "newly discovered targets are candidates, not silently selected").toBe(true);
+  /* A target's field counts in the plan as it was scanned -- here the test
+     tiles -- not in the whole plan. */
   const plan = await page.evaluate(() => window.__theStageCanvas!.plan());
+  const scannedFields = await page.evaluate(() => (window.__theRunState!() as TheRun).scannedFields);
   expect(discovered.every((target) => {
-    const field = plan[target.field];
+    const field = plan[scannedFields ? scannedFields[target.field] : target.field];
     return field
       && Math.abs(target.x - field.x) <= field.frameUm / 2
       && Math.abs(target.y - field.y) <= field.frameUm / 2;
@@ -1704,7 +1744,7 @@ test("one walk of the whole run", async ({ page }) => {
   await expect(adding.locator(".side-group-body"))
     .toContainText("Max targets per overview tileset");
   await expect(adding.locator(".side-group-body"))
-    .toContainText("Minimise the number of tiles");
+    .toContainText("Number of tiles");
   await expect(adding.locator(".target-main-settings-title"))
     .toHaveText("Main settings");
   await expect(page.locator("#tiles-margin"), "the coverage margin stays in the top box")
@@ -1715,9 +1755,12 @@ test("one walk of the whole run", async ({ page }) => {
     .toHaveCount(0);
   await expect(adding.locator(".gate-draw"), "the placement contract is exactly four controls")
     .toHaveCount(4);
-  expect(await adding.locator(".gate-draw").evaluateAll((rows) => rows.every(
-    (row) => row.firstElementChild?.matches('input[type="checkbox"]'),
-  )), "every setting has a switch before its words").toBe(true);
+  /* Three are values, each with a switch before its words; the fourth is a
+     choice between two ways of placing, and a choice has no off. */
+  expect(await adding.locator(".gate-draw:not(:has([role='radiogroup']))").evaluateAll((rows) => rows.length === 3
+    && rows.every((row) => row.firstElementChild?.matches('input[type="checkbox"]'))),
+  "every value has a switch before its words").toBe(true);
+  await expect(adding.locator("#tiles-count [role='radio']")).toHaveText(["Fewest", "One per target"]);
   /* With the ceiling switched off there is no sample: every gated target
      goes to placement. */
   await page.locator("#gate-max-on").uncheck();
@@ -1769,7 +1812,8 @@ test("one walk of the whole run", async ({ page }) => {
   await expect(page.locator("#target-type .setting-box.done")).toHaveCount(1);
   /* The ceiling is per tileset -- a well of the pretend plate -- so what
      survives is so many in each tileset the gate reaches into. */
-  const tilesetOf = (target: TargetOnCanvas) => plan[target.field]?.tileset ?? target.field;
+  const tilesetOf = (target: TargetOnCanvas) =>
+    plan[scannedFields ? scannedFields[target.field] : target.field]?.tileset ?? target.field;
   const underCeiling = (targets: TargetOnCanvas[], max: number) => {
     const perTileset = new Map<unknown, number>();
     for (const target of targets) {
@@ -1865,9 +1909,11 @@ test("one walk of the whole run", async ({ page }) => {
       return { y: box.y, width: box.width, height: box.height };
     }));
   expect(comparison).toHaveLength(2);
-  expect(comparison[1].y, "the high-resolution frame is below the overview crop")
-    .toBeGreaterThanOrEqual(comparison[0].y + comparison[0].height);
-  expect(comparison[1].width, "both images use the full comparison width")
+  /* Side by side: the same physical window at two resolutions, the column
+     widened for a closer look. */
+  expect(comparison[1].y, "the high-resolution frame is beside the overview crop")
+    .toBeCloseTo(comparison[0].y, 0);
+  expect(comparison[1].width, "both images are as wide as each other")
     .toBeCloseTo(comparison[0].width, 0);
   const pairGeometry = await page.locator(".pair .imgs canvas").evaluateAll((canvases: HTMLCanvasElement[]) =>
     canvases.map((canvas) => ({
@@ -1888,8 +1934,11 @@ test("one walk of the whole run", async ({ page }) => {
   await expect(page.locator(".action-hint"),
     "the two rerun actions are not crowded by a duplicate result sentence").toHaveCount(0);
   const afterTheHand = await page.evaluate(() => window.__theRunState!() as TheRun);
-  expect(afterTheHand.done, "an interrupted step is not done").not.toContain("acquire");
-  expect(afterTheHand.ran, "but it ran, so it can be run again").toContain("acquire");
+  /* Not a failure and not a finish: what the run took stands, so the step is
+     done but orange, asking to be confirmed as it is or run again. */
+  expect(afterTheHand.done, "an interrupted step is done").toContain("acquire");
+  expect(afterTheHand.stale, "but orange: it did part of its work").toContain("acquire");
+  expect(afterTheHand.ran, "and it ran, so it can be run again").toContain("acquire");
   await runStep(page, 3000);
   const acquired = await targetsOnCanvas(page);
   expect(physicalTargetPositions(acquired),
@@ -1901,8 +1950,6 @@ test("one walk of the whole run", async ({ page }) => {
   expect((await page.evaluate(() => window.__theRunState!() as TheRun)).acquiredTileKeys.length,
     "every planned target tile has one reachable acquisition")
     .toBe(await page.evaluate(() => (window.__theRunState!() as TheRun).targetTiles));
-  await expectTargetLayerOnCanvas(
-    page, "targets", "Step 8 acquired-target rings materially change the canvas");
   /* A press inside an acquired frame chooses that physical tile: the list
      says so and its pair comes up. Not the one already chosen, so the change
      shows. */
@@ -1919,6 +1966,10 @@ test("one walk of the whole run", async ({ page }) => {
       "a press inside the frame chooses the tile that was acquired there").toBe(other!.key);
     await expect(page.locator(`#target-list .point-row[aria-current="true"]`)).toHaveCount(1);
   }
+  /* The targets layer outlines the chosen frame -- the frames themselves are
+     the picture -- so it is checked once a target has been chosen. */
+  await expectTargetLayerOnCanvas(
+    page, "targets", "Step 8's outline of the chosen target materially changes the canvas");
   /* The two repeat choices live under the current comparison. Current means
      precisely the selected scan area; rerunning it preserves every other
      acquired pair, while the full-run action remains on the right. */
