@@ -1,23 +1,18 @@
 import { test, expect } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { assembleWorkflows } from "../../framework/rules/finding-workflows.js";
-
-/* The workflows, found the way the page finds them: every folder under
- * `workflows/` with a `flow.js` inside it. The page uses the build tool's
- * folder scan; a test running in Node reads the folder itself. Both hand what
- * they found to the same `assembleWorkflows`, so this suite and the page
- * cannot disagree about what the folders mean. */
-const workflowsDir = fileURLToPath(new URL("../", import.meta.url));
-const flowFiles = {};
-for (const folder of fs.readdirSync(workflowsDir)) {
-  for (const name of ["flow.js", "flow.ts"]) {
-    const flowPath = path.join(workflowsDir, folder, name);
-    if (fs.existsSync(flowPath)) flowFiles[`${folder}/${name}`] = await import(pathToFileURL(flowPath).href);
-  }
+/* The workflows as the page itself assembled them: its own folder scan,
+ * read inside the page. A flow imports its stylesheet and the page's
+ * modules, which only the page's build tool can load, so this suite does not
+ * read the folders on its own. */
+async function theDeclaredWorkflows(page) {
+  return page.evaluate(async () => {
+    const { WORKFLOWS } = await import("/zmart_interface/framework/window/the-workflows.js");
+    return Object.fromEntries(Object.entries(WORKFLOWS).map(([key, wf]) => [key, {
+      name: wf.name, steps: wf.steps.map((s) => ({ title: s.title, n: s.n })),
+    }]));
+  });
 }
-const { WORKFLOWS } = assembleWorkflows(flowFiles);
 
 /* Prototyping pace: this is a smoke net, not a specification. It covers the
    layout rules that everything else is built on and one walk of the whole
@@ -200,6 +195,7 @@ test("the rail carries the workflow's declared steps", async ({ page }) => {
  * Making sure it can fail: change a step's title in the declaration and this
  * goes red, because the rail is being read rather than described. */
 test("the page offers exactly the workflows that are declared", async ({ page }) => {
+  const WORKFLOWS = await theDeclaredWorkflows(page);
   const chooser = page.locator("#wf-select option");
   await expect(chooser).toHaveText(Object.values(WORKFLOWS).map((w) => w.name));
 
