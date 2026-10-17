@@ -34,6 +34,10 @@
 import { atBridge } from "../../../api/index.ts";
 import { PENDING, isFailed } from "../microscope/connection-status.ts";
 import { findCandidates, pickPeak } from "../shared/focus-curves.js";
+import type {
+  Backend, CaptureRecord, Connecting, ControllerAnswer, FocusAsk, FocusPoint, FoundField, Opening, Place, PlotColumns,
+  Reading, RunProgress, ScanPosition, TargetFocus, TargetPosition, Traces, ViewerStatus, WrittenProtocol, XyzReading,
+} from "./verbs.ts";
 
 /** Where this workflow's routes answer on the bridge: every verb below,
     the controller's and the workflow's own, under its folder's name. */
@@ -45,13 +49,14 @@ const OURS = "/api/target_acquisition";
 const EXPERIMENT = "target-acquisition";
 
 /** One call to the bridge: JSON in, JSON out, failure as a plain sentence. */
-export async function ask(route, payload) {
+export async function ask<T = Record<string, unknown>>(route: string, payload?: unknown): Promise<T> {
   const body = await request(route, payload);
-  if (body.error) throw new Error(body.error);
-  return body;
+  if (typeof body.error === "string") throw new Error(body.error);
+  /* What each route answers is the bridge's to say; the verbs below name it. */
+  return body as T;
 }
 
-async function request(route, payload) {
+async function request(route: string, payload?: unknown): Promise<Record<string, unknown>> {
   const answer = await fetch(atBridge(route), payload === undefined
     ? undefined
     : {
@@ -59,14 +64,14 @@ async function request(route, payload) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-  const body = await answer.json().catch(() => ({}));
+  const body: Record<string, unknown> = await answer.json().catch(() => ({}));
   if (!answer.ok) {
-    throw new Error(body.error ?? `the bridge answered ${answer.status}`);
+    throw new Error(typeof body.error === "string" ? body.error : `the bridge answered ${answer.status}`);
   }
   return body;
 }
 
-const rest = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const rest = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * The content inside the controller's answer to `acquire`, or the driver's
@@ -74,10 +79,13 @@ const rest = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * the controller's `{success, content}` on untouched, so the page reads a
  * capture exactly as a Python script does.
  */
-function capturedBy(answer) {
-  if (answer?.success === true) return answer.content;
+function capturedBy(answer: ControllerAnswer<CaptureRecord>): CaptureRecord {
   const content = answer?.content;
-  const reason = typeof content === "string" ? content : content?.reason ?? content?.message;
+  if (answer?.success === true) return content as CaptureRecord;
+  const reason = typeof content === "string"
+    ? content
+    : (content as { reason?: string; message?: string } | null)?.reason
+      ?? (content as { message?: string } | null)?.message;
   throw new Error(`the microscope could not capture an image: ${reason ?? "the driver gave no reason"}`);
 }
 
@@ -86,10 +94,10 @@ function capturedBy(answer) {
  * failing: the instrument keeps going whether or not one request lands, and
  * a busy bridge declared a healthy 864-field scan "failed" over one hiccup.
  */
-const askedPatiently = async (path) => {
+const askedPatiently = async <T>(path: string): Promise<T> => {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await ask(path);
+      return await ask<T>(path);
     } catch (why) {
       if (attempt >= 3) throw why;
       await rest(700);
@@ -105,7 +113,7 @@ const POLL_MS = 250;
 let targetsStopAsked = false;
 let focusStopAsked = false;
 
-export const backend = {
+export const backend: Backend = {
   /**
    * Where a scan's small pictures can be fetched, or `null` for a backend
    * with none.
@@ -119,13 +127,13 @@ export const backend = {
    * rather than the page working it out, because where a run's output is
    * reachable is a fact about the instrument's end.
    */
-  viewOf(acquisitionType) {
+  viewOf(acquisitionType: string): string | null {
     return atBridge(`${OURS}/view/${acquisitionType}`);
   },
 
   /** What can be connected to: the interface's list of microscopes, from the bridge. */
   async instruments() {
-    return (await ask(`${OURS}/instruments`)).instruments;
+    return (await ask<{ instruments: string[] }>(`${OURS}/instruments`)).instruments;
   },
 
   /**
@@ -140,22 +148,22 @@ export const backend = {
    * draws exactly as it always has.  The `sources` fallback keeps this page
    * able to speak to an older bridge during a rolling update.
    */
-  async viewerSources(onStatus) {
+  async viewerSources(onStatus?: (status: ViewerStatus) => void): Promise<unknown[] | null> {
     try {
       // A successful status response can contain both available images and a
       // failed acquisition. Its error must not discard the available images.
-      const state = await request(`${OURS}/viewer`);
+      const state = await request(`${OURS}/viewer`) as ViewerStatus;
       onStatus?.(state);
       if (Array.isArray(state?.acquisitions) && state.acquisitions.length) {
         return state.acquisitions;
       }
-      const all = [];
+      const all: { url: string; name: string }[] = [];
       for (const sources of Object.values(state?.sources ?? {})) {
         for (const source of sources) all.push({ url: source.url, name: source.name });
       }
       return all.length ? all : null;
     } catch (why) {
-      onStatus?.({ error: `Viewer status unavailable: ${why.message}` });
+      onStatus?.({ error: `Viewer status unavailable: ${why instanceof Error ? why.message : String(why)}` });
       return null;
     }
   },
@@ -173,24 +181,24 @@ export const backend = {
    * info once every check has answered; rejects, naming the check, when one
    * has failed.
    */
-  async connect(session, { onChecks, onCheck } = {}) {
+  async connect(session: Opening | null | undefined, { onChecks, onCheck }: Connecting = {}) {
     /* The password travels with the connection: a gate that demanded it and
        then discarded it authenticated nothing. What a driver does with it is
        the driver's business. */
     await ask(`${OURS}/connect`, {
       instrument: session?.instrument, password: session?.password, experiment: EXPERIMENT,
     });
-    let keys = null;
-    const answered = new Set();
+    let keys: string[] | null = null;
+    const answered = new Set<string>();
     for (;;) {
       const info = await this.info();
-      const status = info.connection_status ?? {};
+      const status = (info.connection_status ?? {}) as Record<string, string>;
       if (keys === null) {
         keys = Object.keys(status);
         onChecks?.(keys);
       }
       let pending = false;
-      let failure = null;
+      let failure: string | null = null;
       keys.forEach((key, k) => {
         const value = status[key];
         if (value === PENDING) { pending = true; return; }
@@ -213,12 +221,12 @@ export const backend = {
 
   /** The driver's account of the session: `get_info` through the controller. */
   async info() {
-    return ask(`${OURS}/info`);
+    return ask<{ connection_status?: Record<string, string>; [more: string]: unknown }>(`${OURS}/info`);
   },
 
   /** Where the stage is: `get_xyz` through the controller. */
   async get_xyz() {
-    return ask(`${OURS}/xyz`);
+    return ask<XyzReading>(`${OURS}/xyz`);
   },
 
   /**
@@ -226,8 +234,8 @@ export const backend = {
    * `get_xyz` afterwards. One route, the method saying which of the two is
    * meant, and the same two names the controller uses.
    */
-  async set_xyz({ x, y, z }) {
-    return ask(`${OURS}/xyz`, { x, y, z });
+  async set_xyz({ x, y, z }: Place) {
+    return ask<XyzReading>(`${OURS}/xyz`, { x, y, z });
   },
 
   /**
@@ -249,8 +257,8 @@ export const backend = {
    * told and leaves the choosing to the software that authors the recipes.
    * It is here because the seam mirrors the controller's surface.
    */
-  async set_state(settings) {
-    return ask(`${OURS}/state`, settings);
+  async set_state(settings: Record<string, unknown>) {
+    return ask<{ applied: Record<string, unknown> }>(`${OURS}/state`, settings);
   },
 
   /**
@@ -260,8 +268,9 @@ export const backend = {
    * live instrument has no use for it: the instrument is read as it stands,
    * set up in its own software -- LAS X, or the mock instrument window.
    */
-  async readSetting(type) {
-    return ask(`${OURS}/setting?type=${encodeURIComponent(type)}`);
+  async readSetting(type: string, how: { nth?: number } = {}) {
+    void how; // the pretend operator's knob: the instrument is read as it stands
+    return ask<Reading>(`${OURS}/setting?type=${encodeURIComponent(type)}`);
   },
 
   /**
@@ -277,15 +286,17 @@ export const backend = {
    * and the label (`{folder}_{hash}_{position_label}`), and files the record
    * under the page's own label, with that stem as `file_stem`.
    */
-  async acquire({ position_label, acquisition_settings = null, folder = null }) {
-    return ask(`${OURS}/acquire`, { position_label, acquisition_settings, folder });
+  async acquire({ position_label, acquisition_settings = null, folder = null }: {
+    position_label: string; acquisition_settings?: Record<string, unknown> | null; folder?: string | null;
+  }) {
+    return ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, { position_label, acquisition_settings, folder });
   },
 
   /**
    * Put one acquired target's frame on top of its neighbours in the
    * targets picture: the chosen one, whose pair the gallery shows.
    */
-  async raiseTarget(position_label) {
+  async raiseTarget(position_label: string) {
     return ask(`${OURS}/targets/raise`, { position_label });
   },
 
@@ -309,34 +320,38 @@ export const backend = {
    * just found there. A height it gives wins over the point's own `startZ`;
    * no answer leaves `startZ` as it was.
    */
-  async measureFocus(points, { metric, state = null, onPoint, onDoing, beginAt } = {}) {
+  async measureFocus(points: FocusAsk[], { metric, state = null, onPoint, onDoing, beginAt }: {
+    metric?: string; extent?: [number, number]; state?: Record<string, unknown> | null;
+    onPoint?(point: FocusPoint, index: number): void; onDoing?(doing: string | null): void;
+    beginAt?(index: number): number | null | undefined;
+  } = {}) {
     void metric; // which curve decides is the page's rule, applied to what comes back
     focusStopAsked = false;
     if (state) await ask(`${OURS}/state`, state);
-    const { labels } = await ask(`${OURS}/focus/begin`, { of: points.length });
-    const measured = [];
+    const { labels } = await ask<{ labels: string[] }>(`${OURS}/focus/begin`, { of: points.length });
+    const measured: FocusPoint[] = [];
     let stopped = false;
     try {
       for (const [index, point] of points.entries()) {
         if (focusStopAsked) { stopped = true; break; }
-        const say = (phase) => onDoing?.(`${phase} point ${index + 1} of ${points.length}`);
+        const say = (phase: string) => onDoing?.(`${phase} point ${index + 1} of ${points.length}`);
         /* `startZ` says where to begin this search; without one the stack
            is taken around the height the objective stands at. */
         const { startZ: given, ...asked } = point;
         const chosen = beginAt?.(index);
-        const startZ = Number.isFinite(chosen) ? chosen : given;
-        let landed;
+        const startZ = typeof chosen === "number" && Number.isFinite(chosen) ? chosen : given;
+        let landed: FocusPoint;
         try {
           say("driving");
-          const at = await ask(`${OURS}/xyz`, {
-            x: point.x, y: point.y, ...(Number.isFinite(startZ) ? { z: startZ } : {}),
+          const at = await ask<XyzReading>(`${OURS}/xyz`, {
+            x: point.x, y: point.y, ...(typeof startZ === "number" && Number.isFinite(startZ) ? { z: startZ } : {}),
           });
           say("capturing");
-          const record = capturedBy(await ask(`${OURS}/acquire`, {
+          const record = capturedBy(await ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, {
             folder: "focussing", position_label: labels[index],
           }));
           say("scoring");
-          landed = await ask(`${OURS}/focus/score`, { record, centre: at.z.position, point });
+          landed = await ask<FocusPoint>(`${OURS}/focus/score`, { record, centre: at.z.position, point });
         } catch (why) {
           /* Cut off by the operator's own Interrupt (the bridge put the
              analysis down to reach a scoring that hung): not a point the
@@ -346,7 +361,7 @@ export const backend = {
              can say why: a move it declined is not a search that found no
              peak, and the window has no console to read it in. */
           landed = {
-            ...asked, z: null, zAuto: null, lost: true, refused: why.message,
+            ...asked, z: null, zAuto: null, lost: true, refused: why instanceof Error ? why.message : String(why),
             traces: null, cost_s: {}, slices: [],
           };
         }
@@ -378,16 +393,22 @@ export const backend = {
    */
   async discoverTargets({
     fields = null, settings = {}, onField, onDoing, onProgress,
+  }: {
+    fields?: string[] | null; settings?: Record<string, unknown>;
+    onField?(field: FoundField): void; onDoing?(doing: string | null): void;
+    onProgress?(done: number, of: number, how: { phase: unknown; objects: number; running: boolean }): void;
   } = {}) {
     await ask(`${OURS}/targets/discover`, { fields, settings });
     /* The bridge lists fields in the order they land and keeps that order,
        so the fields held here are the cursor: each poll asks only for the
        ones landed since, and a run of hundreds of fields is not carried
        whole three times a second. */
-    const landed = [];
+    const landed: FoundField[] = [];
     for (;;) {
-      const progress = await askedPatiently(`${OURS}/targets/discover?since=${landed.length}`);
-      onDoing?.(progress.running ? progress.doing : null);
+      const progress = await askedPatiently<RunProgress & {
+        doing?: string; phase?: unknown; objects?: number; fields?: FoundField[]; failed?: string[];
+      }>(`${OURS}/targets/discover?since=${landed.length}`);
+      onDoing?.(progress.running ? progress.doing ?? null : null);
       onProgress?.(progress.done, progress.of, {
         phase: progress.phase,
         objects: progress.objects ?? 0,
@@ -426,13 +447,17 @@ export const backend = {
   async scanOverview({
     positions, acquisition_type = "overview", state = null, onProgress,
     append = false, planned = null,
-  } = {}) {
+  }: {
+    positions: ScanPosition[]; acquisition_type?: string; state?: Record<string, unknown> | null;
+    onProgress?(done: number, of: number, at: { x: number; y: number; z: number | null } | null, records: CaptureRecord[]): void;
+    append?: boolean; planned?: unknown;
+  }) {
     await ask(`${OURS}/scan`, { positions, acquisition_type, state, append, planned });
     /* The records so far, kept here: each poll asks only for the ones that
        landed since, so a long scan is not carried whole three times a second. */
-    const records = [];
+    const records: CaptureRecord[] = [];
     for (;;) {
-      const progress = await askedPatiently(`${OURS}/scan?since=${records.length}`);
+      const progress = await askedPatiently<RunProgress>(`${OURS}/scan?since=${records.length}`);
       records.push(...(progress.records ?? []));
       /* Where the scan stood when it answered -- the last record's own plane,
          which is the only account of the stage that is already in hand. */
@@ -478,29 +503,35 @@ export const backend = {
    */
   async acquireTargets({
     positions, state = null, append = false, focus = null, zOffsetUm = 0, onProgress, onDoing,
-  } = {}) {
+  }: {
+    positions: TargetPosition[];
+    state?: Record<string, unknown> | null; append?: boolean;
+    focus?: TargetFocus | null; zOffsetUm?: number;
+    onProgress?(done: number, of: number, at: { x: number; y: number; z: number | null }, records: CaptureRecord[]): void;
+    onDoing?(doing: string | null): void;
+  }) {
     targetsStopAsked = false;
-    const { labels } = await ask(`${OURS}/targets/acquire/begin`, { positions, append });
+    const { labels } = await ask<{ labels: string[] }>(`${OURS}/targets/acquire/begin`, { positions, append });
     if (!focus && state) await ask(`${OURS}/state`, state);
-    const records = [];
+    const records: CaptureRecord[] = [];
     let stopped = false;
     try {
       for (const [index, position] of positions.entries()) {
         if (targetsStopAsked) { stopped = true; break; }
-        const say = (phase) => onDoing?.(`${phase} target ${index + 1} of ${positions.length}`);
+        const say = (phase: string) => onDoing?.(`${phase} target ${index + 1} of ${positions.length}`);
         const { x, y, z: zMap = null, focusAt = null } = position;
         /* The operator's offset rides on whatever height is chosen below:
            the map's, the peak's, or where the objective stood. */
-        const lifted = (z) => z + zOffsetUm;
-        let at = { x, y, ...(Number.isFinite(zMap) ? { z: lifted(zMap) } : {}) };
+        const lifted = (z: number) => z + zOffsetUm;
+        let at: Place = { x, y, ...(typeof zMap === "number" && Number.isFinite(zMap) ? { z: lifted(zMap) } : {}) };
         /* The stack is taken on the object's centre when the page names it,
            which need not be the middle of the tile imaged after it. */
         const focusXY = focusAt ?? { x, y };
         const focusMoves = focusXY.x !== x || focusXY.y !== y;
-        let found = null;
+        let found: { job: unknown; z_map_um: number | null; z_peak_um: number | null; found: boolean } | null = null;
         /* Where the objective stood for the stack: the height the target is
            taken at when the stack shows no peak, map or no map. */
-        let standing = null;
+        let standing: number | null = null;
         if (focus) {
           say("focussing on");
           if (focus.state) await ask(`${OURS}/state`, focus.state);
@@ -508,34 +539,34 @@ export const backend = {
              the offset is for the target, and is added once to the height
              chosen from the stack. Taken at the lifted height, a stack with
              no peak lifted the target a second time. */
-          const stood = await ask(`${OURS}/xyz`, {
-            x: focusXY.x, y: focusXY.y, ...(Number.isFinite(zMap) ? { z: zMap } : {}),
+          const stood = await ask<XyzReading>(`${OURS}/xyz`, {
+            x: focusXY.x, y: focusXY.y, ...(typeof zMap === "number" && Number.isFinite(zMap) ? { z: zMap } : {}),
           });
           standing = stood.z.position;
-          const stack = capturedBy(await ask(`${OURS}/acquire`, {
+          const stack = capturedBy(await ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, {
             folder: "target-focussing", position_label: labels[index], acquisition_settings: null,
           }));
-          const scored = await ask(`${OURS}/targets/acquire/focus`, {
+          const scored = await ask<{ traces?: Traces | null }>(`${OURS}/targets/acquire/focus`, {
             record: stack, centre: standing, x: focusXY.x, y: focusXY.y,
           });
           const curve = scored.traces?.[focus.metric];
           const peak = curve?.samples?.length ? pickPeak(findCandidates(curve.samples)) : null;
           found = {
-            job: focus.state?.job ?? null, z_map_um: Number.isFinite(zMap) ? zMap : null,
+            job: focus.state?.job ?? null, z_map_um: typeof zMap === "number" && Number.isFinite(zMap) ? zMap : null,
             z_peak_um: peak ? peak.z : null, found: peak !== null,
           };
           if (peak) at = { x, y, z: lifted(peak.z) };
-          else if (Number.isFinite(standing)) at = { x, y, z: lifted(standing) };
+          else if (standing !== null && Number.isFinite(standing)) at = { x, y, z: lifted(standing) };
           if (state) await ask(`${OURS}/state`, state);
         }
         say("imaging");
         /* Already standing there after a stack with no peak: no second drive. */
-        const stood = focus && !found.found && !focusMoves && !zOffsetUm
-          ? { z: { position: standing } } : await ask(`${OURS}/xyz`, at);
-        const record = capturedBy(await ask(`${OURS}/acquire`, {
+        const stood = focus && found && !found.found && !focusMoves && !zOffsetUm
+          ? { z: { position: standing as number } } : await ask<XyzReading>(`${OURS}/xyz`, at);
+        const record = capturedBy(await ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, {
           folder: "targets", position_label: labels[index], acquisition_settings: null,
         }));
-        const landed = await ask(`${OURS}/targets/acquire/landed`, {
+        const landed = await ask<CaptureRecord>(`${OURS}/targets/acquire/landed`, {
           record, position: { x, y, z: stood.z.position }, focus: found,
         });
         records.push(landed);
@@ -553,19 +584,19 @@ export const backend = {
    * each with its settings inline: the list is short and the files small,
    * so there is nothing to fetch a second time.
    */
-  async protocols(instrument = null) {
-    const { protocols } = await ask(`${OURS}/protocols`, instrument ? { instrument } : undefined);
+  async protocols(instrument: string | null = null) {
+    const { protocols } = await ask<{ protocols?: WrittenProtocol[] }>(`${OURS}/protocols`, instrument ? { instrument } : undefined);
     return protocols ?? [];
   },
 
   /** The run's settings, written as `protocol.json` into the run folder. */
-  async saveProtocol(protocol) {
+  async saveProtocol(protocol: Record<string, unknown>) {
     return ask(`${OURS}/protocol`, { protocol });
   },
 
   /** The settings saved by name into this machine's library, under ProgramData. */
-  async saveProtocolAs(protocol, name) {
-    return ask(`${OURS}/protocol/save`, { protocol, name });
+  async saveProtocolAs(protocol: Record<string, unknown>, name: string) {
+    return ask<{ id: string }>(`${OURS}/protocol/save`, { protocol, name });
   },
 
   /**
@@ -575,17 +606,21 @@ export const backend = {
    * lands; then every plot it wrote comes back as columns by id
    * (`{columns, ids, values}`), a UMAP bringing the components it stood on.
    */
-  async computePlot({ kind, ids = null, onDoing } = {}) {
+  async computePlot({ kind, ids = null, onDoing }: {
+    kind: string; ids?: unknown[] | null; onDoing?(doing: string | null): void;
+  }) {
     await ask(`${OURS}/plots/compute`, { kind, ids });
     for (;;) {
-      const progress = await askedPatiently(`${OURS}/plots/compute`);
-      onDoing?.(progress.running ? progress.doing : null);
+      const progress = await askedPatiently<RunProgress & {
+        doing?: string; kinds?: string[]; objects?: number; took_s?: number;
+      }>(`${OURS}/plots/compute`);
+      onDoing?.(progress.running ? progress.doing ?? null : null);
       if (!progress.running) {
         if (progress.error) throw new Error(progress.error);
         if (progress.stopped) return { stopped: true, columns: [] };
-        const columns = [];
+        const columns: PlotColumns[] = [];
         for (const one of progress.kinds ?? []) {
-          columns.push(await ask(`${OURS}/plots/columns?kind=${encodeURIComponent(one)}`));
+          columns.push(await ask<PlotColumns>(`${OURS}/plots/columns?kind=${encodeURIComponent(one)}`));
         }
         return { stopped: false, objects: progress.objects, seconds: progress.took_s, columns };
       }

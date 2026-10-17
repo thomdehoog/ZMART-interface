@@ -28,8 +28,23 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
+import type { ExpectStatic } from "vitest";
+import type { Backend, CaptureRecord, Span, XyzReading } from "./verbs.ts";
+
+/** One promise: a sentence, and the check that throws when it is broken. */
+export interface BackendPromise {
+  what: string;
+  keep(backend: Backend): Promise<void>;
+}
+
+/** The stage's extent along x and y, in micrometres. */
+interface Travel {
+  x: Span;
+  y: Span;
+}
+
 /** Micrometres per axis, out of the reading either backend answers with. */
-const um = (reading) => ({
+const um = (reading: XyzReading) => ({
   x: reading.x.position,
   y: reading.y.position,
   z: reading.z.position,
@@ -41,9 +56,9 @@ const um = (reading) => ({
  * than written down, because the two backends are two different instruments
  * and only one of them is pretend.
  */
-const somewhereElse = (from, travel) => {
-  const mid = (range) => (range[0] + range[1]) / 2;
-  const step = (range) => (range[1] - range[0]) / 6;
+const somewhereElse = (from: { x: number; y: number; z: number }, travel: Travel) => {
+  const mid = (range: Span) => (range[0] + range[1]) / 2;
+  const step = (range: Span) => (range[1] - range[0]) / 6;
   return {
     x: from.x > mid(travel.x) ? from.x - step(travel.x) : from.x + step(travel.x),
     y: from.y > mid(travel.y) ? from.y - step(travel.y) : from.y + step(travel.y),
@@ -58,18 +73,19 @@ const somewhereElse = (from, travel) => {
     the travel; every place a promise drives to is at least a tenth of the
     way in from either edge, which on any real stage is far more than half a
     field, so it is always inside the travel. */
-const theTravelOf = async (backend) => {
+const theTravelOf = async (backend: Backend): Promise<Travel> => {
   const at = await backend.get_xyz();
+  if (!at.x.canvas || !at.y.canvas) throw new Error("get_xyz says nothing of where its pictures can show");
   return { x: at.x.canvas, y: at.y.canvas };
 };
 
 /** A place a given fraction of the way across the travel. */
-const across = (travel, fx, fy) => ({
+const across = (travel: Travel, fx: number, fy: number) => ({
   x: travel.x[0] + fx * (travel.x[1] - travel.x[0]),
   y: travel.y[0] + fy * (travel.y[1] - travel.y[0]),
 });
 
-const spanOf = (travel) => [
+const spanOf = (travel: Travel): Span => [
   travel.x[1] - travel.x[0],
   travel.y[1] - travel.y[0],
 ];
@@ -81,18 +97,18 @@ const spanOf = (travel) => [
  * A check throws — through the caller's own `expect` — when the promise is
  * broken.
  */
-export function promisesOfABackend(expect) {
+export function promisesOfABackend(expect: ExpectStatic): BackendPromise[] {
   return [...promisesOfTheController(expect), ...promisesOfTargetAcquisition(expect)];
 }
 
 /** The controller's own verbs: connecting, the stage, the settings, a capture. */
-function promisesOfTheController(expect) {
+function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
   return [
     {
       what: "says where the stage is, in micrometres per axis",
       async keep(backend) {
         const at = await backend.get_xyz();
-        for (const axis of ["x", "y", "z"]) {
+        for (const axis of ["x", "y", "z"] as const) {
           expect(typeof at[axis].position, `${axis} is a number`).toBe("number");
           expect(Number.isFinite(at[axis].position), `${axis} is finite`).toBe(true);
         }
@@ -142,7 +158,8 @@ function promisesOfTheController(expect) {
         const menu = await backend.get_acquisition_settings();
         const named = Object.entries(menu);
         expect(named.length, "the instrument offers something").toBeGreaterThan(0);
-        for (const [name, spec] of named) {
+        for (const [name, offered] of named) {
+          const spec = offered as { active?: unknown; default?: unknown; options?: unknown };
           expect(spec, `${name} says what is chosen`).toHaveProperty("active");
           expect(spec, `${name} says what the driver chose to start with`).toHaveProperty("default");
           expect(spec, `${name} says what may be chosen`).toHaveProperty("options");
@@ -188,7 +205,8 @@ function promisesOfTheController(expect) {
         /* The controller's own answer, as a Python script receives it. */
         expect(Object.keys(answer).sort(), "the controller's two parts").toEqual(["content", "success"]);
         expect(answer.success).toBe(true);
-        const record = answer.content;
+        /* Succeeded, as just held: the content is the record. */
+        const record = answer.content as CaptureRecord;
         expect(record.position_label).toBe(label);
         /* `files` is the name the ZMART Controller's contract fixes for every
            file a capture saved; each plane's file is one of them. How a
@@ -197,11 +215,12 @@ function promisesOfTheController(expect) {
         expect(record.files).toEqual(expect.arrayContaining(record.planes.map((p) => p.path)));
         expect(record.images, "the old name is gone").toBeUndefined();
         for (const plane of record.planes) {
-          for (const key of ["t", "z", "c"]) {
+          for (const key of ["t", "z", "c"] as const) {
             expect(Number.isInteger(plane[key]) && plane[key] >= 0, `a plane counts its ${key} from 0`).toBe(true);
           }
-          for (const key of ["x_um", "y_um", "z_um"]) {
-            expect(plane[key] === null || Number.isFinite(plane[key]), `${key} is micrometres or unknown`).toBe(true);
+          for (const key of ["x_um", "y_um", "z_um"] as const) {
+            const value = plane[key];
+            expect(value === null || Number.isFinite(value), `${key} is micrometres or unknown`).toBe(true);
           }
         }
       },
@@ -209,7 +228,7 @@ function promisesOfTheController(expect) {
     {
       what: "says where its pictures can show, and what the session stands on",
       async keep(backend) {
-        const checks = [];
+        const checks: string[] = [];
         await backend.connect(
           { instrument: (await backend.instruments())[0] },
           { onChecks: (keys) => checks.push(...keys) },
@@ -220,15 +239,17 @@ function promisesOfTheController(expect) {
            nothing to say. Each axis says exactly its position, its unit, its
            motors and its canvas; the travel stays inside the driver. */
         const at = await backend.get_xyz();
-        for (const axis of ["x", "y", "z"]) {
+        for (const axis of ["x", "y", "z"] as const) {
           expect(Object.keys(at[axis]).sort(), `${axis} reads position, unit, actuators and canvas`)
             .toEqual(["actuators", "canvas", "position", "unit"]);
           const { canvas } = at[axis];
           expect(Array.isArray(canvas) && canvas.length === 2, `${axis} has a canvas`).toBe(true);
-          expect(canvas[0], `${axis}'s canvas runs low to high`).toBeLessThanOrEqual(canvas[1]);
+          const [low, high] = canvas as Span;
+          expect(low, `${axis}'s canvas runs low to high`).toBeLessThanOrEqual(high);
         }
-        for (const axis of ["x", "y"]) {
-          expect(at[axis].canvas[1], `${axis}'s canvas spans something`).toBeGreaterThan(at[axis].canvas[0]);
+        for (const axis of ["x", "y"] as const) {
+          const [low, high] = at[axis].canvas as Span;
+          expect(high, `${axis}'s canvas spans something`).toBeGreaterThan(low);
         }
         expect(checks.length, "the checks are named as they are asked").toBeGreaterThan(0);
         await backend.disconnect();
@@ -243,12 +264,13 @@ function promisesOfTheController(expect) {
         const travel = await theTravelOf(backend);
         const going = across(travel, 0.5, 0.5);
         await backend.set_xyz({ ...going, z: um(await backend.get_xyz()).z });
-        const { content: record } = await backend.acquire({
+        const { content } = await backend.acquire({
           folder: "overview", position_label: "contract",
         });
+        const record = content as CaptureRecord;
         expect(record.planes.length, "a capture has planes").toBeGreaterThan(0);
         for (const plane of record.planes) {
-          for (const key of ["t", "c", "z"]) {
+          for (const key of ["t", "c", "z"] as const) {
             expect(typeof plane[key], `${key} is a number`).toBe("number");
           }
           expect(typeof plane.path, "a plane names its file").toBe("string");
@@ -275,7 +297,7 @@ function promisesOfTheController(expect) {
 }
 
 /** This workflow's own verbs: the focus map, the scans, the targets. */
-function promisesOfTargetAcquisition(expect) {
+function promisesOfTargetAcquisition(expect: ExpectStatic): BackendPromise[] {
   return [
     {
       what: "measures a focus point and reports a height for it",
@@ -321,7 +343,7 @@ function promisesOfTargetAcquisition(expect) {
            never all at once up front. */
         const travel = await theTravelOf(backend);
         const asked = [across(travel, 0.2, 0.2), across(travel, 0.3, 0.3), across(travel, 0.4, 0.4)];
-        const happened = [];
+        const happened: string[] = [];
         await backend.measureFocus(asked, {
           metric: "brenner", extent: spanOf(travel),
           beginAt: (index) => { happened.push(`begin ${index}`); return undefined; },
@@ -342,7 +364,7 @@ function promisesOfTargetAcquisition(expect) {
            the backend's job because only its records know where it stood. */
         const travel = await theTravelOf(backend);
         const positions = [across(travel, 0.4, 0.4), across(travel, 0.6, 0.6)];
-        const stood = [];
+        const stood: { x: number; y: number; z: number | null }[] = [];
         await backend.scanOverview({
           positions, ms: 200,
           onProgress: (done, of, at) => { if (at) stood.push(at); },

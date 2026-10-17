@@ -8,39 +8,42 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PENDING } from "../microscope/connection-status.ts";
-import { backend } from "./live.js";
+import { backend } from "./live.ts";
+import { aBridge, ok } from "../testing/fake-bridge.ts";
 
-/** A bridge whose `get_info` answers walk through `statuses`, one per poll. */
-function bridgeAnswering(statuses) {
+/** A bridge whose `get_info` answers walk through `statuses`, one per poll;
+    its stage answers a read at 1, 2, 3 and a drive where it was sent. */
+function bridgeAnswering(statuses: Record<string, string>[]) {
   let polls = 0;
-  const calls = [];
-  globalThis.fetch = vi.fn(async (url) => {
-    calls.push(url);
-    if (url.endsWith("/api/target_acquisition/connect")) {
-      return { ok: true, json: async () => ({ context: {}, info: {} }) };
-    }
-    if (url.endsWith("/api/target_acquisition/info")) {
+  const sent: { method?: string; body: unknown }[] = [];
+  const { calls } = aBridge((route, body, url, init) => {
+    if (route === "/api/target_acquisition/connect") return ok({ context: {}, info: {} });
+    if (route === "/api/target_acquisition/info") {
       const status = statuses[Math.min(polls, statuses.length - 1)];
       polls += 1;
-      return { ok: true, json: async () => ({ connection_status: status, setup: { saving: { done: true, says: "D:/runs" } } }) };
+      return ok({ connection_status: status, setup: { saving: { done: true, says: "D:/runs" } } });
+    }
+    if (route === "/api/target_acquisition/xyz" && !body) return ok({ x: { position: 1 }, y: { position: 2 }, z: { position: 3 } });
+    if (route === "/api/target_acquisition/xyz") {
+      sent.push({ method: init?.method, body });
+      return ok({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z } });
     }
     throw new Error(`unexpected ${url}`);
   });
-  return calls;
+  return { calls, sent };
 }
 
 describe("the live connect", () => {
-  const realFetch = globalThis.fetch;
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => { vi.useRealTimers(); globalThis.fetch = realFetch; });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   it("puts the keys up first, answers each once, and resolves with the info when none is pending", async () => {
-    const calls = bridgeAnswering([
+    const { calls } = bridgeAnswering([
       { driver: "mock", client: PENDING, stage: PENDING },
       { driver: "mock", client: "mock-client", stage: PENDING },
       { driver: "mock", client: "mock-client", stage: "x 0 · y 0" },
     ]);
-    const seen = { keys: null, answers: [] };
+    const seen: { keys: string[] | null; answers: [number, string][] } = { keys: null, answers: [] };
     const done = backend.connect({ instrument: "mock" }, {
       onChecks: (keys) => { seen.keys = keys; },
       onCheck: (k, value) => { seen.answers.push([k, value]); },
@@ -49,8 +52,8 @@ describe("the live connect", () => {
     const { info } = await done;
     expect(seen.keys).toEqual(["driver", "client", "stage"]);
     expect(seen.answers).toEqual([[0, "mock"], [1, "mock-client"], [2, "x 0 · y 0"]]);
-    expect(info.setup.saving.says).toBe("D:/runs");
-    expect(calls.filter((u) => u.endsWith("/api/target_acquisition/info"))).toHaveLength(3);
+    expect(info).toMatchObject({ setup: { saving: { says: "D:/runs" } } });
+    expect(calls.filter(([route]) => route === "/api/target_acquisition/info")).toHaveLength(3);
   });
 
   it("rejects naming the check that failed, after showing it", async () => {
@@ -58,41 +61,30 @@ describe("the live connect", () => {
       { driver: "mock", storage: PENDING },
       { driver: "mock", storage: "failed — not writable" },
     ]);
-    const answers = [];
+    const answers: [number, string][] = [];
     const done = backend.connect({ instrument: "mock" }, { onCheck: (k, v) => answers.push([k, v]) });
-    const outcome = done.catch((why) => why);
+    const outcome = done.catch((why: unknown) => why);
     await vi.runAllTimersAsync();
     const why = await outcome;
     expect(why).toBeInstanceOf(Error);
-    expect(why.message).toBe("storage: failed — not writable");
+    expect((why as Error).message).toBe("storage: failed — not writable");
     expect(answers).toEqual([[0, "mock"], [1, "failed — not writable"]]);
   });
 
   it("asks the bridge for info and xyz by their routes", async () => {
-    const calls = bridgeAnswering([{ driver: "mock" }]);
-    globalThis.fetch.mockImplementationOnce(async (url) => {
-      calls.push(url);
-      return { ok: true, json: async () => ({ x: { position: 1 }, y: { position: 2 }, z: { position: 3 } }) };
-    });
+    const { calls } = bridgeAnswering([{ driver: "mock" }]);
     const xyz = await backend.get_xyz();
     expect(xyz.x.position).toBe(1);
-    expect(calls.at(-1)).toMatch(/\/api\/target_acquisition\/xyz$/);
+    expect(calls.at(-1)?.[0]).toBe("/api/target_acquisition/xyz");
   });
 
   it("drives the stage through the same route, as a post", async () => {
-    const calls = bridgeAnswering([{ driver: "mock" }]);
-    let sent = null;
-    globalThis.fetch.mockImplementationOnce(async (url, how) => {
-      calls.push(url);
-      sent = { method: how?.method, body: JSON.parse(how?.body ?? "null") };
-      return { ok: true, json: async () => ({ x: { position: 900 }, y: { position: 800 }, z: { position: 7 } }) };
-    });
+    const { calls, sent } = bridgeAnswering([{ driver: "mock" }]);
     /* The controller's two verbs on one noun: `get_xyz` reads it, `set_xyz`
        drives it, and the method is what says which. */
     const at = await backend.set_xyz({ x: 900, y: 800, z: 7 });
-    expect(calls.at(-1)).toMatch(/\/api\/target_acquisition\/xyz$/);
-    expect(sent.method).toBe("POST");
-    expect(sent.body).toEqual({ x: 900, y: 800, z: 7 });
+    expect(calls.at(-1)?.[0]).toBe("/api/target_acquisition/xyz");
+    expect(sent).toEqual([{ method: "POST", body: { x: 900, y: 800, z: 7 } }]);
     /* Answered with where the stage ended up, not with what was asked for. */
     expect(at.x.position).toBe(900);
   });

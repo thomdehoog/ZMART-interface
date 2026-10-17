@@ -17,8 +17,8 @@ import { canvasPanel } from "./canvas/panel.js";
    the mock or a real microscope — is chosen on the Connect step. The
    in-browser rehearsal (timers and a synthetic sample) is reachable only by
    `?backend=pretend`, for this page's own browser tests. */
-import { backend as live } from "./backend/live.js";
-import { backend as pretend } from "./backend/pretend.js";
+import { backend as live } from "./backend/live.ts";
+import { backend as pretend } from "./backend/pretend.ts";
 import { installTargetAcquisition } from "./on-the-page.js";
 import { steps as theRun } from "./the-run.js";
 

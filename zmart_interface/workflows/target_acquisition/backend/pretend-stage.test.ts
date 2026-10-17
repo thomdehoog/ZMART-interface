@@ -9,9 +9,10 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { backend } from "./pretend.js";
+import { backend } from "./pretend.ts";
+import type { XyzReading } from "./verbs.ts";
 
-const um = (reading) => ({
+const um = (reading: XyzReading) => ({
   x: reading.x.position, y: reading.y.position, z: reading.z.position,
 });
 

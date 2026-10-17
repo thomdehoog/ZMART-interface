@@ -5,39 +5,39 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { backend } from "./live.js";
+import { backend } from "./live.ts";
+import { aBridge, ok, refused, type Answer, type Parsed } from "../testing/fake-bridge.ts";
 
-/** A bridge that finds the tissue 10 µm below wherever each stack began. */
-function bridgeMeasuringFocus() {
-  const drives = [];
-  globalThis.fetch = vi.fn(async (url, init) => {
-    const route = url.replace(/^http:\/\/[^/]+/, "");
-    const body = init?.body ? JSON.parse(init.body) : null;
-    const answer = (json) => ({ ok: true, json: async () => json });
+/** A bridge that finds the tissue 10 µm below wherever each stack began.
+    `first` may answer a route before it does, for a bridge that refuses or hangs. */
+function bridgeMeasuringFocus(first: (route: string) => Answer | Promise<Answer | undefined> | undefined = () => undefined) {
+  const drives: Parsed[] = [];
+  const { calls } = aBridge(async (route, body) => {
+    const instead = await first(route);
+    if (instead) return instead;
     if (route === "/api/target_acquisition/focus/begin") {
-      return answer({ labels: Array.from({ length: body.of }, (_, i) => `P${i}`) });
+      return ok({ labels: Array.from({ length: body.of }, (_, i) => `P${i}`) });
     }
     if (route === "/api/target_acquisition/xyz") {
       drives.push(body);
-      return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
+      return ok({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
     }
-    if (route === "/api/target_acquisition/acquire") return answer({ success: true, content: { position_label: body.position_label } });
+    if (route === "/api/target_acquisition/acquire") return ok({ success: true, content: { position_label: body.position_label } });
     if (route === "/api/target_acquisition/focus/score") {
-      return answer({ ...body.point, z: body.centre - 10, zAuto: body.centre - 10, lost: false });
+      return ok({ ...body.point, z: body.centre - 10, zAuto: body.centre - 10, lost: false });
     }
-    if (route === "/api/target_acquisition/focus/end") return answer({});
+    if (route === "/api/target_acquisition/focus/end") return ok({});
     throw new Error(`unexpected ${route}`);
   });
-  return drives;
+  return { drives, calls };
 }
 
 describe("the live focus map", () => {
-  const realFetch = globalThis.fetch;
-  afterEach(() => { globalThis.fetch = realFetch; });
+  afterEach(() => { vi.unstubAllGlobals(); });
 
   it("begins each search where beginAt says, over the point's own startZ", async () => {
-    const drives = bridgeMeasuringFocus();
-    const found = [];
+    const { drives } = bridgeMeasuringFocus();
+    const found: (number | null)[] = [];
     await backend.measureFocus(
       [{ x: 1, y: 1, startZ: -50 }, { x: 2, y: 2, startZ: -50 }, { x: 3, y: 3, startZ: -50 }],
       {
@@ -55,11 +55,9 @@ describe("the live focus map", () => {
     /* The review of 10 October, finding 6: the reason went to the console,
        which the window does not show, and the point then read as a search
        that found no peak. */
-    bridgeMeasuringFocus();
-    const inner = globalThis.fetch;
-    globalThis.fetch = async (url, init) => (url.endsWith("/api/target_acquisition/xyz")
-      ? { ok: false, json: async () => ({ error: "the stage cannot go beyond its travel" }) }
-      : inner(url, init));
+    bridgeMeasuringFocus((route) => (route === "/api/target_acquisition/xyz"
+      ? refused(409, { error: "the stage cannot go beyond its travel" })
+      : undefined));
     const { points } = await backend.measureFocus([{ x: 1, y: 1 }], { metric: "brenner" });
     expect(points[0]).toMatchObject({ lost: true, z: null, refused: "the stage cannot go beyond its travel" });
   });
@@ -69,35 +67,31 @@ describe("the live focus map", () => {
        analysis down, which makes the hung score answer with an error; that
        point was cut off by the operator's own hand, so it is not a "lost"
        point with the microscope's reason, it is simply not measured. */
-    bridgeMeasuringFocus();
-    const inner = globalThis.fetch;
-    let release;
-    const asked = [];
-    globalThis.fetch = async (url, init) => {
-      const route = url.replace(/^http:\/\/[^/]+/, "");
-      asked.push(route);
+    let release: (() => void) | null = null;
+    const { calls } = bridgeMeasuringFocus(async (route) => {
       if (route === "/api/target_acquisition/focus/score") {
-        await new Promise((resolve) => { release = resolve; });
-        return { ok: false, json: async () => ({ error: "Engine has been shut down" }) };
+        await new Promise<void>((resolve) => { release = resolve; });
+        return refused(500, { error: "Engine has been shut down" });
       }
       if (route === "/api/target_acquisition/focus/stop") {
-        release();
-        return { ok: true, json: async () => ({ running: true }) };
+        release?.();
+        return ok({ running: true });
       }
-      return inner(url, init);
-    };
+      return undefined;
+    });
+    const asked = () => calls.map(([route]) => route);
     const run = backend.measureFocus([{ x: 1, y: 1 }, { x: 2, y: 2 }], { metric: "brenner" });
     while (!release) await new Promise((resolve) => setTimeout(resolve, 1));
     await backend.stopFocusMeasure();
     const { points, stopped } = await run;
-    expect(asked).toContain("/api/target_acquisition/focus/stop");
+    expect(asked()).toContain("/api/target_acquisition/focus/stop");
     expect(stopped).toBe(true);
     expect(points).toEqual([]);
-    expect(asked.filter((route) => route === "/api/target_acquisition/xyz")).toHaveLength(1);
+    expect(asked().filter((route) => route === "/api/target_acquisition/xyz")).toHaveLength(1);
   });
 
   it("keeps the point's own startZ when beginAt has no answer", async () => {
-    const drives = bridgeMeasuringFocus();
+    const { drives } = bridgeMeasuringFocus();
     await backend.measureFocus([{ x: 1, y: 1, startZ: -50 }, { x: 2, y: 2 }], {
       metric: "brenner", beginAt: () => undefined,
     });

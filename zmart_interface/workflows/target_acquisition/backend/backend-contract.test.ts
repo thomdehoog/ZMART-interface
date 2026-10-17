@@ -6,7 +6,7 @@
  * this at it:
  *
  *     python -m zmart_interface.framework.bridge --port 8600
- *     BACKEND_BRIDGE=http://127.0.0.1:8600 npx vitest run zmart_interface/workflows/target_acquisition/backend/backend-contract.test.js
+ *     BACKEND_BRIDGE=http://127.0.0.1:8600 npx vitest run zmart_interface/workflows/target_acquisition/backend/backend-contract.test.ts
  *
  * With the mock microscope behind that bridge it is a full round of the real path
  * — controller, driver contract — and the two answers are held
@@ -17,10 +17,11 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import { beforeAll, describe, expect, it } from "vitest";
-import { promisesOfABackend } from "./backend-contract.js";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { promisesOfABackend } from "./backend-contract.ts";
 import { isTheMock } from "../microscope/instruments.ts";
-import { backend as pretend } from "./pretend.js";
+import { backend as pretend } from "./pretend.ts";
+import type { Backend } from "./verbs.ts";
 
 const promises = promisesOfABackend(expect);
 
@@ -37,15 +38,15 @@ describe("the pretend backend keeps the page's promises", () => {
 const bridgeAt = process.env.BACKEND_BRIDGE;
 
 describe.skipIf(!bridgeAt)("the live backend keeps the same promises", () => {
-  let live = null;
+  let live: Backend;
 
   beforeAll(async () => {
-    /* `live.js` reads the bridge's address off the page's own address, which
+    /* `live.ts` reads the bridge's address off the page's own address, which
        is how an operator points it somewhere during development. There is no
        page here, so it is given one. */
-    globalThis.location = { search: `?bridge=${bridgeAt}`, protocol: "http:" };
+    vi.stubGlobal("location", { search: `?bridge=${bridgeAt}`, protocol: "http:" });
     ({ backend: live } = await import(
-      "./live.js"
+      "./live.ts"
     ));
     /* Nothing answers before a session is open, and which instrument is
        opened is not left to the order the list happens to give them in.

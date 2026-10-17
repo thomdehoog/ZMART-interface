@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   THE_MOCK, choicesFrom, describeSession, isTheMock, theMockAmong,
 } from "./instruments.ts";
-import { pretendInstruments } from "../backend/pretend.js";
+import { pretendInstruments } from "../backend/pretend.ts";
 
 describe("choicesFrom", () => {
   it("offers one microscope per listed name, in list order", () => {

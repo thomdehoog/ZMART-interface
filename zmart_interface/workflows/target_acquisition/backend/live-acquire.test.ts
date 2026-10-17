@@ -5,26 +5,26 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { backend } from "./live.js";
+import { backend } from "./live.ts";
+import { aBridge, ok, theFirstTo } from "../testing/fake-bridge.ts";
 
 /* A curve with one clear peak at 12 µm, as the bridge's scorer answers. */
-const curveAt = (peak) => ({
+const curveAt = (peak: number) => ({
   samples: [-4, -2, 0, 2, 4].map((dz) => ({ z: peak + dz, s: 1 - Math.abs(dz) / 5 })),
 });
 
 /** A bridge that answers every route of the run and keeps the calls. */
-function bridgeTakingTargets({ peak = 12, curve = true, declining = false } = {}) {
-  const calls = [];
+function bridgeTakingTargets({ peak = 12, curve = true, declining = false, standsAt = null as number | null } = {}) {
   let landed = 0;
-  globalThis.fetch = vi.fn(async (url, init) => {
-    const route = url.replace(/^http:\/\/[^/]+/, "");
-    const body = init?.body ? JSON.parse(init.body) : null;
-    calls.push([route, body]);
-    const answer = (json) => ({ ok: true, json: async () => json });
+  const answer = ok;
+  const { calls } = aBridge((route, body) => {
     if (route === "/api/target_acquisition/targets/acquire/begin") {
-      return answer({ running: true, labels: body.positions.map((_, i) => `L${i}`) });
+      return answer({ running: true, labels: body.positions.map((_: unknown, i: number) => `L${i}`) });
     }
-    if (route === "/api/target_acquisition/xyz") return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
+    /* Where the stage says it stood: where it was sent, or a height of its own. */
+    if (route === "/api/target_acquisition/xyz") {
+      return answer({ x: { position: body.x }, y: { position: body.y }, z: { position: standsAt ?? body.z ?? 0 } });
+    }
     if (route === "/api/target_acquisition/state") return answer({ applied: body });
     if (route === "/api/target_acquisition/acquire") {
       if (declining) return answer({ success: false, content: { reason: "the laser is off", files: [], planes: [] } });
@@ -43,12 +43,11 @@ function bridgeTakingTargets({ peak = 12, curve = true, declining = false } = {}
 const positions = [{ x: 10, y: 20, z: 5, position_index: 0 }, { x: 30, y: 40, z: 6, position_index: 1 }];
 
 describe("the live target run", () => {
-  const realFetch = globalThis.fetch;
-  afterEach(() => { globalThis.fetch = realFetch; });
+  afterEach(() => { vi.unstubAllGlobals(); });
 
   it("drives, captures and lands each tile, applying the target job once", async () => {
     const calls = bridgeTakingTargets();
-    const seen = [];
+    const seen: unknown[][] = [];
     const out = await backend.acquireTargets({
       positions, state: { job: "Target" },
       onProgress: (done, of, at, records) => seen.push([done, of, at?.z, records.length]),
@@ -72,7 +71,7 @@ describe("the live target run", () => {
 
   it("focusses first when asked: the stack under the focussing job, the target at the peak", async () => {
     const calls = bridgeTakingTargets({ peak: 12 });
-    const said = [];
+    const said: (string | null)[] = [];
     await backend.acquireTargets({
       positions: positions.slice(0, 1), state: { job: "Target" },
       focus: { state: { job: "Focussing" }, metric: "brenner" },
@@ -105,7 +104,7 @@ describe("the live target run", () => {
     });
     const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body);
     expect(drives).toEqual([{ x: 14, y: 23, z: 5 }, { x: 10, y: 20, z: 12 }]);
-    const scored = calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/focus")[1];
+    const scored = theFirstTo(calls, "/api/target_acquisition/targets/acquire/focus");
     expect(scored).toMatchObject({ x: 14, y: 23 });
   });
 
@@ -127,7 +126,7 @@ describe("the live target run", () => {
     });
     const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body.z);
     expect(drives).toEqual([5]);
-    const landed = calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/landed")[1];
+    const landed = theFirstTo(calls, "/api/target_acquisition/targets/acquire/landed");
     expect(landed.position.z).toBe(5);
     expect(landed.focus).toEqual({ job: "Focussing", z_map_um: 5, z_peak_um: null, found: false });
   });
@@ -136,20 +135,12 @@ describe("the live target run", () => {
     /* A tile with no height from the map is driven to at the objective's
        standing height; a stack there with no peak leaves it there, and the
        record carries that height, not nothing. */
-    const calls = bridgeTakingTargets({ curve: false });
-    globalThis.fetch = ((inner) => async (url, init) => {
-      if (url.endsWith("/api/target_acquisition/xyz")) {
-        const body = JSON.parse(init.body);
-        calls.push(["/api/target_acquisition/xyz", body]);
-        return { ok: true, json: async () => ({ x: { position: body.x }, y: { position: body.y }, z: { position: 33 } }) };
-      }
-      return inner(url, init);
-    })(globalThis.fetch);
+    const calls = bridgeTakingTargets({ curve: false, standsAt: 33 });
     await backend.acquireTargets({
       positions: [{ x: 10, y: 20, position_index: 0 }], state: { job: "Target" },
       focus: { state: { job: "Focussing" }, metric: "brenner" },
     });
-    const landed = calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/landed")[1];
+    const landed = theFirstTo(calls, "/api/target_acquisition/targets/acquire/landed");
     expect(landed.position.z).toBe(33);
     expect(landed.focus).toEqual({ job: "Focussing", z_map_um: null, z_peak_um: null, found: false });
   });
@@ -166,7 +157,7 @@ describe("the live target run", () => {
     });
     const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body.z);
     expect(drives).toEqual([100, 105]);
-    const landed = calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/landed")[1];
+    const landed = theFirstTo(calls, "/api/target_acquisition/targets/acquire/landed");
     expect(landed.position.z).toBe(105);
   });
 
@@ -178,7 +169,7 @@ describe("the live target run", () => {
     });
     const drives = calls.filter(([route]) => route === "/api/target_acquisition/xyz").map(([, body]) => body.z);
     expect(drives).toEqual([5, 17]);
-    expect(calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/focus")[1]).toMatchObject({ centre: 5 });
+    expect(theFirstTo(calls, "/api/target_acquisition/targets/acquire/focus")).toMatchObject({ centre: 5 });
   });
 
   it("adds the offset to the map's height when there is no focussing", async () => {
@@ -191,7 +182,7 @@ describe("the live target run", () => {
   it("lands the capture's content, not the controller's envelope around it", async () => {
     const calls = bridgeTakingTargets();
     await backend.acquireTargets({ positions: positions.slice(0, 1), state: null });
-    const landed = calls.find(([route]) => route === "/api/target_acquisition/targets/acquire/landed")[1];
+    const landed = theFirstTo(calls, "/api/target_acquisition/targets/acquire/landed");
     expect(landed.record).toEqual({ position_label: "L0" });
   });
 
@@ -200,7 +191,7 @@ describe("the live target run", () => {
     await expect(backend.acquireTargets({ positions, state: null }))
       .rejects.toThrow("the microscope could not capture an image: the laser is off");
     expect(calls.some(([route]) => route === "/api/target_acquisition/targets/acquire/landed")).toBe(false);
-    expect(calls.at(-1)[0]).toBe("/api/target_acquisition/targets/acquire/end");
+    expect(calls.at(-1)?.[0]).toBe("/api/target_acquisition/targets/acquire/end");
   });
 
   it("stops after the tile in hand, and ends the run as stopped", async () => {

@@ -6,7 +6,7 @@
  * nothing. During development the Vite server holds the page instead, and
  * `?bridge=http://127.0.0.1:8600` on the page's address says where the
  * bridge is. One fact, read once: target acquisition's microscope seam
- * (`backend/live.js`) and the framework's loader of installed workflows both ask it,
+ * (`backend/live.ts`) and the framework's loader of installed workflows both ask it,
  * and two copies of a fact drift apart in silence.
  */
 

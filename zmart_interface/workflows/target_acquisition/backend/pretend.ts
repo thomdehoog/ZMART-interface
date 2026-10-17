@@ -37,11 +37,14 @@ import { sampleReading } from "../microscope/settings.ts";
 import { makeRng } from "../microscope/pretend-sample/rng.ts";
 import { sweep } from "../microscope/pretend-sample/sweep.ts";
 import { METRIC_KEYS } from "../shared/focus-curves.js";
+import type {
+  Backend, CaptureRecord, FocusAsk, FocusPoint, FoundField, ScanPosition, Traces, WrittenProtocol, XyzReading,
+} from "./verbs.ts";
 
 /** A pause, for the pretend instrument's timers. */
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const writtenProtocols = [];
+const writtenProtocols: WrittenProtocol[] = [];
 
 
 /** How long a pretend tile test segments for: a moment a hand can reach. */
@@ -55,29 +58,29 @@ const frame = globalThis.requestAnimationFrame ?? ((tick) => setTimeout(tick, 16
 /* The pretend sample is not flat and not level: a gentle tilt across the
    carrier, the same surface wherever the plan decides to look at it. This is
    the mock's knowledge of the world — the page never computes it, it asks. */
-const focusZAt = (x, y, [w, h]) =>
+const focusZAt = (x: number, y: number, [w, h]: [number, number]) =>
   -412 + 96 * (x / w - 0.5) + 61 * (y / h - 0.5);
 
 /** Where on the sample a capture is, in the workflow's own label: the same
  *  five fields the bridge composes, so a run reads alike either way. */
-const labelFor = (index, position = {}) => {
-  const pad = (value, width) => String(value ?? 0).padStart(width, "0");
+const labelFor = (index: number, position: Partial<ScanPosition> = {}) => {
+  const pad = (value: number | undefined, width: number) => String(value ?? 0).padStart(width, "0");
   return `K${pad(position.carrier, 2)}_M${pad(position.compartment, 6)}`
     + `_G${pad(position.group, 6)}_P${pad(index, 6)}_V${pad(position.view, 2)}`;
 };
 
 /* The positions each kind of scan was asked for, as the bridge keeps each
    scan's records: what discovery is over, once there has been an overview. */
-const scanned = {};
+const scanned: Record<string, ScanPosition[]> = {};
 
 /* The operator's hand on the brake, as the bridge keeps it: set by the stop
    verbs, read by the pretend runs between two fields. */
 const stopAsked = { scan: false, focus: false, targets: false, acquire: false, plot: false };
 
 /* Every object discovery found, by id: what a plot of every candidate is over. */
-let discovered = [];
+let discovered: string[] = [];
 
-export const backend = {
+export const backend: Backend = {
   /**
    * No pictures: this backend acquires nothing, so there is nothing to fetch.
    *
@@ -110,7 +113,7 @@ export const backend = {
   async disconnect() {},
 
   async connect(session, { onChecks, onCheck } = {}) {
-    const status = pretendConnectionStatus(session);
+    const status = pretendConnectionStatus(session ?? {});
     const keys = Object.keys(status);
     onChecks?.(keys);
     await Promise.all(keys.map((key, k) =>
@@ -143,7 +146,7 @@ export const backend = {
   async set_xyz({ x, y, z }) {
     await wait(220);
     const to = { x: x ?? where.x, y: y ?? where.y, z: z ?? where.z };
-    for (const axis of ["x", "y", "z"]) {
+    for (const axis of ["x", "y", "z"] as const) {
       const [low, high] = TRAVEL_RANGE_UM[axis];
       if (to[axis] < low || to[axis] > high) {
         throw new Error(`${axis} = ${to[axis]} um is outside the stage's travel [${low}, ${high}] um`);
@@ -181,12 +184,13 @@ export const backend = {
    */
   async set_state(settings) {
     await wait(160);
-    const applied = {};
+    const applied: Record<string, unknown> = {};
     if ("job" in settings) {
-      if (!JOBS.includes(settings.job)) {
-        throw new Error(`unknown job '${settings.job}'; have ${JOBS.join(", ")}`);
+      const job = settings.job;
+      if (typeof job !== "string" || !JOBS.includes(job)) {
+        throw new Error(`unknown job '${job}'; have ${JOBS.join(", ")}`);
       }
-      chosenJob = settings.job;
+      chosenJob = job;
       applied.job = chosenJob;
     }
     return { applied };
@@ -257,11 +261,11 @@ export const backend = {
    * is a fraction of the plate, so the mock needs to know how big the plate
    * is. The live backend ignores it — a real sample has its own tilt.
    */
-  async measureFocus(points, { metric, extent, onPoint, state, beginAt } = {}) {
+  async measureFocus(points, { metric = "brenner", extent = [1, 1] as [number, number], onPoint, state, beginAt } = {}) {
     void state; // the pretend instrument has no configuration to reapply
     stopAsked.focus = false;
     await wait(200);
-    const measured = [];
+    const measured: FocusPoint[] = [];
     for (const [index, p] of points.entries()) {
       /* Between two points, as the bridge stops: what was measured stands.
          The gap is a yield, not a pause — long enough for a stop press to
@@ -274,7 +278,7 @@ export const backend = {
     }
     return { points: measured, stopped: false };
 
-    function measureOne(p, index) {
+    function measureOne(p: FocusAsk, index: number): FocusPoint {
       const focusZ = focusZAt(p.x, p.y, extent);
       /* Where this search begins. The objective is driven there and swept about
          it, so running the map again from wherever the stage is standing is a
@@ -283,9 +287,9 @@ export const backend = {
          first has no idea. Said nothing, the objective arrives near the tissue
          by luck, which is the best a first run can claim. */
       const chosen = beginAt?.(index);
-      const startZ = Number.isFinite(chosen) ? chosen
-        : Number.isFinite(p.startZ) ? p.startZ : undefined;
-      const traces = Object.fromEntries(METRIC_KEYS.map((key) => {
+      const startZ = typeof chosen === "number" && Number.isFinite(chosen) ? chosen
+        : typeof p.startZ === "number" && Number.isFinite(p.startZ) ? p.startZ : undefined;
+      const traces: Traces = Object.fromEntries(METRIC_KEYS.map((key: string) => {
         const sw = sweep({ focusZ, index, metric: key, startZ });
         return [key, { samples: sw.samples }];
       }));
@@ -299,14 +303,14 @@ export const backend = {
          choose for itself, so the live path chose differently and a speck of
          dust won a point unflagged. */
       const tallest = traces[metric].samples.reduce((a, q) => (q.s > a.s ? q : a));
-      return { ...was, z: p.manual ? p.z : tallest.z, zAuto: tallest.z, lost: false, traces };
+      return { ...was, z: p.manual ? p.z ?? null : tallest.z, zAuto: tallest.z, lost: false, traces };
     }
   },
 
   /** The operator's Interrupt for the focus run, as the bridge offers it. */
   async stopFocusMeasure() {
     stopAsked.focus = true;
-    return {};
+    return { stopped: true };
   },
 
   /**
@@ -319,17 +323,17 @@ export const backend = {
   async scanOverview({
     positions, acquisition_type = "overview", ms = 2600, onProgress, state,
     append = false, planned = null,
-  } = {}) {
+  }) {
     void state;
     void append;
     void planned;
     stopAsked.scan = false;
     scanned[acquisition_type] = positions;
     const total = positions.length;
-    const records = [];
+    const records: CaptureRecord[] = [];
     const started = performance.now();
     let stopped = false;
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
       const tick = () => {
         /* Between two fields, as the bridge stops: what landed stands. */
         if (stopAsked.scan) { stopped = true; resolve(); return; }
@@ -379,27 +383,28 @@ export const backend = {
    */
   async acquireTargets({
     positions, state = null, append = false, focus = null, ms = 2600, onProgress, onDoing, zOffsetUm = 0,
-} = {}) {
+  }) {
     void state;
     void append;
     stopAsked.acquire = false;
     scanned.targets = positions;
-    const records = [];
+    const records: CaptureRecord[] = [];
     let stopped = false;
     for (const [index, p] of positions.entries()) {
       if (stopAsked.acquire) { stopped = true; break; }
-      const say = (phase) => onDoing?.(`${phase} target ${index + 1} of ${positions.length}`);
+      const say = (phase: string) => onDoing?.(`${phase} target ${index + 1} of ${positions.length}`);
       let z = p.z ?? null;
-      let found = null;
+      let found: { job: unknown; z_map_um: number | null; z_peak_um: number | null; found: boolean } | null = null;
       if (focus) {
         say("focussing on");
         const { points } = await this.measureFocus([{ x: (p.focusAt ?? p).x, y: (p.focusAt ?? p).y, startZ: z ?? undefined }],
           { metric: focus.metric, extent: focus.extent ?? [1, 1] });
         const [got] = points;
-        found = { job: focus.state?.job ?? null, z_map_um: z, z_peak_um: got?.zAuto ?? null, found: Number.isFinite(got?.zAuto) };
-        if (found.found) z = got.zAuto;
+        const peak = got?.zAuto ?? null;
+        found = { job: focus.state?.job ?? null, z_map_um: z, z_peak_um: peak, found: peak !== null && Number.isFinite(peak) };
+        if (peak !== null && found.found) z = peak;
       }
-      if (Number.isFinite(z)) z += zOffsetUm;
+      if (z !== null && Number.isFinite(z)) z += zOffsetUm;
       say("imaging");
       await wait(Math.max(60, ms / Math.max(1, positions.length)));
       const stableAt = p.position_index ?? index;
@@ -445,15 +450,15 @@ export const backend = {
     return { written: name, id: name };
   },
 
-  async computePlot({ kind, ids = null, onDoing } = {}) {
+  async computePlot({ kind, ids = null, onDoing }) {
     stopAsked.plot = false;
     const over = ids ?? discovered;
     onDoing?.(`computing ${kind === "umap" ? "UMAP" : "principal components"} over ${over.length} objects`);
     await wait(kind === "umap" ? 600 : 150);
     onDoing?.(null);
     if (stopAsked.plot) return { stopped: true, columns: [] };
-    const place = (id, salt) => makeRng([...String(id)].reduce((a, c) => a + c.charCodeAt(0), salt))() * 10 - 5;
-    const columnsOf = (names, salt) => ({
+    const place = (id: unknown, salt: number) => makeRng([...String(id)].reduce((a, c) => a + c.charCodeAt(0), salt))() * 10 - 5;
+    const columnsOf = (names: string[], salt: number) => ({
       columns: names, ids: [...over], values: [over.map((id) => place(id, salt)), over.map((id) => place(id, salt + 1))],
     });
     const columns = [columnsOf(["pca_1", "pca_2"], 11)];
@@ -464,7 +469,7 @@ export const backend = {
   /** The operator's Interrupt for a plot, as the bridge offers it. */
   async stopPlot() {
     stopAsked.plot = true;
-    return {};
+    return { stopped: true };
   },
 
   /** The operator's Interrupt for the target run, as the bridge offers it. */
@@ -491,7 +496,7 @@ export const backend = {
     await wait(fields ? TILE_TEST_MS : 150);
     if (stopAsked.targets) return { fields: [], failed: [], stopped: true };
     const positions = scanned.overview ?? [];
-    const found = (fields ?? positions.map((_, field) => field)).map((field) => {
+    const found: FoundField[] = (fields?.map(Number) ?? positions.map((_, field) => field)).map((field) => {
       const at = positions[field];
       const r = makeRng(4400 + field);
       const frame = at.frameUm ?? 1000;
@@ -511,7 +516,7 @@ export const backend = {
          answer carries it; the pretend one has no card and says so. */
       return { field, position_label: labelFor(field, at), cells, device: "pretend" };
     });
-    const gave = [];
+    const gave: FoundField[] = [];
     onProgress?.(0, found.length, { phase: "objects", objects: 0, running: true });
     for (const one of found) {
       if (stopAsked.targets) break;
@@ -549,10 +554,10 @@ const TRAVEL_UM = { x: 120_000, y: 80_000 };
  *  offer: the interface's mock first, then the controller's list. */
 export const pretendInstruments = () => [THE_MOCK, "mock", "stellaris"];
 
-const pretendConnectionStatus = ({ instrument }) => ({
-  "Microscope reachable": MICROSCOPES[instrument] ? "in-process" : "127.0.0.1:8895",
+const pretendConnectionStatus = ({ instrument }: { instrument?: string }): Record<string, string> => ({
+  "Microscope reachable": instrument && MICROSCOPES[instrument] ? "in-process" : "127.0.0.1:8895",
   "Credentials accepted": "token valid",
-  "API version": MICROSCOPES[instrument]?.apiDetail ?? "LAS X 4.9",
+  "API version": (instrument && MICROSCOPES[instrument]?.apiDetail) || "LAS X 4.9",
   "Stage responds": "x 0.0 · y 0.0 · z −412.0 µm",
   "Objectives listed": "5x, 63x",
   "Storage writable": "smart/organoid-screen_a7f3c1/",
@@ -561,12 +566,12 @@ const pretendConnectionStatus = ({ instrument }) => ({
 /** How far each axis travels, `[min, max]` in micrometres. Its pictures are
  *  named, never drawn, so they show no further than the stage goes: the
  *  `canvas` `get_xyz` reports is the travel itself. */
-const TRAVEL_RANGE_UM = { x: [0, TRAVEL_UM.x], y: [0, TRAVEL_UM.y], z: [-2_000, 2_000] };
+const TRAVEL_RANGE_UM: Record<"x" | "y" | "z", [number, number]> = { x: [0, TRAVEL_UM.x], y: [0, TRAVEL_UM.y], z: [-2_000, 2_000] };
 
 
 /* How many captures each stem has had, so a second under the same label gets
    `_001` and never takes the first one's name, as a driver never overwrites. */
-const taken = new Map();
+const taken = new Map<string, number>();
 
 
 /* The jobs this pretend instrument has stored, and which is chosen. The same
@@ -590,7 +595,10 @@ let where = pretendPositionUm();
     its position in micrometres from the origin, the unit, every motor of the
     axis with its own raw reading, and the canvas. The pretend stage has one
     motor per axis, and it reads what the axis reads. */
-const standingAt = (at) => Object.fromEntries(["x", "y", "z"].map((axis) => [axis, {
-  position: at[axis], unit: "micrometer", actuators: { motoric: at[axis] },
-  canvas: [...TRAVEL_RANGE_UM[axis]],
-}]));
+const standingAt = (at: { x: number; y: number; z: number }): XyzReading => {
+  const axis = (name: "x" | "y" | "z") => ({
+    position: at[name], unit: "micrometer", actuators: { motoric: at[name] },
+    canvas: [...TRAVEL_RANGE_UM[name]] as [number, number],
+  });
+  return { x: axis("x"), y: axis("y"), z: axis("z") };
+};

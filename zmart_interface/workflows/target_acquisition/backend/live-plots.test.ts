@@ -4,28 +4,24 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backend } from "./live.js";
+import { backend } from "./live.ts";
+import { aBridge, ok } from "../testing/fake-bridge.ts";
 
-function bridgePlotting(polls, columns = {}) {
-  const calls = [];
+function bridgePlotting(polls: Record<string, unknown>[], columns: Record<string, unknown> = {}) {
   let asked = 0;
-  globalThis.fetch = vi.fn(async (url, init) => {
-    const route = url.replace(/^http:\/\/[^/]+/, "");
-    calls.push([route, init?.body ? JSON.parse(init.body) : null]);
-    const answer = (json) => ({ ok: true, json: async () => json });
-    if (route === "/api/target_acquisition/plots/compute" && init?.method === "POST") return answer({ running: true });
-    if (route === "/api/target_acquisition/plots/compute") return answer(polls[Math.min(asked++, polls.length - 1)]);
-    if (route.startsWith("/api/target_acquisition/plots/columns?kind=")) return answer(columns[route.split("=")[1]]);
-    if (route === "/api/target_acquisition/plots/compute/stop") return answer({ running: true });
-    throw new Error(`unexpected ${route}`);
+  const { calls } = aBridge((route, body, url, init) => {
+    if (route === "/api/target_acquisition/plots/compute" && init?.method === "POST") return ok({ running: true });
+    if (route === "/api/target_acquisition/plots/compute") return ok(polls[Math.min(asked++, polls.length - 1)]);
+    if (route.startsWith("/api/target_acquisition/plots/columns?kind=")) return ok(columns[route.split("=")[1]]);
+    if (route === "/api/target_acquisition/plots/compute/stop") return ok({ running: true });
+    throw new Error(`unexpected ${url}`);
   });
   return calls;
 }
 
 describe("the live multidimensional plot", () => {
-  const realFetch = globalThis.fetch;
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => { vi.useRealTimers(); globalThis.fetch = realFetch; });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   it("follows the plot and hands back every column it wrote, by kind", async () => {
     const pca = { columns: ["pca_1", "pca_2"], ids: ["a", "b"], values: [[1, 2], [3, 4]] };
@@ -34,7 +30,7 @@ describe("the live multidimensional plot", () => {
       { running: true, doing: "computing UMAP over 2 objects" },
       { running: false, error: null, stopped: false, kinds: ["pca", "umap"], objects: 2, took_s: 1.5 },
     ], { pca, umap });
-    const said = [];
+    const said: (string | null)[] = [];
     const run = backend.computePlot({ kind: "umap", ids: ["a", "b"], onDoing: (s) => said.push(s) });
     for (let i = 0; i < 4; i++) await vi.advanceTimersByTimeAsync(500);
     const out = await run;

@@ -5,23 +5,22 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backend } from "./live.js";
+import { backend } from "./live.ts";
+import { aBridge, ok } from "../testing/fake-bridge.ts";
 
 /** A bridge whose discovery walks through `polls`, one state per GET, and
     answers each with only the fields past the `since` the page asked. */
-function bridgeDiscovering(polls) {
+function bridgeDiscovering(polls: { fields: { field: number }[]; [more: string]: unknown }[]) {
   let asked = 0;
-  const askedSince = [];
-  globalThis.fetch = vi.fn(async (url, init) => {
-    if (url.endsWith("/api/target_acquisition/targets/discover") && init?.method === "POST") {
-      return { ok: true, json: async () => ({ running: true }) };
-    }
-    if (url.includes("/api/target_acquisition/targets/discover?since=")) {
-      const since = Number(url.split("since=")[1]);
+  const askedSince: number[] = [];
+  aBridge((route, body, url, init) => {
+    if (route === "/api/target_acquisition/targets/discover" && init?.method === "POST") return ok({ running: true });
+    if (route.startsWith("/api/target_acquisition/targets/discover?since=")) {
+      const since = Number(route.split("since=")[1]);
       askedSince.push(since);
       const state = polls[Math.min(asked, polls.length - 1)];
       asked += 1;
-      return { ok: true, json: async () => ({ ...state, fields: state.fields.slice(since) }) };
+      return ok({ ...state, fields: state.fields.slice(since) });
     }
     throw new Error(`unexpected ${url}`);
   });
@@ -29,9 +28,8 @@ function bridgeDiscovering(polls) {
 }
 
 describe("the live discovery poll", () => {
-  const realFetch = globalThis.fetch;
   beforeEach(() => vi.useFakeTimers());
-  afterEach(() => { vi.useRealTimers(); globalThis.fetch = realFetch; });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   it("asks only for the fields it does not hold yet, and hands each over once", async () => {
     /* Fields land in the engine's order and the bridge keeps that order,
@@ -44,7 +42,7 @@ describe("the live discovery poll", () => {
       { running: true, done: 2, of: 3, phase: "objects", fields: [{ field: 2 }, { field: 0 }] },
       { running: false, done: 3, of: 3, phase: "complete", fields: [{ field: 2 }, { field: 0 }, { field: 1 }] },
     ]);
-    const seen = [];
+    const seen: number[] = [];
     const run = backend.discoverTargets({ settings: {}, onField: (field) => seen.push(field.field) });
     for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(300);
     const out = await run;
