@@ -1,5 +1,8 @@
 # How this is put together
 
+Why it is built this way, and the rules for changing it, are in
+`principles.md`.
+
 The interface has two halves that meet over HTTP. The **page** runs in the
 window (a web page, drawn by WebView2 on Windows) and is written in strict
 TypeScript. The **bridge** runs in Python beside it. It is the only part that
