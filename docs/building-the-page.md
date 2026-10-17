@@ -1,7 +1,7 @@
 # Building the page
 
-The operator page is written in JavaScript under `zmart_interface/` and built
-with Vite into three files that ship inside the Python package. Node 22.12 or
+The operator page is written in strict TypeScript under `zmart_interface/` and
+built with Vite into three files that ship inside the Python package. Node 22.12 or
 newer is needed for the build, on a developer machine; the microscope PC never
 builds anything.
 
@@ -35,18 +35,20 @@ Playwright browsers must live there.
 
 ## Checking the page
 
-The page is being converted to TypeScript, one folder at a time; files not yet
-converted stay JavaScript until their turn (`tsconfig.json`). Three checks read
+The page is TypeScript throughout; what stays JavaScript is the build's own
+tooling (`tools/*.mjs` and the configs), which runs in Node. Four checks read
 the sources without running them:
 
 ```bash
-npm run check:types     # the TypeScript files' types (tsc), file and line
+npm run check:types     # the page's types (tsc, strict), file and line
 npm run check:imports   # which module may import which (dependency-cruiser, .dependency-cruiser.cjs)
 npm run check:unused    # exports, files and packages nothing uses (knip, knip.json)
+npm run check:api       # the workflow API still declares what api/report.txt says, under its version
 ```
 
 `npm test` runs the types with the unit and browser tests, and so does CI. CI
-fails on a wrong import and on code nothing uses, too.
+fails on a wrong import, on code nothing uses and on a changed API without a
+new version, too.
 
 ## What the build produces, and why it is three files rather than one
 
@@ -108,21 +110,20 @@ of the reasons for one file were about the copying: the microscope PC still does
 not build anything, the files still arrive already built, and Python still hands
 them out. A folder copies as easily as a file so long as it is copied *whole* —
 which is the one new way to get this wrong, and why the build produces exactly
-three files and `zmart_interface/workflows/target_acquisition/the-built-page.spec.js` says so out loud.
+three files and `zmart_interface/workflows/target_acquisition/the-built-page.spec.ts` says so out loud.
 
 **Opened straight off the disk — a `file:///…` address, which double-clicking
-the page does — the third engine cannot work.** A browser gives such a page no
-address of its own and refuses to start a background program for it. The page
-knows this and offers only the two engines that can draw, with a sentence in the
-corner saying where the third went. Serve the folder over HTTP and all three are
-there; the `zmart-interface` window now does exactly that, which is also the
-closer imitation of how the page will really be handed out.
+the page does — the picture cannot be drawn.** A browser gives such a page no
+address of its own and refuses to start a background program for it, so
+neuroglancer never starts. Serve the folder over HTTP and it does; the
+`zmart-interface` window does exactly that, which is also how the page is
+really handed out.
 
 `build.outDir` points at `zmart_interface/build/`: everything else in the
 repository is source, and that folder is what the window opens. The built files are committed and ship in the package,
 because the microscope PC cannot build them; rebuild and commit them after any
 change to the page's sources. Only the built page goes into the package: the
-JavaScript sources and every test stay in the repository.
+TypeScript sources and every test stay in the repository.
 
 `zmart_interface/framework/test_the_built_page.py` holds the two to each other.
 It builds the page twice into a temporary folder and fails unless both builds

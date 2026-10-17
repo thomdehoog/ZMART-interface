@@ -1,12 +1,13 @@
 # The workflows: one folder each, and the folder's name is its name
 
-Every folder in here that contains a `flow.js` is a workflow the operator can
+Every folder in here that contains a `flow.ts` is a workflow the operator can
 choose. The folder's name is what the chooser at the top left of the window
 shows — underscores read as spaces, first letter capitalised, so
 `target_acquisition` appears as **Target acquisition**. A flow whose folder
 rule would come out wrong may say its own name instead (`export const name`),
 for an acronym the rule would lower-case. Adding a workflow means adding a
-folder with a `flow.js` in it; nothing else in the interface has to change,
+folder with a `flow.ts` and a `workflow.json` in it; nothing else in the
+interface has to change,
 because the framework finds these folders by looking
 (`../framework/rules/finding-workflows.ts` says how).
 
@@ -16,9 +17,13 @@ There is one built into the page today:
   up: find the targets on an overview and acquire them.
 
 A workflow written in another repository is dropped into this folder, and
-the page is built again; `../../docs/dropping-a-workflow-in.md` says how. The
-framework's own fixture, `../framework/fixtures/three_steps/`, is the smallest
-complete workflow to start from.
+the page is built again; `../../docs/dropping-a-workflow-in.md` says how.
+
+**A new workflow starts from the template**, the framework's own fixture
+`../framework/fixtures/three_steps/`: the smallest complete workflow, typed
+against the workflow API alone and using every field and hook. Copy its
+folder here under the new workflow's name, give its `workflow.json` that name,
+and change it from there.
 
 Setting a microscope up -- its travel limits, which way the picture is turned,
 how the objectives line up, and where its coordinates count from -- is done
@@ -29,26 +34,32 @@ this interface (see the README).
 
 ```
 target_acquisition/
-  flow.js        the front door: the steps, in order, plus a sentence for the
+  flow.ts        the front door: the steps, in order, plus a sentence for the
                  chooser. Open this first — it is the whole workflow in one
                  screenful.
+  workflow.json  its name, its own version, and the workflow API versions it
+                 fits ("api": "^1.0.0").
+  types.ts       its run, its page and its steps, as the API's types filled in
+                 for it (TaRun, TaPage, TaStep).
   steps/         one folder per step, connect/ to run_protocol/. Each holds
-                 the step's declaration (step.js); what the step does when it
-                 is run (run.js); the controls it docks in the channel beside
-                 the canvas (channel.js); and, where the step shows something
-                 of its own, a file named for what that is — gate.js,
-                 gallery.js — rather than for the kind of thing it is.
+                 the step's declaration (step.ts); what the step does when it
+                 is run (run.ts); the controls it docks in the channel beside
+                 the canvas (channel.ts); what it draws on the picture
+                 (layers.ts); and, where the step shows something of its own,
+                 a file named for what that is — gate.ts, gallery.ts — rather
+                 than for the kind of thing it is.
   shared/        what several steps of this workflow use: the carrier geometry,
                  the scan-field arithmetic, the layers the run draws, and the
                  small things they share on the page (page-helpers.ts).
-  backend/       the workflow's own verbs: live.ts over the bridge, pretend.ts
-                 for the rehearsal, and the promises both keep.
+  backend/       the workflow's own verbs: verbs.ts lists them, live.ts answers
+                 them over the bridge, pretend.ts for the rehearsal, and the
+                 promises both keep.
   bridge/        the workflow's Python half on the bridge: the focus map, the
                  scans, finding and taking the targets, the plots and the
                  protocols, with their routes under /api/target_acquisition/.
-  the-canvas.js  what the workflow puts on its canvas: the stage picture, the
+  the-canvas.ts  what the workflow puts on its canvas: the stage picture, the
                  live picture of the run, the axes under them.
-  on-the-page.js how the workflow is wired to the page when it opens: the
+  on-the-page.ts how the workflow is wired to the page when it opens: the
                  canvas, and the functions its steps lend the page.
   style.css      the workflow's own look, loaded after the frame's.
 ```
@@ -66,7 +77,8 @@ seam — a step only calls it and awaits.
 The rule that decides where a file goes: **put it beside the things that use
 it, at the lowest folder that covers them all.** Used by one step → in that
 step's folder. Used by several steps of one workflow → that workflow's
-`shared/`. Used by any workflow → `../parts/`.
+`shared/`. Used by more than one workflow, and passing the oven test (could
+it serve a workflow with nothing to do with a microscope?) → `../parts/`.
 
 ## A step belongs to its workflow
 
@@ -76,8 +88,9 @@ general, its general part becomes a part (`../parts/`).
 
 ## What a step is made of
 
-A step is data, not code: a short description the framework reads. These are its
-fields, all optional except the first two.
+A step is data, not code: a short description the framework reads, typed as
+the API's `Step` (a workflow's own `TaStep` in target acquisition). These are
+its fields, all optional except the first two.
 
 - `id` — the short name the page files this step's result under.
 - `title` — what the step is called in the rail down the left.
@@ -190,7 +203,7 @@ open workflow's are called:
 
 ## What a flow is made of
 
-`flow.js` exports `steps` (the list) and `blurb` (the sentence), and may also
+`flow.ts` exports `steps` (the list) and `blurb` (the sentence), and may also
 export any of these. Every one is optional: a workflow of plain steps that
 drives nothing and keeps nothing of its own needs only the first two.
 

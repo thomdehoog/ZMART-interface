@@ -1,6 +1,6 @@
 # The canvas
 
-The canvas is not the framework's. A workflow declares it in `flow.js`; the
+The canvas is not the framework's. A workflow declares it in `flow.ts`; the
 framework builds a box and knows only its name, that it stays once asked for,
 and that it has a channel down its side. A workflow that shows no canvas
 produces none — there is no canvas markup on the page for one to find.
@@ -41,7 +41,7 @@ asked on the picture.
 
 ## What a layer is
 
-The vocabulary is `viewer.js`'s, because that is the canvas being converged on.
+The vocabulary is `viewer.ts`'s, because that is the canvas being converged on.
 Inventing a second set of names for the same fields would be a third canvas.
 
     {

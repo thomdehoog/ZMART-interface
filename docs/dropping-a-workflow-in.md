@@ -12,16 +12,17 @@ which explains what a step and a flow are made of.
 
 ## What the folder holds
 
-A workflow is a folder with a `flow.js` in it. Beside it go whatever the
+A workflow is a folder with a `flow.ts` in it, written in TypeScript like the
+rest of the page and checked with it (`npm run check:types`). Beside it go whatever the
 workflow needs -- its steps in folders of their own, shared code, a stylesheet,
 a piece of markup read in as text -- and, if it has one, its Python half:
 
 ```
 my_workflow/
   workflow.json      its name, its version, and the workflow API it works with
-  flow.js            the front door: the steps, the blurb, the panels, install, ...
+  flow.ts            the front door: the steps, the blurb, the panels, install, ...
   steps/
-    begin/step.js
+    begin/step.ts
     ...
   bridge/            its Python half, a package (optional; below)
     __init__.py
@@ -34,22 +35,26 @@ of its routes at the bridge (`/api/my_workflow/...`).
 
 A workflow imports its own files, the workflow API --
 `zmart_interface/api/index.ts`, by a relative path: `../../api/index.ts` from
-its `flow.js` -- and the npm packages the interface lists. Anything else stops
+its `flow.ts` -- and the npm packages the interface lists. Anything else stops
 the build with a sentence naming the import, and so does an import of another
 workflow: two workflows share nothing. `docs/the-workflow-api.md` says what the
 API holds and when the interface calls what a workflow declares.
 
-The framework's own fixture, `zmart_interface/framework/fixtures/three_steps/flow.ts`,
-is a complete workflow that uses every field and hook of the API and imports
-nothing else: steps, a card panel, no microscope. Start from it.
+**Start from the template**: the framework's own fixture,
+`zmart_interface/framework/fixtures/three_steps/`, is a complete workflow that
+uses every field and hook of the API and imports nothing else -- steps, a card
+panel, a Python half with one route, no microscope. Copy its folder into
+`zmart_interface/workflows/` under your workflow's name, rename it in its
+`workflow.json`, and change it from there. Its `Three` type shows how a
+workflow fills the API's types (`WorkflowTypes`) for itself.
 
 ## Which API it was written for
 
-Beside `flow.js` goes a `workflow.json` naming the workflow, its own version,
+Beside `flow.ts` goes a `workflow.json` naming the workflow, its own version,
 and the versions of the workflow API it works with:
 
 ```json
-{ "name": "my_workflow", "version": "0.1.0", "api": "^0.1.0" }
+{ "name": "my_workflow", "version": "0.1.0", "api": "^1.0.0" }
 ```
 
 The build stops, saying so, when the interface's API is outside that range.
