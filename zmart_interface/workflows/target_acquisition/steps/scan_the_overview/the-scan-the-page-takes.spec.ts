@@ -18,7 +18,7 @@ const PORT = Number(process.env.LIVE_BRIDGE_PORT ?? 8791);
 /** A scan of a few fields is a run, and a run is not quick. */
 const A_RUN_TAKES_A_WHILE = 180_000;
 
-let bridge = null;
+let bridge: Awaited<ReturnType<typeof startTheBridge>> | null = null;
 
 test.beforeAll(async () => {
   bridge = await startTheBridge({ port: PORT });
@@ -27,12 +27,12 @@ test.afterAll(async () => { await bridge?.stop(); });
 
 test("the pixels stay in the TIFFs; only a copy is drawn", async () => {
   test.setTimeout(A_RUN_TAKES_A_WHILE);
-  await bridge.image([{ x: 0, y: 0, z: 5_000 }]);
+  await bridge!.image([{ x: 0, y: 0, z: 5_000 }]);
   // Looking is what makes the copies: nothing is made for a scan nobody opens.
-  await fetch(`${bridge.pictures}/tiles.json`);
+  await fetch(`${bridge!.pictures}/tiles.json`);
 
-  const data = path.join(bridge.run, "overview", "data");
-  const view = path.join(bridge.run, "overview", "view");
+  const data = path.join(bridge!.run, "overview", "data");
+  const view = path.join(bridge!.run, "overview", "view");
 
   /* Two folders, and the acquisition is in only one of them. A display copy is
      lossy on purpose and nothing is ever read back out of it, so the run's own

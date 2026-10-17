@@ -5,7 +5,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { pythonForTheBridge } from "../../testing/python.ts";
-import { readPng } from "../../testing/pixels.ts";
+import { readPng, type Pixels } from "../../testing/pixels.ts";
+import type { ThePicture } from "../../types.ts";
+
+declare global {
+  interface Window {
+    /** Test-only: the run watcher the spec opens, so it can close its picture afterwards. */
+    failureWatch?: { thePicture: ThePicture };
+  }
+}
 
 for (const bake of [false, true]) test(`publication failure preserves valid pixels, bake ${bake}`, async ({ page }, info) => {
   test.setTimeout(60_000);
@@ -14,7 +22,7 @@ for (const bake of [false, true]) test(`publication failure preserves valid pixe
   const child = spawn(pythonForTheBridge(), [fixture, folder, String(bake)], { windowsHide: true });
   let logs = "";
   child.stderr.on("data", data => { logs += data; });
-  const origin = await new Promise((resolve, reject) => {
+  const origin = await new Promise<string>((resolve, reject) => {
     let output = "";
     child.stdout.on("data", data => {
       output += data;
@@ -23,7 +31,7 @@ for (const bake of [false, true]) test(`publication failure preserves valid pixe
     child.on("exit", code => reject(new Error(`fixture exited ${code}: ${logs}`)));
     child.on("error", reject);
   });
-  const chunks = [], errors = [];
+  const chunks: string[] = [], errors: string[] = [];
   page.on("request", request => { if (/\/data\/.*\/c\//.test(request.url())) chunks.push(request.url()); });
   page.on("pageerror", error => errors.push(String(error)));
   try {
@@ -37,14 +45,14 @@ for (const bake of [false, true]) test(`publication failure preserves valid pixe
       const { showPublicationStatus } = await import("/zmart_interface/workflows/target_acquisition/canvas/publication-note.ts");
       const { watchTheRun } = await import("/zmart_interface/workflows/target_acquisition/steps/scan_the_overview/watching-the-run.ts");
       window.failureWatch = watchTheRun({
-        pictureHost: document.getElementById("failure-host"), connected: () => true,
-        viewerSources: () => backend.viewerSources(status => showPublicationStatus(document.getElementById("failure-note"), status)),
+        pictureHost: document.getElementById("failure-host")!, connected: () => true,
+        viewerSources: () => backend.viewerSources(status => showPublicationStatus(document.getElementById("failure-note")!, status)),
         css: () => "#ffffff", view: () => ({ centre: { x: 80, y: 16 }, zoom: 0.25 }),
         carrierOriginUm: () => [0, 0],
       });
     });
-    const photo = async name => readPng(await page.locator("#failure-host").screenshot(name ? { path: info.outputPath(name) } : {}));
-    const pixel = (shot, x) => Array.from(shot.data.slice((160 * shot.width + x) * shot.channels,
+    const photo = async (name?: string) => readPng(await page.locator("#failure-host").screenshot(name ? { path: info.outputPath(name) } : {}));
+    const pixel = (shot: Pixels, x: number) => Array.from(shot.data.slice((160 * shot.width + x) * shot.channels,
       (160 * shot.width + x) * shot.channels + 3));
     await expect.poll(async () => pixel(await photo(), 64)).toEqual([120, 120, 120]);
     expect((await page.request.post(`${origin}/fail`)).ok()).toBe(true);

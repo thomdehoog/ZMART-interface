@@ -7,12 +7,12 @@ test("view controls and acquisition strips stay inside a narrow canvas", async (
     const host = document.createElement("div");
     document.body.replaceChildren(host);
     canvasPanel.build(host);
-    const column = host.querySelector(".plot-column");
+    const column = host.querySelector<HTMLElement>(".plot-column")!;
     column.style.cssText = "width:620px;height:400px";
     for (const id of ["viewer-pick", "acquisition-pick", "canvas-masks"]) {
-      host.querySelector(`#${id}`).hidden = false;
+      host.querySelector<HTMLElement>(`#${id}`)!.hidden = false;
     }
-    host.querySelector("#canvas-chips").innerHTML = [1, 2, 3].map(n =>
+    host.querySelector("#canvas-chips")!.innerHTML = [1, 2, 3].map(n =>
       `<span class="chip"><span class="chip-dot">${n}</span></span>`).join("");
   });
   for (const width of [620, 480]) {
@@ -22,7 +22,7 @@ test("view controls and acquisition strips stay inside a narrow canvas", async (
     const bounds = await page.locator(".canvas-toolbar").evaluate(toolbar => {
       const box = toolbar.getBoundingClientRect();
       return ["#viewer-pick", "#carrier-btn", "#acquisition-pick", "#canvas-masks"].map(selector => {
-        const child = toolbar.querySelector(selector).getBoundingClientRect();
+        const child = toolbar.querySelector(selector)!.getBoundingClientRect();
         return child.left >= box.left && child.right <= box.right && child.bottom <= box.bottom;
       });
     });

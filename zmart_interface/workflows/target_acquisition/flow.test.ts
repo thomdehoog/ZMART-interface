@@ -16,12 +16,12 @@ import { emptySlot, withRecording } from "./microscope/recordings.ts";
 import { sampleReading } from "./microscope/settings.ts";
 import * as threeSteps from "../../framework/fixtures/three_steps/flow.ts";
 import * as targetAcquisition from "./flow.ts";
-import type { TaPage } from "./types.ts";
+import type { Page, Run } from "../../api/index.ts";
 import type { TheRun } from "../../framework/types.ts";
 
 /* The readiness rules read the run; none of the ones asked about here reads
    the page as well, so none is handed one. */
-const NO_PAGE = undefined as unknown as TaPage;
+const NO_PAGE = undefined as unknown as Page;
 
 const { WORKFLOWS } = assembleWorkflows({ "target_acquisition/flow.js": targetAcquisition });
 
@@ -117,7 +117,7 @@ describe("readiness belongs to the step, not the frame", () => {
     targetTiles: [],
     targetType: recorded("acquisition"),
     ...over,
-  });
+  }) as unknown as Run; // only the keys these rules read, standing in for the whole document
 
   /* The press stays where it is with nothing to measure and says what it waits
      for. It used to vanish instead, which made clearing the points look like it

@@ -37,18 +37,22 @@ const folderOf = (path: string) => path.match(/([^/]+)\/flow\.[jt]s$/)?.[1];
  * `opensFirst` is listed first and opened first; the rest follow in alphabetical
  * order of their folder names.
  */
-export function assembleWorkflows(flowFiles: Record<string, Flow<any>>): {
-  WORKFLOWS: Record<string, AssembledWorkflow<any>>;
+export function assembleWorkflows(flowFiles: Record<string, unknown>): {
+  WORKFLOWS: Record<string, AssembledWorkflow>;
   DEFAULT_WORKFLOW: string | undefined;
 } {
+  /* A workflow's own types -- its run, its page, its steps -- are its own
+     business; the framework reads every flow as the plain shape the API
+     declares (`Flow`), which is all it ever calls of one. The modules come
+     from the build's folder scan, untyped, and are read so here, once. */
   const found = Object.entries(flowFiles)
-    .map(([path, flow]) => ({ folder: folderOf(path), flow }))
-    .filter((one): one is { folder: string; flow: Flow<any> } => Boolean(one.folder))
+    .map(([path, flow]) => ({ folder: folderOf(path), flow: flow as Flow }))
+    .filter((one): one is { folder: string; flow: Flow } => Boolean(one.folder))
     .sort((a, b) =>
       (b.flow.opensFirst ? 1 : 0) - (a.flow.opensFirst ? 1 : 0)
       || a.folder.localeCompare(b.folder));
 
-  const WORKFLOWS: Record<string, AssembledWorkflow<any>> = {};
+  const WORKFLOWS: Record<string, AssembledWorkflow> = {};
   for (const { folder, flow } of found) {
     WORKFLOWS[folder] = {
       /* The folder's name, unless the flow says otherwise. A flow speaks up

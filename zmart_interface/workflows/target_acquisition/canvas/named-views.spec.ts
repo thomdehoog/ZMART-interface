@@ -12,7 +12,27 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { pythonForTheBridge } from "../testing/python.ts";
-import { readPng } from "../testing/pixels.ts";
+import { readPng, type Pixels } from "../testing/pixels.ts";
+import type { Acquisition, EngineViewer } from "./engines/neuroglancer-under/viewer.ts";
+
+declare global {
+  interface Window {
+    /** The operator's projection, chosen out of the server's rows, as this spec hands it to the engine. */
+    namedAcquisitions?: (rows: ConfigRow[]) => Acquisition[];
+    /** The engine this spec opens on the published product. */
+    namedViewer?: EngineViewer;
+    /** The engine as first opened, to tell an added source from a reopened one. */
+    initialNamedViewer?: EngineViewer;
+  }
+}
+
+/** One row of the fixture server's `/api/config`, as this test reads it. */
+interface ConfigRow {
+  channelIndex: number;
+  sources: string[];
+  coverageSources: string[];
+  [more: string]: unknown;
+}
 
 const fixture = fileURLToPath(new URL("./fixtures/serve-mixed-acquisition.py", import.meta.url));
 /* What the fixture writes: a flat of 80 everywhere, a three-plane stack of
@@ -26,7 +46,7 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
     const child = spawn(pythonForTheBridge(), [fixture, folder], { windowsHide: true });
     let logs = "";
     child.stderr.on("data", data => { logs += data; });
-    const origin = await new Promise((resolve, reject) => {
+    const origin = await new Promise<string>((resolve, reject) => {
       let output = "";
       child.stdout.on("data", data => {
         output += data;
@@ -35,10 +55,10 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
       child.on("exit", code => reject(new Error(`fixture exited ${code}: ${logs}`)));
       child.on("error", reject);
     });
-    const errors = [], requests = [];
+    const errors: string[] = [], requests: string[] = [];
     page.on("pageerror", error => errors.push(String(error)));
     page.on("request", request => { if (/\/data\/.*\/c\//.test(request.url())) requests.push(request.url()); });
-    const publish = async (names, opening = false) => {
+    const publish = async (names: string[], opening = false): Promise<ConfigRow[]> => {
       const data = { path: folder, source_revisions: Object.fromEntries(names.map(n => [`${n}.ome.zarr`, 1])),
         composition: { regions: "complete", order: names.map(n => `${n}.ome.zarr`), xy_origin: "corner" } };
       const reply = await page.request.post(`${origin}/api/${opening ? "stores/open" : "announce"}`, {
@@ -53,7 +73,7 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
     try {
       const first = await publish(flatFirst ? ["flat"] : ["stack"], true);
       await page.goto("/?backend=pretend");
-      await page.evaluate(async ({ origin, layers }) => {
+      await page.evaluate(async ({ origin, layers }: { origin: string; layers: ConfigRow[] }) => {
         const below = document.createElement("div");
         below.style.cssText = "position:fixed;left:0;top:0;width:640px;height:320px;z-index:999;background:magenta";
         const host = document.createElement("div");
@@ -67,32 +87,33 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
           const choice = api.viewChoices(rows)[0];
           if (!choice.keys.includes("max")) throw new Error(`no projection among ${choice.keys}`);
           const selected = api.selectedViews(rows, { [choice.id]: "max" });
+          // A stand-in handed over as the engine's Acquisition: it has no `url`, only its embedding.
           return [{ name: "mixed", embeddingUrl: origin + "/embedding.js",
             channels: rows.filter(row => api.inSelectedView(row, selected)).map(row => ({
               ...row, colour: row.channelIndex === 0 ? [1, 0, 0] : [0, 1, 0],
               window: { low: 0, high: 255 },
               sources: row.sources.map(url => origin + url),
               coverageSources: row.coverageSources.map(url => origin + url),
-            })) }];
+            })) }] as unknown as Acquisition[];
         };
         const { openerFor } = await import("/zmart_interface/workflows/target_acquisition/canvas/engines.ts");
         window.namedViewer = await (await openerFor("neuroglancer-under"))(host, {
-          acquisitions: namedAcquisitions(layers),
+          acquisitions: window.namedAcquisitions(layers),
           presentation: "2d-overlay", transparentBackground: true,
         });
-        window.initialNamedViewer = namedViewer;
+        window.initialNamedViewer = window.namedViewer;
       }, { origin, layers: first });
-      const update = async layers => {
-        expect(await page.evaluate(layers => namedViewer.addSources(namedAcquisitions(layers)), layers)).toBe(true);
-        await page.evaluate(() => namedViewer.setView({ centre: { x: 128, y: 32 }, zoom: 0.5 }));
+      const update = async (layers: ConfigRow[]) => {
+        expect(await page.evaluate(layers => window.namedViewer!.addSources(window.namedAcquisitions!(layers)), layers)).toBe(true);
+        await page.evaluate(() => window.namedViewer!.setView({ centre: { x: 128, y: 32 }, zoom: 0.5 }));
       };
-      const photo = async name => readPng(await page.locator("#named-host").screenshot(
+      const photo = async (name?: string) => readPng(await page.locator("#named-host").screenshot(
         name ? { path: info.outputPath(name) } : {}));
-      const pixel = (shot, x) => Array.from(shot.data.slice((160 * shot.width + x) * shot.channels,
+      const pixel = (shot: Pixels, x: number) => Array.from(shot.data.slice((160 * shot.width + x) * shot.channels,
         (160 * shot.width + x) * shot.channels + 3));
 
       await update(await publish(["flat", "stack"]));
-      await page.waitForFunction(() => namedViewer.layersForMeasurement().every(row => row.dims?.length));
+      await page.waitForFunction(() => window.namedViewer!.layersForMeasurement().every(row => (row.dims as unknown[] | null)?.length));
       /* The flat at 80, the stack at its brightest plane, the gap between
          them see-through: one flat picture, whatever plane the engine
          happens to stand at. */
@@ -100,7 +121,7 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
       await expect.poll(async () => pixel(await photo(), 384)).toEqual(STACK_PROJECTED);
       expect(pixel(await photo(), 256)).toEqual(GROUND);
       for (const z of [-1000, 0, 2, 1000]) {
-        await page.evaluate(z => namedViewer.setPlane(z), z);
+        await page.evaluate(z => window.namedViewer!.setPlane(z), z);
         await expect.poll(async () => pixel(await photo(), 128)).toEqual(FLAT);
         await expect.poll(async () => pixel(await photo(), 384)).toEqual(STACK_PROJECTED);
       }
@@ -108,9 +129,9 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
       /* The stack's one-pixel detail is drawn at its own resolution: the
          projection loses nothing to a coarser pyramid level. */
       for (const zoom of [0.5, 1, 2, 4]) {
-        await page.evaluate(zoom => namedViewer.setView({ centre: { x: 96, y: 24 }, zoom }), zoom);
-        const detail = shot => {
-          const at = x => {
+        await page.evaluate(zoom => window.namedViewer!.setView({ centre: { x: 96, y: 24 }, zoom }), zoom);
+        const detail = (shot: Pixels) => {
+          const at = (x: number) => {
             const sx = Math.floor(320 + (x - 96) / zoom);
             const sy = Math.floor(160 + (8.5 - 24) / zoom);
             return shot.data[(sy * shot.width + sx) * shot.channels];
@@ -126,11 +147,11 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
       expect(pixel(await photo(), 256)).toEqual(GROUND);
       expect(requests.length).toBeGreaterThan(beforeUpdate);
       // A coarse zoom must keep exactly the same black/empty distinction.
-      await page.evaluate(() => namedViewer.setView({ centre: { x: 64, y: 32 }, zoom: 2 }));
+      await page.evaluate(() => window.namedViewer!.setView({ centre: { x: 64, y: 32 }, zoom: 2 }));
       await expect.poll(async () => pixel(await photo(), 304)).toEqual(BLACK);
       expect(pixel(await photo(), 336)).toEqual(GROUND);
       await photo("coarse-black-and-gap.png");
-      expect(await page.evaluate(() => namedViewer === initialNamedViewer)).toBe(true);
+      expect(await page.evaluate(() => window.namedViewer === window.initialNamedViewer)).toBe(true);
       const after = requests.length;
       await page.waitForTimeout(2300);
       expect(requests.length).toBe(after);

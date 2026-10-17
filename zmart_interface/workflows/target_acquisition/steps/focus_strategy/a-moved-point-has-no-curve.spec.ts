@@ -5,18 +5,18 @@
  * a message appeared over it, which is what used to happen.
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { rest, startTheBridge } from "../../testing/live-bridge.ts";
 
 const PORT = Number(process.env.LIVE_MOVE_PORT ?? 8813);
 
-let bridge = null;
+let bridge: Awaited<ReturnType<typeof startTheBridge>> | null = null;
 test.beforeAll(async () => { bridge = await startTheBridge({ port: PORT }); });
 test.afterAll(async () => { await bridge?.stop(); });
 
-const gotoStep = (page, name) => page.locator(`.step:has-text("${name}")`).first().click();
+const gotoStep = (page: Page, name: string) => page.locator(`.step:has-text("${name}")`).first().click();
 
-async function record(page, host, name) {
+async function record(page: Page, host: string, name: string) {
   const bar = page.locator(`#${host} .setting-box.open`);
   const field = bar.locator("input");
   if (await field.count()) await field.fill(name);
@@ -33,10 +33,10 @@ async function record(page, host, name) {
  * true is that the canvas was wiped, not that something now covers it. The
  * curves are blue and green; only pixels with colour in them count.
  */
-async function drawnPixels(page) {
+async function drawnPixels(page: Page) {
   return page.evaluate(() => {
-    const cv = document.getElementById("trace-canvas");
-    const { data, width, height } = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height);
+    const cv = document.getElementById("trace-canvas") as HTMLCanvasElement;
+    const { data, width, height } = cv.getContext("2d")!.getImageData(0, 0, cv.width, cv.height);
     let coloured = 0;
     for (let i = 0; i < width * height; i++) {
       const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
@@ -83,11 +83,11 @@ test("a moved point loses its curve", async ({ page }) => {
   // Drag the selected point a little way across the stage.
   const at = await page.evaluate(() => {
     const p = window.__theFocusPoints?.();
-    return p ? window.__theStageCanvas.project(p.x, p.y) : null;
+    return p ? window.__theStageCanvas!.project(p.x, p.y) : null;
   });
   expect(at, "the page says where the point is").not.toBeNull();
   const box = await page.locator("#stage-canvas").boundingBox();
-  const x = box.x + at[0], y = box.y + at[1];
+  const x = box!.x + at![0], y = box!.y + at![1];
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 25, y + 25, { steps: 8 });

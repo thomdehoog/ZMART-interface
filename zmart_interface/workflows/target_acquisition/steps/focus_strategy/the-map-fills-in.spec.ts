@@ -7,18 +7,18 @@
  * when the run finishes is seen at one.
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { rest, startTheBridge } from "../../testing/live-bridge.ts";
 
 const PORT = Number(process.env.LIVE_FOCUS_PORT ?? 8809);
 
-let bridge = null;
+let bridge: Awaited<ReturnType<typeof startTheBridge>> | null = null;
 test.beforeAll(async () => { bridge = await startTheBridge({ port: PORT }); });
 test.afterAll(async () => { await bridge?.stop(); });
 
-const gotoStep = (page, name) => page.locator(`.step:has-text("${name}")`).first().click();
+const gotoStep = (page: Page, name: string) => page.locator(`.step:has-text("${name}")`).first().click();
 
-async function record(page, host, name) {
+async function record(page: Page, host: string, name: string) {
   const bar = page.locator(`#${host} .setting-box.open`);
   const field = bar.locator("input");
   if (await field.count()) await field.fill(name);
@@ -51,8 +51,8 @@ test("points appear in the list one at a time while the map is measured", async 
   /* The rows are there from the moment the points are laid; what a measured
      point changes is its height, from nothing to a number. So it is heights
      that are counted, sampled while the run goes. */
-  const counts = new Set();
-  const selected = new Set();
+  const counts = new Set<number>();
+  const selected = new Set<string>();
   const until = Date.now() + 120_000;
   do {
     const rows = await page.locator("#focus-traces .point-row").allTextContents();

@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import type { MountedPanel, PanelState, PanelViewer } from "./viewer-panel.ts";
 
 
 const histogram = {
@@ -9,10 +10,51 @@ const histogram = {
   autoWindow: { low: 240, high: 1800 },
 };
 
+/** The measured histogram the stand-in server answers with. */
+type Histogram = typeof histogram;
 
-async function mountHistogram(page, answer = null) {
+/** A stretch of stored counts. */
+type Span = { low: number; high: number };
+
+/** What the stand-in `/api/measure` answers: a histogram and the window Auto would open on. */
+type MeasurementReply = { histogram: Histogram; window: Span };
+
+/** One channel as the stand-in engine holds it, for the panel to observe. */
+type ObservedRow = {
+  visible: boolean;
+  window: Span;
+  weight: number;
+  sources: { lower: number[]; upper: number[]; matrix: number[] }[];
+};
+
+/** The channel's requested window and histogram axis, as the panel's snapshot reports them. */
+type WindowAndAxis = { window: Span; axis: Span | null };
+
+/** The panel's measurement notice, as its snapshot reports it. */
+type MeasurementNotice = { state?: string; message?: string | null };
+
+declare global {
+  interface Window {
+    /** What the stand-in `/api/measure` answers, read by the route on each request. */
+    __measurementAnswer?: MeasurementReply;
+    /** The histogram handed into the page for a mount whose route the test sets itself. */
+    __histogramForMount?: Histogram;
+    /** The mounted panel and its stand-in engine, kept for a look from the console. */
+    __histogramFixture?: {
+      module: typeof import("./viewer-panel.ts");
+      viewer: PanelViewer;
+      acquisition: { name: string; url: string; channels: { [key: string]: unknown }[] };
+      observed: ObservedRow[];
+      state: PanelState;
+      handle: MountedPanel;
+    };
+  }
+}
+
+
+async function mountHistogram(page: Page, answer: MeasurementReply | null = null) {
   await page.goto("/?backend=pretend");
-  await page.evaluate(({ histogram, answer }) => {
+  await page.evaluate(({ histogram, answer }: { histogram: Histogram; answer: MeasurementReply | null }) => {
     document.body.innerHTML = `
       <main class="canvas-body" style="display:grid;grid-template-columns:1fr auto;height:760px">
         <div class="plot-host" style="position:relative;min-width:600px"><div id="panel-host"></div></div>
@@ -23,7 +65,7 @@ async function mountHistogram(page, answer = null) {
     const reply = await page.evaluate(() => window.__measurementAnswer);
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(reply) });
   });
-  await page.evaluate(async (histogram) => {
+  await page.evaluate(async (histogram: Histogram) => {
     const module = await import("/zmart_interface/workflows/target_acquisition/canvas/viewer-panel.ts");
     const acquisition = {
       name: "overview",
@@ -38,11 +80,11 @@ async function mountHistogram(page, answer = null) {
         sources: [`${location.origin}/data/overview.ome.zarr/|zarr3:`],
       }],
     };
-    const observed = [{
+    const observed: ObservedRow[] = [{
       visible: true, window: { low: 200, high: 2000 }, weight: 1,
       sources: [{ lower: [0, 0, 0], upper: [1, 64, 64], matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }],
     }];
-    const viewer = {
+    const viewer: PanelViewer = {
       measurementBox: () => [[0.2, 0.3], [0.8, 0.9]],
       setChannel(index, change) {
         if (change.visible !== undefined) observed[index].visible = change.visible;
@@ -54,20 +96,20 @@ async function mountHistogram(page, answer = null) {
       })),
     };
     const state = module.createViewerPanelState();
-    const handle = await module.mountViewerPanel(document.querySelector("#panel-host"), {
+    const handle = await module.mountViewerPanel(document.querySelector<HTMLElement>("#panel-host"), {
       viewer, acquisitions: [acquisition], requestedState: state,
     });
     window.__histogramFixture = { module, viewer, acquisition, observed, state, handle };
   }, histogram);
   await expect(page.getByLabel("histogram overview 0")).toBeVisible();
   await expect.poll(async () =>
-    page.evaluate(() => window.__viewerPanel.snapshot().measurement.state)).toBe("ready");
+    page.evaluate(() => (window.__viewerPanel!.snapshot().measurement as MeasurementNotice).state)).toBe("ready");
 }
 
 
-async function windowAndAxis(page) {
+async function windowAndAxis(page: Page) {
   return page.evaluate(() => {
-    const state = window.__viewerPanel.snapshot().channels[0].requested;
+    const state = window.__viewerPanel!.snapshot().channels![0].requested as WindowAndAxis;
     return { window: state.window, axis: state.axis };
   });
 }
@@ -76,7 +118,7 @@ async function windowAndAxis(page) {
 test("histogram edge drag, background pan, wheel zoom, reset, and pointer feedback", async ({ page }) => {
   await mountHistogram(page);
   const plot = page.getByLabel("histogram overview 0");
-  const face = await plot.boundingBox();
+  const face = (await plot.boundingBox())!;
   const axisFrom = page.getByLabel("axis from overview 0");
   const axisTo = page.getByLabel("axis to overview 0");
   const axis = {
@@ -84,7 +126,7 @@ test("histogram edge drag, background pan, wheel zoom, reset, and pointer feedba
     high: Number(await axisTo.inputValue()),
   };
   const before = await windowAndAxis(page);
-  const xOf = (value) => face.x + face.width * ((value - axis.low) / (axis.high - axis.low));
+  const xOf = (value: number) => face.x + face.width * ((value - axis.low) / (axis.high - axis.low));
   const y = face.y + face.height / 2;
 
   await page.mouse.move(xOf(before.window.low), y);
@@ -137,8 +179,8 @@ test("typed axis/window/opacity values and Log match Viewer behavior", async ({ 
     await input.press("Enter");
   }
   const state = (await windowAndAxis(page));
-  expect(state.axis.low).toBe(100);
-  expect(state.axis.high).toBe(2600);
+  expect(state.axis!.low).toBe(100);
+  expect(state.axis!.high).toBe(2600);
   expect(state.window).toEqual({ low: 350, high: 1750 });
   expect(await page.getByLabel("opacity value overview 0").inputValue()).toBe("42%");
 
@@ -153,7 +195,7 @@ test("typed axis/window/opacity values and Log match Viewer behavior", async ({ 
 });
 
 
-async function plotBars(page) {
+async function plotBars(page: Page) {
   return page.getByLabel("histogram overview 0").locator("rect[fill='currentColor']")
     .evaluateAll((bars) => bars.map((bar) => ({
       x: Number(bar.getAttribute("x")),
@@ -178,7 +220,7 @@ test("a delayed Auto cannot overwrite a newer manual window", async ({ page }) =
   await mountWithoutRoute(page);
   await expect.poll(() => calls).toBeGreaterThanOrEqual(1);
   await page.getByLabel("auto contrast overview 0").click();
-  await page.getByLabel("min overview 0").evaluate((slider) => {
+  await page.getByLabel("min overview 0").evaluate((slider: HTMLInputElement) => {
     slider.value = "650";
     slider.dispatchEvent(new Event("input", { bubbles: true }));
   });
@@ -219,15 +261,15 @@ test("a newer Auto cancels an older response, and a failure keeps the window vis
   failNext = true;
   await page.getByLabel("auto contrast overview 0").click();
   await expect.poll(async () =>
-    page.evaluate(() => window.__viewerPanel.snapshot().measurement.state)).toBe("failed");
+    page.evaluate(() => (window.__viewerPanel!.snapshot().measurement as MeasurementNotice).state)).toBe("failed");
   expect((await windowAndAxis(page)).window).toEqual(beforeFailure);
   await expect(page.locator("[data-measurement-state='failed']"))
     .toContainText("Measurement failed");
 });
 
 
-async function mountWithoutRoute(page) {
-  await page.evaluate((histogram) => {
+async function mountWithoutRoute(page: Page) {
+  await page.evaluate((histogram: Histogram) => {
     document.body.innerHTML = `
       <main class="canvas-body" style="display:grid;grid-template-columns:1fr auto;height:760px">
         <div class="plot-host" style="position:relative;min-width:600px"><div id="panel-host"></div></div>
@@ -246,11 +288,11 @@ async function mountWithoutRoute(page) {
         channelIndex: 0, sources: [`${location.origin}/data/overview.ome.zarr/|zarr3:`],
       }],
     };
-    const observed = [{
+    const observed: ObservedRow[] = [{
       visible: true, window: { low: 200, high: 2000 }, weight: 1,
       sources: [{ lower: [0, 0, 0], upper: [1, 64, 64], matrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }],
     }];
-    const viewer = {
+    const viewer: PanelViewer = {
       measurementBox: () => [[0.2, 0.3], [0.8, 0.9]],
       setChannel(index, change) {
         if (change.visible !== undefined) observed[index].visible = change.visible;
@@ -262,12 +304,12 @@ async function mountWithoutRoute(page) {
       })),
     };
     const state = module.createViewerPanelState();
-    const handle = await module.mountViewerPanel(document.querySelector("#panel-host"), {
+    const handle = await module.mountViewerPanel(document.querySelector<HTMLElement>("#panel-host"), {
       viewer, acquisitions: [acquisition], requestedState: state,
     });
     window.__histogramFixture = { module, viewer, acquisition, observed, state, handle };
   });
   await expect(page.getByLabel("histogram overview 0")).toBeVisible();
   await expect.poll(async () =>
-    page.evaluate(() => window.__viewerPanel.snapshot().measurement.state)).toBe("ready");
+    page.evaluate(() => (window.__viewerPanel!.snapshot().measurement as MeasurementNotice).state)).toBe("ready");
 }

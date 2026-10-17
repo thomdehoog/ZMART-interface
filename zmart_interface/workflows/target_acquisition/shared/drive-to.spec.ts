@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 /* Double-click the picture and the microscope goes there.
  *
@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
  * it is, which is the one thing it must never do.
  */
 
-const connect = async (page) => {
+const connect = async (page: Page) => {
   await page.locator('.field input[type="password"]').fill("hunter2");
   await page.locator(".session-foot button.run").click();
   await expect(page.locator('.step:has-text("Define Carrier")').first())
@@ -18,21 +18,21 @@ const connect = async (page) => {
 
 /* Whether the stage mark is under the pointer: the canvas answers with its
    own tooltip, which is the page saying "the stage is here". */
-const markIsAt = async (page, at) => {
+const markIsAt = async (page: Page, at: { x: number; y: number }) => {
   await page.mouse.move(at.x, at.y);
   await page.waitForTimeout(200);
-  return page.locator("#stage-tip").evaluate((n) => n.classList.contains("on"));
+  return page.locator("#stage-tip").evaluate((n: Element) => n.classList.contains("on"));
 };
 
 test("double-clicking the picture drives the stage there", async ({ page }) => {
-  const errs = [];
+  const errs: string[] = [];
   page.on("pageerror", (e) => errs.push(String(e)));
   page.on("console", (m) => m.type() === "error" && errs.push(m.text()));
   await page.goto("/?backend=pretend");
   await page.waitForTimeout(300);
   await connect(page);
 
-  const box = await page.locator("#stage-canvas").boundingBox();
+  const box = (await page.locator("#stage-canvas").boundingBox())!;
   /* Somewhere in the middle of the travel, well away from the corner the
      stage parks in — so "the mark is here" cannot be true by accident. */
   const going = { x: box.x + box.width * 0.55, y: box.y + box.height * 0.42 };

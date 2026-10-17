@@ -1,15 +1,53 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import type { RunForTests } from "../../framework/window/run-state.ts";
+import type { forTests } from "./shared/run-document.ts";
+import type { ScanPosition } from "./backend/verbs.ts";
+
+/** The run as a test reads it: the framework's keys and what this workflow's `forTests` adds. */
+type TheRun = RunForTests & ReturnType<typeof forTests>;
+
+/** A target as the picture reports it: where it is on the carrier and on screen, and what the run made of it. */
+interface TargetOnCanvas {
+  id: string;
+  field: number;
+  x: number;
+  y: number;
+  screen: { x: number; y: number };
+  selected: boolean;
+  restricted: boolean;
+  acquired: boolean;
+}
+
+/** A box on the page, in page pixels. */
+interface Box { x: number; y: number; width: number; height: number }
+
+/** The page with the errors this suite collects on it before each test. */
+type PageWithErrors = Page & { errors: string[] };
+
+/** A workflow as the page's chooser and rail show it. */
+interface DeclaredWorkflow { name: string; steps: { title: string; n: string }[] }
+
+declare global {
+  interface Window {
+    /** The labels `raiseTarget` was called with, for the inspection test: any one is a regression. */
+    selectionRebuilds?: string[];
+    /** The positions of each target capture the pretend backend was asked for, for the inspection test. */
+    targetCaptureRequests?: ScanPosition[][];
+  }
+}
+
 /* The workflows as the page itself assembled them: its own folder scan,
  * read inside the page. A flow imports its stylesheet and the page's
  * modules, which only the page's build tool can load, so this suite does not
  * read the folders on its own. */
-async function theDeclaredWorkflows(page) {
+async function theDeclaredWorkflows(page: Page): Promise<Record<string, DeclaredWorkflow>> {
   return page.evaluate(async () => {
     const { WORKFLOWS } = await import("/zmart_interface/framework/window/the-workflows.ts");
     return Object.fromEntries(Object.entries(WORKFLOWS).map(([key, wf]) => [key, {
-      name: wf.name, steps: wf.steps.map((s) => ({ title: s.title, n: s.n })),
+      /* Every assembled step carries its number: `assembleWorkflows` numbers them. */
+      name: wf.name, steps: wf.steps.map((s) => ({ title: s.title, n: s.n! })),
     }]));
   });
 }
@@ -21,11 +59,11 @@ async function theDeclaredWorkflows(page) {
    ladder, the metric legend, the drag override — are worth unit tests once
    the maths stops moving; they cost a full run each through the UI. */
 
-const gotoStep = (page, name) => page.locator(`.step:has-text("${name}")`).first().click();
+const gotoStep = (page: Page, name: string) => page.locator(`.step:has-text("${name}")`).first().click();
 
 /** Optional review artifact: ordinary test runs stay read-only, while a
  * reviewer can name a folder and reproduce the documented operator view. */
-async function captureOperatorEvidence(page, name) {
+async function captureOperatorEvidence(page: Page, name: string) {
   const folder = process.env.OPERATOR_EVIDENCE_DIR;
   if (!folder) return;
   fs.mkdirSync(folder, { recursive: true });
@@ -34,7 +72,7 @@ async function captureOperatorEvidence(page, name) {
 
 /* A step's button sits at the end of whichever panel is showing, so this does
    not need to know which step it is running. */
-async function runStep(page, ms = 1000) {
+async function runStep(page: Page, ms = 1000) {
   await page.locator(".panel.on button.step-run").click();
   await page.waitForTimeout(ms);
   /* The wait above matches the rehearsal's pace; this expect covers the slow
@@ -49,7 +87,7 @@ async function runStep(page, ms = 1000) {
 }
 
 /** Connect has its own button at the end of its card, not one the frame drives. */
-async function connect(page, password = "hunter2") {
+async function connect(page: Page, password = "hunter2") {
   await page.locator('.field input[type="password"]').fill(password);
   await page.locator(".session-foot button.run").click();
   await page.waitForTimeout(2200);
@@ -64,7 +102,7 @@ async function connect(page, password = "hunter2") {
 
 /** Set the instrument up, name it, record it — into the slot in `hostId`.
  * There is no presets step: each recording lives in the step that uses it. */
-async function recordSlot(page, hostId, name) {
+async function recordSlot(page: Page, hostId: string, name: string) {
   const bar = page.locator(`#${hostId} .setting-box.open`);
   /* Some slots take a name and some do not — where what is read names itself,
      the bar is only a button. Naming one that has no field to name it in is
@@ -77,7 +115,7 @@ async function recordSlot(page, hostId, name) {
 
 /** Everything before the sample is touched: session and carrier. Configuring
  * the carrier is the work, so standing on that step settles it. */
-async function throughSetup(page) {
+async function throughSetup(page: Page) {
   await connect(page);
   await gotoStep(page, "Define Carrier");
   /* The plate this lab runs most, chosen rather than assumed. A fresh run
@@ -92,7 +130,7 @@ async function throughSetup(page) {
 /** ...on a plate with real room in each well. A 6-well plate's wells are far
  * wider than a 96-well's 6.6 mm, so a drawn region holds many 676 µm frames
  * and the tests about covering a region have something to count. */
-async function throughSetupRoomy(page) {
+async function throughSetupRoomy(page: Page) {
   await connect(page);
   await gotoStep(page, "Define Carrier");
   await page.locator(".carrier-type[data-type='wellplate']").click();
@@ -103,7 +141,7 @@ async function throughSetupRoomy(page) {
 /** ...and the scan fields, which is what opens the steps that touch the
  * sample. The overview's preset is recorded here, where the fields that take
  * their frame from it are laid. */
-async function throughFields(page) {
+async function throughFields(page: Page) {
   await throughSetup(page);
   await gotoStep(page, "Overview scan area");
   await recordSlot(page, "sf-preset", "overview");
@@ -111,7 +149,7 @@ async function throughFields(page) {
   await page.waitForTimeout(300);
 }
 
-async function placeFocusPoints(page) {
+async function placeFocusPoints(page: Page) {
   await gotoStep(page, "Focus strategy");
   // the focus preset is recorded beside the sweeps it will measure, and
   // the points belong to a map, which is made and named first
@@ -121,57 +159,57 @@ async function placeFocusPoints(page) {
   await page.waitForTimeout(300);
 }
 
-const targetsOnCanvas = (page) =>
-  page.evaluate(() => window.__theStageCanvas.targets());
+const targetsOnCanvas = (page: Page) =>
+  page.evaluate(() => window.__theStageCanvas!.targets() as TargetOnCanvas[]);
 
 /* A place on the gate plot, as fractions of its frame: the frame keeps a
    column at the right for the y labels and two lines below for the x axis,
    so a fraction of the whole canvas landed in the margins. The frame's
    inset is the plot's own `PAD`. */
 const PLOT_PAD = { l: 1, r: 62, t: 1, b: 38 };
-const plotPoint = (sc, gx, gy) => [
+const plotPoint = (sc: Box, gx: number, gy: number): [number, number] => [
   sc.x + PLOT_PAD.l + (sc.width - PLOT_PAD.l - PLOT_PAD.r) * gx,
   sc.y + PLOT_PAD.t + (sc.height - PLOT_PAD.t - PLOT_PAD.b) * gy,
 ];
 
-const physicalTargetPositions = (targets) => targets.map(({ id, field, x, y }) =>
+const physicalTargetPositions = (targets: TargetOnCanvas[]) => targets.map(({ id, field, x, y }) =>
   ({ id, field, x, y }));
 
-async function expectTargetLayerOnCanvas(page, layer, reason) {
+async function expectTargetLayerOnCanvas(page: Page, layer: string, reason: string) {
   const canvas = page.locator("#stage-canvas");
   await page.mouse.move(2, 2);
   await page.waitForTimeout(120);
   const shown = await canvas.screenshot();
-  await page.evaluate((key) => window.__theStageCanvas.showLayer(key, false), layer);
+  await page.evaluate((key: string) => window.__theStageCanvas!.showLayer(key, false), layer);
   await page.waitForTimeout(120);
   const hidden = await canvas.screenshot();
   expect(Buffer.compare(shown, hidden), reason).not.toBe(0);
-  await page.evaluate((key) => window.__theStageCanvas.showLayer(key, true), layer);
+  await page.evaluate((key: string) => window.__theStageCanvas!.showLayer(key, true), layer);
   await page.waitForTimeout(120);
 }
 
-async function expectTargetAtItsProjection(page, target, stepName) {
+async function expectTargetAtItsProjection(page: Page, target: TargetOnCanvas, stepName: string) {
   const box = await page.locator("#stage-canvas").boundingBox();
   expect(box, `${stepName}: the canvas has a box`).not.toBeNull();
   expect(target.screen.x, `${stepName}: target x is on the canvas`)
     .toBeGreaterThanOrEqual(0);
-  expect(target.screen.x, `${stepName}: target x is on the canvas`).toBeLessThan(box.width);
+  expect(target.screen.x, `${stepName}: target x is on the canvas`).toBeLessThan(box!.width);
   expect(target.screen.y, `${stepName}: target y is on the canvas`)
     .toBeGreaterThanOrEqual(0);
-  expect(target.screen.y, `${stepName}: target y is on the canvas`).toBeLessThan(box.height);
+  expect(target.screen.y, `${stepName}: target y is on the canvas`).toBeLessThan(box!.height);
 }
 
 test.beforeEach(async ({ page }) => {
-  const errors = [];
+  const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-  page.errors = errors;
+  (page as PageWithErrors).errors = errors;
   await page.goto("/?backend=pretend");
   await page.waitForTimeout(250);
 });
 
 test.afterEach(async ({ page }) => {
-  expect(page.errors, "console and page errors").toEqual([]);
+  expect((page as PageWithErrors).errors, "console and page errors").toEqual([]);
 });
 
 test("the rail carries the workflow's declared steps", async ({ page }) => {
@@ -255,7 +293,7 @@ test("the channel folds away to the right and comes back", async ({ page }) => {
   await expect(page.locator(".side-tab")).toHaveText("Connect");
   /* Stand well inside a zoomed sample view: preserving the initial fitted
      stage alone would not catch a sidebar resize that pans a tileset. */
-  await page.evaluate(() => window.__theStageCanvas.lookAt({
+  await page.evaluate(() => window.__theStageCanvas!.lookAt({
     centre: { x: 11000, y: 7000 }, zoom: 12,
   }));
   await page.waitForTimeout(100);
@@ -263,27 +301,27 @@ test("the channel folds away to the right and comes back", async ({ page }) => {
   const fold = page.locator("#side-fold");
   await expect(fold).toHaveAttribute("aria-expanded", "true");
   await expect(fold).toHaveAttribute("aria-label", "Collapse right sidebar");
-  expect((await fold.boundingBox()).width, "the fold has an easy-to-find hit area")
+  expect((await fold.boundingBox())!.width, "the fold has an easy-to-find hit area")
     .toBeGreaterThanOrEqual(28);
-  const viewBefore = await page.evaluate(() => window.__theStageCanvas.view());
+  const viewBefore = await page.evaluate(() => window.__theStageCanvas!.view()!);
   await fold.click();
   await expect(page.locator("#canvas-side")).toBeHidden();
   await expect(page.locator("#side-divider")).toBeHidden();
   await expect(page.locator(".side-tab")).toHaveCount(0);
   await expect(fold).toHaveAttribute("aria-expanded", "false");
   await expect(fold).toHaveAttribute("aria-label", "Open right sidebar");
-  await expect.poll(async () => (await page.locator("#stage-canvas").boundingBox()).width,
-    "the canvas takes the room the column gave up").toBeGreaterThan(canvasBefore.width + 100);
-  const viewFolded = await page.evaluate(() => window.__theStageCanvas.view());
+  await expect.poll(async () => (await page.locator("#stage-canvas").boundingBox())!.width,
+    "the canvas takes the room the column gave up").toBeGreaterThan(canvasBefore!.width + 100);
+  const viewFolded = await page.evaluate(() => window.__theStageCanvas!.view()!);
   expect(viewFolded.centre.x).toBeCloseTo(viewBefore.centre.x, 6);
   expect(viewFolded.centre.y).toBeCloseTo(viewBefore.centre.y, 6);
   expect(viewFolded.zoom).toBeCloseTo(viewBefore.zoom, 9);
   await fold.click();
   await expect(page.locator("#canvas-side")).toBeVisible();
   await expect(page.locator(".side-tab")).toHaveText("Connect");
-  await expect.poll(async () => (await page.locator("#stage-canvas").boundingBox()).width)
-    .toBe(canvasBefore.width);
-  const viewOpen = await page.evaluate(() => window.__theStageCanvas.view());
+  await expect.poll(async () => (await page.locator("#stage-canvas").boundingBox())!.width)
+    .toBe(canvasBefore!.width);
+  const viewOpen = await page.evaluate(() => window.__theStageCanvas!.view()!);
   expect(viewOpen.centre.x).toBeCloseTo(viewBefore.centre.x, 6);
   expect(viewOpen.centre.y).toBeCloseTo(viewBefore.centre.y, 6);
   expect(viewOpen.zoom).toBeCloseTo(viewBefore.zoom, 9);
@@ -296,7 +334,7 @@ test("typing the password does not throw the field away", async ({ page }) => {
   await page.keyboard.type("hunter2", { delay: 30 });
   // rebuilding the card on every keystroke destroys the input being typed into
   expect(await pw.inputValue()).toBe("hunter2");
-  expect(await page.evaluate(() => document.activeElement?.type === "password")).toBe(true);
+  expect(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type === "password")).toBe(true);
   await expect(page.locator(".session-foot button.run")).toBeEnabled();
 });
 
@@ -417,7 +455,7 @@ test("recording again replaces the reading, and re-takes the plan with it",
     /* A region rather than the grid: what a region costs is what its preset
        says a frame covers, so re-reading the preset is a number on the
        readout and not only a colour on the stage. */
-    const box = await page.locator("#stage-canvas").boundingBox();
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
     await page.locator(".sf-tool[data-tool='rectangle']").click();
     await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35);
     await page.mouse.down();
@@ -425,7 +463,7 @@ test("recording again replaces the reading, and re-takes the plan with it",
     await page.mouse.up();
     await page.waitForTimeout(250);
     const positions = async () =>
-      Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)[1]);
+      Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)![1]);
     const dry = await positions();
     expect(dry, "the region covered at 20x").toBeGreaterThan(0);
 
@@ -662,7 +700,7 @@ test("the stage mark is registered to the stage, and says where it is on hover",
     await gotoStep(page, "Define Carrier");
     await page.waitForTimeout(300);
 
-    const box = await page.locator("#stage-canvas").boundingBox();
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
     const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const tip = page.locator("#stage-tip");
     const answering = () => tip.evaluate((n) => n.classList.contains("on"));
@@ -670,15 +708,15 @@ test("the stage mark is registered to the stage, and says where it is on hover",
     /** Where a stage position is currently drawn in page pixels. The public
         canvas projection is the same registration contract the layers use;
         the removed coordinate readout is deliberately not recreated here. */
-    const pointAt = async (ux, uy) => {
-      const projected = await page.evaluate(({ x, y }) => {
-        const [ox, oy] = window.__theStageCanvas.carrierOriginUm();
-        return window.__theStageCanvas.project(x - ox, y - oy);
+    const pointAt = async (ux: number, uy: number) => {
+      const projected = await page.evaluate(({ x, y }: { x: number; y: number }) => {
+        const [ox, oy] = window.__theStageCanvas!.carrierOriginUm();
+        return window.__theStageCanvas!.project(x - ox, y - oy);
       }, { x: ux, y: uy });
       const at = Array.isArray(projected)
         ? { x: projected[0], y: projected[1] }
         : projected;
-      const canvas = await page.locator("#stage-canvas").boundingBox();
+      const canvas = (await page.locator("#stage-canvas").boundingBox())!;
       return { x: canvas.x + at.x, y: canvas.y + at.y };
     };
 
@@ -794,8 +832,8 @@ test("the tools and the grid are on screen together, over what the grid laid",
 
     /* What the grid put down is still a set of fields, so it can be picked,
        added to and thrown away. */
-    const box = await page.locator("#stage-canvas").boundingBox();
-    const at = (fx, fy) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
+    const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
 
     // shift-drag on empty stage marquees a block of positions
     const a = at(0.34, 0.24), b = at(0.46, 0.36);
@@ -808,10 +846,10 @@ test("the tools and the grid are on screen together, over what the grid laid",
     await page.waitForTimeout(200);
 
     // and Delete takes them out of the plan, which is what says they were held
-    const before = Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)[1]);
+    const before = Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)![1]);
     await page.keyboard.press("Delete");
     await page.waitForTimeout(200);
-    const after = Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)[1]);
+    const after = Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)![1]);
     expect(after, "fewer positions than before").toBeLessThan(before);
   });
 
@@ -819,7 +857,7 @@ test("a grid position can be picked and dropped, but not dragged off its grid",
   async ({ page }) => {
     await throughFields(page);
     await gotoStep(page, "Overview scan area");
-    const box = await page.locator("#stage-canvas").boundingBox();
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
     const shot = () => page.locator("#stage-canvas").screenshot();
 
     /* Where it is, is what the carrier and the grid settings say. Dragging one
@@ -904,7 +942,7 @@ test("a position put down on the plastic slides into the well it was nearest",
     await throughSetup(page);
     await gotoStep(page, "Overview scan area");
     await recordSlot(page, "sf-preset", "overview");
-    const box = await page.locator("#stage-canvas").boundingBox();
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
 
     /* Pressed between wells. It is placed, because the press said where to
        look rather than where a frame happens to fit — but it lands where the
@@ -923,14 +961,14 @@ test("a position dragged across the plate steps from well to well",
     await throughSetup(page);
     await gotoStep(page, "Overview scan area");
     await recordSlot(page, "sf-preset", "overview");
-    const box = await page.locator("#stage-canvas").boundingBox();
-    const at = (fx, fy) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
+    const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
     const cursor = () => page.locator("#stage-canvas").evaluate((c) => c.style.cursor);
 
     /* Where the canvas offers to pick something up. A position is small and
        seated in the middle of whatever well it was nearest, so it has to be
        looked for rather than assumed to be where the press was. */
-    const findField = async (cx, cy, span = 0.05) => {
+    const findField = async (cx: number, cy: number, span = 0.05) => {
       for (let fy = cy - span; fy <= cy + span; fy += 0.005) {
         for (let fx = cx - span; fx <= cx + span; fx += 0.005) {
           const p = at(fx, fy);
@@ -953,8 +991,8 @@ test("a position dragged across the plate steps from well to well",
        has got to — worked out the second way, every step is seated back into
        the middle of the well before the next one is added, and the position
        never leaves the well it started in while the pointer walks off. */
-    const to = { fx: from.fx + 0.2, fy: from.fy };
-    await page.mouse.move(at(from.fx, from.fy).x, at(from.fx, from.fy).y);
+    const to = { fx: from!.fx + 0.2, fy: from!.fy };
+    await page.mouse.move(at(from!.fx, from!.fy).x, at(from!.fx, from!.fy).y);
     await page.mouse.down();
     await page.mouse.move(at(to.fx, to.fy).x, at(to.fx, to.fy).y, { steps: 12 });
     await page.mouse.up();
@@ -965,9 +1003,9 @@ test("a position dragged across the plate steps from well to well",
     await expect(page.locator(".sf-readout")).toContainText("1 position");
     const landed = await findField(to.fx, to.fy, 0.04);
     expect(landed, "it followed the pointer").not.toBeNull();
-    expect(Math.abs(landed.fx - to.fx), "into the well it was let go over")
+    expect(Math.abs(landed!.fx - to.fx), "into the well it was let go over")
       .toBeLessThan(0.04);
-    expect(await findField(from.fx, from.fy, 0.02),
+    expect(await findField(from!.fx, from!.fy, 0.02),
       "and it is not still where it started").toBeNull();
   });
 
@@ -976,7 +1014,7 @@ test("a region is drawn on the canvas and covered by its preset's frame",
     await throughSetupRoomy(page);
     await gotoStep(page, "Overview scan area");
     await recordSlot(page, "sf-preset", "overview");
-    const box = await page.locator("#stage-canvas").boundingBox();
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
 
     await page.locator(".sf-tool[data-tool='rectangle']").click();
     await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35);
@@ -988,7 +1026,7 @@ test("a region is drawn on the canvas and covered by its preset's frame",
     // one region, and the positions covering it are the tiles the preset takes
     await expect(page.locator(".sf-readout")).toContainText("1 region");
     const readout = await page.locator(".sf-readout").innerText();
-    expect(Number(readout.match(/^(\d+) position/)[1]),
+    expect(Number(readout.match(/^(\d+) position/)![1]),
       "a region the size of several frames takes several tiles").toBeGreaterThan(1);
 
     // drawing hands the tool back, so the next drag moves rather than draws a
@@ -1011,8 +1049,8 @@ test("a polygon is closed by a double-click, and keeps the vertices it was given
     await throughSetup(page);
     await gotoStep(page, "Overview scan area");
     await recordSlot(page, "sf-preset", "overview");
-    const box = await page.locator("#stage-canvas").boundingBox();
-    const at = (fx, fy) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
+    const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
 
     await page.locator(".sf-tool[data-tool='polygon']").click();
     for (const [fx, fy] of [[0.3, 0.3], [0.5, 0.28], [0.55, 0.5]]) {
@@ -1100,8 +1138,8 @@ test("a press on empty canvas lets go of the selection, and the canvas shows it"
     await throughSetup(page);
     await gotoStep(page, "Overview scan area");
     await recordSlot(page, "sf-preset", "overview");
-    const box = await page.locator("#stage-canvas").boundingBox();
-    const at = (fx, fy) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
+    const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy });
     const shot = () => page.locator("#stage-canvas").screenshot();
 
     await page.locator(".sf-tool[data-tool='rectangle']").click();
@@ -1131,7 +1169,7 @@ test("a region can be copied, and a second paste lands clear of the first",
     await throughSetupRoomy(page);
     await gotoStep(page, "Overview scan area");
     await recordSlot(page, "sf-preset", "overview");
-    const box = await page.locator("#stage-canvas").boundingBox();
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
 
     await page.locator(".sf-tool[data-tool='rectangle']").click();
     await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.3);
@@ -1150,11 +1188,11 @@ test("a region can be copied, and a second paste lands clear of the first",
     /* The copy becomes what is held, so pasting again offsets from it rather
        than landing back on the original. Three distinct regions, and the tile
        count grows with each — two on top of each other would not. */
-    const two = Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)[1]);
+    const two = Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)![1]);
     await page.keyboard.press("Control+v");
     await page.waitForTimeout(250);
     await expect(page.locator(".sf-readout")).toContainText("3 regions");
-    const three = Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)[1]);
+    const three = Number((await page.locator(".sf-readout").innerText()).match(/^(\d+)/)![1]);
     expect(three, "a third region adds its own tiles").toBeGreaterThan(two);
 
     // and a paste is one step, so one undo takes it back
@@ -1184,13 +1222,13 @@ test("a pasted position is hand-made, so the next Apply leaves it alone",
   });
 
 /** Where the run will image, read off the page rather than off its sentence. */
-const planOf = (page) => page.evaluate(() => window.__plan.map((t) => ({
+const planOf = (page: Page) => page.evaluate(() => window.__plan!.map((t) => ({
   x: t.x, y: t.y, frameUm: t.frameUm,
 })));
 
 /** How far the nearest other position is from each — the pitch of a grid. */
-const closestGap = (tiles) => Math.min(...tiles.map((t, i) => Math.min(
-  ...tiles.filter((_, j) => j !== i).map((o) => Math.hypot(o.x - t.x, o.y - t.y)),
+const closestGap = (tiles: { x: number; y: number }[]) => Math.min(...tiles.map((t, i) => Math.min(
+  ...tiles.filter((one, j) => j !== i).map((o) => Math.hypot(o.x - t.x, o.y - t.y)),
 )));
 
 test("a grid is laid again under a preset whose frame is a different size",
@@ -1287,12 +1325,12 @@ test("focus points are laid so many to a tileset", async ({ page }) => {
   await page.waitForTimeout(200);
   await gotoStep(page, "Overview scan area");
   await recordSlot(page, "sf-preset", "overview");
-  const box = await page.locator("#stage-canvas").boundingBox();
+  const box = (await page.locator("#stage-canvas").boundingBox())!;
   /* Fractions of the stage picture, not of the box: Fit puts the 120 x 80 mm
      travel at the top with a 26 px margin on every side, so the picture is
      the box's width less the margins and 2/3 as tall. */
   const pad = 26, picW = box.width - 2 * pad, picH = picW * 80 / 120;
-  const at = (fx, fy) => ({ x: box.x + pad + picW * fx, y: box.y + pad + picH * fy });
+  const at = (fx: number, fy: number) => ({ x: box.x + pad + picW * fx, y: box.y + pad + picH * fy });
   // in the middle of the top-centre well, where a region has positions to hold
   await page.locator(".sf-tool[data-tool='rectangle']").click();
   await page.mouse.move(at(0.46, 0.26).x, at(0.46, 0.26).y);
@@ -1315,7 +1353,7 @@ test("focus points are laid so many to a tileset", async ({ page }) => {
      machine — a fixed pause that was long enough on the day it was written
      turned into a test that failed about half the time and, worse, one nobody
      believed. It went red on a real regression and was read as noise. */
-  const measure = async (readings) => {
+  const measure = async (readings: number | string) => {
     await page.locator(".panel.on button.step-run").click();
     if (typeof readings === "number") {
       await expect(page.locator(".point-row")).toHaveCount(readings, { timeout: 30_000 });
@@ -1335,7 +1373,7 @@ test("focus points are laid so many to a tileset", async ({ page }) => {
     const rows = await page.locator(".point-row").allInnerTexts();
     return rows.map((t) => {
       const m = t.match(/(-?[\d.]+),\s*(-?[\d.]+)\s*mm/);
-      return { x: Number(m[1]), y: Number(m[2]) };
+      return { x: Number(m![1]), y: Number(m![2]) };
     });
   };
 
@@ -1420,7 +1458,7 @@ test("target inspection changes selection without rebuilding published images", 
   await gotoStep(page, "Detect objects");
   await runStep(page, 3000);
   await gotoStep(page, "Discover Targets");
-  const plot = await page.locator("#scatter-canvas").boundingBox();
+  const plot = (await page.locator("#scatter-canvas").boundingBox())!;
   for (const [x, y] of [[0.86, 0.08], [0.96, 0.08], [0.96, 0.22], [0.86, 0.22], [0.86, 0.08]]) {
     await page.mouse.click(...plotPoint(plot, x, y));
   }
@@ -1439,57 +1477,57 @@ test("target inspection changes selection without rebuilding published images", 
     // The live call can remain busy for minutes. Any invocation is a regression,
     // even when the UI does not await its promise.
     backend.raiseTarget = label => {
-      window.selectionRebuilds.push(label);
+      window.selectionRebuilds!.push(label);
       return new Promise(() => {});
     };
     const scan = backend.scanOverview.bind(backend);
     backend.scanOverview = args => {
-      if (args.acquisition_type === "targets") window.targetCaptureRequests.push(args.positions);
+      if (args.acquisition_type === "targets") window.targetCaptureRequests!.push(args.positions);
       return scan(args);
     };
   });
   await runStep(page, 3000);
-  const run = await page.evaluate(() => window.__theRunState());
+  const run = await page.evaluate(() => window.__theRunState!() as TheRun);
   expect(run.acquiredTileKeys.length).toBeGreaterThan(1);
   expect(run.selectedQuietly).toBe(true);
-  const choose = key => page.locator(`#target-list .point-row[data-target="${key}"] button`).click();
+  const choose = (key: string) => page.locator(`#target-list .point-row[data-target="${key}"] button`).click();
   const different = run.acquiredTileKeys.find(key => key !== run.selectedTarget);
-  await choose(different);
-  await expect(page.locator(".pair")).toHaveAttribute("data-target", different);
-  expect(await page.evaluate(() => window.__theRunState().selectedTarget)).toBe(different);
+  await choose(different!);
+  await expect(page.locator(".pair")).toHaveAttribute("data-target", different!);
+  expect(await page.evaluate(() => (window.__theRunState!() as TheRun).selectedTarget)).toBe(different);
   expect(await page.evaluate(() => window.selectionRebuilds)).toEqual([]);
 
   // Choosing the automatically followed frame must make it a manual selection.
   await runStep(page, 3000);
-  const followed = await page.evaluate(() => window.__theRunState().selectedTarget);
-  await choose(followed);
-  expect(await page.evaluate(() => window.__theRunState().selectedQuietly)).toBe(false);
+  const followed = await page.evaluate(() => (window.__theRunState!() as TheRun).selectedTarget);
+  await choose(followed!);
+  expect(await page.evaluate(() => (window.__theRunState!() as TheRun).selectedQuietly)).toBe(false);
 
   const other = await page.evaluate(() => {
-    const run = window.__theRunState();
-    const canvas = document.querySelector("#stage-canvas").getBoundingClientRect();
+    const run = window.__theRunState!() as TheRun;
+    const canvas = document.querySelector("#stage-canvas")!.getBoundingClientRect();
     return run.targetTilePositions.find(tile => {
-      const [x, y] = window.__theStageCanvas.project(tile.x, tile.y);
+      const [x, y] = window.__theStageCanvas!.project(tile.x, tile.y);
       return tile.key !== run.selectedTarget && x > 10 && y > 10
         && x < canvas.width - 10 && y < canvas.height - 10;
     });
   });
   expect(other).toBeTruthy();
-  const [x, y] = await page.evaluate(tile => window.__theStageCanvas.project(tile.x, tile.y), other);
-  const box = await page.locator("#stage-canvas").boundingBox();
+  const [x, y] = await page.evaluate((tile: { x: number; y: number }) => window.__theStageCanvas!.project(tile.x, tile.y), other!);
+  const box = (await page.locator("#stage-canvas").boundingBox())!;
   await page.mouse.click(box.x + x, box.y + y);
-  await expect(page.locator(".pair")).toHaveAttribute("data-target", other.key);
+  await expect(page.locator(".pair")).toHaveAttribute("data-target", other!.key);
   await expect(page.locator('#target-list .point-row[aria-current="true"]')).toHaveCount(1);
   expect(await page.evaluate(() => window.selectionRebuilds)).toEqual([]);
 
   // Rerun current must capture the new selection, not the button's old selection.
-  const origin = await page.evaluate(() => window.__theStageCanvas.carrierOriginUm());
+  const origin = await page.evaluate(() => window.__theStageCanvas!.carrierOriginUm());
   await page.getByRole("button", { name: "Rerun current", exact: true }).click();
   await expect(page.locator(".panel.on button.step-run")).toHaveText("Rerun all", { timeout: 10_000 });
-  const requests = await page.evaluate(() => window.targetCaptureRequests);
+  const requests = await page.evaluate(() => window.targetCaptureRequests!);
   expect(requests.at(-1)).toHaveLength(1);
-  expect(requests.at(-1)[0].x).toBeCloseTo(other.x + origin[0], 6);
-  expect(requests.at(-1)[0].y).toBeCloseTo(other.y + origin[1], 6);
+  expect(requests.at(-1)![0].x).toBeCloseTo(other!.x + origin[0], 6);
+  expect(requests.at(-1)![0].y).toBeCloseTo(other!.y + origin[1], 6);
   expect(await page.evaluate(() => window.selectionRebuilds)).toEqual([]);
 });
 
@@ -1544,7 +1582,7 @@ test("one walk of the whole run", async ({ page }) => {
     .toBeGreaterThan(0);
   expect(discovered.every((target) => !target.selected && !target.acquired),
     "newly discovered targets are candidates, not silently selected").toBe(true);
-  const plan = await page.evaluate(() => window.__theStageCanvas.plan());
+  const plan = await page.evaluate(() => window.__theStageCanvas!.plan());
   expect(discovered.every((target) => {
     const field = plan[target.field];
     return field
@@ -1581,12 +1619,12 @@ test("one walk of the whole run", async ({ page }) => {
      line, so the closing press missed the first point by exactly it. The
      canvas is measured once, before the first point, on purpose. */
   for (const [gx, gy] of corner) {
-    await page.mouse.click(...plotPoint(sc, gx, gy));
+    await page.mouse.click(...plotPoint(sc!, gx, gy));
     await page.waitForTimeout(120);
   }
   expect(await page.locator("#scatter-canvas").boundingBox(),
     "the plot stands where it stood before the first point").toEqual(sc);
-  await page.mouse.click(...plotPoint(sc, 0.86, 0.08));
+  await page.mouse.click(...plotPoint(sc!, 0.86, 0.08));
   await page.waitForTimeout(300);
   await expect(page.locator("#gate-readout")).toContainText("selected");
   await expect(page.locator("#gate-list .gate-row")).toHaveCount(1);
@@ -1653,7 +1691,7 @@ test("one walk of the whole run", async ({ page }) => {
   await expect(scanAreaSummary.locator("#scan-area-coverage"))
     .toHaveText(`${inTheGate} of ${inTheGate}`);
   await expect(scanAreaSummary).not.toContainText("left out for overlap");
-  const unrestrictedPlan = await page.evaluate(() => window.__theRunState());
+  const unrestrictedPlan = await page.evaluate(() => window.__theRunState!() as TheRun);
   const heldByAreas = new Set(unrestrictedPlan.targetTilePositions
     .flatMap((tile) => tile.covers));
   expect(unrestrictedPlan.restricted.filter((id) => !heldByAreas.has(id)),
@@ -1665,7 +1703,7 @@ test("one walk of the whole run", async ({ page }) => {
   await expect(page.locator("#tiles-count button", { hasText: "One per target" }))
     .toHaveAttribute("aria-checked", "true");
   await runStep(page, 1000);
-  const plain = await page.evaluate(() => window.__theRunState());
+  const plain = await page.evaluate(() => window.__theRunState!() as TheRun);
   expect(plain.targetTiles, "one centred tile per sampled target").toBe(plain.restricted.length);
   await page.locator("#tiles-count button", { hasText: "Fewest" }).click();
   await page.locator("#gate-max-on").check();
@@ -1690,9 +1728,9 @@ test("one walk of the whole run", async ({ page }) => {
   await expect(page.locator("#target-type .setting-box.done")).toHaveCount(1);
   /* The ceiling is per tileset -- a well of the pretend plate -- so what
      survives is so many in each tileset the gate reaches into. */
-  const tilesetOf = (target) => plan[target.field]?.tileset ?? target.field;
-  const underCeiling = (targets, max) => {
-    const perTileset = new Map();
+  const tilesetOf = (target: TargetOnCanvas) => plan[target.field]?.tileset ?? target.field;
+  const underCeiling = (targets: TargetOnCanvas[], max: number) => {
+    const perTileset = new Map<unknown, number>();
     for (const target of targets) {
       const key = tilesetOf(target);
       perTileset.set(key, (perTileset.get(key) ?? 0) + 1);
@@ -1703,7 +1741,7 @@ test("one walk of the whole run", async ({ page }) => {
   expect(underCeiling(gatedTargets, 1), "the gate reaches into fewer cells than it holds")
     .toBeLessThan(inTheGate);
   await runStep(page, 1000);
-  const firstLaid = await page.evaluate(() => window.__theRunState().targetTiles);
+  const firstLaid = await page.evaluate(() => (window.__theRunState!() as TheRun).targetTiles);
   await expect(scanAreaSummary).toBeVisible();
   await expect(scanAreaSummary.locator("#scan-area-count")).toHaveText(String(firstLaid));
   await expect(scanAreaSummary.locator("#scan-area-sampled"))
@@ -1749,7 +1787,7 @@ test("one walk of the whole run", async ({ page }) => {
      the settings' frame: neighbours that fit in one frame share an area, so
      there are at most as many areas as sampled targets, and every sampled
      target is covered. The press here is ready. */
-  const laid = await page.evaluate(() => window.__theRunState().targetTiles);
+  const laid = await page.evaluate(() => (window.__theRunState!() as TheRun).targetTiles);
   expect(laid).toBeGreaterThan(0);
   expect(laid).toBeLessThanOrEqual(underCeiling(gatedTargets, 2));
   await gotoStep(page, "Target scan area");
@@ -1763,7 +1801,7 @@ test("one walk of the whole run", async ({ page }) => {
      the page accounts for it -- the rings, the gallery, the sentence beside
      the button -- and the step is not done, only run. */
   /* What the acquisition images is the scan areas placed, one capture each. */
-  const gatedCount = await page.evaluate(() => window.__theRunState().targetTiles);
+  const gatedCount = await page.evaluate(() => (window.__theRunState!() as TheRun).targetTiles);
   await page.locator(".panel.on button.step-run").click();
   await expect(page.locator(".panel.on button.step-run")).toHaveText("Interrupt");
   await expect.poll(async () => (await targetsOnCanvas(page)).filter((target) => target.acquired).length,
@@ -1771,16 +1809,16 @@ test("one walk of the whole run", async ({ page }) => {
   /* Pressed on the button as it stands: the pretend run redraws the action
      bar every animation frame, and a click that waits for the button to hold
      still waits until the run is over -- and then presses Rerun all. */
-  await page.evaluate(() => document.querySelector(".panel.on button.step-run").click());
+  await page.evaluate(() => document.querySelector<HTMLButtonElement>(".panel.on button.step-run")!.click());
   await expect(page.locator(".panel.on button.step-run")).toHaveText("Rerun all", { timeout: 10_000 });
   await expect(page.getByRole("button", { name: "Rerun current", exact: true })).toBeVisible();
-  const taken = (await page.evaluate(() => window.__theRunState())).acquiredTileKeys.length;
+  const taken = (await page.evaluate(() => window.__theRunState!() as TheRun)).acquiredTileKeys.length;
   expect(taken, "the run was stopped before it finished, or the interruption proves nothing").toBeLessThan(gatedCount);
   await expect(page.locator("#target-list .point-row"), "the gallery lists every acquired tile, stopped or not").toHaveCount(taken);
   await expect(page.locator(".pair"), "and shows one pair, the chosen target's").toHaveCount(1);
   await expect(page.locator(".gallery-about"), "the target list needs no instruction strip").toHaveCount(0);
   await expect(page.locator(".pair .verdict, #target-list .z"), "Step 9 has no approval or rejection controls").toHaveCount(0);
-  const comparison = await page.locator(".pair .imgs canvas").evaluateAll((canvases) =>
+  const comparison = await page.locator(".pair .imgs canvas").evaluateAll((canvases: HTMLCanvasElement[]) =>
     canvases.map((canvas) => {
       const box = canvas.getBoundingClientRect();
       return { y: box.y, width: box.width, height: box.height };
@@ -1790,13 +1828,13 @@ test("one walk of the whole run", async ({ page }) => {
     .toBeGreaterThanOrEqual(comparison[0].y + comparison[0].height);
   expect(comparison[1].width, "both images use the full comparison width")
     .toBeCloseTo(comparison[0].width, 0);
-  const pairGeometry = await page.locator(".pair .imgs canvas").evaluateAll((canvases) =>
+  const pairGeometry = await page.locator(".pair .imgs canvas").evaluateAll((canvases: HTMLCanvasElement[]) =>
     canvases.map((canvas) => ({
       role: canvas.dataset.comparison,
       frameUm: Number(canvas.dataset.frameUm),
       x: Number(canvas.dataset.centreX),
       y: Number(canvas.dataset.centreY),
-      display: new URL(canvas.dataset.picture, location.href).searchParams.get("display"),
+      display: new URL(canvas.dataset.picture!, location.href).searchParams.get("display"),
     })));
   expect(pairGeometry.map(({ role }) => role)).toEqual(["overview", "target"]);
   expect(pairGeometry[0].frameUm, "both halves cover the same physical width")
@@ -1808,7 +1846,7 @@ test("one walk of the whole run", async ({ page }) => {
     .toBe(pairGeometry[1].display);
   await expect(page.locator(".action-hint"),
     "the two rerun actions are not crowded by a duplicate result sentence").toHaveCount(0);
-  const afterTheHand = await page.evaluate(() => window.__theRunState());
+  const afterTheHand = await page.evaluate(() => window.__theRunState!() as TheRun);
   expect(afterTheHand.done, "an interrupted step is not done").not.toContain("acquire");
   expect(afterTheHand.ran, "but it ran, so it can be run again").toContain("acquire");
   await runStep(page, 3000);
@@ -1819,25 +1857,25 @@ test("one walk of the whole run", async ({ page }) => {
   expect(acquired.filter((target) => target.acquired).length,
     "the acquired tiles mark the targets their real geometry covers")
     .toBeGreaterThan(0);
-  expect((await page.evaluate(() => window.__theRunState())).acquiredTileKeys.length,
+  expect((await page.evaluate(() => window.__theRunState!() as TheRun)).acquiredTileKeys.length,
     "every planned target tile has one reachable acquisition")
-    .toBe(await page.evaluate(() => window.__theRunState().targetTiles));
+    .toBe(await page.evaluate(() => (window.__theRunState!() as TheRun).targetTiles));
   await expectTargetLayerOnCanvas(
     page, "targets", "Step 8 acquired-target rings materially change the canvas");
   /* A press inside an acquired frame chooses that physical tile: the list
      says so and its pair comes up. Not the one already chosen, so the change
      shows. */
   {
-    const run = await page.evaluate(() => window.__theRunState());
+    const run = await page.evaluate(() => window.__theRunState!() as TheRun);
     const chosenBefore = run.selectedTarget;
     const other = run.targetTilePositions.find((tile) => tile.key !== chosenBefore);
     expect(other, "more than one target tile was acquired").toBeTruthy();
-    const [x, y] = await page.evaluate(({ x, y }) => window.__theStageCanvas.project(x, y), other);
-    const box = await page.locator("#stage-canvas").boundingBox();
+    const [x, y] = await page.evaluate(({ x, y }: { x: number; y: number }) => window.__theStageCanvas!.project(x, y), other!);
+    const box = (await page.locator("#stage-canvas").boundingBox())!;
     await page.mouse.click(box.x + x, box.y + y);
     await page.waitForTimeout(250);
-    expect(await page.evaluate(() => window.__theRunState().selectedTarget),
-      "a press inside the frame chooses the tile that was acquired there").toBe(other.key);
+    expect(await page.evaluate(() => (window.__theRunState!() as TheRun).selectedTarget),
+      "a press inside the frame chooses the tile that was acquired there").toBe(other!.key);
     await expect(page.locator(`#target-list .point-row[aria-current="true"]`)).toHaveCount(1);
   }
   /* The two repeat choices live under the current comparison. Current means
@@ -1848,9 +1886,9 @@ test("one walk of the whole run", async ({ page }) => {
   const [pairBox, currentBox, allBox] = await Promise.all([
     page.locator(".pair").boundingBox(), rerunCurrent.boundingBox(), rerunAll.boundingBox(),
   ]);
-  expect(currentBox.y, "repeat controls are below the image comparison")
-    .toBeGreaterThanOrEqual(pairBox.y + pairBox.height);
-  expect(allBox.x, "Rerun all is the right-hand action").toBeGreaterThan(currentBox.x);
+  expect(currentBox!.y, "repeat controls are below the image comparison")
+    .toBeGreaterThanOrEqual(pairBox!.y + pairBox!.height);
+  expect(allBox!.x, "Rerun all is the right-hand action").toBeGreaterThan(currentBox!.x);
   const acquiredBeforeCurrent = (await targetsOnCanvas(page)).filter((target) => target.acquired).length;
   const rowsBeforeCurrent = await page.locator("#target-list .point-row").count();
   await rerunCurrent.click();

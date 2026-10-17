@@ -6,6 +6,16 @@
  * with ZV_CENTRE ("x,y" in µm) and ZV_ZOOM (µm per pixel).
  */
 import { test } from "@playwright/test";
+import type { EngineViewer } from "./engines/neuroglancer-under/viewer.ts";
+
+declare global {
+  interface Window {
+    /** The engine this spec opens alone, for the spec to steer and ask. */
+    __engineLook?: EngineViewer;
+    /** The page colour to open the engine on, when a run sets one. */
+    __engineLookBackground?: string;
+  }
+}
 
 test("the engine draws the store, and the console says nothing", async ({ page }) => {
   test.setTimeout(60_000);
@@ -14,7 +24,7 @@ test("the engine draws the store, and the console says nothing", async ({ page }
   const [cx, cy] = (process.env.ZV_CENTRE ?? "0,0").split(",").map(Number);
   const zoom = Number(process.env.ZV_ZOOM ?? "2");
 
-  const said = [];
+  const said: string[] = [];
   page.on("console", (message) => {
     const text = message.text();
     // vite's own chatter is not the engine's
@@ -22,7 +32,7 @@ test("the engine draws the store, and the console says nothing", async ({ page }
     said.push(`${message.type()}: ${text}`);
   });
   page.on("pageerror", (why) => said.push(`pageerror: ${why.message}`));
-  const asked = [];
+  const asked: string[] = [];
   page.on("response", (response) => {
     const url = response.url();
     if (url.includes("/data/")) {
@@ -31,7 +41,7 @@ test("the engine draws the store, and the console says nothing", async ({ page }
   });
 
   await page.goto("/?backend=pretend");
-  await page.evaluate(async ({ source, cx, cy, zoom }) => {
+  await page.evaluate(async ({ source, cx, cy, zoom }: { source: string; cx: number; cy: number; zoom: number }) => {
     const host = document.createElement("div");
     host.id = "engine-look-host";
     host.style.cssText =
@@ -44,10 +54,10 @@ test("the engine draws the store, and the console says nothing", async ({ page }
       background: window.__engineLookBackground ?? "#202830",
     });
     window.__engineLook.setView({ centre: { x: cx, y: cy }, zoom });
-  }, { source, cx, cy, zoom });
+  }, { source: source!, cx, cy, zoom }); // test.skip above ends the test without a source
   await page.waitForTimeout(20000);
   await page.evaluate(({ cx, cy, zoom }) => {
-    window.__engineLook.setView({ centre: { x: cx, y: cy }, zoom });
+    window.__engineLook!.setView({ centre: { x: cx, y: cy }, zoom });
   }, { cx, cy, zoom });
   await page.waitForTimeout(8000);
   await page.screenshot({ path: "test-results/engine-look.png" });

@@ -19,7 +19,7 @@
  * and `freshRun` lays what `freshState` answers beside the keys below.
  */
 
-import type { TheRun } from "../types.ts";
+import type { TheRun, Walk } from "../types.ts";
 
 /** What the run document asks of a workflow whose own keys are `S`: those keys, which survive, and what a test reads. */
 interface RunFlow<S extends object = object> {
@@ -28,10 +28,26 @@ interface RunFlow<S extends object = object> {
   forTests?(run: TheRun & S): Record<string, unknown>;
 }
 
+/**
+ * The run as a browser test reads it: a plain copy of the framework's keys,
+ * and whatever the open workflow's `forTests` adds beside them.
+ */
+export interface RunForTests {
+  running: string | null;
+  failed: string | null;
+  notes: Record<string, string>;
+  activeIdx: number;
+  done: string[];
+  ran: string[];
+  stale: string[];
+  walk: Walk;
+  [more: string]: unknown;
+}
+
 declare global {
   interface Window {
     /** The run, read-only, for a browser test. */
-    __theRunState?: () => unknown;
+    __theRunState?: () => RunForTests;
   }
 }
 

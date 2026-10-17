@@ -105,7 +105,7 @@ const countToThree: Step<Three> = {
   mode: "counting",
   panels: ["card"],
   ms: 0,
-  async run(page, _step, options) {
+  async run(page, step, options) {
     const state = page.run;
     const upTo = typeof options.upTo === "number" ? options.upTo : 3;
     state.counted = 0;

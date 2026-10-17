@@ -8,11 +8,11 @@
  * panel's first appearance was shipped unphotographed, and the canvas grid
  * quietly wrapped it onto a second row.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-const gotoStep = (page, name) => page.locator(`.step:has-text("${name}")`).first().click();
+const gotoStep = (page: Page, name: string) => page.locator(`.step:has-text("${name}")`).first().click();
 
-async function recordSlot(page, host, name) {
+async function recordSlot(page: Page, host: string, name: string) {
   const bar = page.locator(`#${host} .setting-box.open`);
   const field = bar.locator("input");
   if (await field.count()) await field.fill(name);

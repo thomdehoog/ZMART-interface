@@ -27,18 +27,18 @@ const PACKAGE = join(HERE, "..");
    anything in particular and is left alone. A stylesheet's `@import` is. */
 const IMPORTED_FROM = /(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s+["']([^"']+)["']|(?:^|\n)\s*import\s+["']([^"']+)["']|\bimport\(\s*["']([^"']+)["']\s*\)|@import\s+(?:url\()?\s*["']([^"']+)["']/g;
 
-const sourceFiles = (folder) => readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
+const sourceFiles = (folder: string): string[] => readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
   const at = join(folder, entry.name);
   if (entry.isDirectory()) return entry.name === "__pycache__" ? [] : sourceFiles(at);
   return /\.(m?js|ts|css)$/.test(entry.name) ? [at] : [];
 });
 
-const importsOf = (file) => {
+const importsOf = (file: string) => {
   const text = readFileSync(file, "utf8");
   return [...text.matchAll(IMPORTED_FROM)].map((m) => m[1] ?? m[2] ?? m[3] ?? m[4]);
 };
 
-const name = (file) => relative(PACKAGE, file).replaceAll("\\", "/");
+const name = (file: string) => relative(PACKAGE, file).replaceAll("\\", "/");
 
 describe("the framework imports nothing of any workflow", () => {
   const files = sourceFiles(HERE);

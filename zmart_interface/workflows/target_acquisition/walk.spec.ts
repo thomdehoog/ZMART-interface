@@ -21,17 +21,34 @@
  * stand on what detection finds. Set `OPERATOR_EVIDENCE_DIR` to keep a
  * screenshot of every screen the operator sees.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { operateTheInstrument, rest, setAcquisitionShown, showTheChannel, startTheBridge }
   from "./testing/live-bridge.ts";
-import { bestShift, fractionLit, photograph } from "./testing/pixels.ts";
+import { bestShift, fractionLit, photograph, type Pixels } from "./testing/pixels.ts";
+import type { RunForTests } from "../../framework/window/run-state.ts";
+import type { forTests } from "./shared/run-document.ts";
+import type { EngineViewer } from "./canvas/engines/neuroglancer-under/viewer.ts";
+import type { View } from "./canvas/engines/opening-view.ts";
+
+/** The run as this walk reads it: the framework's keys and target acquisition's. */
+type TheRun = RunForTests & ReturnType<typeof forTests>;
+
+/** One channel row the engine reports holding, as far as this walk reads it. */
+type MeasuredRow = { name: string; dims?: unknown[] | null; sources: { url: string }[] };
+
+declare global {
+  interface Window {
+    /** The picture opened at Connect, kept to check later steps draw into the same one. */
+    connectedPicture?: EngineViewer | null;
+  }
+}
 
 /** How far two photographs of the same box differ: the mean absolute gap
  * per sample. Zero when nothing on the picture changed. */
-function differenceOf(a, b) {
+function differenceOf(a: Pixels, b: Pixels) {
   const n = Math.min(a.data.length, b.data.length);
   let sum = 0;
   for (let at = 0; at < n; at++) sum += Math.abs(a.data[at] - b.data[at]);
@@ -40,7 +57,7 @@ function differenceOf(a, b) {
 
 /** How coloured a photograph is: the mean gap between a pixel's strongest
  * and weakest channel. Zero for a grey picture. */
-function chromaOf({ data, channels }) {
+function chromaOf({ data, channels }: Pixels) {
   let sum = 0, count = 0;
   for (let at = 0; at < data.length; at += channels) {
     const r = data[at], g = data[at + 1], b = data[at + 2];
@@ -62,7 +79,7 @@ process.env.ZMART_MOCK_STATE = path.join(home, "instrument.json");
 process.env.ZMART_PROTOCOL_LIBRARY = path.join(home, "protocols");
 
 let shots = 0;
-async function shot(page, name) {
+async function shot(page: Page, name: string) {
   const folder = process.env.OPERATOR_EVIDENCE_DIR;
   if (!folder) return;
   fs.mkdirSync(folder, { recursive: true });
@@ -70,13 +87,13 @@ async function shot(page, name) {
   await page.screenshot({ path: path.join(folder, `${String(shots).padStart(2, "0")}-${name}.png`) });
 }
 
-const walkTo = async (page, title) => {
+const walkTo = async (page: Page, title: string) => {
   await page.locator(`.step:has-text("${title}")`).first().click();
   await rest(600);
 };
 
 /** Take the reading a step will not proceed without, and name it. */
-async function record(page, host, name) {
+async function record(page: Page, host: string, name: string) {
   const bar = page.locator(`#${host} .setting-box.open`);
   const field = bar.locator("input");
   if (await field.count()) await field.fill(name);
@@ -84,14 +101,14 @@ async function record(page, host, name) {
   await rest(800);
 }
 
-const ask = (page, port, route) => page.evaluate(async ({ port: p, route: r }) =>
+const ask = (page: Page, port: number, route: string) => page.evaluate(async ({ port: p, route: r }: { port: number; route: string }) =>
   fetch(`http://127.0.0.1:${p}${r}`).then((a) => a.json()).catch((e) => ({ error: e.message })),
 { port, route });
 
 /** Bring the canvas in on the planned fields the way an operator does: the
  * Tile set press in the canvas's own row. The slide is 75 mm wide and the
  * overview 3 mm, so at the whole-slide view the picture is a few pixels. */
-async function framePlan(page) {
+async function framePlan(page: Page) {
   await page.locator("#tileset-btn").click();
   await rest(1500);
 }
@@ -99,13 +116,13 @@ async function framePlan(page) {
 /* A place on the gate plot, as fractions of its frame: the frame keeps a
    column at the right for the y labels and two lines below for the x axis. */
 const PLOT_PAD = { l: 1, r: 62, t: 1, b: 38 };
-const plotPoint = (sc, gx, gy) => [
+const plotPoint = (sc: { x: number; y: number; width: number; height: number }, gx: number, gy: number): [number, number] => [
   sc.x + PLOT_PAD.l + (sc.width - PLOT_PAD.l - PLOT_PAD.r) * gx,
   sc.y + PLOT_PAD.t + (sc.height - PLOT_PAD.t - PLOT_PAD.b) * gy,
 ];
 
 const inTheInstrument = {
-  choose: (job) => operateTheInstrument("choose", job),
+  choose: (job: string) => operateTheInstrument("choose", job),
 };
 
 test.describe("the target acquisition workflow, walked screen by screen", () => {
@@ -113,8 +130,8 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
 
   for (const bake of [true]) test(`from Connect to acquired targets, bake ${bake ? "on" : "off"}`, async ({ page }) => {
     const bridge = await startTheBridge({ port: PORT });
-    const errors = [];
-    const imageRequests = [];
+    const errors: string[] = [];
+    const imageRequests: string[] = [];
     page.on("request", request => {
       if (/\/data\/.*\/c\//.test(request.url())) imageRequests.push(request.url());
     });
@@ -154,7 +171,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await shot(page, "overview-area-recorded");
       await page.locator(".sf-apply-grid").click();
       await rest(800);
-      const plan = await page.evaluate(() => window.__theStageCanvas.plan());
+      const plan = await page.evaluate(() => window.__theStageCanvas!.plan());
       expect(plan.length, "the slide was tiled").toBeGreaterThan(0);
       await shot(page, "overview-area-planned");
       /* There is a current tile from the first plan on: Tile is live, frames
@@ -163,12 +180,12 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await expect(page.locator("#tile-btn")).toBeEnabled();
       await page.locator("#tile-btn").click();
       await rest(400);
-      const onTheFirst = await page.evaluate(() => window.__theStageCanvas.view());
+      const onTheFirst = await page.evaluate(() => window.__theStageCanvas!.view()!);
       expect(Math.hypot(onTheFirst.centre.x - plan[0].x, onTheFirst.centre.y - plan[0].y),
         "Tile frames the first field").toBeLessThan(1);
       await page.locator("#tile-btn").click();
       await rest(400);
-      const onTheSecond = await page.evaluate(() => window.__theStageCanvas.view());
+      const onTheSecond = await page.evaluate(() => window.__theStageCanvas!.view()!);
       expect(Math.hypot(onTheSecond.centre.x - plan[0].x, onTheSecond.centre.y - plan[0].y),
         "Tile again stays on the field the box is on").toBeLessThan(1);
       expect(onTheSecond.zoom).toBeCloseTo(onTheFirst.zoom, 6);
@@ -203,8 +220,8 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
          again turns them back. */
       await framePlan(page);
       {
-        const box = await page.locator("#stage-canvas").boundingBox();
-        const onScreen = ([x, y]) => { const p = window.__theStageCanvas.project(x, y); return Array.isArray(p) ? { x: p[0], y: p[1] } : p; };
+        const box = (await page.locator("#stage-canvas").boundingBox())!;
+        const onScreen = ([x, y]: number[]) => { const p = window.__theStageCanvas!.project(x, y); return Array.isArray(p) ? { x: p[0], y: p[1] } : p; };
         const a = await page.evaluate(onScreen, [plan[0].x, plan[0].y]);
         const b = await page.evaluate(onScreen, [plan[1].x, plan[1].y]);
         const drag = async () => {
@@ -217,16 +234,16 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
           await rest(300);
         };
         await drag();
-        expect((await page.evaluate(() => window.__theRunState())).testTiles.sort()).toEqual([0, 1]);
+        expect((await page.evaluate(() => window.__theRunState!() as TheRun)).testTiles.sort()).toEqual([0, 1]);
         await shot(page, "scan-shift-drag");
         await drag();
-        expect((await page.evaluate(() => window.__theRunState())).testTiles).toEqual([]);
+        expect((await page.evaluate(() => window.__theRunState!() as TheRun)).testTiles).toEqual([]);
       }
       await page.locator("#test-n").fill("3");
       await page.locator("#test-random").click();
       await rest(400);
       await expect(page.locator("#test-tiles-count")).toHaveAttribute("data-green", "3");
-      expect((await page.evaluate(() => window.__theRunState())).testTiles).toHaveLength(3);
+      expect((await page.evaluate(() => window.__theRunState!() as TheRun)).testTiles).toHaveLength(3);
       await shot(page, "scan-test-tiles");
       const TEST_TILES = 3;
       await page.locator(".panel.on button.step-run").click();
@@ -235,16 +252,16 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       const overview = await ask(page, PORT, "/api/target_acquisition/scan");
       expect(overview).toMatchObject({ error: null, stopped: false, done: TEST_TILES, of: TEST_TILES });
       expect(overview.records).toHaveLength(TEST_TILES);
-      expect((await page.evaluate(() => window.__theRunState())).scannedFields, "the fields are the test tiles")
+      expect((await page.evaluate(() => window.__theRunState!() as TheRun)).scannedFields, "the fields are the test tiles")
         .toHaveLength(TEST_TILES);
-      expect(overview.records.filter(record => record.zarr_error)).toEqual([]);
+      expect(overview.records.filter((record: { zarr_error?: unknown }) => record.zarr_error)).toEqual([]);
       await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 60_000 });
       await rest(3000);
       await shot(page, "scan-done");
       expect(await page.evaluate(() => window.connectedPicture === window.__thePicture),
         "overview rows keep the viewer opened at Connect").toBe(true);
       await expect(page.locator(".layer-fade input")).toHaveValue("100");
-      expect(await page.evaluate(() => window.__theStageCanvas.layerShown("ground"))).toBe(true);
+      expect(await page.evaluate(() => window.__theStageCanvas!.layerShown("ground"))).toBe(true);
       await framePlan(page);
       await shot(page, "scan-done-picture");
       /* How the picture is drawn, in the row over it beside the acquisitions:
@@ -271,8 +288,8 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       }), "the viewer's press comes right before the acquisitions strip").toBe(true);
       await expect(page.locator("#viewer-pick .bar-word")).toHaveText("viewer");
       await expect.poll(() => page.evaluate(() => {
-        const rows = window.__thePicture.layersForMeasurement();
-        const of = (kind) => rows.filter(row => row.name.startsWith(`${kind}/`));
+        const rows = window.__thePicture!.layersForMeasurement() as MeasuredRow[];
+        const of = (kind: string) => rows.filter(row => row.name.startsWith(`${kind}/`));
         return ["overview", "focussing"].every(kind => of(kind).length > 0 && of(kind).every(row =>
           row.sources.every(source => decodeURIComponent(source.url).includes(`${kind}_max.zmartview.zarr`))));
       }), { timeout: 60_000 }).toBe(true);
@@ -382,7 +399,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await expect(page.locator("#grey-pop")).toBeVisible();
       await rest(600);
       await shot(page, "scan-done-grey-box");
-      await page.locator('#grey-pop input[aria-label^="min of"]').evaluate((slider) => {
+      await page.locator('#grey-pop input[aria-label^="min of"]').evaluate((slider: HTMLInputElement) => {
         slider.value = "20"; slider.dispatchEvent(new Event("input", { bubbles: true }));
       });
       await rest(900);
@@ -429,17 +446,17 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await shot(page, "detect-before");
       /* A press on a field on the picture makes it the field the preview
          shows: the picker says which, and the picture is that field's. */
-      const shownBefore = await page.evaluate(() => document.querySelector(".tile-picture canvas")?.dataset.picture ?? "");
+      const shownBefore = await page.evaluate(() => document.querySelector<HTMLCanvasElement>(".tile-picture canvas")?.dataset.picture ?? "");
       const second = await page.evaluate(() => {
-        const t = window.__theStageCanvas.plan()[1];
-        const p = window.__theStageCanvas.project(t.x, t.y);
+        const t = window.__theStageCanvas!.plan()[1];
+        const p = window.__theStageCanvas!.project(t.x, t.y);
         return Array.isArray(p) ? { x: p[0], y: p[1] } : p;
       });
-      const stageBox = await page.locator("#stage-canvas").boundingBox();
+      const stageBox = (await page.locator("#stage-canvas").boundingBox())!;
       await page.mouse.move(stageBox.x + second.x, stageBox.y + second.y);
       await page.mouse.click(stageBox.x + second.x, stageBox.y + second.y);
       await expect(page.locator("#tile-label")).toHaveText(/^2 \//);
-      await expect.poll(() => page.evaluate(() => document.querySelector(".tile-picture canvas")?.dataset.picture ?? ""),
+      await expect.poll(() => page.evaluate(() => document.querySelector<HTMLCanvasElement>(".tile-picture canvas")?.dataset.picture ?? ""),
         "the preview shows the pressed field").not.toBe(shownBefore);
       await page.getByRole("button", { name: "Test detection on this tile" }).click();
       await expect(page.locator("#ramp-chip")).toHaveAttribute("aria-pressed", "true");
@@ -460,7 +477,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await page.locator(".panel.on button.step-run").click();
         await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 1_500_000 });
         await rest(1500);
-        const found = await page.evaluate(() => window.__theStageCanvas.targets());
+        const found = await page.evaluate(() => window.__theStageCanvas!.targets());
         expect(found.length, "detection placed candidates on the canvas").toBeGreaterThan(0);
         await shot(page, "detect-done");
         /* The masks' bar stands at the right of the row only while
@@ -490,7 +507,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await rest(500);
         await page.locator("#mask-picker").fill("#ffd400");
         await page.locator("#mask-line").click();
-        await page.locator("#mask-opacity").evaluate((slider) => {
+        await page.locator("#mask-opacity").evaluate((slider: HTMLInputElement) => {
           slider.value = "60";
           slider.dispatchEvent(new Event("input", { bubbles: true }));
         });
@@ -524,16 +541,16 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await expect(page.locator("#mask-pop")).toBeVisible();
         await page.locator("#mask-picker").fill("#ff0000");
         await page.locator("#mask-fill").click();
-        await page.locator("#mask-opacity").evaluate((slider) => {
+        await page.locator("#mask-opacity").evaluate((slider: HTMLInputElement) => {
           slider.value = "100";
           slider.dispatchEvent(new Event("input", { bubbles: true }));
         });
         await rest(900);
         /* At the field's own zoom and at zooms either side of it, since the
            engine draws a different stored resolution at each. */
-        const framed = await page.evaluate(() => window.__theStageCanvas.view());
+        const framed = await page.evaluate(() => window.__theStageCanvas!.view()!);
         for (const times of [0.5, 1, 2, 4]) {
-          await page.evaluate((view) => window.__theStageCanvas.lookAt(view),
+          await page.evaluate((view: View) => window.__theStageCanvas!.lookAt(view),
             { zoom: framed.zoom * times, centre: framed.centre });
           await rest(1200);
           const withMasks = await photograph(page, "#picture-host", 0.6);
@@ -555,7 +572,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
           const shift = bestShift(masks, nuclei, width, height, 12);
           console.log(`at ${(framed.zoom * times).toFixed(3)} um/px (${times}x the field zoom): masks over nuclei dx=${shift.dx} dy=${shift.dy} px = ${(shift.dx * framed.zoom * times).toFixed(2)},${(shift.dy * framed.zoom * times).toFixed(2)} um, overlap ${shift.score.toFixed(2)}`);
         }
-        await page.evaluate((view) => window.__theStageCanvas.lookAt(view), framed);
+        await page.evaluate((view: View) => window.__theStageCanvas!.lookAt(view), framed);
         await rest(900);
         const withMasks = await photograph(page, "#picture-host", 0.6);
         await page.locator("#mask-eye").click();
@@ -581,7 +598,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
              same everywhere is a displacement; one that grows away from the
              middle is a scale. */
           const hw = Math.floor(width / 2), hh = Math.floor(height / 2);
-          for (const [name, x0, y0] of [["top-left", 0, 0], ["top-right", hw, 0], ["bottom-left", 0, hh], ["bottom-right", hw, hh]]) {
+          for (const [name, x0, y0] of [["top-left", 0, 0], ["top-right", hw, 0], ["bottom-left", 0, hh], ["bottom-right", hw, hh]] as [string, number, number][]) {
             const a = new Uint8Array(hw * hh), b = new Uint8Array(hw * hh);
             for (let y = 0; y < hh; y++) for (let x = 0; x < hw; x++) {
               a[y * hw + x] = masks[(y + y0) * width + x + x0];
@@ -599,7 +616,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         /* Step 7: a gate drawn on the feature plot, around most of the cloud. */
         await walkTo(page, "Discover Targets");
         await shot(page, "discover-before");
-        const sc = await page.locator("#scatter-canvas").boundingBox();
+        const sc = (await page.locator("#scatter-canvas").boundingBox())!;
         const polygon = [[0.2, 0.08], [0.98, 0.08], [0.98, 0.85], [0.2, 0.85]];
         for (const [gx, gy] of polygon) {
           await page.mouse.click(...plotPoint(sc, gx, gy));
@@ -700,7 +717,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
           throw why;
         }
         await rest(2000);
-        const run = await page.evaluate(() => window.__theRunState());
+        const run = await page.evaluate(() => window.__theRunState!() as TheRun);
         expect(run.acquiredTileKeys.length, "one capture per target tile").toBe(run.targetTiles);
         expect(run.targetTiles).toBeGreaterThan(0);
         /* Every target was focussed first, and its record says at what height. */
@@ -709,16 +726,16 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         expect(focussed.length).toBe(run.targetTiles);
         expect(focussed.every((one) => one && one.found === true && Number.isFinite(one.z_peak_um)),
           "each target imaged at a peak of its own stack").toBe(true);
-        await page.waitForFunction(() => window.__thePicture.layersForMeasurement().some(
+        await page.waitForFunction(() => (window.__thePicture!.layersForMeasurement() as MeasuredRow[]).some(
           row => row.name.startsWith("targets/") && row.dims?.length,
         ));
         expect(await page.evaluate(() => window.connectedPicture === window.__thePicture),
           "target rows keep the same viewer and its existing images").toBe(true);
         await expect(page.locator(".layer-fade input")).toHaveValue("100");
-        expect(await page.evaluate(() => window.__theStageCanvas.layerShown("ground"))).toBe(true);
+        expect(await page.evaluate(() => window.__theStageCanvas!.layerShown("ground"))).toBe(true);
         const acquired = await ask(page, PORT, "/api/target_acquisition/targets/acquire");
         expect(acquired.error).toBeNull();
-        expect(acquired.records.filter(record => record.zarr_error)).toEqual([]);
+        expect(acquired.records.filter((record: { zarr_error?: unknown }) => record.zarr_error)).toEqual([]);
         expect(acquired.records.length, "the ledger holds a record a tile").toBe(run.targetTiles);
         for (const one of acquired.records) {
           expect(one.requested_position_um.z - one.focus.z_peak_um, "taken 2 µm above the peak").toBeCloseTo(2, 6);
@@ -729,25 +746,25 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         const rowsOfTargets = page.locator("#target-list .point-row");
         if (run.targetTilePositions.length > 1) {
           const [first, second] = run.targetTilePositions;
-          await page.evaluate(() => { const v = window.__theStageCanvas.view(); window.__theStageCanvas.lookAt({ zoom: v.zoom * 4, centre: v.centre }); });
+          await page.evaluate(() => { const v = window.__theStageCanvas!.view()!; window.__theStageCanvas!.lookAt({ zoom: v.zoom * 4, centre: v.centre }); });
           await rest(400);
-          const wide = await page.evaluate(() => window.__theStageCanvas.view());
+          const wide = await page.evaluate(() => window.__theStageCanvas!.view()!);
           await rowsOfTargets.first().locator("button").click();
           await rest(400);
-          const centred = await page.evaluate(() => window.__theStageCanvas.view());
+          const centred = await page.evaluate(() => window.__theStageCanvas!.view()!);
           expect(Math.hypot(centred.centre.x - first.x, centred.centre.y - first.y),
             "choosing a row centres the picture on its tile").toBeLessThan(1);
           expect(centred.zoom, "at the zoom in hand").toBeCloseTo(wide.zoom, 6);
           await page.locator("#tile-btn").click();
           await rest(400);
-          const framed = await page.evaluate(() => window.__theStageCanvas.view());
+          const framed = await page.evaluate(() => window.__theStageCanvas!.view()!);
           expect(framed.zoom, "Tile frames the chosen tile").toBeLessThan(wide.zoom);
           expect(Math.hypot(framed.centre.x - first.x, framed.centre.y - first.y)).toBeLessThan(1);
           /* Pressed again, Tile frames the same field: which field is current
              is chosen in the list or on the canvas, never by the press. */
           await page.locator("#tile-btn").click();
           await rest(400);
-          const again = await page.evaluate(() => window.__theStageCanvas.view());
+          const again = await page.evaluate(() => window.__theStageCanvas!.view()!);
           expect(Math.hypot(again.centre.x - first.x, again.centre.y - first.y),
             "Tile again frames the same field").toBeLessThan(1);
           void second;
@@ -760,11 +777,11 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
             state: "ready", error: null });
         await rest(3000);
         const publication = await ask(page, PORT, "/api/target_acquisition/viewer");
-        expect(publication.acquisitions.some(a => a.name === "targets")).toBe(true);
+        expect(publication.acquisitions.some((a: { name: string }) => a.name === "targets")).toBe(true);
         for (const acquisition of publication.acquisitions) for (const row of acquisition.channels) {
           expect(row.sources.length).toBe(1);
           expect(row.view.acquisition).toBe(acquisition.name);
-          expect(row.sources.every(source => decodeURIComponent(source).includes(".zmartview.zarr/"))).toBe(true);
+          expect(row.sources.every((source: string) => decodeURIComponent(source).includes(".zmartview.zarr/"))).toBe(true);
         }
         expect(imageRequests.length).toBeGreaterThan(0);
         expect(imageRequests.every(url => decodeURIComponent(url).includes(".zmartview.zarr/"))).toBe(true);
@@ -793,7 +810,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await page.locator("#protocol-save-name").fill("walk kidney");
         await page.locator("#protocol-save").click();
         await expect(page.locator("#protocol-export-note")).toHaveText("saved as walk kidney");
-        expect((await ask(page, PORT, "/api/target_acquisition/protocols")).protocols.map((one) => one.id)).toContain("walk kidney");
+        expect((await ask(page, PORT, "/api/target_acquisition/protocols")).protocols.map((one: { id: string }) => one.id)).toContain("walk kidney");
         await shot(page, "protocol-before");
         await walkTo(page, "Detect objects");
         await page.locator("#detect-threshold").fill("120");
@@ -827,11 +844,11 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await expect(page.locator('.step.done:has-text("Acquire Targets")')).toHaveCount(0);
         await expect(page.locator('.step.done:has-text("Focus strategy")')).toHaveCount(1);
         await shot(page, "protocol-running-scan");
-        const before = await page.evaluate(() => window.__theStageCanvas.view());
-        await page.evaluate(() => { const v = window.__theStageCanvas.view();
-          window.__theStageCanvas.lookAt({ zoom: v.zoom, centre: { x: v.centre.x + 500, y: v.centre.y } }); });
+        const before = await page.evaluate(() => window.__theStageCanvas!.view()!);
+        await page.evaluate(() => { const v = window.__theStageCanvas!.view()!;
+          window.__theStageCanvas!.lookAt({ zoom: v.zoom, centre: { x: v.centre.x + 500, y: v.centre.y } }); });
         await rest(300);
-        const moved = await page.evaluate(() => window.__theStageCanvas.view());
+        const moved = await page.evaluate(() => window.__theStageCanvas!.view()!);
         expect(moved.centre.x - before.centre.x, "the canvas answers the hand mid-run").toBeGreaterThan(400);
         await expect(page.locator('.step.done:has-text("Run protocol")')).toBeVisible({ timeout: 1_500_000 });
         await expect(page.locator(".step.stale")).toHaveCount(0);
@@ -842,9 +859,9 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         /* The burst is on a canvas that has its size, and paints something. */
         await rest(400);
         expect(await page.evaluate(() => {
-          const cv = document.querySelector("canvas.protocol-burst");
+          const cv = document.querySelector<HTMLCanvasElement>("canvas.protocol-burst");
           if (!cv || !cv.width || !cv.height) return 0;
-          const data = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+          const data = cv.getContext("2d")!.getImageData(0, 0, cv.width, cv.height).data;
           let lit = 0;
           for (let at = 3; at < data.length; at += 4) if (data[at]) lit += 1;
           return lit;
@@ -855,9 +872,9 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         expect(whole.done, "the protocol scanned the whole plan").toBe(plan.length);
         const written = await ask(page, PORT, "/api/target_acquisition/protocols");
         /* The run's own, and the one saved by name earlier. */
-        expect(written.protocols.map((one) => one.id).sort()).toEqual(
-          [...written.protocols.filter((one) => one.id.startsWith("target-acquisition_")).map((one) => one.id), "walk kidney"].sort());
-        const ofTheRun = written.protocols.find((one) => one.id.startsWith("target-acquisition_"));
+        expect(written.protocols.map((one: { id: string }) => one.id).sort()).toEqual(
+          [...written.protocols.filter((one: { id: string }) => one.id.startsWith("target-acquisition_")).map((one: { id: string }) => one.id), "walk kidney"].sort());
+        const ofTheRun = written.protocols.find((one: { id: string }) => one.id.startsWith("target-acquisition_"));
         expect(ofTheRun.protocol.testTiles.tiles).toHaveLength(3);
         expect(ofTheRun.protocol.detect.threshold).toBe(120);
         expect(ofTheRun.protocol.targetZOffsetUm).toBe(2);
@@ -892,7 +909,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
            back, orange. */
         await expect(page.locator(".step.done")).toHaveCount(1);
         await expect(page.locator(".step.stale")).toHaveCount(0);
-        const reopened = await page.evaluate(() => window.__theRunState());
+        const reopened = await page.evaluate(() => window.__theRunState!() as TheRun);
         expect(reopened.testTiles).toHaveLength(3);
         expect(reopened.focus.points).toBeGreaterThan(0);
         await shot(page, "protocol-reopened");
@@ -955,7 +972,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await page.locator(".panel.on button.step-run").click();
         await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 60_000 });
         await rest(800);
-        expect((await page.evaluate(() => window.__theRunState())).targetTiles, "tiles placed from loaded settings").toBeGreaterThan(0);
+        expect((await page.evaluate(() => window.__theRunState!() as TheRun)).targetTiles, "tiles placed from loaded settings").toBeGreaterThan(0);
         await shot(page, "protocol-reopened-placed");
       }
 

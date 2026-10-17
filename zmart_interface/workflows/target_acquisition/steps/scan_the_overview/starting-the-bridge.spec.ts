@@ -24,8 +24,8 @@ const WHERE_FROM = [
   "  'start_folder_searched': any(os.path.abspath(p or '.') == here for p in sys.path)}))",
 ].join("\n");
 
-const ask = (command, args, cwd) =>
-  JSON.parse(execFileSync(command, args, { cwd, encoding: "utf8" }).trim().split("\n").pop());
+const ask = (command: string, args: string[], cwd: string) =>
+  JSON.parse(execFileSync(command, args, { cwd, encoding: "utf8" }).trim().split("\n").pop()!);
 
 test("the bridge's Python imports the interface from where the environment says", () => {
   const { command, args, cwd } = bridgePython("-c", WHERE_FROM);

@@ -1,9 +1,8 @@
 {
   // The type checker's view of the page. Nothing is emitted: Vite builds the
-  // page, and `tsc --noEmit` only checks it. Strict for every TypeScript
-  // file; the JavaScript that is not converted yet is read for its exports
-  // but not checked (`allowJs` without `checkJs`), and goes when the last
-  // file is converted.
+  // page, and `tsc --noEmit` only checks it. The page is TypeScript
+  // throughout, strict; what stays JavaScript is the build's own tooling
+  // (`tools/*.mjs`, the configs), which runs in Node and is not the page.
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -12,8 +11,6 @@
     "strict": true,
     // A name nobody reads is dead code: in the TypeScript files, the checker says so.
     "noUnusedLocals": true,
-    "allowJs": true,
-    "checkJs": false,
     "noEmit": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
@@ -25,7 +22,10 @@
     // Neuroglancer's insides by the names it offers them under, mapped as
     // `vite.config.js` maps them.
     "paths": {
-      "neuroglancer/unstable/*": ["./node_modules/neuroglancer/lib/*"]
+      "neuroglancer/unstable/*": ["./node_modules/neuroglancer/lib/*"],
+      // The page's own addresses, as the dev server serves them: the specs import
+      // modules into the browser by these.
+      "/zmart_interface/*": ["./zmart_interface/*"]
     }
   },
   "include": ["zmart_interface", "tools"],

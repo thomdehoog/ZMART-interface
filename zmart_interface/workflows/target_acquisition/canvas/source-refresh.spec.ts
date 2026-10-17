@@ -1,22 +1,33 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { pythonForTheBridge } from "../testing/python.ts";
-import { readPng } from "../testing/pixels.ts";
+import { readPng, type Pixels } from "../testing/pixels.ts";
+import type { Acquisition, EngineViewer } from "./engines/neuroglancer-under/viewer.ts";
+
+declare global {
+  interface Window {
+    /** The acquisition of `count` positions at a revision of the first, as this spec hands it to the engine. */
+    refreshAcquisitions?: (count: number, revision?: number) => Acquisition[];
+    /** The engine this spec opens on the positions. */
+    refreshViewer?: EngineViewer;
+  }
+}
 
 const fixture = fileURLToPath(new URL("./fixtures/write-refresh-positions.py", import.meta.url));
-const changedPixels = (a, b) => {
+const changedPixels = (a: Pixels, b: Pixels) => {
   let changed = 0;
   for (let i = 0; i < a.data.length; i += a.channels) {
     if ([0, 1, 2].some(c => Math.abs(a.data[i + c] - b.data[i + c]) > 30)) changed++;
   }
   return changed;
 };
-const imagePixels = shot => {
+const imagePixels = (shot: Pixels) => {
   let count = 0;
   for (let i = 0; i < shot.data.length; i += shot.channels) {
     if (!(shot.data[i] === 255 && shot.data[i + 1] === 0 && shot.data[i + 2] === 255)) count++;
@@ -27,11 +38,11 @@ const imagePixels = shot => {
 test("append preserves cached tiles; a source revision refreshes only the rewritten tile", async ({ page }, info) => {
   test.setTimeout(90_000);
   const folder = fs.mkdtempSync(path.join(os.tmpdir(), "refresh-"));
-  const write = (...args) => execFileSync(pythonForTheBridge(), [fixture, folder, ...args]);
+  const write = (...args: string[]) => execFileSync(pythonForTheBridge(), [fixture, folder, ...args]);
   write();
-  const chunks = [];
+  const chunks: string[] = [];
   const server = http.createServer((request, response) => {
-    const relative = decodeURIComponent(new URL(request.url, "http://x").pathname).slice(1);
+    const relative = decodeURIComponent(new URL(request.url!, "http://x").pathname).slice(1);
     const file = path.resolve(folder, relative);
     response.setHeader("Access-Control-Allow-Origin", "*");
     response.setHeader("Cache-Control", "no-store");
@@ -42,13 +53,13 @@ test("append preserves cached tiles; a source revision refreshes only the rewrit
     if (relative.includes("/c/")) chunks.push(relative);
     fs.createReadStream(file).pipe(response);
   });
-  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
-  const origin = `http://127.0.0.1:${server.address().port}`;
-  const errors = [];
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const errors: string[] = [];
   page.on("pageerror", error => errors.push(String(error)));
   try {
     await page.goto("/?backend=pretend");
-    await page.evaluate(async origin => {
+    await page.evaluate(async (origin: string) => {
       const underlay = document.createElement("div");
       underlay.style.cssText = "position:fixed;left:0;top:0;width:640px;height:320px;z-index:999;background:magenta";
       const host = document.createElement("div");
@@ -57,22 +68,24 @@ test("append preserves cached tiles; a source revision refreshes only the rewrit
       underlay.append(host);
       document.body.append(underlay);
       const { openerFor } = await import("/zmart_interface/workflows/target_acquisition/canvas/engines.ts");
-      window.refreshAcquisitions = (count, revision = 1) => [{
+      // A stand-in handed over as the engine's Acquisition: it has no `url`, only its channel's sources.
+      window.refreshAcquisitions = (count: number, revision = 1) => [{
         name: "overview", opaque: true, channels: [{ name: "signal", channelIndex: 0,
           colour: [1, 1, 1], window: { low: 0, high: 255 },
           sources: Array.from({ length: count }, (_, i) => `${origin}/P${i}.ome.zarr/|zarr3:`),
           sourceRevisions: Array.from({ length: count }, (_, i) => i ? 1 : revision),
         }],
-      }];
+      }] as unknown as Acquisition[];
       window.refreshViewer = await (await openerFor("neuroglancer-under"))(host, {
         acquisitions: window.refreshAcquisitions(1), presentation: "2d-overlay", transparentBackground: true,
       });
-      window.refreshViewer.setView({ centre: { x: 80, y: 32 }, zoom: 0.5 });
+      window.refreshViewer!.setView({ centre: { x: 80, y: 32 }, zoom: 0.5 });
     }, origin);
-    const photograph = async name => readPng(await page.locator("#refresh-host").screenshot(
+    const photograph = async (name?: string) => readPng(await page.locator("#refresh-host").screenshot(
       name ? { path: info.outputPath(name) } : {}));
     await expect.poll(() => chunks.length).toBeGreaterThan(0);
-    let first;
+    // Both are taken inside the polls, which pass only once they have been.
+    let first!: Pixels;
     await expect.poll(async () => {
       first = await photograph("first.png");
       const shot = first;
@@ -83,9 +96,9 @@ test("append preserves cached tiles; a source revision refreshes only the rewrit
       return white;
     }).toBeGreaterThan(1000);
     chunks.length = 0;
-    expect(await page.evaluate(() => window.refreshViewer.addSources(window.refreshAcquisitions(2)))).toBe(true);
+    expect(await page.evaluate(() => window.refreshViewer!.addSources(window.refreshAcquisitions!(2)))).toBe(true);
     await expect.poll(() => chunks.filter(url => url.startsWith("P1.")).length).toBeGreaterThan(0);
-    let both;
+    let both!: Pixels;
     await expect.poll(async () => {
       both = await photograph("appended.png");
       if (imagePixels(both) < imagePixels(first) * 1.8) return false;
@@ -98,7 +111,7 @@ test("append preserves cached tiles; a source revision refreshes only the rewrit
     expect(chunks.filter(url => url.startsWith("P0."))).toEqual([]);
     chunks.length = 0;
     write("rewrite");
-    expect(await page.evaluate(() => window.refreshViewer.addSources(window.refreshAcquisitions(2, 2)))).toBe(true);
+    expect(await page.evaluate(() => window.refreshViewer!.addSources(window.refreshAcquisitions!(2, 2)))).toBe(true);
     await expect.poll(() => chunks.filter(url => url.startsWith("P0.")).length).toBeGreaterThan(0);
     await expect.poll(async () => {
       const rewritten = await photograph("rewritten.png");
@@ -108,7 +121,7 @@ test("append preserves cached tiles; a source revision refreshes only the rewrit
     await page.waitForTimeout(1000);
     expect(chunks.filter(url => url.startsWith("P1."))).toEqual([]);
     chunks.length = 0;
-    expect(await page.evaluate(() => window.refreshViewer.addSources(window.refreshAcquisitions(2, 2)))).toBe(true);
+    expect(await page.evaluate(() => window.refreshViewer!.addSources(window.refreshAcquisitions!(2, 2)))).toBe(true);
     await page.waitForTimeout(1800);
     expect(chunks).toEqual([]);
     expect(errors).toEqual([]);

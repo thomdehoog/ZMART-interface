@@ -2,16 +2,24 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { rest, setAcquisitionShown, startTheBridge } from
   "../../testing/live-bridge.ts";
+import type { EngineViewer } from "../../canvas/engines/neuroglancer-under/viewer.ts";
+
+declare global {
+  interface Window {
+    /** Test-only: the picture as the first overview field left it, to check later fields keep the same one. */
+    __pictureBeforeSourceGrowth?: EngineViewer | null;
+  }
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(HERE, "test-results", "step-five-kidney");
 const PORT = Number(process.env.LIVE_BRIDGE_PORT ?? 8813);
 const A_WHOLE_RUN = 900_000;
 
-let bridge = null;
+let bridge: Awaited<ReturnType<typeof startTheBridge>> | null = null;
 
 test.beforeAll(async () => {
   fs.mkdirSync(SHOTS, { recursive: true });
@@ -19,9 +27,9 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await bridge?.stop(); });
 
-async function walkToScan(page) {
-  const gotoStep = (name) => page.locator(`.step:has-text("${name}")`).first().click();
-  const record = async (host, name) => {
+async function walkToScan(page: Page) {
+  const gotoStep = (name: string) => page.locator(`.step:has-text("${name}")`).first().click();
+  const record = async (host: string, name: string) => {
     const bar = page.locator(`#${host} .setting-box.open`);
     const field = bar.locator("input");
     if (await field.count()) await field.fill(name);
@@ -41,7 +49,7 @@ async function walkToScan(page) {
   await record("sf-preset", "overview");
   await page.locator(".sf-apply-grid").click();
   await page.waitForTimeout(800);
-  expect(await page.evaluate(() => window.__theStageCanvas.plan().length)).toBe(9);
+  expect(await page.evaluate(() => window.__theStageCanvas!.plan().length)).toBe(9);
 
   await gotoStep("Focus strategy");
   await record("focus-preset", "af");
@@ -59,32 +67,32 @@ async function walkToScan(page) {
   await rest(2500);
 }
 
-async function frontSourceCount(page, acquisition) {
-  return page.evaluate((prefix) => (window.__thePicture?.layersForMeasurement?.() ?? [])
-    .filter(({ name }) => name.startsWith(prefix))
+async function frontSourceCount(page: Page, acquisition: string) {
+  return page.evaluate((prefix: string) => (window.__thePicture?.layersForMeasurement?.() ?? [])
+    .filter(({ name }) => (name as string).startsWith(prefix))
     .reduce((count, row) => count + (row.sources?.length ?? 0), 0), acquisition);
 }
 
-async function setAcquisitionVisible(page, acquisition, visible) {
+async function setAcquisitionVisible(page: Page, acquisition: string, visible: boolean) {
   await setAcquisitionShown(page, acquisition, visible);
   await expect.poll(() => acquisitionVisible(page, acquisition)).toBe(visible);
 }
 
-async function acquisitionVisible(page, acquisition) {
-  return page.evaluate((prefix) => {
+async function acquisitionVisible(page: Page, acquisition: string) {
+  return page.evaluate((prefix: string) => {
     const rows = (window.__thePicture?.layersForMeasurement?.() ?? [])
-      .filter(({ name }) => name.startsWith(prefix));
+      .filter(({ name }) => (name as string).startsWith(prefix));
     return rows.length > 0 && rows.every(({ visible }) => Boolean(visible));
   }, acquisition);
 }
 
-async function stageSnapshot(page, name) {
-  return page.evaluate((label) => {
-    const box = document.querySelector("#stage-canvas").getBoundingClientRect();
-    const plan = window.__theStageCanvas.plan();
+async function stageSnapshot(page: Page, name: string) {
+  return page.evaluate((label: string) => {
+    const box = document.querySelector("#stage-canvas")!.getBoundingClientRect();
+    const plan = window.__theStageCanvas!.plan();
     const points = [0, 4, 8].map((index) => {
       const at = plan[index];
-      const projected = window.__theStageCanvas.project(at.x, at.y);
+      const projected = window.__theStageCanvas!.project(at.x, at.y);
       const point = Array.isArray(projected)
         ? { x: projected[0], y: projected[1] }
         : projected;
@@ -96,7 +104,7 @@ async function stageSnapshot(page, name) {
     });
     return {
       name: label,
-      view: window.__theStageCanvas.view(),
+      view: window.__theStageCanvas!.view(),
       canvas: {
         left: box.left, top: box.top, width: box.width, height: box.height,
       },
@@ -105,34 +113,37 @@ async function stageSnapshot(page, name) {
   }, name);
 }
 
-function projectionDrift(before, after) {
+/** Where the stage stood at one moment: the view, the canvas box, and three plan tiles on screen. */
+type Snapshot = Awaited<ReturnType<typeof stageSnapshot>>;
+
+function projectionDrift(before: Snapshot, after: Snapshot) {
   return Math.max(...before.points.map((point, index) => {
     const next = after.points[index];
     return Math.hypot(point.screenPx.x - next.screenPx.x, point.screenPx.y - next.screenPx.y);
   }));
 }
 
-function expectSameView(before, after, message) {
+function expectSameView(before: Snapshot, after: Snapshot, message: string) {
   expect(after.canvas, `${message}: the canvas box changed`).toEqual(before.canvas);
-  expect(after.view.zoom, `${message}: zoom changed`).toBeCloseTo(before.view.zoom, 9);
-  expect(after.view.centre.x, `${message}: x centre changed`).toBeCloseTo(before.view.centre.x, 6);
-  expect(after.view.centre.y, `${message}: y centre changed`).toBeCloseTo(before.view.centre.y, 6);
+  expect(after.view!.zoom, `${message}: zoom changed`).toBeCloseTo(before.view!.zoom, 9);
+  expect(after.view!.centre.x, `${message}: x centre changed`).toBeCloseTo(before.view!.centre.x, 6);
+  expect(after.view!.centre.y, `${message}: y centre changed`).toBeCloseTo(before.view!.centre.y, 6);
   expect(projectionDrift(before, after), `${message}: plan projections drifted`).toBeLessThan(0.25);
 }
 
-async function absolutePlan(page) {
+async function absolutePlan(page: Page) {
   return page.evaluate(() => {
-    const [ox, oy] = window.__theStageCanvas.carrierOriginUm();
-    return window.__theStageCanvas.plan().map(({ x, y }) => ({ x: x + ox, y: y + oy, z: 0 }));
+    const [ox, oy] = window.__theStageCanvas!.carrierOriginUm();
+    return window.__theStageCanvas!.plan().map(({ x, y }) => ({ x: x + ox, y: y + oy, z: 0 }));
   });
 }
 
 test("first and later overview sources preserve pan, zoom, and whole-plate Fit", async ({ page }) => {
   test.setTimeout(A_WHOLE_RUN);
-  const browserErrors = [];
-  const sourceFailures = [];
+  const browserErrors: string[] = [];
+  const sourceFailures: { url: string; error?: string | null; status?: number }[] = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));
-  const engineCancellations = [];
+  const engineCancellations: { url: string; error: string }[] = [];
   page.on("requestfailed", (request) => {
     if (!request.url().includes("/data/")) return;
     const error = request.failure()?.errorText ?? null;
@@ -156,7 +167,7 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
 
   await page.locator("#carrier-btn").click();
   const fittedBeforeHand = await stageSnapshot(page, "fit before the operator moves");
-  const box = await page.locator("#stage-canvas").boundingBox();
+  const box = (await page.locator("#stage-canvas").boundingBox())!;
   expect(box).not.toBeNull();
   await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.5);
   await page.mouse.wheel(0, -650);
@@ -170,7 +181,7 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
     .toBeGreaterThan(1);
   await setAcquisitionVisible(page, "focussing", false);
 
-  await bridge.image(positions.slice(0, 1));
+  await bridge!.image(positions.slice(0, 1));
   await expect.poll(() => frontSourceCount(page, "overview"), {
     timeout: 60_000,
     message: "the first overview source never opened in Smart Viewer",
@@ -190,7 +201,7 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
   // the new ones. This is the same cumulative contract used by the live tile
   // arrival checks; sending only the delta would deliberately replace the
   // acquisition's record with that delta.
-  await bridge.image(positions.slice(0, 8));
+  await bridge!.image(positions.slice(0, 8));
   await expect.poll(() => frontSourceCount(page, "overview"), {
     timeout: 60_000,
     message: "later overview sources never opened in Smart Viewer",
@@ -206,7 +217,7 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
   await page.locator("#carrier-btn").click();
   await rest(500);
   const wholePlate = await stageSnapshot(page, "whole-plate Fit before source 9");
-  await bridge.image(positions);
+  await bridge!.image(positions);
   await expect.poll(() => frontSourceCount(page, "overview"), {
     timeout: 60_000,
     message: "the final overview source never opened in Smart Viewer",

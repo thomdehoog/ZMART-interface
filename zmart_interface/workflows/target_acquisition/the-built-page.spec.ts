@@ -16,34 +16,34 @@
 
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { rest, startTheBridge }
   from "./testing/live-bridge.ts";
 
 const PORT = Number(process.env.BUILT_PAGE_PORT ?? 8825);
 
-let bridge = null;
+let bridge: Awaited<ReturnType<typeof startTheBridge>> | null = null;
 
 test.beforeAll(async () => { bridge = await startTheBridge({ port: PORT }); });
 test.afterAll(async () => { await bridge?.stop(); });
 
 /** What the page looks like where it is served from *url*. */
-async function howItLooks(page, url) {
-  const complaints = [];
+async function howItLooks(page: Page, url: string) {
+  const complaints: string[] = [];
   page.on("pageerror", (e) => complaints.push(e.message));
   await page.goto(url);
   await rest(2500);
   const looks = await page.evaluate(() => {
-    const of = (sel) => {
+    const of = (sel: string) => {
       const node = document.querySelector(sel);
       return node ? getComputedStyle(node) : null;
     };
     const body = of("body");
     const step = of(".step.locked .step-name") ?? of(".step-name");
     return {
-      ink: body.color,
-      paper: body.backgroundColor,
-      stepName: step.color,
+      ink: body!.color,
+      paper: body!.backgroundColor,
+      stepName: step!.color,
       // The tokens themselves, so a mismatch says which half moved.
       tokenInk: getComputedStyle(document.documentElement)
         .getPropertyValue("--ink").trim(),
