@@ -9,6 +9,7 @@ a copy from coming back.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import zmart_viewer
@@ -36,3 +37,20 @@ def test_the_patch_keeps_only_what_the_viewer_does_not_offer():
     changed = [line.split(" b/", 1)[1] for line in patch.splitlines() if line.startswith("diff --git ")]
     assert changed == ["node_modules/neuroglancer/lib/chunk_manager/frontend.js"], changed
     assert "transparentBackground" not in patch
+
+
+def test_the_installed_viewer_is_the_pinned_one():
+    """The page is built with the viewer release ``pyproject.toml`` names, and no other.
+
+    The build takes the viewer's drawing files from the installed viewer, so a
+    different viewer builds a different page. The build itself stops when they
+    differ (``the-installed-viewer.mjs``); this says so before the build is run.
+    """
+    pinned = re.search(
+        r'"zmart-viewer @ git\+https://github\.com/ZMB-UZH/ZMART-viewer@v([^"]+)"',
+        (CHECKOUT / "pyproject.toml").read_text(encoding="utf-8"),
+    )
+    assert pinned, "pyproject.toml does not pin zmart-viewer to a release tag"
+    assert zmart_viewer.__version__ == pinned[1], (
+        f"the installed viewer is {zmart_viewer.__version__}, the pinned one {pinned[1]}"
+    )

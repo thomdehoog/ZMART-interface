@@ -23,6 +23,12 @@ from the installed viewer (`the-installed-viewer.mjs` finds them), so the page
 and the viewer cannot drift apart. The one neuroglancer edit only this page
 needs stays in `patches/neuroglancer+2.41.2.patch`.
 
+The viewer is pinned to a release in `pyproject.toml`, and the build stops
+when the installed viewer is another one: another viewer builds another page.
+Every checkout keeps Unix line endings (`.gitattributes`), because the build
+copies some sources into the page as they are. So a build on any machine gives
+the committed page, byte for byte.
+
 On the ZMB workstations AppLocker runs programs only from
 `C:\ProgramData\MinicondaZMB`, so the checkout, `node_modules` and the
 Playwright browsers must live there.

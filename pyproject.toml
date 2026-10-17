@@ -24,8 +24,10 @@ dependencies = [
     # interface opens a ZmartController of its own and lists the drivers the
     # controller's registry knows.
     "zmart-controller @ git+https://github.com/ZMB-UZH/ZMART-controller",
-    # The picture server that shows the run as it is acquired.
-    "zmart-viewer @ git+https://github.com/ZMB-UZH/ZMART-viewer",
+    # The picture server that shows the run as it is acquired. Pinned to a
+    # release, because the page is built with the viewer's drawing files: the
+    # build stops when the installed viewer is not this one.
+    "zmart-viewer @ git+https://github.com/ZMB-UZH/ZMART-viewer@v0.5.0rc4",
     # The engine that scores focus and finds objects, each step in its own
     # environment (the zmart_analysis package). Its workflows stay in a
     # checkout of the repository; see zmart_interface/parts/analysis/workflows.py.

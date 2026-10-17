@@ -1,3 +1,8 @@
+# Every text file is checked out as it is stored, with Unix line endings, on
+# every machine. The build copies some sources into the page as they are, so a
+# Windows checkout with Windows line endings would build a different page.
+* text=auto eol=lf
+
 # The built page is kept exactly as `npm run build` writes it, on every machine:
 # a test compares it with a fresh build byte for byte, and a checkout that turned
 # its line endings into Windows ones would make the two disagree.

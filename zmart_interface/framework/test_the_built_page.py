@@ -6,9 +6,9 @@ the committed files are exactly what ``npm run build`` makes from the sources
 beside them: a change to the page that was never rebuilt, or a build that
 comes out differently each time, would ship a page nobody has tested.
 
-The first test reads only the committed page and always runs. The second
-builds the page twice and needs Node.js and ``npm ci`` in this checkout; it
-skips, saying so, without them.
+The first two tests read only the checkout and always run. The third builds
+the page twice and needs Node.js and ``npm ci`` in this checkout; it skips,
+saying so, without them.
 """
 
 from __future__ import annotations
@@ -53,6 +53,24 @@ def test_the_committed_page_is_three_files_with_neuroglancers_programs_compiled(
         assert 'import "#src/' not in text and len(text) > 500_000, (
             f"{name} is neuroglancer's uncompiled list, not a finished program"
         )
+
+
+def test_every_source_is_checked_out_with_unix_line_endings():
+    """The build copies some sources into the page as they are, line endings and all.
+
+    A Windows checkout that turned them into Windows line endings would build a
+    page that differs from the one built on Linux, so neither could be checked
+    against the committed one. ``.gitattributes`` keeps every checkout's text
+    files as they are stored.
+    """
+    git = shutil.which("git")
+    if git is None or not (CHECKOUT / ".git").exists():
+        pytest.skip("needs git and a git checkout")
+    listed = subprocess.run(
+        [git, "ls-files", "--eol"], cwd=CHECKOUT, capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    windows = [line.split("\t", 1)[1] for line in listed if "w/crlf" in line.split("\t", 1)[0]]
+    assert windows == [], f"checked out with Windows line endings: {windows}"
 
 
 def _npm() -> str | None:
