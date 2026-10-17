@@ -17,10 +17,8 @@ import { canvasPanel } from "./canvas/panel.js";
    the mock or a real microscope — is chosen on the Connect step. The
    in-browser rehearsal (timers and a synthetic sample) is reachable only by
    `?backend=pretend`, for this page's own browser tests. */
-import { backend as liveBackend } from "./microscope/live.js";
-import { backend as pretendBackend } from "./microscope/mock.js";
-import { targetAcquisition } from "./backend/live.js";
-import { targetAcquisitionPretend } from "./backend/pretend.js";
+import { backend as live } from "./backend/live.js";
+import { backend as pretend } from "./backend/pretend.js";
 import { installTargetAcquisition } from "./on-the-page.js";
 import { steps as theRun } from "./the-run.js";
 
@@ -33,33 +31,6 @@ export { freshState, keptAcrossSessions, forTests } from "./shared/run-document.
 /** How this workflow is wired to the page when the page opens: its canvas,
     and the functions its steps lend the page. */
 export const install = installTargetAcquisition;
-
-/** What a run of this workflow is called on disk: `target-acquisition_<hash>`.
-    Sent when connecting, and never changed, so the runs and protocols saved
-    before are still found (`bridge/protocols.py` keeps the same name). */
-export const EXPERIMENT = "target-acquisition";
-
-/** One backend for the steps: the shared verbs every workflow uses, and
-    this workflow's own, with the connection naming this workflow's runs.
-    Each verb is looked up on its own backend when it is called, not copied
-    once, so a test that stands in for one verb is heard. */
-function withOurVerbs(shared, ours) {
-  const backend = {};
-  for (const [from, names] of [[shared, Object.keys(shared)], [ours, Object.keys(ours)]]) {
-    for (const name of names) {
-      backend[name] = typeof from[name] === "function"
-        ? function (...args) { return from[name].apply(this, args); }
-        : from[name];
-    }
-  }
-  backend.connect = function (session, options = {}) {
-    return shared.connect.call(this, session, { ...options, experiment: EXPERIMENT });
-  };
-  return backend;
-}
-
-const live = withOurVerbs(liveBackend, targetAcquisition);
-const pretend = withOurVerbs(pretendBackend, targetAcquisitionPretend);
 
 /** Which backend this workflow's steps speak to, given the page's own
     address: the rehearsal when it asks for `?backend=pretend`, the bridge

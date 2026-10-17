@@ -5,7 +5,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { targetAcquisition as backend } from "./live.js";
+import { backend } from "./live.js";
 
 /* A curve with one clear peak at 12 µm, as the bridge's scorer answers. */
 const curveAt = (peak) => ({

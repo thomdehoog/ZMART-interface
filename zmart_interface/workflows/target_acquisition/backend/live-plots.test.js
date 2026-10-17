@@ -4,7 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { targetAcquisition as backend } from "./live.js";
+import { backend } from "./live.js";
 
 function bridgePlotting(polls, columns = {}) {
   const calls = [];

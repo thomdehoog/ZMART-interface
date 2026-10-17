@@ -1,8 +1,8 @@
 """The bridge: where the operator window's backend verbs meet the controller.
 
 The operator page runs in a browser and cannot import Python, so its backend
-(`zmart_interface/workflows/target_acquisition/microscope/live.js`) speaks to this package over
-HTTP instead. Every route is one of the page's backend verbs; behind each
+(`zmart_interface/workflows/target_acquisition/backend/live.js`) speaks to
+this package over HTTP instead. Every route is one of the page's backend verbs; behind each
 route sits the ZMART Controller (:mod:`zmart_controller`), and behind that
 whichever driver is plugged in — a real microscope's driver on the microscope
 PC, or the interface's own mock microscope on a machine with no instrument.

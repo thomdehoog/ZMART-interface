@@ -56,13 +56,12 @@ target_acquisition/
 Its tests sit beside what they test, its browser walks included: nothing
 outside the folder is about it, so taking the folder out takes all of it.
 
-The microscope seam is a part, not the workflow's: `../parts/microscope/`
-holds the verbs every workflow shares, `live.js`, which speaks to the bridge,
-and `mock.js`, the in-browser rehearsal used by some of the page's own tests.
-A workflow's own verbs are its own: Target acquisition's are in its
-`backend/` (live and pretend), and its runs on the bridge in its `bridge/`,
-the Python half with its routes under `/api/target_acquisition/`. Every call
-to the instrument lives behind that seam — a step only calls it and awaits.
+Target acquisition's microscope seam is its `backend/`: `live.js`, which
+speaks to the bridge, and `pretend.js`, the in-browser rehearsal used by some
+of the page's own tests, with the same verbs. Its runs on the bridge are in
+its `bridge/`, the Python half with its routes under
+`/api/target_acquisition/`. Every call to the instrument lives behind that
+seam — a step only calls it and awaits.
 
 The rule that decides where a file goes: **put it beside the things that use
 it, at the lowest folder that covers them all.** Used by one step → in that

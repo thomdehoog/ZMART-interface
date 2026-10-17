@@ -5,7 +5,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { targetAcquisition as backend } from "./live.js";
+import { backend } from "./live.js";
 
 /** A bridge that finds the tissue 10 µm below wherever each stack began. */
 function bridgeMeasuringFocus() {

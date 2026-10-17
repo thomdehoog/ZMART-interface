@@ -5,7 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { targetAcquisition as backend } from "./live.js";
+import { backend } from "./live.js";
 
 /** A bridge whose discovery walks through `polls`, one state per GET, and
     answers each with only the fields past the `since` the page asked. */

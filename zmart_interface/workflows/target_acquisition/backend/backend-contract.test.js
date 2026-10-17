@@ -1,41 +1,63 @@
 /**
- * Target acquisition's promises, asked of the pretend backend on every change
- * and of a running bridge when one is given (`BACKEND_BRIDGE`), as
- * `workflows/target_acquisition/microscope/backend-contract.test.js` does for the shared verbs.
+ * The same promises, asked of both backends.
+ *
+ * The pretend one is asked on every change, because it needs nothing running.
+ * The live one is asked when there is a bridge to ask — start one and point
+ * this at it:
+ *
+ *     python -m zmart_interface.framework.bridge --port 8600
+ *     BACKEND_BRIDGE=http://127.0.0.1:8600 npx vitest run zmart_interface/workflows/target_acquisition/backend/backend-contract.test.js
+ *
+ * With the mock microscope behind that bridge it is a full round of the real path
+ * — controller, driver contract — and the two answers are held
+ * against the same list. That is the only arrangement in which the pretend
+ * backend cannot quietly drift away from the instrument it stands for.
  *
  * Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
 import { beforeAll, describe, expect, it } from "vitest";
+import { promisesOfABackend } from "./backend-contract.js";
 import { isTheMock } from "../microscope/instruments.js";
-import { backend as sharedPretend } from "../microscope/mock.js";
-import { promisesOfTargetAcquisition } from "./backend-contract.js";
-import { targetAcquisitionPretend } from "./pretend.js";
+import { backend as pretend } from "./pretend.js";
 
-const promises = promisesOfTargetAcquisition(expect);
+const promises = promisesOfABackend(expect);
 
-describe("Target acquisition's pretend verbs keep their promises", () => {
-  const pretend = { ...sharedPretend, ...targetAcquisitionPretend };
+describe("the pretend backend keeps the page's promises", () => {
   for (const promise of promises) {
     it(promise.what, async () => { await promise.keep(pretend); });
   }
 });
 
-/* Only when a bridge is running, and with the same care about which
-   microscope is driven as the shared promises take. */
+/* Only when a bridge is running. Skipped rather than failed, because the
+   offline suite is the one that runs on every change and it must not need a
+   Python process; this is the run somebody makes deliberately, on the
+   microscope PC or against the mock driver. */
 const bridgeAt = process.env.BACKEND_BRIDGE;
 
-describe.skipIf(!bridgeAt)("Target acquisition's live verbs keep the same promises", () => {
+describe.skipIf(!bridgeAt)("the live backend keeps the same promises", () => {
   let live = null;
 
   beforeAll(async () => {
+    /* `live.js` reads the bridge's address off the page's own address, which
+       is how an operator points it somewhere during development. There is no
+       page here, so it is given one. */
     globalThis.location = { search: `?bridge=${bridgeAt}`, protocol: "http:" };
-    const { backend: shared } = await import("../microscope/live.js");
-    const { targetAcquisition } = await import("./live.js");
-    live = { ...shared, ...targetAcquisition };
+    ({ backend: live } = await import(
+      "./live.js"
+    ));
+    /* Nothing answers before a session is open, and which instrument is
+       opened is not left to the order the list happens to give them in.
+       These promises drive a stage about. The mock driver is chosen wherever
+       one is offered — on a development machine the list may give the Leica
+       first, and a test that took the first entry would open a session on a
+       real microscope and move it. Driving the real one is a deliberate act,
+       so it takes a word from whoever is running this. */
     const offered = await live.instruments();
     const mockDriver = offered.find(isTheMock);
+    /* Exactly "yes": a variable left over from another run, or set to "no",
+       must not count as permission to move a real stage. */
     if (!mockDriver && process.env.BACKEND_BRIDGE_MAY_MOVE_THE_MICROSCOPE !== "yes") {
       throw new Error(
         "this bridge offers no mock driver, and these promises drive the stage."
@@ -43,7 +65,7 @@ describe.skipIf(!bridgeAt)("Target acquisition's live verbs keep the same promis
         + ` the instrument itself (${offered.join(", ")}).`,
       );
     }
-    await live.connect({ instrument: mockDriver ?? offered[0] }, { experiment: "target-acquisition" });
+    await live.connect({ instrument: mockDriver ?? offered[0] });
   }, 30_000);
 
   for (const promise of promises) {

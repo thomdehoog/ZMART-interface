@@ -10,7 +10,7 @@ parts that plug into the interface's sides:
    the page (JavaScript)            the bridge (Python)              beside it
    ---------------------            -------------------              ---------
    steps, panels, canvas  --HTTP-->  framework/bridge/    --------->  ZMART Controller --> driver --> microscope
-   workflows/target_acquisition/microscope/live.js          parts/microscope/instrument.py      (any ZMART driver, or the mock)
+   workflows/target_acquisition/backend/live.js            parts/microscope/instrument.py      (any ZMART driver, or the mock)
                                      parts/storage/      ----------->  ZMART-viewer (serves the run's pictures)
    workflows/target_acquisition/canvas/engines/  <--HTTP--  (the viewer's own server)
                                      parts/analysis/warm.py -------->  ZMART-analysis (focus, detection, plots)
@@ -194,33 +194,26 @@ calls `setTimeout`, never reaches for a synthetic sample, and never touches
 hardware: it calls the backend and awaits. Every call the page makes to an
 instrument lives behind this seam.
 
-There are two backends with the same shape. `live.js` is what the page uses:
+There are two backends with the same shape, both in
+`workflows/target_acquisition/backend/`. `live.js` is what the page uses:
 each call is an HTTP request to the bridge (the package
 `zmart_interface/framework/bridge/`), which speaks to the ZMART Controller,
 which speaks to whichever driver was chosen at Connect, the interface's own
-mock microscope included. `mock.js` pretends in the browser alone, for
-working on the page without a bridge. They hold the verbs every workflow
-shares, as `live.js` has them today:
+mock microscope included; the workflow's own verbs go to its Python half,
+under `/api/target_acquisition/`. `pretend.js` pretends in the browser
+alone, for working on the page without a bridge. Their verbs, as `live.js`
+has them today:
 
 ```js
 export const backend = {
-  // the session; `experiment` is what the workflow calls its runs on disk
-  async instruments(), async connect(session, { experiment, … }), async disconnect(), async info(),
+  // the session; the run folder on disk is `target-acquisition_<hash>`
+  async instruments(), async connect(session, { onChecks, onCheck }), async disconnect(), async info(),
   // the stage and the instrument's settings, in the controller's own words
   async get_xyz(), async set_xyz({ x, y, z }),
   async get_acquisition_settings(), async set_state(settings), async readSetting(type),
   async acquire(…),
   // the pictures
   viewOf(acquisitionType), async viewerSources(onStatus),
-};
-```
-
-A workflow's own verbs live with the workflow. Target acquisition's are in
-`workflows/target_acquisition/backend/` (`live.js` speaking to its Python
-half under `/api/target_acquisition/`, `pretend.js` its rehearsal):
-
-```js
-export const targetAcquisition = {
   // the runs, each followed by polling and stopped by the operator's Interrupt
   async measureFocus(points, { metric, onPoint, … }), async stopFocusMeasure(),
   async scanOverview({ positions, onProgress, … }), async stopScan(),
@@ -232,8 +225,7 @@ export const targetAcquisition = {
 };
 ```
 
-`workflows/target_acquisition/microscope/backend-contract.js` lists the promises the shared verbs
-keep, and the workflow's `backend/backend-contract.js` its own; each test
+`backend/backend-contract.js` lists the promises the verbs keep; its test
 holds the pretend side to them on every change and a running bridge to them
 when asked.
 
@@ -408,7 +400,7 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `ta/shared/scanfields.js` | built, unit-tested, **used by the scan-area widget** |
 | `workflows/target_acquisition/microscope/instruments.js` | used by the app |
 | `parts/microscope/pretend-sample/` | built, unit-tested, **used by the app** (the focus sweep and the surface fit) |
-| `workflows/target_acquisition/microscope/mock.js` | built, used by the app only with `?backend=pretend`, for the page's own tests |
+| `workflows/target_acquisition/backend/pretend.js` | built, used by the app only with `?backend=pretend`, for the page's own tests |
 | `framework/rules/steps.js` | built, unit-tested, **used by the app** — numbering, ordering, readiness and panels |
 | `framework/rules/finding-workflows.js` | built, unit-tested, **used by the app: turns the workflow folders into the chooser's list** |
 | `workflows/*/flow.js` | built, unit-tested, **used by the app: the only declaration of the workflows** |
@@ -477,7 +469,7 @@ under `workflows/` are the only place the workflows are written down, and
 the page assembles its list from them.
 
 The synthetic sample is behind the seam, in `pretend-sample/`, fed to
-`mock.js` and its tests; the page itself never reaches for it.
+`backend/pretend.js` and its tests; the page itself never reaches for it.
 
 The runner went the same way as readiness. `framework/window/runner.js` knows
 only how a run begins and ends -- running, finished, stopped by hand, failed

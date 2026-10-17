@@ -25,10 +25,6 @@ export function installSide(page) {
     const host = thePanels[show]?.channel;
     if (!host) return;
     const widget = sideWidget();
-    /* The picture's own panel is mounted beside the column but never shown:
-       the row over the picture is where the operator reaches it. */
-    const display = thePanels[show].display ?? null;
-    if (display) display.hidden = true;
     /* Folded, the column is away to the right and only its fold strip stays,
        the press that brings it back. */
     const somethingToShow = Boolean(widget);
