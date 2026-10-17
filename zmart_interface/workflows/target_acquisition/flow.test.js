@@ -11,7 +11,7 @@ import {
   firstIncomplete, isReachable, blockedBecause, panelsFor, editedAt, staleSteps,
 } from "../../framework/rules/steps.ts";
 import { assembleWorkflows } from "../../framework/rules/finding-workflows.ts";
-import { freshRun, startOver } from "../../framework/window/run-state.js";
+import { freshRun, startOver } from "../../framework/window/run-state.ts";
 import { emptySlot, withRecording } from "./microscope/recordings.js";
 import { sampleReading } from "./microscope/settings.js";
 import * as threeSteps from "../../framework/fixtures/three_steps/flow.ts";

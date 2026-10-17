@@ -4,8 +4,8 @@
    the fixture under `framework/fixtures/three_steps/` -- and carry none of
    target acquisition's keys while doing so. */
 
-import { describe, it, expect, afterEach } from "vitest";
-import { exposeTheRunForTests, freshRun, startOver } from "./run-state.js";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { exposeTheRunForTests, freshRun, startOver } from "./run-state.ts";
 import * as threeSteps from "../fixtures/three_steps/flow.ts";
 
 const NO_BACKEND = Object.freeze({});
@@ -38,7 +38,7 @@ describe("a fresh run", () => {
   });
 
   it("holds only the framework's keys for a flow with no state of its own", () => {
-    const run = freshRun({ workflow: "plain", backend: NO_BACKEND, flow: { steps: [] } });
+    const run = freshRun({ workflow: "plain", backend: NO_BACKEND, flow: {} });
     expect(Object.keys(run).sort()).toEqual([...THE_FRAMEWORKS_KEYS].sort());
   });
 
@@ -84,27 +84,30 @@ describe("starting over", () => {
 });
 
 describe("what a browser test may read", () => {
-  afterEach(() => { delete globalThis.window; });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  /* What a test reads off the page's window, which there is none of here. */
+  const read = () => (window.__theRunState?.() ?? {}) as Record<string, unknown>;
 
   it("is the framework's fields plus the flow's own", () => {
-    globalThis.window = {};
+    vi.stubGlobal("window", {});
     const run = freshRun({ workflow: "three_steps", backend: NO_BACKEND, flow: threeSteps });
     run.counted = 2; run.done.add("begin");
     exposeTheRunForTests(run, () => threeSteps);
-    const seen = window.__theRunState();
+    const seen = read();
     expect(seen.done).toEqual(["begin"]);
     expect(seen.counted).toBe(2);
     expect(seen).not.toHaveProperty("focus");
   });
 
   it("follows the workflow of the moment", () => {
-    globalThis.window = {};
-    let flow = threeSteps;
-    const run = freshRun({ workflow: "three_steps", backend: NO_BACKEND, flow });
+    vi.stubGlobal("window", {});
+    let flow: { forTests(run: object): Record<string, unknown> } = threeSteps;
+    const run = freshRun({ workflow: "three_steps", backend: NO_BACKEND, flow: threeSteps });
     exposeTheRunForTests(run, () => flow);
-    expect(window.__theRunState()).toHaveProperty("counted");
+    expect(read()).toHaveProperty("counted");
     flow = { forTests: () => ({ other: true }) };
-    expect(window.__theRunState()).toHaveProperty("other");
-    expect(window.__theRunState()).not.toHaveProperty("counted");
+    expect(read()).toHaveProperty("other");
+    expect(read()).not.toHaveProperty("counted");
   });
 });

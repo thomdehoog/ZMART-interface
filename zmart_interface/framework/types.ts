@@ -241,3 +241,51 @@ export interface AssembledWorkflow<W extends WorkflowTypes = Plain> {
   install?: Flow<W>["install"];
   backendFor?: Flow<W>["backendFor"];
 }
+
+/* ---- the framework's own view: not offered to workflows ------------------------- */
+
+/** The run document as the framework keeps it: its own keys, every one writable here, and the workflow's beside them. */
+export type TheRun = { -readonly [K in keyof FrameworkRun]: FrameworkRun[K] } & Record<string, unknown>;
+
+/** A step as the framework reads it: the API's step, of a workflow that adds nothing. */
+export type FrameStep = Step<Plain>;
+
+/**
+ * A workflow's page as the framework builds it: what a step may call
+ * (`Page`), and the framework's own parts beside it, which the frame's
+ * modules call on each other.
+ */
+export interface FramePage {
+  run: TheRun;
+  backend: object;
+  flow(): AssembledWorkflow;
+  steps(): FrameStep[];
+  step(index: number): FrameStep;
+  indexOfStep(id: string): number;
+  tabsForStep(index: number): string[];
+  panels: Record<string, BuiltPanel>;
+  shown: Record<string, unknown>;
+  hooks: Hooks;
+  /* the rail */
+  renderRail(): void;
+  readiness(step: FrameStep): string | null;
+  stateEdited(id: string): void;
+  resetRun(): void;
+  /* the press */
+  renderStepAction(shown?: string): void;
+  renderActionBar(): void;
+  /* the runner */
+  runStep(index: number, options?: Record<string, unknown>): Promise<Outcome>;
+  interruptWalk(): void;
+  /* the tabs */
+  focusPanelsFor(index: number): void;
+  renderTabs(): void;
+  shownPanel(): string | undefined;
+  renderPanels(): void;
+  renderAll(): void;
+  /* the channel */
+  activeStep(): FrameStep | null;
+  actionSlot(): HTMLElement | null;
+  renderSide(show?: string): void;
+  remountChannel(): void;
+}

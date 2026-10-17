@@ -28,7 +28,7 @@
  */
 
 /* Where the bridge answers is the page's one fact about its own address
-   (`framework/window/bridge-address.js`): the page's own origin on the
+   (`framework/window/bridge-address.ts`): the page's own origin on the
    microscope, or `?bridge=http://127.0.0.1:8600` during development, when
    the vite server holds the page instead. */
 import { atBridge } from "../../../api/index.ts";

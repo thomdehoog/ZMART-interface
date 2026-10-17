@@ -22,11 +22,13 @@
  * in it, that is where the difference will be.
  */
 
+import type { BuiltPanel, Panel } from "../types.ts";
+
 /**
  * Make one box for the channel: a heading, and a card to put controls in.
  *
- * @param {string} title what the box is for, shown above the card.
- * @param {string} [extra] an optional further class on the box, for the few places that
+ * @param title what the box is for, shown above the card.
+ * @param extra an optional further class on the box, for the few places that
  *   need to style one differently — the carrier's layout box asks for
  *   `carrier-sizes`, which gives it a little more room inside.
  * @returns `{ group, body }` — `group` is the whole box, to be added to the
@@ -34,7 +36,7 @@
  *   Both are handed back because callers need them for different things: the
  *   box is what gets placed, the card is what gets filled.
  */
-export function sideGroup(title, extra) {
+export function sideGroup(title: string, extra?: string): { group: HTMLDivElement; body: HTMLDivElement } {
   const group = document.createElement("div");
   group.className = extra ? `side-group ${extra}` : "side-group";
 
@@ -62,13 +64,15 @@ export function sideGroup(title, extra) {
  * so switching workflows shows a different set of them rather than
  * rebuilding, and two workflows never share one.
  */
-export function buildThePanels(flow) {
-  const thePanels = {};
+export function buildThePanels(flow: { panels: Panel[] }): Record<string, BuiltPanel> {
+  const stage = document.querySelector(".stage");
+  if (!stage) throw new Error("the page has no stage to put its panels on");
+  const thePanels: Record<string, BuiltPanel> = {};
   for (const declared of flow.panels) {
     const host = document.createElement("div");
     host.className = "panel";
     host.setAttribute("role", "tabpanel");
-    document.querySelector(".stage").append(host);
+    stage.append(host);
     thePanels[declared.key] = { ...declared, host, ...(declared.build?.(host) ?? {}) };
   }
   return thePanels;

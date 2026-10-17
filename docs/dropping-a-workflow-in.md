@@ -126,10 +126,10 @@ and makes the run folder, `bridge/state.py` holds the session and the lock,
 and its routes take that lock around every command to the instrument.
 
 From the page, your steps reach the routes at the bridge's address, which
-`framework/window/bridge-address.js` knows:
+`framework/window/bridge-address.ts` knows:
 
 ```js
-import { atBridge } from "../../framework/window/bridge-address.js";
+import { atBridge } from "../../framework/window/bridge-address.ts";
 
 const answer = await fetch(atBridge("/api/my_workflow/count"), {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: 3 }),

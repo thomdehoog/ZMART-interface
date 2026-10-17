@@ -20,14 +20,15 @@
  */
 
 import { panelsFor } from "../rules/steps.ts";
-import { installActionBar } from "./action-bar.js";
-import { el } from "./dom.js";
-import { buildThePanels } from "./panels.js";
-import { installRail } from "./rail.js";
-import { installRunner } from "./runner.js";
-import { freshRun, startOver } from "./run-state.js";
-import { installSide } from "./side.js";
-import { installTabs } from "./tabs.js";
+import { installActionBar } from "./action-bar.ts";
+import { el } from "./dom.ts";
+import { buildThePanels } from "./panels.ts";
+import { installRail } from "./rail.ts";
+import { installRunner } from "./runner.ts";
+import { freshRun, startOver } from "./run-state.ts";
+import { installSide } from "./side.ts";
+import { installTabs } from "./tabs.ts";
+import type { AssembledWorkflow, FramePage } from "../types.ts";
 
 /* What a workflow that drives nothing is handed as its backend: nothing to
    call, and nothing that answers. */
@@ -38,28 +39,35 @@ const NO_BACKEND = Object.freeze({});
  * page's own address's query, which a workflow reads its backend off.
  * Answers `open()`, `switchWorkflow(key)`, `pageFor(key)` and `run`.
  */
-export function composeThePages({ WORKFLOWS, opensOn, search }) {
-  const backendOf = (key) => WORKFLOWS[key].backendFor?.(search) ?? NO_BACKEND;
+export function composeThePages({ WORKFLOWS, opensOn, search }: {
+  WORKFLOWS: Record<string, AssembledWorkflow>;
+  opensOn: string;
+  search: URLSearchParams;
+}) {
+  const backendOf = (key: string): object => WORKFLOWS[key].backendFor?.(search) ?? NO_BACKEND;
   const run = freshRun({ workflow: opensOn, backend: backendOf(opensOn), flow: WORKFLOWS[opensOn] });
-  const pages = {};
+  const pages: Record<string, FramePage> = {};
 
   /** The workflow's page, built and wired the first time it is asked for. */
-  function pageFor(key) {
+  function pageFor(key: string): FramePage {
     if (pages[key]) return pages[key];
     const flow = WORKFLOWS[key];
+    /* What the page is made of before the frame's modules put their parts on
+       it; each module reaches the others through it at call time, so it is
+       whole by the time anything is called. */
     const page = {
       run,
       backend: backendOf(key),
       flow: () => flow,
       steps: () => flow.steps,
-      step: (i) => flow.steps[i],
-      indexOfStep: (id) => flow.steps.findIndex((s) => s.id === id),
+      step: (i: number) => flow.steps[i],
+      indexOfStep: (id: string) => flow.steps.findIndex((s) => s.id === id),
       /* The rule, with the workflow's own staying panels already in it. */
-      tabsForStep: (i) => panelsFor(flow.steps, i, flow.panels.filter((p) => p.stays).map((p) => p.key)),
+      tabsForStep: (i: number) => panelsFor(flow.steps, i, flow.panels.filter((p) => p.stays).map((p) => p.key)),
       panels: buildThePanels(flow),
       shown: {},
       hooks: {},
-    };
+    } as FramePage;
     pages[key] = page;
     Object.assign(page, installRail(page));
     Object.assign(page, installActionBar(page));
@@ -76,7 +84,7 @@ export function composeThePages({ WORKFLOWS, opensOn, search }) {
      itself shown when the pointer rests on it -- a name has to be short
      enough for the rail, which is not always long enough to say what a
      workflow is for. */
-  const chooser = el("wf-select");
+  const chooser = el("wf-select") as HTMLSelectElement;
   for (const [key, wf] of Object.entries(WORKFLOWS)) {
     const option = document.createElement("option");
     option.value = key;
@@ -93,7 +101,7 @@ export function composeThePages({ WORKFLOWS, opensOn, search }) {
    * Restart button -- Disconnect ends a run, and picking a workflow starts
    * one.
    */
-  function switchWorkflow(key) {
+  function switchWorkflow(key: string) {
     const leaving = pages[run.wf];
     if (leaving) {
       leaving.hooks.onLeave?.();

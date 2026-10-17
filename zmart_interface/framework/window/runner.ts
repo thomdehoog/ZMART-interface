@@ -19,11 +19,12 @@
  * now has to work with.
  */
 
-import { status } from "./status.js";
+import { status } from "./status.ts";
 import { editedAt } from "../rules/steps.ts";
+import type { FramePage, Outcome, RunAnswer } from "../types.ts";
 
 /** Put the runner on the page: `runStep(i, options)` and `interruptWalk()`. */
-export function installRunner(page) {
+export function installRunner(page: FramePage) {
   const { run: state, steps, step } = page;
 
   /**
@@ -31,11 +32,11 @@ export function installRunner(page) {
    * `stopped` by the operator's hand, or `failed`. What a press does when
    * pressed by hand, and what the protocol run awaits step by step.
    */
-  function runStep(i, options = {}) {
+  function runStep(i: number, options: Record<string, unknown> = {}): Promise<Outcome> {
     const s = step(i);
     if (state.running) return Promise.resolve({ outcome: "busy" });
-    let settle;
-    const outcome = new Promise((resolve) => { settle = resolve; });
+    let settle: (how: Outcome) => void = () => {};
+    const outcome = new Promise<Outcome>((resolve) => { settle = resolve; });
     /* A fresh run is a fresh run. The failure of the last one was cleared
        only when a run finished -- which a failed connect never did -- so the
        next press re-checked everything and then refused to finish, leaving
@@ -46,12 +47,13 @@ export function installRunner(page) {
     page.renderAll();
 
     /* The step's own work, or the rehearsal's timer for a step without any. */
-    const work = s.run
-      ? Promise.resolve().then(() => s.run(page, s, options))
-      : new Promise((resolve) => setTimeout(resolve, s.ms));
-    work.then((came) => {
-      if (came?.failed) return putDown(came.failed);
-      return came?.stopped ? stoppedShort(came.note) : finish();
+    const own = s.run;
+    const work = own
+      ? Promise.resolve().then(() => own(page, s, options))
+      : new Promise<RunAnswer>((resolve) => setTimeout(resolve, s.ms));
+    work.then((came: RunAnswer) => {
+      if (came && "failed" in came) return putDown(came.failed);
+      return came && "stopped" in came ? stoppedShort(came.note) : finish();
     }, itFailed);
     return outcome;
 
@@ -83,7 +85,7 @@ export function installRunner(page) {
     /** The operator's own Interrupt: not a failure, and not a finish either.
         What the run measured stands, and the step is done but orange: it did
         part of its work and asks to be confirmed as it is or run again. */
-    function stoppedShort(note) {
+    function stoppedShort(note: string) {
       status.quiet();
       state.running = null;
       state.interrupting = null;
@@ -97,18 +99,18 @@ export function installRunner(page) {
     }
 
     /** The step stops, marked as the failure it is, saying what went wrong. */
-    function itFailed(why) {
+    function itFailed(why: unknown) {
       /* Said in the console too: the focus step draws no note, so a failure
          there had nowhere on screen to land and nobody could say why. */
       console.error(`${s.id} failed:`, why);
       status.quiet();
-      state.notes[s.id] = `failed — ${why.message}`;
+      state.notes[s.id] = `failed — ${why instanceof Error ? why.message : String(why)}`;
       putDown(why);
     }
 
     /** A failure the step has already shown where it happened: the step is
         put down without a note of the page's own. */
-    function putDown(why) {
+    function putDown(why: unknown) {
       state.failed = s.id;
       state.running = null;
       state.interrupting = null;

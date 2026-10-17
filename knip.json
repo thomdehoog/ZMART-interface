@@ -2,7 +2,6 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "vite": false,
   "entry": [
-    "zmart_interface/framework/window/main.js",
     "zmart_interface/api/index.ts",
     "zmart_interface/**/*.test.{js,ts}",
     "zmart_interface/**/*.spec.{js,ts}",

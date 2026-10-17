@@ -18,4 +18,4 @@ const WHERE =
     the dev server holds the page. Pictures the bridge serves need this as
     much as the JSON calls do -- an `img` asks the page's own origin
     otherwise, and the dev server answers with the page. */
-export const atBridge = (route) => `${WHERE}${route}`;
+export const atBridge = (route: string): string => `${WHERE}${route}`;

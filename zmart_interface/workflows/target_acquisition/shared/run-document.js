@@ -83,7 +83,7 @@ const newPlacing = () => ({ margin: 1, objectsMax: 50, minimise: true, overlapMi
  * Every key a step of this workflow ever reads is here, with the value it
  * has before the operator has done anything. The framework lays these beside
  * its own keys when it makes a fresh run (`freshRun` in
- * `framework/window/run-state.js`), so a step finds both on `page.run`.
+ * `framework/window/run-state.ts`), so a step finds both on `page.run`.
  */
 export function freshState({ backend }) {
   return {

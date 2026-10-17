@@ -7,7 +7,7 @@ import path from "node:path";
  * read the folders on its own. */
 async function theDeclaredWorkflows(page) {
   return page.evaluate(async () => {
-    const { WORKFLOWS } = await import("/zmart_interface/framework/window/the-workflows.js");
+    const { WORKFLOWS } = await import("/zmart_interface/framework/window/the-workflows.ts");
     return Object.fromEntries(Object.entries(WORKFLOWS).map(([key, wf]) => [key, {
       name: wf.name, steps: wf.steps.map((s) => ({ title: s.title, n: s.n })),
     }]));

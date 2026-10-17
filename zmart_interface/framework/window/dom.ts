@@ -8,10 +8,10 @@
  */
 
 /** The element with this id, or null. */
-export const el = (id) => document.getElementById(id);
+export const el = (id: string): HTMLElement | null => document.getElementById(id);
 
 /** The value of a CSS variable on the root, such as `--accent`, trimmed. */
-export const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+export const css = (name: string): string => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 /**
  * Size a canvas to the box it sits in, at the screen's own pixel density.
@@ -23,8 +23,9 @@ export const css = (name) => getComputedStyle(document.documentElement).getPrope
  * canvas (`cssW`, `cssH`) for whoever draws next. Answers false when the box
  * has no size yet, which is what a hidden panel's canvas reports.
  */
-export function sizeCanvas(cv) {
+export function sizeCanvas(cv: HTMLCanvasElement & { cssW?: number; cssH?: number }): boolean {
   const host = cv.parentElement;
+  if (!host) return false;
   const dpr = window.devicePixelRatio || 1;
   const w = host.clientWidth, h = host.clientHeight;
   if (!w || !h) return false;
@@ -32,8 +33,7 @@ export function sizeCanvas(cv) {
     cv.width = Math.round(w * dpr);
     cv.height = Math.round(h * dpr);
   }
-  const ctx = cv.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cv.getContext("2d")?.setTransform(dpr, 0, 0, dpr, 0, 0);
   cv.cssW = w; cv.cssH = h;
   return true;
 }

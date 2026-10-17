@@ -11,15 +11,17 @@
  * on.
  */
 
+import type { BuiltPanel, FramePage, Mounted } from "../types.ts";
+
 /** Put the channel on the page: `activeStep()`, `actionSlot()`,
     `renderSide(show)` and `remountChannel()`. */
-export function installSide(page) {
+export function installSide(page: FramePage) {
   const { run: state, panels: thePanels, step } = page;
 
   /* What the step's controls answered when they were mounted: the slot their
      press goes in (`actionSlot`), and a `destroy` to call when the channel
      changes hands, so an editor a step put there is put away cleanly. */
-  let mounted = null;
+  let mounted: Mounted | null = null;
 
   /* The step being stood on, and its channel: the controls it declared, or none. */
   const activeStep = () => step(state.activeIdx) ?? null;
@@ -29,12 +31,13 @@ export function installSide(page) {
       for it at their end; null otherwise. */
   const actionSlot = () => mounted?.actionSlot ?? null;
 
-  function renderSide(show) {
+  function renderSide(show?: string) {
     /* Only a panel with a channel down its side has anywhere to put a step's
        controls. A workflow whose panels have none gives its steps panels of
        their own instead. */
-    const host = thePanels[show]?.channel;
-    if (!host) return;
+    const panel = show === undefined ? undefined : thePanels[show];
+    const host = panel?.channel;
+    if (!panel || !host) return;
     const widget = sideWidget();
     /* Folded, the column is away to the right and only its fold strip stays,
        the press that brings it back. */
@@ -44,9 +47,9 @@ export function installSide(page) {
     /* The divider is the column's edge, so it is only there when the column
        is. A panel may have a channel without a draggable edge, so the
        divider is optional. */
-    const divider = thePanels[show].divider;
+    const divider = panel.divider;
     if (divider) divider.hidden = !somethingToShow || folded;
-    const fold = thePanels[show].fold;
+    const fold = panel.fold;
     if (fold) {
       fold.hidden = !somethingToShow;
       fold.classList.toggle("collapsed", folded);
@@ -87,18 +90,19 @@ export function installSide(page) {
    * puts the column away. Called for every panel as the page opens. A panel
    * without a divider has nothing to wire.
    */
-  function wireTheEdge(withAnEdge) {
+  function wireTheEdge(withAnEdge: BuiltPanel) {
     const divider = withAnEdge.divider;
     if (!divider || divider.dataset.wired) return;
     divider.dataset.wired = "yes";
     const body = divider.parentElement;
+    if (!body) return;
     let resizing = false;
-    divider.addEventListener("pointerdown", (e) => {
+    divider.addEventListener("pointerdown", (e: PointerEvent) => {
       resizing = true;
       divider.classList.add("dragging");
       divider.setPointerCapture(e.pointerId);
     });
-    divider.addEventListener("pointermove", (e) => {
+    divider.addEventListener("pointermove", (e: PointerEvent) => {
       if (!resizing) return;
       const box = body.getBoundingClientRect();
       /* No narrower than the widest card's row: the focus step's two hand
@@ -112,7 +116,7 @@ export function installSide(page) {
          that word. */
       withAnEdge.shown?.();
     });
-    const settle = (e) => {
+    const settle = (e: PointerEvent) => {
       if (!resizing) return;
       resizing = false;
       divider.classList.remove("dragging");

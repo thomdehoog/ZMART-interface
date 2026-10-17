@@ -20,10 +20,10 @@ export const API_VERSION: string = version.version;
 
 /* ---- the helpers a step reaches for ----------------------------------------- */
 
-export { el, css, sizeCanvas } from "../framework/window/dom.js";
-export { sideGroup } from "../framework/window/panels.js";
-export { status } from "../framework/window/status.js";
-export { atBridge } from "../framework/window/bridge-address.js";
+export { el, css, sizeCanvas } from "../framework/window/dom.ts";
+export { sideGroup } from "../framework/window/panels.ts";
+export { status } from "../framework/window/status.ts";
+export { atBridge } from "../framework/window/bridge-address.ts";
 export { editedAt, staleSteps } from "../framework/rules/steps.ts";
 
 /** The page's base colours and measures, as CSS custom properties a workflow's styles and canvases read. */

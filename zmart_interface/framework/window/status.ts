@@ -10,7 +10,7 @@
 const bar = () => document.getElementById("status-bar");
 
 export const status = {
-  say(text) {
+  say(text: string | null) {
     const held = bar();
     if (!held) return;
     held.textContent = text ?? "";

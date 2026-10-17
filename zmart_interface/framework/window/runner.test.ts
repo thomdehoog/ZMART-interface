@@ -4,11 +4,12 @@
    and brake that step where it has a brake. */
 
 import { describe, it, expect } from "vitest";
-import { installRunner } from "./runner.js";
+import { installRunner } from "./runner.ts";
+import type { FramePage } from "../types.ts";
 
-function aPage({ walking = true, inHand = "count", braked = [] } = {}) {
+function aPage({ walking = true, inHand = "count", braked = [] as unknown[][] } = {}) {
   const steps = [
-    { id: "count", brake: (page) => braked.push(["count", page]) },
+    { id: "count", brake: (page: unknown) => braked.push(["count", page]) },
     { id: "finish" },
     { id: "protocol", walks: { press: () => {}, whileWalking: "walking" } },
   ];
@@ -19,17 +20,19 @@ function aPage({ walking = true, inHand = "count", braked = [] } = {}) {
   };
   let actionBarDrawn = 0;
   const page = {
-    run, steps: () => steps, step: (i) => steps[i],
+    run, steps: () => steps, step: (i: number) => steps[i],
     renderActionBar: () => { actionBarDrawn += 1; },
     drawn: () => actionBarDrawn,
   };
-  Object.assign(page, installRunner(page));
-  return page;
+  /* Only what the runner reaches for is here. */
+  const whole = page as unknown as FramePage & { drawn(): number };
+  Object.assign(whole, installRunner(whole));
+  return whole;
 }
 
 describe("interrupting the walk", () => {
   it("latches the walk to end, and brakes the step in hand", () => {
-    const braked = [];
+    const braked: unknown[][] = [];
     const page = aPage({ braked });
     page.interruptWalk();
     expect(page.run.walk.interrupted).toBe(true);
@@ -46,7 +49,7 @@ describe("interrupting the walk", () => {
   });
 
   it("does nothing while no walk runs", () => {
-    const braked = [];
+    const braked: unknown[][] = [];
     const page = aPage({ walking: false, braked });
     page.interruptWalk();
     expect(page.run.walk.interrupted).toBe(false);

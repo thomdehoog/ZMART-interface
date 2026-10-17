@@ -17,7 +17,8 @@
  * at, not about how far the run has got.
  */
 
-import { el } from "./dom.js";
+import { el } from "./dom.ts";
+import type { FramePage } from "../types.ts";
 
 /**
  * Put the panels on the page: `focusPanelsFor(i)`, `shownPanel()`,
@@ -26,12 +27,12 @@ import { el } from "./dom.js";
  * The open workflow's hooks take part: `onPanelShown(step, key)` whenever a
  * panel is drawn, and `onRender()` after every full render.
  */
-export function installTabs(page) {
+export function installTabs(page: FramePage) {
   const { run: state, panels: thePanels, step, tabsForStep } = page;
 
   /** The operator arrived at step `i`: work out its tabs, and let the step
       arrange the picture the way it wants to be looked at. */
-  function focusPanelsFor(i) {
+  function focusPanelsFor(i: number) {
     state.tabs = tabsForStep(i);
     // a step that brings a panel of its own opens on it; otherwise the base
     state.tab = state.tabs.length > 1 ? state.tabs[1] : state.tabs[0];
@@ -45,6 +46,7 @@ export function installTabs(page) {
      second one to switch to. */
   function renderTabs() {
     const host = el("tabs");
+    if (!host) return;
     host.textContent = "";
 
     for (const key of state.tabs) {
@@ -63,7 +65,8 @@ export function installTabs(page) {
        alternative to the canvas, it is the controls for what the canvas is
        showing — so it says whose controls those are rather than offering a
        switch. */
-    const owner = thePanels[shownPanel()]?.channel ? page.activeStep()?.channel : null;
+    const shown = shownPanel();
+    const owner = shown && thePanels[shown]?.channel ? page.activeStep()?.channel : null;
     /* A folded column has no heading: the strip on its edge is all that is
        left of it, and the name would stand over the canvas. */
     if (owner && !state.sideFolded) {
@@ -79,7 +82,8 @@ export function installTabs(page) {
     }
   }
 
-  const shownPanel = () => (state.tabs.includes(state.tab) ? state.tab : state.tabs[0]);
+  const shownPanel = (): string | undefined =>
+    (state.tab !== null && state.tabs.includes(state.tab) ? state.tab : state.tabs[0]);
 
   function renderPanels() {
     const show = shownPanel();
@@ -103,7 +107,7 @@ export function installTabs(page) {
        one place that has to agree with it — recomputed rather than trusted,
        and the selection kept only while it still names a tab that is there. */
     state.tabs = tabsForStep(state.activeIdx);
-    if (!state.tabs.includes(state.tab)) state.tab = state.tabs[0];
+    if (state.tab === null || !state.tabs.includes(state.tab)) state.tab = state.tabs[0] ?? null;
 
     page.renderRail();
     page.renderActionBar();

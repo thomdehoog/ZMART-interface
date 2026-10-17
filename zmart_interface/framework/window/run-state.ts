@@ -19,6 +19,22 @@
  * and `freshRun` lays what `freshState` answers beside the keys below.
  */
 
+import type { TheRun } from "../types.ts";
+
+/** What the run document asks of a workflow whose own keys are `S`: those keys, which survive, and what a test reads. */
+interface RunFlow<S extends object = object> {
+  freshState?(made: { backend: object }): S;
+  keptAcrossSessions?: string[];
+  forTests?(run: TheRun & S): Record<string, unknown>;
+}
+
+declare global {
+  interface Window {
+    /** The run, read-only, for a browser test. */
+    __theRunState?: () => unknown;
+  }
+}
+
 /** The walk of the steps in turn, as it stands before one has been started.
 
     A step that walks the others -- target acquisition's Run protocol --
@@ -38,21 +54,21 @@ const newWalk = () => ({ running: false, interrupted: false });
  * Every key the framework ever reads is here, with the value it has before
  * the operator has done anything, and a comment on what it means.
  */
-export function freshRun({ workflow, backend, flow }) {
+export function freshRun<S extends object>({ workflow, backend, flow }: { workflow: string; backend: object; flow?: RunFlow<S> }): TheRun {
   return {
     ...(flow?.freshState?.({ backend }) ?? {}),
     wf: workflow,
     activeIdx: 0,
-    done: new Set(),
+    done: new Set<string>(),
     /* Done, but made under settings that have since changed above it:
        orange on the rail, asking to be confirmed or run again. A step is
        here only while it is also done. */
-    stale: new Set(),
+    stale: new Set<string>(),
     /* Which steps have actually been run, as against settled by doing the
        thing they are about. Only a step that ran can be run *again*, and a
        button offering that on a step nobody has pressed is a button lying
        about what happened. */
-    ran: new Set(),
+    ran: new Set<string>(),
     /* The step running now, the one being interrupted, and the one whose
        last run failed, each by id or null. */
     running: null,
@@ -91,21 +107,21 @@ const KEPT_ACROSS_SESSIONS = ["wf", "sideFolded"];
  * password, since editing them is the reason to disconnect -- and the
  * page's own arrangement.
  */
-export function startOver(state, backend, flow) {
-  const fresh = freshRun({ workflow: state.wf, backend, flow });
+export function startOver<S extends object>(state: TheRun, backend: object, flow?: RunFlow<S>): void {
+  const fresh: Record<string, unknown> = freshRun({ workflow: state.wf, backend, flow });
   const kept = new Set([...KEPT_ACROSS_SESSIONS, ...(flow?.keptAcrossSessions ?? [])]);
   for (const key of Object.keys(fresh)) {
     /* A kept key stays as it is -- unless it is not there at all, because
        another workflow was open in between and took it off the document;
        then it starts fresh like the rest. */
-    if (!kept.has(key) || !(key in state)) state[key] = fresh[key];
+    if (!kept.has(key) || !(key in state)) (state as Record<string, unknown>)[key] = fresh[key];
   }
   /* What the previous workflow kept on the document and this one does not
      name goes too: a workflow chosen after a microscope run must not find
      that run's carrier and cells where it expected nothing. The document is
      plain data, so nothing on it is the page's to keep. */
   for (const key of Object.keys(state)) {
-    if (!(key in fresh) && !kept.has(key)) delete state[key];
+    if (!(key in fresh) && !kept.has(key)) delete (state as Record<string, unknown>)[key];
   }
 }
 
@@ -119,14 +135,15 @@ export function startOver(state, backend, flow) {
  * the flow of the moment, since the operator can switch workflows after the
  * page has opened.
  */
-export function exposeTheRunForTests(state, flow) {
+export function exposeTheRunForTests<S extends object>(state: TheRun, flow: RunFlow<S> | (() => RunFlow<S> | undefined)): void {
   window.__theRunState = () => {
     const current = typeof flow === "function" ? flow() : flow;
     return JSON.parse(JSON.stringify({
       running: state.running, failed: state.failed, notes: state.notes,
       activeIdx: state.activeIdx, done: [...state.done], ran: [...state.ran],
       stale: [...state.stale], walk: state.walk,
-      ...(current?.forTests?.(state) ?? {}),
+      /* The run is laid out by this workflow's `freshState`, so it holds its keys. */
+      ...(current?.forTests?.(state as TheRun & S) ?? {}),
     }));
   };
 }

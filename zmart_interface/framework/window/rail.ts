@@ -13,14 +13,15 @@
  */
 
 import { blockedBecause, editedAt, isReachable } from "../rules/steps.ts";
-import { el } from "./dom.js";
-import { startOver } from "./run-state.js";
+import { el } from "./dom.ts";
+import { startOver } from "./run-state.ts";
+import type { FramePage, FrameStep } from "../types.ts";
 
 /**
  * Put the rail on the page. Answers the functions the rest of the page calls:
  * `renderRail`, `readiness`, `stateEdited` and `resetRun`.
  */
-export function installRail(page) {
+export function installRail(page: FramePage) {
   const { run: state, panels: thePanels, steps, step } = page;
 
   /**
@@ -45,6 +46,7 @@ export function installRail(page) {
 
   function renderRail() {
     const host = el("steps");
+    if (!host) return;
     host.textContent = "";
 
     steps().forEach((s, i) => {
@@ -66,7 +68,8 @@ export function installRail(page) {
       head.className = "step-head";
       head.innerHTML =
         `<span class="step-n">${s.n}</span><span class="step-name"></span>`;
-      head.querySelector(".step-name").textContent = s.title;
+      const named = head.querySelector(".step-name");
+      if (named) named.textContent = s.title;
       if (running) head.insertAdjacentHTML("beforeend", '<span class="spin"></span>');
       /* An orange step says what it asks for, at its right: a look. A word,
          not a press -- confirming is one press for all of them, in Step 10
@@ -97,7 +100,7 @@ export function installRail(page) {
      not met. The step itself holds the rule — see the step's own `step.js` file
      under `workflows/` — and this only asks it, with the run and the page,
      which is why adding a workflow never means adding a condition here. */
-  const readiness = (s) => blockedBecause(s, state, page);
+  const readiness = (s: FrameStep) => blockedBecause(s, state, page);
 
   /**
    * The operator edited a step: its settings, or its result by running it
@@ -106,7 +109,7 @@ export function installRail(page) {
    * goes through; navigation never calls it, and neither does a step run
    * by the protocol, whose whole point is to make everything afresh.
    */
-  function stateEdited(id) {
+  function stateEdited(id: string) {
     if (state.walk.running) return;
     state.stale = editedAt(steps(), state.done, state.stale, id);
     /* A step that walks the others has no settings to confirm: an edit

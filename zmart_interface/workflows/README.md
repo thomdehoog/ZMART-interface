@@ -159,9 +159,9 @@ fields, all optional except the first two.
 ## What a step's run is handed: the page
 
 Every hook above takes `page` first: the workflow's own page, built over
-the frame in `../framework/window/pages.js`. It carries everything a step
+the frame in `../framework/window/pages.ts`. It carries everything a step
 may need: `page.run`, the run document (the framework's keys from
-`../framework/window/run-state.js`, the workflow's from its own
+`../framework/window/run-state.ts`, the workflow's from its own
 `freshState`), one object shared by every workflow's page; `page.backend`,
 the seam to whatever the workflow drives; `page.flow()`, the workflow as
 assembled, and `page.steps()`; `page.panels`, the workflow's own panels,
@@ -223,7 +223,7 @@ drives nothing and keeps nothing of its own needs only the first two.
 - `freshState({ backend })` — the workflow's half of the run document: every
   key its steps read, with the value it has before anything was done. The
   framework lays these beside its own keys (which step is active, what is
-  done, what is running — `../framework/window/run-state.js`), so a step
+  done, what is running — `../framework/window/run-state.ts`), so a step
   finds both on `page.run`. The framework's keys cannot be overwritten.
 - `keptAcrossSessions` — which of those keys survive a disconnect or a change
   of workflow. Target acquisition keeps the session and the list of

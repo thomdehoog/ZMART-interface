@@ -138,8 +138,8 @@ another repository be dropped into `workflows/` and built in;
 
 ## How the page is composed
 
-`framework/window/main.js` reads which workflow to open on and hands the
-workflows to `framework/window/pages.js`, which composes the page, naming no
+`framework/window/main.ts` reads which workflow to open on and hands the
+workflows to `framework/window/pages.ts`, which composes the page, naming no
 workflow. In order:
 
 1. The workflows are assembled from the folders under `workflows/`
@@ -408,7 +408,7 @@ In the table, `ta/` is short for `zmart_interface/workflows/target_acquisition/`
 | `ta/shared/carrier-panel.js` | built, used — the first widget, and the shape the rest should follow |
 | `ta/steps/define_scan_area/scanfield-editor.js` | built, used — the geometry editor and the grid, in the same channel |
 | `workflows/target_acquisition/canvas/` | built, **used by the operator page**, and covered by browser tests that photograph the picture — including which layers reached the screen, who a drag belongs to, and what happens to chrome when the thing it belongs to is hidden. See `docs/canvas.md` |
-| `framework/window/main.js`, `pages.js` | start and compose the page: one frame, and one page per workflow over it with its own panels, lends and hooks; they name no workflow, backend or panel |
+| `framework/window/main.ts`, `pages.js` | start and compose the page: one frame, and one page per workflow over it with its own panels, lends and hooks; they name no workflow, backend or panel |
 | `framework/window/{run-state,rail,action-bar,runner,tabs,side}.js` | the framework, one file per thing it owns: its half of the run document, the rail, the step's press, running a step, the panels, the channel |
 | `framework/fixtures/three_steps/flow.ts` | the framework's own test workflow, in TypeScript over the workflow API alone, using every field and hook; no microscope and no canvas; assembled by the unit tests |
 | `ta/the-canvas.js`, `ta/on-the-page.js` | the workflow's side of the page: what it puts on its canvas, and the functions its steps lend the page |
@@ -472,7 +472,7 @@ the page assembles its list from them.
 The synthetic sample is behind the seam, in `pretend-sample/`, fed to
 `backend/pretend.js` and its tests; the page itself never reaches for it.
 
-The runner went the same way as readiness. `framework/window/runner.js` knows
+The runner went the same way as readiness. `framework/window/runner.ts` knows
 only how a run begins and ends -- running, finished, stopped by hand, failed
 -- and each step carries its own `run(page, step)` and `finished(page,
 step)`, in its folder, which call the backend. Adding a step to a workflow

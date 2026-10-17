@@ -11,22 +11,23 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { assembleWorkflows } from "../rules/finding-workflows.ts";
 import * as threeSteps from "../fixtures/three_steps/flow.ts";
-import { composeThePages } from "./pages.js";
+import { composeThePages } from "./pages.ts";
+import type { Flow } from "../types.ts";
 
-let heard;
+let heard: string[];
 
 /* The fixture, its hooks heard as they run and something lent. */
 const listened = {
   ...threeSteps,
-  install(page) {
+  install(page: Parameters<typeof threeSteps.install>[0]) {
     const answer = threeSteps.install(page);
     return {
       lends: { ...answer?.lends, threeLent: () => "three" },
       hooks: {
         ...answer?.hooks,
         onRender: () => { answer?.hooks?.onRender?.(); heard.push("three:render"); },
-        onReset: () => heard.push("three:reset"),
-        onLeave: () => heard.push("three:leave"),
+        onReset: () => { heard.push("three:reset"); },
+        onLeave: () => { heard.push("three:leave"); },
       },
     };
   },
@@ -37,7 +38,7 @@ const other = {
   blurb: "Another workflow, for the test.",
   panels: [{
     key: "board", label: "Board", stays: true,
-    build(host) {
+    build(host: HTMLElement) {
       const foot = document.createElement("div");
       host.append(foot);
       return { foot };
@@ -47,12 +48,12 @@ const other = {
   install: () => ({
     lends: { otherLent: () => "other" },
     hooks: {
-      onRender: () => heard.push("other:render"),
-      onReset: () => heard.push("other:reset"),
-      onLeave: () => heard.push("other:leave"),
+      onRender: () => { heard.push("other:render"); },
+      onReset: () => { heard.push("other:reset"); },
+      onLeave: () => { heard.push("other:leave"); },
     },
   }),
-};
+} satisfies Flow;
 
 function theFrame() {
   document.body.innerHTML = `
@@ -96,10 +97,12 @@ describe("one page per workflow", () => {
     const pages = compose();
     pages.open();
     pages.switchWorkflow("other");
-    expect(pages.pageFor("three_steps").threeLent()).toBe("three");
-    expect(pages.pageFor("three_steps").otherLent).toBeUndefined();
-    expect(pages.pageFor("other").otherLent()).toBe("other");
-    expect(pages.pageFor("other").threeLent).toBeUndefined();
+    /* What a page was lent is the workflow's, beside the framework's own parts. */
+    const lent = (key: string) => pages.pageFor(key) as unknown as Record<string, (() => string) | undefined>;
+    expect(lent("three_steps").threeLent?.()).toBe("three");
+    expect(lent("three_steps").otherLent).toBeUndefined();
+    expect(lent("other").otherLent?.()).toBe("other");
+    expect(lent("other").threeLent).toBeUndefined();
   });
 
   it("gives each workflow its own panels, and shows only the open one's", () => {
@@ -129,7 +132,8 @@ describe("one page per workflow", () => {
   it("offers every workflow in the chooser, and switches when one is chosen", () => {
     const pages = compose();
     pages.open();
-    const chooser = document.querySelector("#wf-select");
+    const chooser = document.querySelector<HTMLSelectElement>("#wf-select");
+    if (!chooser) throw new Error("the frame has no chooser");
     expect([...chooser.options].map((o) => o.value)).toEqual(["other", "three_steps"]);
     chooser.value = "other";
     chooser.dispatchEvent(new Event("change"));

@@ -15,9 +15,9 @@
  */
 
 import "./style.css";
-import { composeThePages } from "./pages.js";
-import { exposeTheRunForTests } from "./run-state.js";
-import { DEFAULT_WORKFLOW, WORKFLOWS } from "./the-workflows.js";
+import { composeThePages } from "./pages.ts";
+import { exposeTheRunForTests } from "./run-state.ts";
+import { DEFAULT_WORKFLOW, WORKFLOWS } from "./the-workflows.ts";
 
 /* Which workflow to open on — `?workflow=target_acquisition`.
  *
@@ -31,7 +31,8 @@ import { DEFAULT_WORKFLOW, WORKFLOWS } from "./the-workflows.js";
  */
 const search = new URLSearchParams(location.search);
 const asked = search.get("workflow");
-const opensOn = WORKFLOWS[asked] ? asked : DEFAULT_WORKFLOW;
+const opensOn = asked && WORKFLOWS[asked] ? asked : DEFAULT_WORKFLOW;
+if (!opensOn) throw new Error("the page was built with no workflow in zmart_interface/workflows/");
 
 const pages = composeThePages({ WORKFLOWS, opensOn, search });
 

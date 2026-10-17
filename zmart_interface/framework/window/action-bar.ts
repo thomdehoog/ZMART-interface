@@ -16,11 +16,13 @@
  * written out in `workflows/README.md`.
  */
 
+import type { FramePage } from "../types.ts";
+
 /** Put the action bar on the page: `renderStepAction(shown)` and `renderActionBar()`. */
-export function installActionBar(page) {
+export function installActionBar(page: FramePage) {
   const { run: state, panels: thePanels, step } = page;
 
-  function renderStepAction(shown) {
+  function renderStepAction(shown?: string) {
     for (const panel of Object.values(thePanels)) {
       if (panel.foot) panel.foot.textContent = "";
     }
@@ -56,7 +58,7 @@ export function installActionBar(page) {
       const hint = document.createElement("span");
       hint.className = "action-hint";
       /* In the walking step's own words (`walks.whileWalking`), or its title. */
-      hint.textContent = walker?.walks.whileWalking ?? (walker ? `running ${walker.title}` : "running the steps");
+      hint.textContent = walker?.walks?.whileWalking ?? (walker ? `running ${walker.title}` : "running the steps");
       host.append(hint);
       return;
     }
@@ -73,7 +75,8 @@ export function installActionBar(page) {
        two fields — what was captured stands. The steps that drive the stage
        for minutes are exactly the ones a hand must be able to reach. Each
        brake matches the machinery its run drives, and the step declares it. */
-    const brake = s.brake ? () => s.brake(page) : null;
+    const ownBrake = s.brake;
+    const brake = ownBrake ? () => ownBrake(page) : null;
     /* A step that can take one item again -- the acquisition, its current
        tile -- offers that press before the one that takes everything. */
     const oneAgain = !running && !blocked && state.ran.has(s.id) ? s.rerunCurrent?.(page) : null;
