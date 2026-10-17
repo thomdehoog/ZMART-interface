@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { rest, setAcquisitionShown, startTheBridge } from
+import { operateTheInstrument, rest, setAcquisitionShown, startTheBridge } from
   "../../testing/live-bridge.ts";
 import type { EngineViewer } from "../../canvas/engines/neuroglancer-under/viewer.ts";
 
@@ -46,12 +46,17 @@ async function walkToScan(page: Page) {
   await page.locator(".carrier-type[data-type='slide']").click();
   await page.waitForTimeout(600);
   await gotoStep("Overview scan area");
+  /* As an operator does: the job in the vendor's software first, then the
+     page records it. What another spec left the instrument on is not this
+     one's to inherit. */
+  operateTheInstrument("choose", "Overview");
   await record("sf-preset", "overview");
   await page.locator(".sf-apply-grid").click();
   await page.waitForTimeout(800);
   expect(await page.evaluate(() => window.__theStageCanvas!.plan().length)).toBe(9);
 
   await gotoStep("Focus strategy");
+  operateTheInstrument("choose", "Focussing");
   await record("focus-preset", "af");
   await page.locator("#fp-place").click();
   await page.waitForTimeout(400);
@@ -185,6 +190,11 @@ test("first and later overview sources preserve pan, zoom, and whole-plate Fit",
   });
 
   await walkToScan(page);
+  /* The fields below are imaged through the harness, not the page's Start,
+     and the harness sends positions only -- the page's scan would apply the
+     overview recording first. The focus map left the instrument on its
+     focussing job, so the overview job is chosen again here. */
+  operateTheInstrument("choose", "Overview");
   const positions = await absolutePlan(page);
 
   await page.locator("#carrier-btn").click();
