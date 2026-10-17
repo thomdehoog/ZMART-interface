@@ -26,7 +26,6 @@ export async function runProtocol(page) {
   const walk = PROTOCOL_STEPS.filter((id) => !(id === "focus" && state.focus.applied) && id !== "gate");
   state.walk = { running: true, interrupted: false };
   state.protocol = { at: 0, of: walk.length, within: null, summary: null };
-  state.failed = null;
   /* Grey until reached: the rail says what the run has done, not what
      the rehearsal did. Each step turns green as its own finish puts it
      back. */
@@ -87,7 +86,7 @@ export async function runProtocol(page) {
       ? "stopped by hand" : `stopped at ${step(state.activeIdx).title} — ${state.notes[step(state.activeIdx).id] ?? "failed"}`;
   }
   state.activeIdx = at;
-  state.sideMounted = null;
+  page.remountChannel();
   page.focusPanelsFor(at);
   page.renderAll();
 }

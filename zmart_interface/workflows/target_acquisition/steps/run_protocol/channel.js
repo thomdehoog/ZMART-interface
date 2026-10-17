@@ -18,7 +18,7 @@ import { protocolFrom } from "../../shared/protocol.js";
     orange (Thom, 2026-09-28). */
 function confirmAllSettings(page) {
   page.run.stale.clear();
-  page.run.sideMounted = null;
+  page.remountChannel();
   page.renderAll();
 }
 

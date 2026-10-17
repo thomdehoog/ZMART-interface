@@ -47,7 +47,9 @@ export const focusStrategy = {
      the step. */
   run: runFocus,
   finished: focusFinished,
-  brake: (page) => page.backend.stopFocusMeasure?.(),
+  /* The map's own brake, so a run of new points stops between two points
+     as well as inside one. */
+  brake: (page) => page.interruptTheFocusRun(),
   /* The focus step says nothing beside its press. What it waits for is the
      box it stands in — points, laid by the row above it — and what it came to
      is the traces below; a greyed button between the two is already the whole

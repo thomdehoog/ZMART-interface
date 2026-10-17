@@ -172,7 +172,7 @@ function chooseProtocol(page, id) {
       state.protocolNote = "";
     }
   }
-  state.sideMounted = null;
+  page.remountChannel();
   page.view.fitted = false;
   page.shown.gating?.redraw();
   page.renderPointList();

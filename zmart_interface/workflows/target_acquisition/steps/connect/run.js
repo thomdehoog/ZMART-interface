@@ -51,9 +51,8 @@ export function runConnect(page, s) {
     /* The instrument's side said no — the bridge is not there, the
        driver it needs is not, or a check failed. The sentence lands where
        the answers would have, marked as the failure it is, and the step
-       stays undone: a connection that failed is not a session. */
-    state.failed = s.id;
-    state.running = null;
+       stays undone: a connection that failed is not a session. The
+       runner files the failure (`{ failed }` below). */
     /* The bridge had already opened the driver's session before a check
        failed; left open, the next press opened a second one. A failed
        connection is not a session, so it is closed like one. */

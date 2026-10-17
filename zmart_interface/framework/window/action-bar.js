@@ -100,7 +100,13 @@ export function installActionBar(page) {
         ? "working…"
         : (state.ran.has(s.id) ? (s.again ?? "Run again") : s.btn);
       run.disabled = !!state.running || !!blocked;
-      run.addEventListener("click", () => (s.walks ? s.walks.press(page) : page.runStep(i)));
+      run.addEventListener("click", () => {
+        if (!s.walks) return page.runStep(i);
+        /* A walk starts clean, as a run of one step clears its own last
+           failure: what failed before it is what the walk runs again. */
+        state.failed = null;
+        return s.walks.press(page);
+      });
     }
     host.append(run);
     /* Anything the step puts beside its press once it has run. */

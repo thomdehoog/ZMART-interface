@@ -16,7 +16,6 @@
  */
 
 import { css, el, sizeCanvas } from "../../../../framework/window/dom.js";
-import { editedAt } from "../../../../framework/rules/steps.js";
 import { newFocus } from "../../shared/run-document.js";
 import { activeRecording } from "../../microscope/recordings.js";
 import { renderRecordingSlot } from "../../shared/recording-slot.js";
@@ -189,16 +188,11 @@ export function installFocus(page) {
     renderActionBar: () => page.renderActionBar(),
     renderSide: (...a) => page.renderSide(...a),
     edited: () => page.stateEdited("focus"),
-    /* The panel's own Rerun and Run new points are the step run again:
-       green, and the steps after it orange, as the step's press leaves
-       them. */
-    focusRan: () => {
-      state.done.add("focus"); state.ran.add("focus");
-      state.stale.delete("focus");
-      state.stale = editedAt(page.steps(), state.done, state.stale, "focus");
-      page.theRestOfTheProtocolAppears();
-      page.renderRail();
-    },
+    /* The panel's own Rerun, Run new points and one point measured again
+       are the step run again, through the runner like its own press: the
+       page is held while the stage is out, and the step lands green with
+       the steps after it orange. */
+    runTheMap: (measure) => page.runStep(page.indexOfStep("focus"), { measure }),
   });
 
   /* The trace is drawn in the channel, whose width the operator sets. */
@@ -215,6 +209,7 @@ export function installFocus(page) {
     drawFocusLayer, drawFocusPoints, focusPressed, focusCursor, focusDraggedTo, focusGrabbed,
     focusHovered, focusMarqueeTo, focusMarqueeTook, anchorPressed, detectPressed,
     surfaceZAt, renderPointList, drawTrace, remeasure,
+    interruptTheFocusRun: focusMap.interruptTheRun,
     focusSettled: () => focusSettled(page),
   };
 }

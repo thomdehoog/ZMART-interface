@@ -102,7 +102,7 @@ export const scanfieldsChannel = {
            the next preset recorded would silently adopt shapes drawn for
            optics nobody can see any more. */
         if (!hasRecording(state.overviewPreset)) state.fields = [];
-        state.sideMounted = null;
+        page.remountChannel();
         scanfieldsSettled(page);
         page.stateEdited("scanfields");
         page.renderAll();

@@ -45,7 +45,7 @@ function testTilesPerTileset(state, n) {
    new count. */
 export function testTilesChanged(page) {
   page.stateEdited("scan");
-  page.run.sideMounted = null;
+  page.remountChannel();
   page.drawStage();
   page.renderAll();
 }

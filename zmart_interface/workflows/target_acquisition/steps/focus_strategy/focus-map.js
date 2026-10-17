@@ -54,7 +54,7 @@ if (typeof document !== "undefined" && !document.getElementById("focus-controls"
 export function openTheFocusMap(ctx) {
   const {
     run, backend, stage, el, css, sizeCanvas, step,
-    focusControls, renderActionBar, renderSide, tileChosen, edited, focusRan,
+    focusControls, renderActionBar, renderSide, tileChosen, edited, runTheMap,
   } = ctx;
 
 const carrierSpan = () => carrierWidget.extentUm(run.carrier);
@@ -1057,24 +1057,26 @@ el("ft-reset-all").addEventListener("click", () => {
   afterPuttingBack();
 });
 
-el("ft-rerun").addEventListener("click", async (e) => {
+el("ft-rerun").addEventListener("click", (e) => {
   const f = run.focus;
   const p = pointToRerun();
   if (!p || run.running) return;
   const at = f.points.indexOf(p);
-  /* Held while the stage is out, so the press shows it is doing something and
-     cannot be pressed again under a run of its own. It did neither: a rerun
-     of one point looked, for its whole length, like a button nobody pressed. */
-  run.running = true;
-  e.currentTarget.classList.add("on");
-  try {
-    await rerunOne(f, at, p);
-  } finally {
-    run.running = false;
-    e.currentTarget.classList.remove("on");
-  }
-  refitSurface();
-  renderPointList(); drawTrace(); stage.draw(); renderActionBar();
+  const button = e.currentTarget;
+  /* The step run again on one point: the runner holds the page while the
+     stage is out, so the press shows it is doing something and cannot be
+     pressed again under a run of its own. It did neither once: a rerun of
+     one point looked, for its whole length, like a button nobody pressed. */
+  runTheMap(async () => {
+    button.classList.add("on");
+    try {
+      await rerunOne(f, at, p);
+    } finally {
+      button.classList.remove("on");
+    }
+    refitSurface();
+    renderPointList(); drawTrace(); stage.draw(); renderActionBar();
+  });
 });
 
 async function rerunOne(f, at, p) {
@@ -1748,23 +1750,24 @@ el("fp-clear").addEventListener("click", () => {
    The map is put away while the objective is out, because what is on screen
    during the run is the old answer and the picture would go on drawing a
    surface the run is in the middle of replacing. */
-const runAgain = async (from, button) => {
+const runAgain = (from, button) => {
   const f = run.focus;
   if (run.running || !f.applied || !f.points.length) return;
-  run.running = true;
-  interruptAsked = false;
-  button.classList.add("on");
-  renderFocusBar(); renderActionBar();
-  try {
-    await remeasure({ from });
-  } finally {
-    run.running = false;
-    button.classList.remove("on");
-    status.quiet();
-  }
-  f.selected = Math.max(0, Math.min(f.selected, f.points.length - 1));
-  focusRan?.();
-  stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar(); renderSide();
+  /* The step run again, through the runner: green when it lands, and the
+     steps after it orange, as the step's own press leaves them. */
+  runTheMap(async () => {
+    interruptAsked = false;
+    button.classList.add("on");
+    renderFocusBar(); renderActionBar();
+    try {
+      await remeasure({ from });
+    } finally {
+      button.classList.remove("on");
+      status.quiet();
+    }
+    f.selected = Math.max(0, Math.min(f.selected, f.points.length - 1));
+    stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar(); renderSide();
+  });
 };
 
 /* The operator's hand on the brake. One flag, two readers: the backend stops
@@ -1786,7 +1789,7 @@ el("fp-rerun").addEventListener("click", (e) => {
 /* Only the points with no reading: placed since the last run, or moved since
    they were read. The measured ones keep their heights -- this is how a map
    grows without being rebuilt. With nothing new it measures nothing. */
-el("fp-runnew").addEventListener("click", async (e) => {
+el("fp-runnew").addEventListener("click", (e) => {
   const f = run.focus;
   if (run.running) return interruptTheRun();
   if (!f.applied) return;
@@ -1800,33 +1803,33 @@ el("fp-runnew").addEventListener("click", async (e) => {
     .map((point) => ({ point, at: route.get(point) }));
   if (!fresh.length) return;
   const button = e.currentTarget;
-  run.running = true;
-  interruptAsked = false;
-  button.classList.add("on");
-  renderFocusBar(); renderActionBar();
-  try {
-    for (const { point, at } of fresh) {
-      /* Between two points, on the operator's say-so: the ones measured
-         stand, and the rest are still rows that say they have no reading. */
-      if (interruptAsked) break;
-      /* The mark and the row lead here too: this is the point being
-         measured, so it is the one lit and marked while the stage works. */
-      f.selected = at;
-      const dest = stage.toStage(point);
-      stage.takeThePosition({ x: dest.x, y: dest.y });
-      stage.draw(); renderPointList(); drawTrace();
-      await rerunOne(f, at, point);
-      stage.draw(); renderPointList(); drawTrace();
+  /* The step run again on the new points, through the runner. */
+  runTheMap(async () => {
+    interruptAsked = false;
+    button.classList.add("on");
+    renderFocusBar(); renderActionBar();
+    try {
+      for (const { point, at } of fresh) {
+        /* Between two points, on the operator's say-so: the ones measured
+           stand, and the rest are still rows that say they have no reading. */
+        if (interruptAsked) break;
+        /* The mark and the row lead here too: this is the point being
+           measured, so it is the one lit and marked while the stage works. */
+        f.selected = at;
+        const dest = stage.toStage(point);
+        stage.takeThePosition({ x: dest.x, y: dest.y });
+        stage.draw(); renderPointList(); drawTrace();
+        await rerunOne(f, at, point);
+        stage.draw(); renderPointList(); drawTrace();
+      }
+    } finally {
+      button.classList.remove("on");
+      status.quiet();
     }
-  } finally {
-    run.running = false;
-    button.classList.remove("on");
-    status.quiet();
-  }
-  refitSurface();
-  f.selected = Math.max(0, Math.min(f.selected, f.points.length - 1));
-  focusRan?.();
-  stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar(); renderSide();
+    refitSurface();
+    f.selected = Math.max(0, Math.min(f.selected, f.points.length - 1));
+    stage.draw(); renderPointList(); drawTrace(); renderFocusBar(); renderActionBar(); renderSide();
+  });
 });
 
 /* Everything the step has to show for itself, thrown away together: the map,
@@ -2033,7 +2036,7 @@ function refitSurface() {
     // the surface's z at a place, and where a position is
     surfaceZAt, nearestPosition,
     // the channel
-    renderFocusBar, renderPointList, drawTrace, refitSurface, remeasure,
+    renderFocusBar, renderPointList, drawTrace, refitSurface, remeasure, interruptTheRun,
     mounted: focusMounted,
   };
 }

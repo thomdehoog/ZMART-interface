@@ -8,8 +8,11 @@
 import { METRICS } from "../../shared/focus-curves.js";
 
 /** Measure every point of the map; the focus map's own `remeasure` drives
-    the stage, and the answer says whether the operator's hand stopped it. */
-export function runFocus(page) {
+    the stage, and the answer says whether the operator's hand stopped it.
+    The map's own presses hand their measuring over as `measure`: the step
+    run again on some of its points. */
+export function runFocus(page, step, { measure } = {}) {
+  if (measure) return measure();
   const state = page.run;
   /* Only the plane strategy measures anything; the others are parked and
      would finish at once. */

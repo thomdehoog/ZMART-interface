@@ -11,7 +11,7 @@
  * on.
  */
 
-/** Put the channel on the page: `sideWidget()` and `renderSide(show)`. */
+/** Put the channel on the page: `sideWidget()`, `renderSide(show)` and `remountChannel()`. */
 export function installSide(page) {
   const { run: state, panels: thePanels, step } = page;
 
@@ -126,5 +126,12 @@ export function installSide(page) {
   }
   for (const panel of Object.values(thePanels)) wireTheEdge(panel);
 
-  return { sideWidget, renderSide };
+  /** Mount the step's controls afresh at the next render: for a step whose
+      controls show something that changed under them (a recording read, a
+      walk ended), since a channel is otherwise mounted once per step. */
+  function remountChannel() {
+    state.sideMounted = null;
+  }
+
+  return { sideWidget, renderSide, remountChannel };
 }
