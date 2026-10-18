@@ -24,7 +24,7 @@ else:
             chunk=64,
             levels=1,
             voxel_size_um=(1, 1, 1),
-            origin_um=(0, 0, i * 96),
+            first_voxel_um=(0, 0.5, i * 96 + 0.5),
             channel_blocks=[
                 {
                     "label": "signal",

@@ -162,56 +162,66 @@ class FakeSession:
         self.asked = None
         self.context = {"driver": "a driver"}
 
-    def acquire(self, *, position_label, acquisition_settings):
-        self.asked = (position_label, acquisition_settings)
-        return {"success": True, "content": {"position_label": position_label, "files": [], "planes": []}}
+    def acquire(self, **asked):
+        self.asked = asked
+        return {"success": True, "content": {
+            "position_label": asked["position_label"], "acquisition_type": asked["acquisition_type"],
+            "files": [], "planes": [],
+        }}
 
 
-def test_the_driver_is_given_the_whole_file_stem_and_the_record_keeps_the_label(tmp_path):
-    """The workflow names every file: type, run and position, the driver adds T/C/Z.
-
-    The driver is told nothing else about where or how to save; that is set up
-    on the microscope. The record is filed under the interface's own label,
-    and keeps the stem the files start with.
-    """
+def test_the_driver_is_given_the_acquisition_type_and_the_runs_folder_for_it(tmp_path):
+    """The label goes as it is, the kind of acquisition beside it, and the
+    folder to save in is the run's ``data`` folder for that kind. The answer
+    is the controller's, untouched."""
     session = FakeSession()
     instrument = Instrument(session)
     instrument.run = tmp_path / "a-run_a1b2c3"
 
-    answer = instrument.acquire_answer(position_label="K00_M000000_G000000_P000001_V00", folder="overview")
+    answer = instrument.acquire_answer(position_label="K00_M000000_G000000_P000001_V00",
+                                       acquisition_type="overview")
 
-    assert session.asked == ("overview_a1b2c3_K00_M000000_G000000_P000001_V00", None)
-    assert answer["content"]["position_label"] == "K00_M000000_G000000_P000001_V00"
-    assert answer["content"]["file_stem"] == "overview_a1b2c3_K00_M000000_G000000_P000001_V00"
+    assert session.asked == {
+        "position_label": "K00_M000000_G000000_P000001_V00", "acquisition_settings": None,
+        "acquisition_type": "overview", "output_folder": str(instrument.run / "overview" / "data"),
+    }
+    assert (instrument.run / "overview" / "data").is_dir()
+    assert answer == {"success": True, "content": {
+        "position_label": "K00_M000000_G000000_P000001_V00", "acquisition_type": "overview",
+        "files": [], "planes": [],
+    }}
 
 
-def test_a_label_taken_again_in_the_run_gets_the_next_free_stem(tmp_path):
-    """A rerun never takes an earlier capture's name: the run keeps both, as a driver would.
+def test_without_a_run_the_driver_saves_where_it_was_set_up():
+    session = FakeSession()
 
-    The record is still filed under the label, so the page shows the newer
-    capture in its place; only the files on disk tell the two apart.
+    Instrument(session).acquire_answer(position_label="P0", acquisition_type="overview")
+
+    assert session.asked["output_folder"] is None
+    assert session.asked["acquisition_type"] == "overview"
+
+
+def test_a_rerun_never_overwrites_an_earlier_capture(mock_session, tmp_path):
+    """The same label taken twice in a run: both captures stand in the run's folder.
+
+    The driver saves the second under a name of its own, so the first one's
+    files are untouched; filing either moves nothing.
     """
-    session = FakeSession()
-    instrument = Instrument(session)
-    instrument.run = tmp_path / "a-run_a1b2c3"
-    stem = "overview_a1b2c3_K00_M000000_G000000_P000001_V00"
-    data = instrument.run / "overview" / "data"
-    data.mkdir(parents=True)
-    (data / f"{stem}_T000000_C00_Z00000.ome.tiff").write_bytes(b"the first capture")
+    from ..storage.output import move_record_images, prepare_acquisition, prepare_experiment
 
-    answer = instrument.acquire_answer(position_label="K00_M000000_G000000_P000001_V00", folder="overview")
+    mock_session.run = prepare_experiment(tmp_path / "out", "a-run", hash6="a1b2c3")
+    data = prepare_acquisition(mock_session.run, "overview").data
+    first = mock_session.acquire(position_label="K00_M000000_G000000_P000001_V00", acquisition_type="overview")
+    before = {path: Path(path).read_bytes() for path in first["files"]}
+    again = mock_session.acquire(position_label="K00_M000000_G000000_P000001_V00", acquisition_type="overview")
 
-    assert session.asked[0] == f"{stem}_001"
-    assert answer["content"]["file_stem"] == f"{stem}_001"
-    assert answer["content"]["position_label"] == "K00_M000000_G000000_P000001_V00"
-
-
-def test_without_a_run_the_label_goes_to_the_driver_as_it_is():
-    session = FakeSession()
-
-    Instrument(session).acquire_answer(position_label="P0", folder="overview")
-
-    assert session.asked == ("P0", None)
+    assert not set(first["files"]) & set(again["files"])
+    assert {Path(plane["path"]).parent for plane in first["planes"]} == {data}
+    assert {path: Path(path).read_bytes() for path in first["files"]} == before
+    for record in (first, again):
+        move_record_images(record, data)
+    assert {path: Path(path).read_bytes() for path in first["files"]} == before
+    assert all(Path(path).is_file() for path in again["files"])
 
 
 def test_the_viewer_is_told_where_the_drivers_projections_are(run, monkeypatch):
@@ -276,7 +286,7 @@ class NotSetUp(ZmartDriver):
         return True, ("A scope in memory. +z points up.", {
             "limits": {"done": True, "says": "published"},
             "data_location": {"done": False, "says": "run set_data_location.ipynb once"},
-        })
+        }, False)
 
     def get_actuators(self):
         return True, tuple({"options": ["m"], "default": "m"} for _ in "xyz")
@@ -317,14 +327,14 @@ def test_the_run_folder_is_made_under_the_interfaces_own_folder(monkeypatch, tmp
         connecting.close_the_last_session()
 
 
-@pytest.mark.parametrize("installed", ["0.3.0", "0.3.7"])
-def test_a_controller_whose_drivers_name_their_defaults_is_accepted(installed):
+@pytest.mark.parametrize("installed", ["0.4.0rc1", "0.4.0", "0.4.7"])
+def test_a_controller_whose_acquire_takes_the_type_and_the_folder_is_accepted(installed):
     from . import connecting
 
     connecting.accept_the_controller(installed)
 
 
-@pytest.mark.parametrize("installed", ["0.2.0", "0.4.0"])
+@pytest.mark.parametrize("installed", ["0.2.0", "0.3.0", "0.3.7", "0.5.0"])
 def test_an_older_or_newer_controller_is_refused_in_words(installed):
     from . import connecting
 

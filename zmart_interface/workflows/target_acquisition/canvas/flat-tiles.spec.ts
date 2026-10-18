@@ -65,7 +65,7 @@ for (const bake of [false, true]) for (const together of [false, true]) {
       for (let count = together ? 8 : 1; count <= 8; count++) {
         const first = count === (together ? 8 : 1);
         const data = { path: positions, source_revisions: Object.fromEntries(names.slice(0,count).map(n => [n,1])),
-          composition: { regions: "complete", order: names.slice(0,count), xy_origin: "corner" } };
+          composition: { regions: "complete", order: names.slice(0,count) } };
         const response = await page.request.post(origin + "/api/" + (first ? "stores/open" : "announce"), {
           data: first ? { ...data, bake, canvas: { x_um:[488,8680], y_um:[1488,2512] },
             views: { path:path.join(folder,"view"), acquisition:"overview", modes:[], projections:["max"],

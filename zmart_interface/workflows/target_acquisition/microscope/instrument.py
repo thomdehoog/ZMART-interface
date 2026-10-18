@@ -30,7 +30,7 @@ from typing import Any
 
 from zmart_interface.framework.bridge.api import Refusal
 
-from ..storage.output import file_stem, free_stem, prepare_acquisition, run_hash
+from ..storage.output import prepare_acquisition
 
 
 class InstrumentDeclined(Refusal):
@@ -92,9 +92,9 @@ class Instrument:
     def __init__(self, session: Any) -> None:
         self._session = session
         self.context = dict(session.context)
-        #: The run this session captures into, set at connect. Its hash is the
-        #: middle of every file name (see :func:`file_stem`); without a run, a
-        #: label goes to the driver as it is.
+        #: The run this session captures into, set at connect: each kind of
+        #: acquisition is saved in its own folder of it. Without a run, the
+        #: driver saves where it was set up to.
         self.run: Any = None
 
     def get_info(self) -> dict:
@@ -116,44 +116,39 @@ class Instrument:
         return unwrap(self._session.get_acquisition_settings(), "list its capture settings")
 
     def acquire(self, *, position_label: str, acquisition_settings: dict | None = None,
-                folder: str | None = None) -> dict:
+                acquisition_type: str | None = None) -> dict:
         return unwrap(
             self.acquire_answer(
                 position_label=position_label, acquisition_settings=acquisition_settings,
-                folder=folder,
+                acquisition_type=acquisition_type,
             ),
             "capture an image",
         )
 
     def acquire_answer(self, *, position_label: str, acquisition_settings: dict | None = None,
-                       folder: str | None = None) -> dict:
+                       acquisition_type: str | None = None) -> dict:
         """``acquire``'s answer exactly as the controller gives it.
 
         ``{"success": ..., "content": ...}``, with the content's ``files`` and
         ``planes`` as the driver wrote them. The page asks for a capture this
         way, so it reads the same answer a Python script would.
 
-        ``folder`` is the interface's own name for which acquisition this
-        capture belongs to (``"overview"``, ``"focussing"``, ...), the folder
-        of the run it is filed in. With a run open, the driver is given the
-        whole file stem, ``{folder}_{run hash}_{position_label}``, and starts
-        every file name with it; how and where it saves is set up on the
-        microscope, so it is told nothing else. A label already captured in
-        the run gets the next free stem (``_001``, ...), so a rerun never takes
-        an earlier capture's name. The record is then filed under the
-        interface's own ``position_label`` and keeps the stem as
-        ``file_stem``, the name its analysis files start with too.
+        ``acquisition_type`` is the interface's own name for which acquisition
+        this capture belongs to (``"overview"``, ``"focussing"``, ...). The
+        driver puts it in its file names and metadata, beside the label. With
+        a run open, the driver is also given the run's ``data`` folder for
+        that acquisition to save in; a driver whose software saves in its own
+        place saves there instead, and the answer lists where. A driver never
+        overwrites an earlier file, so a label taken again in the run is saved
+        under a name of its own.
         """
-        stem = position_label
-        if folder is not None and self.run is not None:
-            stem = free_stem(
-                prepare_acquisition(self.run, folder).data,
-                file_stem(folder, run_hash(self.run), position_label),
-            )
-        answer = self._session.acquire(position_label=stem, acquisition_settings=acquisition_settings)
-        if isinstance(answer, dict) and answer.get("success") is True and isinstance(answer.get("content"), dict):
-            answer = {**answer, "content": {**answer["content"], "position_label": position_label, "file_stem": stem}}
-        return answer
+        output_folder = None
+        if acquisition_type is not None and self.run is not None:
+            output_folder = str(prepare_acquisition(self.run, acquisition_type).data)
+        return self._session.acquire(
+            position_label=position_label, acquisition_settings=acquisition_settings,
+            acquisition_type=acquisition_type, output_folder=output_folder,
+        )
 
     def disconnect(self) -> None:
         self._session.disconnect()

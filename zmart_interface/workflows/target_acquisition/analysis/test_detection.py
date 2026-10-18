@@ -22,7 +22,7 @@ def _record(**planes_extra):
         for c in (0, 1, 2)
     ]
     return {
-        "acquisition_type": "overview", "file_stem": "overview_abc123_K00_M000001_G000001_P000004_V00",
+        "acquisition_type": "overview",
         "position_label": "K00_M000001_G000001_P000004_V00",
         "files": [p["path"] for p in planes], "planes": planes,
     }

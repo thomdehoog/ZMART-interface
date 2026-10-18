@@ -60,12 +60,13 @@ def saved_connection(name: str) -> dict:
     return find_driver(name)[1]
 
 
-#: The controller versions this interface works with: 0.3.0 and later, below
-#: 0.4. From 0.3.0 a driver names its default motor per axis and every answer
-#: says which one moved, acquisition settings say only how to trigger, and
-#: get_info no longer says where the microscope saves: the interface decides
-#: where its own runs go.
-CONTROLLER_VERSIONS = ">=0.3.0,<0.4"
+#: The controller versions this interface works with: 0.4.0rc1 and later,
+#: below 0.5. From 0.3.0 a driver names its default motor per axis and every
+#: answer says which one moved, and acquisition settings say only how to
+#: trigger; from 0.4.0 acquire is given the kind of acquisition and the folder
+#: to save in, and get_info says whether the microscope chooses its own folder
+#: instead: the interface decides where its own runs go.
+CONTROLLER_VERSIONS = ">=0.4.0rc1,<0.5"
 
 
 def accept_the_controller(installed_version: str) -> None:

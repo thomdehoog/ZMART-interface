@@ -214,21 +214,22 @@ export const backend: Backend = {
    * Capture once where the stage is standing, answering as the bridge does:
    * `{success, content}`, the content holding `files` and `planes`.
    *
-   * `folder` is the page's name for the acquisition the capture belongs to.
-   * Like the bridge, this pretend instrument starts every file name with the
-   * stem `{folder}_{run hash}_{position_label}`, keeps the stem on the record
-   * as `file_stem`, and files the record under the page's own label.
+   * `acquisition_type` is the page's name for the acquisition the capture
+   * belongs to. Like a driver, this pretend instrument names every file by it
+   * and the label, `{acquisition_type}_{position_label}`, the controller's
+   * `"acquisition"` when none is given, and a label taken again gets `_001`,
+   * ... so an earlier capture's name is never taken.
    *
-   * The names are the convention's, flat and complete: which acquisition,
-   * which run, where on the sample, and which plane of it — so nothing has to
-   * be opened to know what it holds. A browser writes no files, so these are
-   * paths the rehearsal names and does not make; through the bridge the same
-   * names are files on disk.
+   * The names are flat and complete: which acquisition, where on the sample,
+   * and which plane of it — so nothing has to be opened to know what it
+   * holds. A browser writes no files, so these are paths the rehearsal names
+   * and does not make; through the bridge the driver's names are files on disk.
    */
-  async acquire({ position_label, acquisition_settings = null, folder = null }) {
+  async acquire({ position_label, acquisition_settings = null, acquisition_type = null }) {
     void acquisition_settings;
     await wait(240);
-    const stem = folder ? `${folder}_${PRETEND_RUN_HASH}_${position_label}` : position_label;
+    const kind = acquisition_type ?? "acquisition";
+    const stem = `${kind}_${position_label}`;
     const before = taken.get(stem) ?? 0;
     taken.set(stem, before + 1);
     const free = before ? `${stem}_${String(before).padStart(3, "0")}` : stem;
@@ -237,7 +238,7 @@ export const backend: Backend = {
       success: true,
       content: {
         position_label,
-        file_stem: stem,
+        acquisition_type: kind,
         position: { ...where },
         files: [path],
         /* Where each plane was taken travels with it, as the real record's
@@ -578,8 +579,6 @@ const taken = new Map<string, number>();
    three the controller's mock driver keeps, so the page meets one instrument
    whichever backend it is talking to. */
 const JOBS = ["Overview", "Focussing", "Target", "Target focussing"];
-/* The hash of the pretend run every capture is filed in, as a run folder's is. */
-const PRETEND_RUN_HASH = "a1b2c3";
 let chosenJob = JOBS[0];
 
 /** Where its stage is parked before anything has driven it: the corner, off

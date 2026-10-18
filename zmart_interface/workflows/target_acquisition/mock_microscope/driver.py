@@ -490,21 +490,27 @@ def set_xyz(
 
 
 def acquire(
-    handle: MockHandle, *, position_label: str, acquisition_settings: dict | None = None
+    handle: MockHandle,
+    *,
+    position_label: str,
+    acquisition_settings: dict | None,
+    acquisition_type: str,
+    output_folder: str | None,
 ) -> dict:
     """Capture the selected job here and save it, returning the record.
 
-    Every file name starts with ``position_label``, as the workflow gave it;
-    the mock adds the time point, channel and plane. The files go straight
-    into the connection's ``output_root``, and a label already used there
-    gets ``_001``, ``_002``, ... so an earlier capture is never overwritten.
+    Every file name is ``acquisition_type``, then ``position_label``, as the
+    workflow gave them; the mock adds the time point, channel and plane. The
+    files go straight into ``output_folder``, or the connection's
+    ``output_root`` when it is None, and a name already used there gets
+    ``_001``, ``_002``, ... so an earlier capture is never overwritten.
     Captures and saves in one step -- there is no separate export.
     """
     _require_open(handle)
     _read_the_settings(handle)
     settings = _with_defaults(handle, acquisition_settings)
-    root = _the_output_root(handle)
-    stem = _a_free_stem(root, position_label)
+    root = Path(output_folder) if output_folder is not None else _the_output_root(handle)
+    stem = _a_free_stem(root, f"{acquisition_type}_{position_label}")
     # The stage is standing at the centre of the range; the job says how far
     # either side to go and in what steps. One 2-D plane per file, flat, which
     # is what every ZMART driver writes -- a stack is a list of planes, never
@@ -546,6 +552,7 @@ def acquire(
     ]
     return {
         "position_label": position_label,
+        "acquisition_type": acquisition_type,
         "trigger": settings["trigger"],
         "job": handle.job,
         "position": _user_position(handle),
@@ -557,16 +564,17 @@ def acquire(
 
 
 def _the_output_root(handle: MockHandle) -> Path:
-    """Where this mock saves: the connection's ``output_root``, or ``mock-output`` here."""
+    """Where this mock saves when acquire names no folder: the connection's
+    ``output_root``, or ``mock-output`` here."""
     return Path(handle.connection.get("output_root") or "mock-output")
 
 
-def _a_free_stem(root: Path, label: str) -> str:
-    """``label``, or ``label_001``, ``label_002``, ...: the first no earlier capture in *root* used."""
-    stem, number = label, 0
+def _a_free_stem(root: Path, name: str) -> str:
+    """``name``, or ``name_001``, ``name_002``, ...: the first no earlier capture in *root* used."""
+    stem, number = name, 0
     while (root / f"{stem}_T000000_C00_Z00000.ome.tiff").exists():
         number += 1
-        stem = f"{label}_{number:03d}"
+        stem = f"{name}_{number:03d}"
     return stem
 
 
@@ -612,9 +620,9 @@ def _write_a_frame(
     import numpy as np  # noqa: PLC0415 — see above
     import tifffile  # noqa: PLC0415
 
-    # The canonical name, flat, one file per plane: the workflow's stem, then
-    # which plane of the capture it is. Nothing has to be opened to know what
-    # it holds.
+    # The canonical name, flat, one file per plane: the acquisition type and
+    # the label, then which plane of the capture it is. Nothing has to be
+    # opened to know what it holds.
     path = root / f"{stem}_T000000_C{channel:02d}_Z{z_index:05d}.ome.tiff"
     path.parent.mkdir(parents=True, exist_ok=True)
     frame_px, px = frame_of(handle.job)
@@ -914,7 +922,7 @@ def _connection_status(handle: MockHandle) -> dict[str, str]:
         # the mock is standing on its own physical travel -- the same
         # "(fallback)" the Leica driver reports until limits are published.
         "limits": "the stage's own travel (a mock has no setup)",
-        "saving": f"OME-TIFF under {_the_output_root(handle)}",
+        "saving": f"OME-TIFF in the folder each capture names, else under {_the_output_root(handle)}",
     }
     return {
         key: (answers[key] if elapsed >= after else PENDING) for key, after in _CONNECTION_CHECKS
@@ -926,17 +934,23 @@ def get_info(handle: MockHandle) -> dict:
 
     ``description`` is the microscope in plain words and ``setup`` what is set
     up once on it, as every ZMART driver gives them: here only saving, where
-    the connection's ``output_root`` puts the files.
+    the connection's ``output_root`` puts the files when acquire names no
+    folder. ``chooses_its_own_folder`` is False: the mock saves in the folder
+    acquire is given.
     ``connection_status`` is what a client shows under Connect: one row per
     key, its value the answer or ``"pending"`` until the check has answered
     (a value beginning ``failed`` is a failed check). The area a client
     draws to scale is not here: it is ``get_xyz``'s ``canvas``, per axis.
     """
     _require_open(handle)
-    saving = f"OME-TIFF files under {_the_output_root(handle)}, as the connection's output_root says"
+    saving = (
+        f"OME-TIFF files in the output folder acquire is given, else under {_the_output_root(handle)}, "
+        "as the connection's output_root says"
+    )
     return {
         "description": DESCRIPTION,
         "setup": {"saving": {"done": True, "says": saving}},
+        "chooses_its_own_folder": False,
         "connection_status": _connection_status(handle),
         "tile_positions": [dict(pos) for pos in handle.tile_positions],
         "focus_positions": [
@@ -956,4 +970,4 @@ Stage motors: x and y have one motor each; z has three, "motoric", the default, 
 
 Settings (the changeable part of the state): job is the stored acquisition the next capture is taken with, one of Overview (256 x 256 pixels of 4 um, three channels), Overview stack (the same, 7 planes 2 um apart), Focussing (a 61-plane stack of 1 um pixels, one channel), Target (128 x 128 pixels of 1 um, three channels), Target stack (the same, 11 planes 1 um apart) and Target focussing (41 planes 0.5 um apart, one channel). laser_power and gain are kept but change nothing in the pictures. The job is also chosen in the mock instrument's own window, the way an operator chooses one in the vendor's software.
 
-Acquiring has one trigger, full: the whole of the selected job. It saves one OME-TIFF per plane and channel straight into the output folder, each file named by the position label it was given, then the time point, the channel and the plane."""
+Acquiring has one trigger, full: the whole of the selected job. It saves one OME-TIFF per plane and channel straight into the output folder it is given, each file named by the acquisition type and the position label, then the time point, the channel and the plane."""

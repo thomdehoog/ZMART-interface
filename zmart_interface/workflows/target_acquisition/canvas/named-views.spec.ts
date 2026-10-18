@@ -60,7 +60,7 @@ for (const bake of [false, true]) for (const flatFirst of [false, true]) {
     page.on("request", request => { if (/\/data\/.*\/c\//.test(request.url())) requests.push(request.url()); });
     const publish = async (names: string[], opening = false): Promise<ConfigRow[]> => {
       const data = { path: folder, source_revisions: Object.fromEntries(names.map(n => [`${n}.ome.zarr`, 1])),
-        composition: { regions: "complete", order: names.map(n => `${n}.ome.zarr`), xy_origin: "corner" } };
+        composition: { regions: "complete", order: names.map(n => `${n}.ome.zarr`) } };
       const reply = await page.request.post(`${origin}/api/${opening ? "stores/open" : "announce"}`, {
         data: opening ? { ...data, bake, canvas: { x_um: [0, 512], y_um: [0, 128] },
           views: { path: path.join(folder, "view"), acquisition: "mixed",

@@ -15,7 +15,7 @@ for target in (store, store / "coverage"):
         declare_image(
             target, canvas_shape=(1, 64, 256), frames=1, channels=2,
             dtype="uint16", chunk=64, levels=1,
-            voxel_size_um=(1, 1, 1), origin_um=(0, 0, 0),
+            voxel_size_um=(1, 1, 1), first_voxel_um=(0, 0.5, 0.5),
             channel_blocks=[{"label": "red"}, {"label": "green"}],
             ome_zarr_version="0.5",
         )

@@ -51,32 +51,57 @@ def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
     assert "images" not in content
 
 
-LABEL = "overview_a1b2c3_K00_M000000_G000000_P000000_V00"
+LABEL = "K00_M000000_G000000_P000000_V00"
 
 
-def test_every_file_name_starts_with_the_label_the_workflow_gave(mock_instrument):
-    """The workflow names the capture; the mock adds only the time point, channel and plane.
+def test_every_file_name_is_the_acquisition_type_then_the_label(mock_instrument, tmp_path):
+    """The workflow names the kind and the place; the mock adds only the time point, channel and plane.
 
-    The files land straight in the output folder, the state beside them under
-    ``metadata/ZMART_state``, and a second capture under the same label never
-    overwrites the first: it gets ``_001``.
+    The files land straight in the output folder acquire is given, the state
+    beside them under ``metadata/ZMART_state``, and a second capture under the
+    same label never overwrites the first: it gets ``_001``.
     """
+    folder = tmp_path / "a-run_a1b2c3" / "overview" / "data"
+    folder.mkdir(parents=True)
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        first = raw.acquire(position_label=LABEL)["content"]
-        again = raw.acquire(position_label=LABEL)["content"]
+        first = raw.acquire(LABEL, acquisition_type="overview", output_folder=folder)["content"]
+        again = raw.acquire(LABEL, acquisition_type="overview", output_folder=folder)["content"]
     finally:
         raw.disconnect()
-    root = os.path.realpath(mock_instrument["output_root"])
+    root = os.path.realpath(folder)
     assert [os.path.basename(plane["path"]) for plane in first["planes"]] == [
-        f"{LABEL}_T000000_C{channel:02d}_Z00000.ome.tiff" for channel in range(3)
+        f"overview_{LABEL}_T000000_C{channel:02d}_Z00000.ome.tiff" for channel in range(3)
     ]
     assert {os.path.dirname(os.path.realpath(plane["path"])) for plane in first["planes"]} == {root}
     assert os.path.realpath(first["metadata"][0]) == os.path.join(
-        root, "metadata", "ZMART_state", f"{LABEL}_T000000_ZMART_state.json"
+        root, "metadata", "ZMART_state", f"overview_{LABEL}_T000000_ZMART_state.json"
     )
-    assert os.path.basename(again["planes"][0]["path"]) == f"{LABEL}_001_T000000_C00_Z00000.ome.tiff"
-    assert "acquisition_type" not in first and "folder" not in first
+    assert os.path.basename(again["planes"][0]["path"]) == f"overview_{LABEL}_001_T000000_C00_Z00000.ome.tiff"
+    assert all(os.path.exists(path) for path in first["files"] + again["files"])
+    assert (first["position_label"], first["acquisition_type"]) == (LABEL, "overview")
+
+
+def test_without_a_folder_the_mock_saves_where_it_was_plugged_in(mock_instrument):
+    """No output folder: the connection's ``output_root``, under the controller's default kind."""
+    raw = ZmartController(mock_microscope, mock_instrument)
+    try:
+        answer = raw.acquire(LABEL)["content"]
+    finally:
+        raw.disconnect()
+    assert os.path.dirname(os.path.realpath(answer["planes"][0]["path"])) == os.path.realpath(
+        mock_instrument["output_root"]
+    )
+    assert os.path.basename(answer["planes"][0]["path"]).startswith(f"acquisition_{LABEL}_T000000_")
+    assert answer["acquisition_type"] == "acquisition"
+
+
+def test_the_mock_saves_where_it_is_told(mock_instrument):
+    raw = ZmartController(mock_microscope, mock_instrument)
+    try:
+        assert raw.get_info()["content"]["chooses_its_own_folder"] is False
+    finally:
+        raw.disconnect()
 
 
 def test_the_acquisition_settings_say_only_how_to_trigger(mock_instrument):
@@ -217,7 +242,7 @@ def _frame_px(record) -> int:
 
 
 def test_an_overview_frame_is_the_full_frame(session):
-    record = session.acquire(folder="overview", position_label="P0")
+    record = session.acquire(acquisition_type="overview", position_label="P0")
     assert _frame_px(record) == mock_driver._FRAME_PX == 256
 
 
@@ -230,7 +255,7 @@ def test_imaging_stack_jobs_capture_real_planes_and_return_to_single_plane(sessi
 
     session.set_xyz(20_000, 30_000, mock_driver.sharp_height_um(20_000, 30_000))
     session.set_state({"changeable": {"job": job}})
-    record = session.acquire(folder=kind, position_label="stack")
+    record = session.acquire(acquisition_type=kind, position_label="stack")
     planes = record["planes"]
     assert len(planes) == depth * 3
     assert {p["z"] for p in planes} == set(range(depth))
@@ -241,7 +266,7 @@ def test_imaging_stack_jobs_capture_real_planes_and_return_to_single_plane(sessi
     assert all(image.shape == (size, size) for image in images)
     assert not np.array_equal(images[0], images[depth // 2])
     session.set_state({"changeable": {"job": job.removesuffix(" stack")}})
-    flat = session.acquire(folder=kind, position_label="flat")
+    flat = session.acquire(acquisition_type=kind, position_label="flat")
     assert len(flat["planes"]) == 3
 
 
@@ -249,7 +274,7 @@ def test_a_focus_stack_is_what_the_focussing_job_takes(session):
     """The job decides the stack, as on a real instrument: the Focussing job takes
     61 planes of 256 px of 1 um, a quarter of an overview field's width."""
     session.set_state({"changeable": {"job": "Focussing"}})
-    record = session.acquire(folder="focussing", position_label="P0")
+    record = session.acquire(acquisition_type="focussing", position_label="P0")
     assert len(record["planes"]) == 61
     # Every plane of the stack the same size.
     assert {tifffile.imread(p["path"]).shape for p in record["planes"]} == {(256, 256)}
@@ -259,7 +284,7 @@ def test_the_focus_stack_is_still_centred_where_the_stage_stands(session):
     """Smaller, not moved: the store's corner is centre minus half of THIS frame."""
     session.set_xyz(20_000.0, 30_000.0, 0.0)
     session.set_state({"changeable": {"job": "Focussing"}})
-    record = session.acquire(folder="focussing", position_label="P1")
+    record = session.acquire(acquisition_type="focussing", position_label="P1")
     plane = record["planes"][0]
     assert (plane["x_um"], plane["y_um"]) == (20_000.0, 30_000.0)
 
@@ -271,7 +296,7 @@ def test_the_hires_job_images_small_and_fine(session):
     session.set_state({"changeable": {"job": "Target"}})
     observed = session.get_state()["observed"]
     assert observed["frame_size"]["x"] == 128.0 and observed["pixel_size"]["x"] == 1.0
-    record = session.acquire(folder="targets", position_label="T0")
+    record = session.acquire(acquisition_type="targets", position_label="T0")
     assert _frame_px(record) == 128
     with tifffile.TiffFile(record["planes"][0]["path"]) as held:
         physical = held.ome_metadata
@@ -288,9 +313,9 @@ def test_a_target_frame_is_the_same_tissue_looked_at_closer(session):
     # In focus, so neither frame is softened: blur is drawn in pixels, and
     # the two frames' pixels are not the same size.
     session.set_xyz(20_000.0, 30_000.0, mock_driver.sharp_height_um(20_000.0, 30_000.0))
-    overview = tifffile.imread(session.acquire(folder="overview", position_label="P0")["planes"][0]["path"])
+    overview = tifffile.imread(session.acquire(acquisition_type="overview", position_label="P0")["planes"][0]["path"])
     session.set_state({"changeable": {"job": "Target"}})
-    target = tifffile.imread(session.acquire(folder="targets", position_label="T0")["planes"][0]["path"])
+    target = tifffile.imread(session.acquire(acquisition_type="targets", position_label="T0")["planes"][0]["path"])
     assert target[64, 64] == overview[128, 128]
     # Four target pixels to one overview pixel in each direction: every
     # fourth target pixel is the overview's, over the 32 recorded pixels the
@@ -311,7 +336,7 @@ def test_the_settings_live_in_the_file_and_whoever_wrote_last_wins(session):
     assert session.get_acquisition_settings() == {
         "trigger": {"options": ["full"], "default": "full", "active": "full"}
     }
-    record = session.acquire(folder="overview", position_label="P0")
+    record = session.acquire(acquisition_type="overview", position_label="P0")
     assert record["job"] == "Focussing"
     with pytest.raises(ValueError):
         mock_driver.write_instrument_settings({"job": "HiRes"}, where)
@@ -322,5 +347,5 @@ def test_the_focussing_job_images_a_stacks_frame(session, tmp_path):
     job's frame is the stack's frame, not halved again."""
     session.set_state({"changeable": {"job": "Focussing"}})
     assert session.get_state()["observed"]["frame_size"]["x"] == 256.0
-    record = session.acquire(folder="focussing", position_label="F0")
+    record = session.acquire(acquisition_type="focussing", position_label="F0")
     assert _frame_px(record) == 256

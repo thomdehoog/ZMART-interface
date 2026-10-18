@@ -1,13 +1,14 @@
 """Small, workflow-owned output layout helpers.
 
-The workflow owns experiment/acquisition folders.  Drivers own image
-filenames and return the files they saved; this module only moves those files,
-without renaming them, into the acquisition's ``data`` folder.
+The workflow owns experiment/acquisition folders, and gives a driver the
+acquisition's ``data`` folder to save in. Drivers own image filenames and
+return the files they saved; this module only files them, without renaming
+them, in the acquisition's ``data`` folder, moving those a driver saved in a
+place of its own.
 """
 
 from __future__ import annotations
 
-import glob
 import re
 import shutil
 import uuid
@@ -101,29 +102,22 @@ def run_hash(run: Any) -> str:
     return _validate_hash(Path(run).name.rsplit("_", 1)[-1])
 
 
-def file_stem(acquisition_type: str, hash6: str, label: str) -> str:
-    """How every file of one capture begins: ``{acquisition_type}_{hash6}_{label}``.
+def free_name(folder: Any, stem: str, ending: str) -> Path:
+    """``folder/<stem><ending>``, or ``<stem>_001<ending>``, ...: the first no earlier file took.
 
-    This is the naming convention's stem. The workflow decides it and hands it
-    to the driver as the position label; the driver adds only the time point,
-    channel and plane (``_T000000_C00_Z00000``), so files from every
-    microscope are named alike and can be read without opening them.
+    What the interface writes about a capture -- its focus curve, the objects
+    found in it -- is named after the capture's acquisition type and label. A
+    position taken again keeps its label, so what is written about it takes
+    the next free name, and what was said about the earlier capture stays.
+    The captures themselves are the driver's to name: it never overwrites an
+    earlier file (the controller's contract).
     """
-    return f"{checked_name(acquisition_type, field='acquisition_type')}_{_validate_hash(hash6)}_{label}"
-
-
-def free_stem(data: Any, stem: str) -> str:
-    """``stem``, or ``stem_001``, ``stem_002``, ...: the first no earlier capture in *data* used.
-
-    A run never loses a capture to a rerun: the position taken again keeps the
-    same label, and its files take the next free name beside the first ones.
-    """
-    data = Path(data)
+    folder = Path(folder)
     candidate, number = stem, 0
-    while any(data.glob(f"{glob.escape(candidate)}_T*")) or (data / f"{candidate}.ome.zarr").exists():
+    while (folder / f"{candidate}{ending}").exists():
         number += 1
         candidate = f"{stem}_{number:03d}"
-    return candidate
+    return folder / f"{candidate}{ending}"
 
 
 def position_label(
@@ -150,7 +144,7 @@ def position_label(
 
 
 def move_record_images(record: dict, data_dir: Any) -> dict:
-    """Move every file a capture saved into the run, unchanged, and update the record's paths.
+    """File every file a capture saved in the run, unchanged, and update the record's paths.
 
     ``files`` is where the driver lists every file it saved, the name the
     ZMART Controller's contract fixes so the interface finds the pictures on
@@ -162,7 +156,9 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
     the capture goes beside ``data``: a projection (``projections``) to
     ``projections/``, the driver's log of the capture (``log``) to ``log/``. Every file a plane
     or a description names must be one of the files, so that the record can
-    never disagree with itself about what was saved.
+    never disagree with itself about what was saved. A file that is already
+    where it belongs -- a driver given the ``data`` folder saves straight into
+    it -- stays where it is.
 
     Every source and destination is checked before the first move. If a later
     move fails, the files already moved go back where they were, so one
@@ -190,13 +186,15 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
         **{Path(value): destination.parent / "projections" for value in record.get("projections", [])},
         **{Path(value): destination.parent / "log" for value in record.get("log", [])},
     }
-    moves = [(source, beside.get(source, destination) / source.name) for source in sources]
-    targets = [target for _, target in moves]
+    filed = [(source, beside.get(source, destination) / source.name) for source in sources]
+    targets = [target for _, target in filed]
     if len(targets) != len(set(targets)):
         raise RuntimeError("acquire returned different files with the same filename")
-    for source, target in moves:
+    for source, _ in filed:
         if not source.exists():
             raise FileNotFoundError(f"acquired file does not exist: {source}")
+    moves = [(source, target) for source, target in filed if source.resolve() != target.resolve()]
+    for _, target in moves:
         if target.exists():
             raise FileExistsError(f"refusing to replace an existing acquisition file: {target}")
 
@@ -213,7 +211,7 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
                 shutil.move(str(target), str(source))
         raise
 
-    mapped = {source: str(target) for source, target in moves}
+    mapped = {source: str(target) for source, target in filed}
     record["files"] = [mapped[source] for source in sources]
     for plane in record.get("planes", []):
         plane["path"] = mapped[Path(plane["path"])]

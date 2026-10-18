@@ -19,7 +19,7 @@ def write(kind, name, x, sampling, value):
     arrays = declare_image(
         store, canvas_shape=(1, 32, 32), frames=1, channels=1,
         dtype="uint16", chunk=32, levels=2, voxel_size_um=(1, sampling, sampling),
-        origin_um=(0, 0, x), ome_zarr_version="0.5",
+        first_voxel_um=(0, sampling / 2, x + sampling / 2), ome_zarr_version="0.5",
         channel_blocks=[{"label": "signal", "color": "FFFFFF",
                          "window": {"start": 0, "end": 255, "min": 0, "max": 65535}}],
     )

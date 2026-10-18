@@ -11,17 +11,19 @@ from .focus_run import as_state, measure_one_stack
 from .simulator_guard import NonSimulatorFrameError
 
 
-def a_stack(folder, *, centre=0.0, heights=None, sharp=1.0, label="P0"):
+def a_stack(folder, *, centre=0.0, heights=None, sharp=1.0, label="P0", named=None):
     """A captured stack as a driver answers it: five planes around *centre*,
-    each a real file, and the height the sample is sharp at for the stub scorer."""
+    each a real file, and the height the sample is sharp at for the stub scorer.
+    ``named`` is how the driver began the file names, ``focussing_<label>``
+    unless it said otherwise."""
     heights = heights if heights is not None else [centre + (i - 2) * 1.0 for i in range(5)]
     planes = []
     for index, z in enumerate(heights):
-        path = folder / f"focussing_abc123_{label}_T000000_C00_Z{index:05d}.ome.tiff"
+        path = folder / f"{named or f'focussing_{label}'}_T000000_C00_Z{index:05d}.ome.tiff"
         path.write_bytes(b"pixels")
         planes.append({"t": 0, "z": index, "c": 0, "z_um": z, "path": str(path)})
     return {
-        "acquisition_type": "focussing", "position_label": label, "file_stem": f"focussing_abc123_{label}",
+        "acquisition_type": "focussing", "position_label": label,
         "files": [plane["path"] for plane in planes], "planes": planes, "sharp": sharp,
     }
 
@@ -93,6 +95,19 @@ def test_the_stack_is_filed_under_the_run_and_its_measurement_kept_beside_it(tmp
     written = json.loads(next((output.root / "analysis").glob("*_focus.json")).read_text())
     assert written["z_um"] == 0.5 and written["x_um"] == 1.0
     assert set(measured["cost_s"]) == {"capture", "score"}
+
+
+def test_a_point_measured_again_keeps_the_first_measurement(tmp_path):
+    """The same label taken again: the driver saved the second stack under a
+    name of its own in the run's folder, and its measurement stands beside
+    the first one's rather than over it."""
+    run = prepare_experiment(tmp_path / "out", "target-acquisition", hash6="abc123")
+    output = prepare_acquisition(run, "focussing")
+    measure_one_stack(a_stack(output.data, sharp=0.5), x=1.0, y=2.0, centre=0.0, score=_score, output=output)
+    again = a_stack(output.data, sharp=0.75, named="focussing_P0_001")
+    measure_one_stack(again, x=1.0, y=2.0, centre=0.0, score=_score, output=output)
+    kept = {path.name: json.loads(path.read_text())["z_um"] for path in (output.root / "analysis").iterdir()}
+    assert kept == {"focussing_P0_T000000_focus.json": 0.5, "focussing_P0_001_T000000_focus.json": 0.75}
 
 
 def test_a_simulator_refusal_while_keeping_stops_the_map(tmp_path):

@@ -20,7 +20,7 @@ for name, depth, x, z, reference in (() if "--existing" in sys.argv else (
     declare_image(
         store, canvas_shape=(depth, 64, 64), frames=1, channels=2,
         dtype="uint16", chunk=64, levels=3, voxel_size_um=(1.3, 1, 1),
-        origin_um=(z, 0, x), channel_blocks=[{"label": "red"}, {"label": "green"}],
+        first_voxel_um=(z, 0.5, x + 0.5), channel_blocks=[{"label": "red"}, {"label": "green"}],
         ome_zarr_version="0.5",
     )
     group = zarr.open_group(str(store), mode="r+")

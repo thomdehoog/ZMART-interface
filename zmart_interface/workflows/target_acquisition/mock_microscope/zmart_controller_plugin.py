@@ -39,7 +39,8 @@ _DRIVER_FILE = json.loads((Path(__file__).parent / "zmart_driver.json").read_tex
 NAME: str = _DRIVER_FILE["name"]
 
 #: What the mock is plugged in with when nothing else is given. Images go to
-#: ``mock-output`` in the working folder unless ``output_root`` says otherwise.
+#: ``mock-output`` in the working folder unless ``output_root`` says otherwise,
+#: when acquire names no folder of its own.
 CONNECTION: dict = dict(_DRIVER_FILE.get("connection") or {})
 
 

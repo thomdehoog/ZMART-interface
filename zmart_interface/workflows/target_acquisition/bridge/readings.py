@@ -228,15 +228,16 @@ def capture(asked: dict) -> dict:
     ``acquisition_settings`` go through as they came from
     ``get_acquisition_settings``: how the capture is triggered. Whatever is
     left out the driver fills from its own actives, which is why nothing here
-    invents a default. ``folder`` is the page's name for the acquisition this
-    capture belongs to; the file names start with it (see
-    :meth:`Instrument.acquire_answer`), and the page files the capture under
-    it itself afterwards, through the route it sends the record to.
+    invents a default. ``acquisition_type`` is the page's name for the
+    acquisition this capture belongs to; the driver is given it, and the
+    run's folder for it to save in (see :meth:`Instrument.acquire_answer`),
+    and the page files the capture under it itself afterwards, through the
+    route it sends the record to.
     """
     return state.require_session().acquire_answer(
         position_label=str(asked["position_label"]),
         acquisition_settings=asked.get("acquisition_settings"),
-        folder=asked.get("folder"),
+        acquisition_type=asked.get("acquisition_type"),
     )
 
 

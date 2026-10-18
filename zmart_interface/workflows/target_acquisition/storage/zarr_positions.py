@@ -4,8 +4,8 @@ The instrument writes what it writes — LAS X's autosave leaves OME-TIFFs, and
 fighting a vendor's own export is a losing game — so the vendor's files are
 used as well as possible and then, the moment a capture lands, converted into
 the run's canonical form: **one OME-Zarr 0.5 image per position, axes
-t/c/z/y/x**, its stage corner recorded inside it where nobody can rename it
-away. The TIFFs stay untouched in ``data/``; the positions stand in
+t/c/z/y/x**, where it was taken recorded inside it where nobody can rename
+it away. The TIFFs stay untouched in ``data/``; the positions stand in
 ``positions/`` beside them.
 
 One folder per acquisition type, holding nothing but position stores, is
@@ -27,8 +27,10 @@ carries the pixel size, but where a capture was taken comes from the record's
 own planes (``x_um``/``y_um``/``z_um``), because the acquisition is the only
 party that knows. The image axes are taken to lie along the stage axes — the
 same single-place assumption as ``detection.IMAGE_TO_STAGE`` — and the
-recorded stage point is the centre of the frame, so the corner written into
-the store is half a frame up and left of it.
+recorded stage point is the centre of the frame. The store says where it lies
+the way OME-NGFF does (RFC-5: the centre of a voxel is the origin of the
+coordinates): by the centre of its first voxel, half a frame less half a pixel
+up and left of the stage point.
 
 Author: Thom de Hoog (ZMB, University of Zurich).
 License: MIT
@@ -126,7 +128,7 @@ def _write_a_position(record: dict, into: Path | str, *, pixel_provider=None) ->
     )
     frames, channels, nz, ny, nx = volume.shape
     dz = z_model["spacing_um"]
-    corner_um = _the_corner_of(
+    first_voxel_um = the_first_voxel_centre_of(
         planes, (ny, nx), pixel_size_um, z_origin_um=z_model["lowest_plane_um"],
     )
 
@@ -161,7 +163,7 @@ def _write_a_position(record: dict, into: Path | str, *, pixel_provider=None) ->
         chunk=PIECE,
         levels=how_many_copies_a_position_can_keep(tile_shape, PIECE),
         voxel_size_um=(dz, pixel_size_um[0], pixel_size_um[1]),
-        origin_um=corner_um,
+        first_voxel_um=first_voxel_um,
         # Each channel opens on a window measured from its own pixels — the
         # pixels are already in hand, so this costs nothing. Declaring the
         # camera's whole range instead is honest but useless on screen: a
@@ -357,9 +359,9 @@ def _the_z_model(record: dict, planes: list[dict]) -> dict:
     frame the driver drives in, x and y from the origin on the carrier and z
     the height above the coverslip face, physical up on every stand:
     ``scale`` is the size of a voxel and is always positive, and
-    ``translation`` is where the first voxel sits, positive or negative as
-    the stamps say. A flat capture retains its measured height; placing it
-    on a shared display plane belongs to the viewer aggregate.
+    ``translation`` is where the centre of the first voxel sits, positive or
+    negative as the stamps say. A flat capture retains its measured height;
+    placing it on a shared display plane belongs to the viewer aggregate.
     A stack is written **ascending**: its lowest plane first, and the rest above it at
     the spacing it was acquired with. Which way the drive swept is not the
     store's business: a downward sweep is reversed on the way in, and the
@@ -447,17 +449,17 @@ def _the_z_model(record: dict, planes: list[dict]) -> dict:
     }
 
 
-def _the_corner_of(
+def the_first_voxel_centre_of(
     planes: list[dict],
     frame_yx: tuple[int, int],
     pixel_size_um: tuple[float, float],
     *,
     z_origin_um: float,
 ) -> tuple[float, float, float]:
-    """Where the store's first voxel sits on the stage, in (z, y, x) µm.
+    """Where the centre of the store's first voxel sits on the stage, in (z, y, x) µm.
 
-    The record's stage point is the centre of the frame; the store's
-    convention is the corner of the first voxel along the sample.
+    The record's stage point is the centre of the frame, and ``n`` pixels
+    across put the first pixel's centre ``(n - 1) / 2`` pixels before it.
 
     The z origin was decided once by :func:`_the_z_model`: the specimen z
     of the lowest plane, so a store's z is the specimen's like its x and y.
@@ -474,8 +476,8 @@ def _the_corner_of(
     y_um = float(planes[0]["y_um"])
     return (
         z_origin_um,
-        y_um - frame_yx[0] * pixel_size_um[0] / 2.0,
-        x_um - frame_yx[1] * pixel_size_um[1] / 2.0,
+        y_um - (frame_yx[0] - 1) * pixel_size_um[0] / 2.0,
+        x_um - (frame_yx[1] - 1) * pixel_size_um[1] / 2.0,
     )
 
 

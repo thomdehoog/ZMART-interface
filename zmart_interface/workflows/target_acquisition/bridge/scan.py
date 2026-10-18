@@ -82,7 +82,7 @@ def scan_worker(
                 session.set_xyz(float(position["x"]), float(position["y"]), float(z))
                 stage.the_stage_was_sent_to(position["x"], position["y"], z)
                 record = session.acquire(
-                    position_label=label_for(i, position), folder=acquisition_type,
+                    position_label=label_for(i, position), acquisition_type=acquisition_type,
                 )
                 # Filed under what this scan asked for, not under anything the
                 # driver answered: the grouping is the interface's own.

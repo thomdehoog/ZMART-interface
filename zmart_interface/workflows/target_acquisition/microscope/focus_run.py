@@ -37,9 +37,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..storage.output import (
-    move_record_images,
-)
+from ..storage.output import free_name, move_record_images
 from .simulator_guard import NonSimulatorFrameError
 
 #: The kind of acquisition a focus stack is. It is what tells the instrument to
@@ -83,8 +81,8 @@ def _keep(measured: dict, acquisition: Any, record: dict) -> None:
     """
     where = Path(acquisition) / "analysis"
     where.mkdir(parents=True, exist_ok=True)
-    name = f"{record['file_stem']}_T000000_focus.json"
-    (where / name).write_text(json.dumps(measured, indent=2), encoding="utf-8")
+    kept = free_name(where, f"{record['acquisition_type']}_{record['position_label']}", "_T000000_focus.json")
+    kept.write_text(json.dumps(measured, indent=2), encoding="utf-8")
 
 
 def measure_one_stack(

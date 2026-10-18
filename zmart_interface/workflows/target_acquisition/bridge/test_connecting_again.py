@@ -47,7 +47,7 @@ class Stage:
         self.moves.append((x, y, z))
         return {"success": True, "content": {"x": {"position": x}, "y": {"position": y}, "z": {"position": z}}}
 
-    def acquire(self, *, position_label, acquisition_settings=None):
+    def acquire(self, *, position_label, acquisition_settings, acquisition_type, output_folder):
         self.captures += 1
         if self.on_capture is not None:
             self.on_capture(self.captures)

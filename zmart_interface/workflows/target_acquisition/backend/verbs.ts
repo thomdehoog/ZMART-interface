@@ -59,7 +59,7 @@ interface Plane {
 /** What a capture wrote, as the controller's `acquire` answers it, and what the workflow files on it. */
 export interface CaptureRecord {
   position_label: string;
-  file_stem?: string;
+  acquisition_type?: string;
   files: string[];
   planes: Plane[];
   position?: { x: number; y: number; z: number };
@@ -240,7 +240,7 @@ export interface Backend {
   set_state(settings: Record<string, unknown>): Promise<{ applied: Record<string, unknown> }>;
   readSetting(type: string, how?: { nth?: number }): Promise<Reading>;
   acquire(asked: {
-    position_label: string; acquisition_settings?: Record<string, unknown> | null; folder?: string | null;
+    position_label: string; acquisition_settings?: Record<string, unknown> | null; acquisition_type?: string | null;
   }): Promise<ControllerAnswer<CaptureRecord>>;
   raiseTarget?(position_label: string): Promise<unknown>;
   measureFocus(points: FocusAsk[], how?: {

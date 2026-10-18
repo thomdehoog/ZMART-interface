@@ -200,7 +200,7 @@ function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
            One acquisition is one file per plane, and the driver names them. */
         const label = "K00_M000001_G000000_P000042_V00";
         const answer = await backend.acquire({
-          folder: "overview", position_label: label,
+          acquisition_type: "overview", position_label: label,
         });
         /* The controller's own answer, as a Python script receives it. */
         expect(Object.keys(answer).sort(), "the controller's two parts").toEqual(["content", "success"]);
@@ -269,7 +269,7 @@ function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
         const going = across(travel, 0.5, 0.5);
         await backend.set_xyz({ ...going, z: um(await backend.get_xyz()).z });
         const { content } = await backend.acquire({
-          folder: "overview", position_label: "contract",
+          acquisition_type: "overview", position_label: "contract",
         });
         const record = content as CaptureRecord;
         expect(record.planes.length, "a capture has planes").toBeGreaterThan(0);

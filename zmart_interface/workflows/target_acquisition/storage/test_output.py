@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from .output import (
-    file_stem,
+    free_name,
     move_record_images,
     position_label,
     prepare_acquisition,
@@ -36,16 +36,42 @@ def test_location_label_has_exact_widths_and_rejects_overflow():
         position_label(1_000_000)
 
 
-def test_the_stem_every_file_of_a_capture_starts_with(tmp_path):
-    """``{acquisition_type}_{hash6}_{position_label}``: the convention, the run's hash in the middle."""
+def test_the_run_hash_ends_the_run_folders_name(tmp_path):
     run = prepare_experiment(tmp_path, "organoid-screen", hash6="abc123")
 
     assert run_hash(run) == "abc123"
-    assert file_stem("overview", run_hash(run), "K00_M000000_G000000_P000007_V00") == (
-        "overview_abc123_K00_M000000_G000000_P000007_V00"
-    )
-    with pytest.raises(ValueError, match="acquisition_type"):
-        file_stem("over view", "abc123", "K00_M000000_G000000_P000007_V00")
+
+
+def test_what_the_interface_writes_beside_a_capture_never_takes_an_earlier_name(tmp_path):
+    """A label taken again in the run gets the next free name, ``_001``, ...
+
+    What the interface writes about a capture -- its focus curve, the objects
+    found in it -- is named after the capture's acquisition type and label, so
+    a rerun of the same position keeps what was said about the first capture.
+    """
+    first = free_name(tmp_path, "overview_K00_M000000_G000000_P000007_V00", "_T000000_targets.json")
+    assert first == tmp_path / "overview_K00_M000000_G000000_P000007_V00_T000000_targets.json"
+    first.write_text("[]", encoding="utf-8")
+    again = free_name(tmp_path, "overview_K00_M000000_G000000_P000007_V00", "_T000000_targets.json")
+    assert again == tmp_path / "overview_K00_M000000_G000000_P000007_V00_001_T000000_targets.json"
+
+
+def test_files_the_driver_saved_where_they_belong_stay_there(tmp_path):
+    """A driver given the run's folder saves straight into it: nothing is moved, nothing refused."""
+    data = tmp_path / "overview" / "data"
+    printed = data / "metadata" / "ZMART_state" / "overview_P0_T000000_ZMART_state.json"
+    printed.parent.mkdir(parents=True)
+    printed.write_text("{}", encoding="utf-8")
+    plane = data / "overview_P0_T000000_C00_Z00000.ome.tiff"
+    plane.write_bytes(b"pixels")
+    record = {"files": [str(plane), str(printed)], "metadata": [str(printed)],
+              "planes": [{"t": 0, "c": 0, "z": 0, "path": str(plane)}]}
+
+    move_record_images(record, data)
+
+    assert record["files"] == [str(plane), str(printed)]
+    assert record["planes"][0]["path"] == str(plane) and record["metadata"] == [str(printed)]
+    assert plane.read_bytes() == b"pixels"
 
 
 def test_move_returns_full_final_filenames_in_files_and_planes(tmp_path):

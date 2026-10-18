@@ -28,7 +28,7 @@ def canonical_store(tmp_path):
     arrays = declare_image(
         store, canvas_shape=(3, 32, 32), frames=1, channels=2,
         dtype="uint16", chunk=32, levels=1,
-        voxel_size_um=(2, 1, 1), origin_um=(10, 20, 30),
+        voxel_size_um=(2, 1, 1), first_voxel_um=(10, 20, 30),
         channel_blocks=[
             {"label": label, "color": color,
              "window": {"start": 0, "end": 2000, "min": 0, "max": 65535}}
@@ -118,7 +118,7 @@ def test_refocussing_a_point_gives_its_slices_new_names(canonical_store, tmp_pat
     arrays = declare_image(
         canonical_store, canvas_shape=(3, 32, 32), frames=1, channels=2,
         dtype="uint16", chunk=32, levels=1,
-        voxel_size_um=(2, 1, 1), origin_um=(10, 20, 30),
+        voxel_size_um=(2, 1, 1), first_voxel_um=(10, 20, 30),
         channel_blocks=[
             {"label": label, "color": color,
              "window": {"start": 0, "end": 2000, "min": 0, "max": 65535}}

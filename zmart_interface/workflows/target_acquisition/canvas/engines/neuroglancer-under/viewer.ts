@@ -57,13 +57,10 @@
  *    wheel stepping through the stack, four different ways to rotate — can never
  *    fire. `CONTROLS.md` explains why each of those had to go.
  *
- * 4. **The picture is placed where the store says it is.** Our writer says where
- *    an image sits by giving the corner of its first voxel; the engine reads the
- *    same description as giving the middle of it, and so drew every acquisition
- *    half a voxel early — about half a screen pixel at an ordinary
- *    magnification, and four screen pixels when zoomed in to eight times full
- *    resolution. `countFromTheCornerOfTheVoxelRatherThanItsMiddle` puts that
- *    right, and says plainly what part of it a viewer cannot put right.
+ * 4. **The picture is placed where the store says it is, untouched.** Every
+ *    store and published picture says where each level lies by the centre of
+ *    its first voxel, which is what the engine reads, so nothing is moved
+ *    here; `takeInTheLoadedSources` says what is done as a source loads.
  *
  * The host owns the layer stack: application ground, this image, then marks.
  * In transparent 2D mode, authoritative acquired coverage keeps black image
@@ -222,7 +219,6 @@ interface Own {
   rows: Row[];
   watchSize: ResizeObserver | null;
   stopWatchingTheSources: (() => void)[] | null;
-  correctedLoadStates: WeakSet<object>;
   stoodOnTheTable: boolean;
   destroyed: boolean;
   /** Measured when the surfaces are built, before anything is drawn. */
@@ -322,12 +318,8 @@ export async function openViewer(element: HTMLElement, options: OpenOptions = {}
     watchSize: null,
     // How to stop listening for an acquisition's data arriving. Kept so that
     // closing the viewer really lets go of everything; see
-    // `countFromTheCornerOfTheVoxelRatherThanItsMiddle` for what the listening
-    // is for.
+    // `takeInTheLoadedSources` for what the listening is for.
     stopWatchingTheSources: null,
-    // The load states already moved back to the corner of their first voxel,
-    // so a source is corrected once however many times the sources change.
-    correctedLoadStates: new WeakSet(),
     // Whether the picture has been opened at the bottom of its stacks yet;
     // see `standOnTheTable`.
     stoodOnTheTable: false,
@@ -558,7 +550,7 @@ async function loadAcquisitions(own: Own, acquisitions: Acquisition[]) {
   if (own.destroyed) return;
   pinTheAxesThatMeasureDistance(own.viewer);
   startTimeAtTheFirstMoment(own.viewer);
-  countFromTheCornerOfTheVoxelRatherThanItsMiddle(own);
+  takeInTheLoadedSources(own);
   await finishOpeningAcquisitions(own, acquisitions);
 }
 
@@ -605,7 +597,7 @@ function installRows(own: Own) {
         coverage = { managed, depth: member.depth, view: member.view, row: member };
         own.coverageLayers.set(member.layerName, coverage);
         const stop = managed.layer?.dataSourcesChanged?.add(
-          () => countFromTheCornerOfTheVoxelRatherThanItsMiddle(own),
+          () => takeInTheLoadedSources(own),
         );
         if (stop) (own.stopWatchingTheSources ??= []).push(stop);
       }
@@ -692,7 +684,7 @@ function installRows(own: Own) {
     row.managed = managed;
     bindNamedDepth(own, row, managed.layer);
     const stop = managed.layer?.dataSourcesChanged?.add(
-      () => countFromTheCornerOfTheVoxelRatherThanItsMiddle(own),
+      () => takeInTheLoadedSources(own),
     );
     if (stop) (own.stopWatchingTheSources ??= []).push(stop);
   }
@@ -1091,7 +1083,7 @@ async function addSourcesToTheOpenRows(own: Own, acquisitions: Acquisition[]): P
   });
   installRows(own);
   await refreshPublishedRows(own);
-  countFromTheCornerOfTheVoxelRatherThanItsMiddle(own);
+  takeInTheLoadedSources(own);
   return true;
 }
 
@@ -1196,9 +1188,8 @@ function pinTheAxesThatMeasureDistance(viewer: Engine) {
   // puts width across the window and depth into the screen. The axes are
   // taken by name where they carry the usual ones, because they do not
   // always arrive in that order: a flat overview brings only width and
-  // height (its depth stays its own, see
-  // `countFromTheCornerOfTheVoxelRatherThanItsMiddle`), and the depth of a
-  // stack that lands later is listed after them.
+  // height (its depth stays its own, see `takeInTheLoadedSources`), and the
+  // depth of a stack that lands later is listed after them.
   const usual = ["x", "y", "z"];
   const facing = distances.every((name) => usual.includes(name))
     ? usual.filter((name) => distances.includes(name))
@@ -1249,73 +1240,30 @@ function startTimeAtTheFirstMoment(viewer: Engine) {
 }
 
 /**
- * Put the picture where the store says it is, rather than half a voxel before it.
+ * Take in the sources that have loaded: a flat picture keeps its depth to
+ * itself, the axes that measure distance go on the screen, and the picture
+ * opens at the bottom of its stacks.
  *
- * An image has to say where in the specimen its first voxel sits, and there are
- * two ways of saying it. The writer in this project gives the **corner** of that
- * voxel: an image of one-micrometre voxels beginning at nought has its first
- * voxel covering the ground from 0 µm to 1 µm, and the coverage record beside it
- * counts the same way. The description the writer leaves in the store is read by
- * neuroglancer under the other convention, in which the number given is the
- * **middle** of the first voxel — so the engine places the whole image half a
- * voxel earlier than the writer meant. That is not carelessness on the engine's
- * part. The file format's own text says middles, and our writer says corners
- * without ever writing it down, so each is being reasonable about a description
- * that does not say.
+ * Where a picture lies needs nothing done here. Every store this project
+ * writes, and every picture the viewer publishes from them, places each level
+ * by the centre of its first voxel -- what OME-NGFF says a translation is
+ * (RFC-5: the centre of a voxel is the origin of the coordinates) and what the
+ * engine reads it as -- so the engine draws every level, the coarse ones too,
+ * exactly where the store says.
  *
- * Half a voxel sounds like nothing, and at the magnification the engine chooses
- * for itself it very nearly is: it comes to about half a screen pixel, because
- * the engine picks whichever stored resolution puts roughly one voxel in one
- * pixel. Zoom in past the finest resolution, though, and half a voxel keeps its
- * size in the specimen while a screen pixel shrinks. Measured on this page at
- * eight times full resolution, the edge of the picture sat four screen pixels
- * away from where the operator's drawing put it — which is exactly the moment an
- * operator is asking whether a tile's picture really landed inside the square
- * they laid out.
- *
- * So the layer is moved back by half a voxel, and two things make that a
- * conversion between two stated conventions rather than a fudge. It is half a
- * voxel *of the image*, not a number of screen pixels tuned on one machine, so
- * it holds at every magnification and on a screen of any density. And it is
- * applied only where the engine has said, in `voxelCenterAtIntegerCoordinates`,
- * that it is counting from the middle of a voxel; an image it has read the other
- * way round is left exactly as it is, which also means running this twice can do
- * no harm.
- *
- * Only the two axes drawn on the window are moved. Depth and time choose which
- * plane and which moment an operator is looking at rather than where anything is
- * drawn, and shifting those by half a step would change which plane `setPlane`
- * hands back without lining anything up.
- *
- * **What this does not cure.** The engine takes its half a voxel off every
- * stored resolution separately, so a coarse level of the pyramid is placed half
- * of *its own* voxel early — one and a half micrometres for a four-micrometre
- * level built from one-micrometre data. Only the finest level can be corrected
- * from here: the coarser ones are placed once, while the description is being
- * read, and are out of reach afterwards. So a view zoomed a long way out is
- * still up to half a screen pixel out, and a view zoomed in is exact. The
- * complete cure is for the writer to say which convention it means, by giving
- * each resolution in `zmart_storage/canvas.py` a translation of half its own
- * voxel; that would also line the resolutions up with one another, which they
- * are not today.
+ * A flat picture (a published projection) has a depth of its own, which is
+ * not the depth of the stacks beside it. Its `z` is renamed `z'`, an axis of
+ * its own, so it is drawn at whatever plane the picture stands at instead of
+ * on one plane of the shared depth. A source already renamed has no `z` left
+ * to rename, so this can run every time the sources change.
  */
-
-function countFromTheCornerOfTheVoxelRatherThanItsMiddle(own: Own) {
-  // A newly installed source can notify before initial framing. Select spatial
-  // axes first: the engine's default axes may still include time or channels.
+function takeInTheLoadedSources(own: Own) {
+  // A newly installed source can notify before initial framing, and a depth
+  // that arrives with it is taken into the screen.
   pinTheAxesThatMeasureDistance(own.viewer);
-  const space = own.viewer.navigationState.position.coordinateSpace.value;
-  const shown = axesOnScreen(own.viewer);
-  const drawnAcrossTheWindow = new Set(
-    [space?.names?.[shown.across], space?.names?.[shown.down]].filter(Boolean),
-  );
-  if (!drawnAcrossTheWindow.size) return;
   for (const row of [...own.rows, ...(own.coverageLayers?.values() ?? [])]) {
-    // Legacy sources need the corner correction; published aggregates already
-    // describe voxel centres at every resolution.
     for (const source of row.managed?.layer?.dataSources ?? []) {
-      const loadState = source?.loadState;
-      const placing = loadState?.transform;
+      const placing = source?.loadState?.transform;
       if (!placing?.value || !placing.defaultTransform) {
         /* Not read yet. The list of sources changing is what brings this
            pass round, and a source that finishes loading after the list
@@ -1325,64 +1273,20 @@ function countFromTheCornerOfTheVoxelRatherThanItsMiddle(own: Own) {
         own.watchedSources ??= new WeakSet();
         if (source?.changed && !own.watchedSources.has(source)) {
           own.watchedSources.add(source);
-          source.changed.add(() => countFromTheCornerOfTheVoxelRatherThanItsMiddle(own));
+          source.changed.add(() => takeInTheLoadedSources(own));
         }
         continue;
       }
-      /* Each loaded source is moved exactly once. Reading the engine's own
-         flag afterwards is not enough: the layer's output space carries one
-         flag for every source it holds, and the first correction flips it, so
-         every later source of the same row read "already counted from the
-         corner" while still standing where its description put it. A source
-         that is loaded again gets a new load state and a fresh default
-         transform, so it is moved again, which is right. */
-      if (own.correctedLoadStates.has(loadState)) continue;
-      if (row.depth || row.view) {
-        // Aggregates already publish voxel-centre transforms. Only flat depth is local.
-        own.correctedLoadStates.add(loadState);
-        const output = placing.outputSpace.value;
-        if (row.depth === "flat" && output.names.includes("z")) {
-          placing.restoreState({ ...placing.toJSON(), outputDimensions:
-            Object.fromEntries(output.names.map((name: string, i: number) =>
-              [name === "z" ? "z'" : name, [output.scales[i], output.units[i]]])),
-          });
-        }
-        continue;
-      }
-      const placed = placing.value;
-      const { rank, outputSpace } = placed;
-      const asRead = placing.defaultTransform;
-      const stillAsRead = Array.from(asRead.transform ?? [])
-        .every((value, at) => value === placed.transform[at]);
-      // Do not shift a transform that the engine already moved.
-      const shiftHalfAVoxel = stillAsRead;
-      /* The engine's `voxelCenterAtIntegerCoordinates` flag is not read any
-         more. Measured on 2026-09-02 with the review's target stores: a store
-         whose translation is not a whole number of voxels is read with that
-         flag false for y and x, and is still placed with its first voxel
-         centre on the translation — its lower bound stood exactly half a
-         voxel before the corner the writer meant, the same as a store read
-         with the flag true. The flag says how the engine labels its axes; it
-         does not say where the picture landed. Every store this project writes
-         puts the corner of the first voxel in the translation
-         (`zmart_interface/workflows/target_acquisition/storage/images.py`, `zmart_interface/workflows/target_acquisition/storage/zarr_positions.py`),
-         so every source drawn here is moved back by the same half voxel. */
-      const moved = Float64Array.from(placed.transform);
-      let anythingMoved = false;
-      for (let axis = 0; axis < rank; axis += 1) {
-        if (!shiftHalfAVoxel || !drawnAcrossTheWindow.has(outputSpace?.names?.[axis])) continue;
-        // Where the image sits is the last column of the matrix, and one unit
-        // along an axis is one voxel of the finest stored resolution — so half
-        // a voxel is simply a half.
-        moved[rank * (rank + 1) + axis] += 0.5;
-        anythingMoved = true;
-      }
-      own.correctedLoadStates.add(loadState);
-      if (anythingMoved) placing.value = { ...placed, transform: moved };
+      if (row.depth !== "flat") continue;
+      const output = placing.outputSpace.value;
+      if (!output.names.includes("z")) continue;
+      placing.restoreState({ ...placing.toJSON(), outputDimensions:
+        Object.fromEntries(output.names.map((name: string, i: number) =>
+          [name === "z" ? "z'" : name, [output.scales[i], output.units[i]]])),
+      });
     }
   }
-  // A depth that arrived with this source is taken into the screen, and the
-  // picture is opened at the bottom of it.
+  // The picture is opened at the bottom of a depth that arrived with this source.
   standOnTheTable(own);
 }
 
@@ -1837,8 +1741,7 @@ function handleFor(own: Own) {
             upper: landed?.bounds ? Array.from(landed.bounds.upperBounds) : null,
             // Which convention the engine says this source counts in, per
             // axis: true means integer coordinates fall on voxel centres. Kept
-            // for measurements only; the half-voxel correction no longer
-            // trusts it, and this is how a record can show why.
+            // for measurements only.
             voxelCenterAtIntegerCoordinates: landed?.bounds?.voxelCenterAtIntegerCoordinates
               ? Array.from(landed.bounds.voxelCenterAtIntegerCoordinates)
               : null,

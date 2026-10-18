@@ -18,7 +18,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-/** The viewer release `pyproject.toml` pins, as `0.5.0rc5`. */
+/** The viewer release `pyproject.toml` pins, as `0.5.0rc6`. */
 function thePinnedViewer() {
   const project = readFileSync(join(import.meta.dirname, "..", "pyproject.toml"), "utf8");
   const pinned = project.match(/"zmart-viewer @ git\+https:\/\/github\.com\/ZMB-UZH\/ZMART-viewer@v([^"]+)"/);

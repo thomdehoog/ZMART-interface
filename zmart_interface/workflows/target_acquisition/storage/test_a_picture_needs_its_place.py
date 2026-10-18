@@ -22,10 +22,12 @@ def test_a_plane_without_a_stage_position_is_refused(missing):
     plane = {"x_um": 100.0, "y_um": 200.0}
     plane[missing] = None
     with pytest.raises(ValueError, match=f"does not say where it was taken .*{missing}"):
-        zarr_positions._the_corner_of([plane], (10, 20), (1.0, 1.0), z_origin_um=0.0)
+        zarr_positions.the_first_voxel_centre_of([plane], (10, 20), (1.0, 1.0), z_origin_um=0.0)
 
 
 def test_a_plane_at_the_stage_zero_is_still_at_zero():
-    corner = zarr_positions._the_corner_of(
+    first = zarr_positions.the_first_voxel_centre_of(
         [{"x_um": 0.0, "y_um": 0.0}], (10, 20), (1.0, 1.0), z_origin_um=5.0)
-    assert corner == (5.0, -5.0, -10.0)
+    # Ten rows and twenty columns of 1 um about the stage zero: the first
+    # voxel's centre is 4.5 um up and 9.5 um left of it.
+    assert first == (5.0, -4.5, -9.5)

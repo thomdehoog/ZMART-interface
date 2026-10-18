@@ -16,6 +16,7 @@ import json
 import threading
 
 from ..analysis import detection, warm
+from ..storage.output import free_name
 from . import ledgers, plots, readings, state
 
 
@@ -166,5 +167,5 @@ def keep_targets(cells: list, record: dict) -> None:
     """
     where = state.the_run() / record["acquisition_type"] / "analysis"
     where.mkdir(parents=True, exist_ok=True)
-    name = f"{record['file_stem']}_T000000_targets.json"
-    (where / name).write_text(json.dumps(cells, indent=2), encoding="utf-8")
+    kept = free_name(where, f"{record['acquisition_type']}_{record['position_label']}", "_T000000_targets.json")
+    kept.write_text(json.dumps(cells, indent=2), encoding="utf-8")

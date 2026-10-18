@@ -11,9 +11,9 @@ Five axes, always in this order: time, channel, depth, and the two directions
 across the specimen (``t, c, z, y, x``). A full-size level and a few smaller
 copies of it, each half as wide and half as tall as the one before, made by
 keeping every second voxel rather than averaging, and each saying how large its
-voxels are and where the image's corner sits on the stage. Every piece of the
-image is one plane of one channel at one moment, so showing a plane never means
-fetching its neighbours. Nothing is written into the image here: declaring it
+voxels are and where the centre of its first voxel sits on the stage. Every
+piece of the image is one plane of one channel at one moment, so showing a
+plane never means fetching its neighbours. Nothing is written into the image here: declaring it
 costs a few hundred bytes of description and no picture at all.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
@@ -159,11 +159,15 @@ def declare_image(
     chunk: int,
     levels: int,
     voxel_size_um: tuple[float, float, float],
-    origin_um: tuple[float, float, float],
+    first_voxel_um: tuple[float, float, float],
     channel_blocks: list[dict],
     ome_zarr_version: str = "0.4",
 ) -> list[zarr.Array]:
     """Write one empty OME-Zarr image and hand back its levels.
+
+    ``first_voxel_um`` is where the centre of the full-size image's first
+    voxel sits on the stage, as ``(z, y, x)`` in microns; each smaller copy
+    is placed by the centre of its own first voxel from it.
 
     Every run gets a time axis, whether or not it is a timelapse. That was not
     always so. The viewer used to pick which axes to put on screen from the first
@@ -216,7 +220,7 @@ def declare_image(
         chunk=chunk,
         levels=levels,
         voxel_size_um=voxel_size_um,
-        origin_um=origin_um,
+        first_voxel_um=first_voxel_um,
         newer=newer,
     )
 
@@ -271,7 +275,7 @@ def _make_the_copies(
     chunk: int,
     levels: int,
     voxel_size_um: tuple[float, float, float],
-    origin_um: tuple[float, float, float],
+    first_voxel_um: tuple[float, float, float],
     newer: bool,
 ) -> tuple[list[zarr.Array], list[dict]]:
     """Make the full-size image and each progressively smaller copy of it.
@@ -294,8 +298,9 @@ def _make_the_copies(
         chunk: how large one piece of image is, in y and x.
         levels: how many copies to make, counting the full-size one.
         voxel_size_um: how large one voxel is, as ``(z, y, x)`` in microns.
-        origin_um: where the low corner of the image sits on the stage, as
-            ``(z, y, x)`` in microns. Every copy is given the same corner.
+        first_voxel_um: where the centre of the full-size copy's first voxel
+            sits on the stage, as ``(z, y, x)`` in microns. Each smaller copy
+            is placed by the centre of its own first voxel.
         newer: ``True`` when writing OME-Zarr 0.5, which files the pieces of an
             image its own way, ``False`` for 0.4.
     Returns:
@@ -363,18 +368,13 @@ def _make_the_copies(
             # every acquisition of a run stacked on top of the others. That is
             # what used to happen to our images in the wider Python ecosystem.
             #
-            # The number is the **corner** of the first voxel, not its middle, and
-            # every smaller copy is given the same one. That is a choice rather
-            # than a rule: OME-Zarr does not say which is meant, and the question
-            # has been open with the format's authors since 2022. Under the corner
-            # reading the copies nest perfectly -- every level begins at exactly
-            # this point, and a coarse voxel covers precisely the fine ones it was
-            # built from. Under the other reading they would not, so a level would
-            # have to be shifted by half of its own voxel to mean the same thing.
-            #
-            # Readers disagree about this second question, and some will place the
-            # picture half a voxel off. That is theirs to correct, not ours: a file
-            # that shifts itself to suit one reader is wrong for every other.
+            # The number is the **centre** of the copy's first voxel, as the
+            # format says (OME-NGFF RFC-5: the centre of a voxel is the origin of
+            # the coordinates). A coarse voxel covers the 2 x 2 fine ones in its
+            # place, so its centre is the middle of theirs: each copy
+            # begins half of its own voxel less half a full-size voxel further
+            # along y and x, and every copy covers the same ground. Depth is not
+            # shrunk, so it stays where the full-size copy has it.
             "coordinateTransformations": [
                 {
                     "type": "scale",
@@ -386,8 +386,11 @@ def _make_the_copies(
                 },
                 {
                     "type": "translation",
-                    "translation": [0.0, 0.0,
-                                    origin_um[0], origin_um[1], origin_um[2]],
+                    "translation": [
+                        0.0, 0.0, first_voxel_um[0],
+                        first_voxel_um[1] + 0.5 * (factor - 1) * voxel_size_um[1],
+                        first_voxel_um[2] + 0.5 * (factor - 1) * voxel_size_um[2],
+                    ],
                 },
             ],
         })

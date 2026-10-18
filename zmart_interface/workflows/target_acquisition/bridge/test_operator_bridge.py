@@ -68,10 +68,9 @@ class _Enveloped:
 
 
 def _kept(acquisition_type: str, *, position_label: str) -> dict:
-    """A stub capture as the bridge keeps it: its files named by the stem the
-    bridge hands the driver, and filed under the interface's own acquisition
-    type, which no driver reports."""
-    record = _plugged(_Driver()).acquire(position_label=position_label, folder=acquisition_type)
+    """A stub capture as the bridge keeps it: saved in the run's folder for its
+    acquisition type, and filed under that type."""
+    record = _plugged(_Driver()).acquire(position_label=position_label, acquisition_type=acquisition_type)
     record["acquisition_type"] = acquisition_type
     return record
 
@@ -112,7 +111,7 @@ class _Driver:
         self.at = {"x": 0.0, "y": 0.0, "z": 0.0}
         self.drove_to: list[tuple] = []
         self.ran: list[dict] = []
-        self.captured: list[str] = []
+        self.captured: list[tuple[str, str]] = []
         self.applied: list[dict] = []
         self.height_key = height_key
         self.staging = Path(tempfile.mkdtemp(prefix="zmart-driver-"))
@@ -133,17 +132,19 @@ class _Driver:
         """How a capture is triggered, and nothing else, as the controller's contract asks."""
         return {"trigger": {"options": ["full"], "default": "full", "active": "full"}}
 
-    def acquire(self, *, position_label, acquisition_settings=None) -> dict:
+    def acquire(self, *, position_label, acquisition_settings, acquisition_type, output_folder) -> dict:
         """A focussing capture: a stack around wherever the stage is standing.
 
-        ``position_label`` is the stem the bridge names the files by, as every
-        driver is given it; it is recorded as it came.
+        Saved in ``output_folder``, or a folder of its own when it is None,
+        each file named by the acquisition type and the label as the
+        controller's contract asks; the type and the label are recorded as
+        they came.
         """
-        self.captured.append(position_label)
-        where = self.staging
+        self.captured.append((acquisition_type, position_label))
+        where = Path(output_folder) if output_folder is not None else self.staging
         planes = []
         for index in range(5):
-            path = where / f"{position_label}_Z{index:05d}.tiff"
+            path = where / f"{acquisition_type}_{position_label}_Z{index:05d}.tiff"
             path.write_bytes(b"a plane")
             planes.append({
                 "t": 0, "c": 0, "z": index, "path": str(path),
@@ -151,6 +152,7 @@ class _Driver:
             })
         return {
             "position_label": position_label,
+            "acquisition_type": acquisition_type,
             "files": [plane["path"] for plane in planes],
             "planes": planes,
             "found_at": self.at["z"] if self.height_key else None,
@@ -267,7 +269,7 @@ def _measured(asked):
             "x": point["x"], "y": point["y"],
             **({"z": start} if isinstance(start, (int, float)) else {}),
         })
-        record = readings.capture({"folder": "focussing", "position_label": begun["labels"][index]})["content"]
+        record = readings.capture({"acquisition_type": "focussing", "position_label": begun["labels"][index]})["content"]
         focus.score_focus({"record": record, "centre": at["z"]["position"], "point": point})
     focus.end_focus({})
     assert ledgers.focus["error"] is None, ledgers.focus["error"]
@@ -303,7 +305,7 @@ def test_a_focus_map_runs_no_vendor_procedure(driver):
     """
     _measured({"points": [{"x": 1, "y": 2}, {"x": 3, "y": 4}]})
     assert driver.ran == []
-    assert [stem.split("_")[0] for stem in driver.captured] == ["focussing"] * 2
+    assert [kind for kind, _ in driver.captured] == ["focussing"] * 2
 
 
 def test_a_measured_point_carries_the_curve_it_was_chosen_from(driver):
@@ -499,12 +501,13 @@ class _Capturing(_Driver):
         self.asked = []
         self.staging = Path(tempfile.mkdtemp(prefix="zmart-capture-"))
 
-    def acquire(self, *, position_label, acquisition_settings=None):
-        self.asked.append((position_label, acquisition_settings))
-        path = self.staging / f"{position_label}.tiff"
+    def acquire(self, *, position_label, acquisition_settings, acquisition_type, output_folder):
+        self.asked.append((position_label, acquisition_settings, acquisition_type, output_folder))
+        path = Path(output_folder or self.staging) / f"{acquisition_type}_{position_label}.tiff"
         path.write_bytes(b"a plane")
         return {
             "position_label": position_label,
+            "acquisition_type": acquisition_type,
             "files": [str(path)],
             "planes": [{"t": 0, "z": 0, "c": 0, "path": str(path),
                         "x_um": 0.0, "y_um": 0.0, "z_um": 0.0}],
@@ -520,16 +523,16 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
     and all, so the page reads what a Python script would.
     """
     driver = _Capturing()
-    monkeypatch.setattr(state, "session", _plugged(driver))
+    session = _plugged(driver)
+    monkeypatch.setattr(state, "session", session)
     answer = readings.capture({
-        "folder": "overview",
+        "acquisition_type": "overview",
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
-    stem = f"overview_{RUN_HASH}_K00_M000001_G000000_P000007_V00"
-    path = str(driver.staging / f"{stem}.tiff")
+    path = str(session.run / "overview" / "data" / "overview_K00_M000001_G000000_P000007_V00.tiff")
     assert answer == {"success": True, "content": {
         "position_label": "K00_M000001_G000000_P000007_V00",
-        "file_stem": stem,
+        "acquisition_type": "overview",
         "files": [path],
         "planes": [{"t": 0, "z": 0, "c": 0, "path": path,
                     "x_um": 0.0, "y_um": 0.0, "z_um": 0.0}],
@@ -551,7 +554,7 @@ def test_a_capture_the_microscope_declined_is_answered_not_raised(monkeypatch):
             return declined
 
     monkeypatch.setattr(state, "session", Instrument(_Declining()))
-    assert readings.capture({"folder": "overview", "position_label": "A1"}) == declined
+    assert readings.capture({"acquisition_type": "overview", "position_label": "A1"}) == declined
 
 
 def test_the_settings_a_capture_is_given_reach_the_driver(monkeypatch):
@@ -561,14 +564,16 @@ def test_the_settings_a_capture_is_given_reach_the_driver(monkeypatch):
     here invents a default.
     """
     driver = _Capturing()
-    monkeypatch.setattr(state, "session", _plugged(driver))
+    session = _plugged(driver)
+    monkeypatch.setattr(state, "session", session)
     readings.capture({
-        "folder": "targets",
+        "acquisition_type": "targets",
         "position_label": "K00_M000002_G000001_P000003_V00",
         "acquisition_settings": {"trigger": "full"},
     })
     assert driver.asked[-1] == (
-        f"targets_{RUN_HASH}_K00_M000002_G000001_P000003_V00", {"trigger": "full"},
+        "K00_M000002_G000001_P000003_V00", {"trigger": "full"},
+        "targets", str(session.run / "targets" / "data"),
     )
 
 
@@ -595,9 +600,9 @@ def test_a_scan_labels_every_position_the_canonical_way(monkeypatch):
     """
     driver = _Capturing()
     scanned = _scanned(driver, [{"x": 0, "y": 0}, {"x": 10, "y": 0}], monkeypatch)
-    assert [stem for stem, _ in driver.asked] == [
-        f"overview_{RUN_HASH}_K00_M000000_G000000_P000000_V00",
-        f"overview_{RUN_HASH}_K00_M000000_G000000_P000001_V00",
+    assert [(label, kind) for label, _, kind, _ in driver.asked] == [
+        ("K00_M000000_G000000_P000000_V00", "overview"),
+        ("K00_M000000_G000000_P000001_V00", "overview"),
     ]
     assert scanned["done"] == 2
 
@@ -622,7 +627,7 @@ def test_a_position_says_where_on_the_plate_it_is(monkeypatch):
     """The page knows which well and which tileset; the label carries it."""
     driver = _Capturing()
     _scanned(driver, [{"x": 0, "y": 0, "compartment": 3, "group": 2}], monkeypatch)
-    assert driver.asked[-1][0] == f"overview_{RUN_HASH}_K00_M000003_G000002_P000000_V00"
+    assert driver.asked[-1][0] == "K00_M000003_G000002_P000000_V00"
 
 
 def test_a_scan_keeps_the_record_of_every_capture(monkeypatch):
@@ -655,13 +660,13 @@ def _targets_taken(positions, *, append=False, focus=None):
         found = None
         if focus:
             stack = readings.capture({
-                "folder": "target-focussing", "position_label": begun["labels"][index],
+                "acquisition_type": "target-focussing", "position_label": begun["labels"][index],
             })["content"]
             found = targets.score_target_focus({"record": stack, "centre": at["z"]["position"],
                                                 "x": position["x"], "y": position["y"]})
             if found["z"] is not None:
                 at = stage.drive_to({"x": position["x"], "y": position["y"], "z": found["z"]})
-        record = readings.capture({"folder": "targets", "position_label": begun["labels"][index]})["content"]
+        record = readings.capture({"acquisition_type": "targets", "position_label": begun["labels"][index]})["content"]
         targets.target_landed({
             "record": record,
             "position": {"x": position["x"], "y": position["y"], "z": at["z"]["position"]},
@@ -687,7 +692,7 @@ def test_the_targets_are_taken_one_by_one_as_the_page_drives_them(driver, monkey
     labels = [record["position_label"] for record in state.records["targets"]]
     assert labels == ["K00_M000000_G000000_P000000_V00", "K00_M000000_G000000_P000001_V00"]
     assert kept == [(labels[0], "targets"), (labels[1], "targets")]
-    assert driver.captured == [f"targets_{RUN_HASH}_{labels[0]}", f"targets_{RUN_HASH}_{labels[1]}"]
+    assert driver.captured == [("targets", labels[0]), ("targets", labels[1])]
     assert driver.drove_to == [(10.0, 20.0, 5.0), (30.0, 40.0, 6.0)]
     first = state.records["targets"][0]
     assert first["requested_position_um"] == {"x": 10.0, "y": 20.0, "z": 5.0}
@@ -725,8 +730,8 @@ def test_a_target_is_focussed_first_when_the_page_asks(driver, monkeypatch):
     driver.at["z"] = 12.0
     _targets_taken([{"x": 10, "y": 20, "z": 12, "position_index": 0}], focus=True)
     assert driver.captured == [
-        f"target-focussing_{RUN_HASH}_K00_M000000_G000000_P000000_V00",
-        f"targets_{RUN_HASH}_K00_M000000_G000000_P000000_V00",
+        ("target-focussing", "K00_M000000_G000000_P000000_V00"),
+        ("targets", "K00_M000000_G000000_P000000_V00"),
     ]
     assert "target-focussing" in kept and kept[-1] == "targets"
     record = state.records["targets"][0]
@@ -754,12 +759,12 @@ def test_a_scan_cannot_start_while_targets_are_being_taken(driver):
 
 
 def test_a_scan_captures_under_the_kind_of_scan_it_is(monkeypatch):
-    """The kind of scan is the interface's own: the start of every file name
-    the driver is given, and filed on the record from what was asked, not from
+    """The kind of scan is the interface's own: the acquisition type the
+    driver is given, and filed on the record from what was asked, not from
     the answer."""
     driver = _Capturing()
     scanned = _scanned(driver, [{"x": 0, "y": 0}], monkeypatch, acquisition_type="targets")
-    assert driver.asked[-1] == (f"targets_{RUN_HASH}_K00_M000000_G000000_P000000_V00", None)
+    assert driver.asked[-1][:3] == ("K00_M000000_G000000_P000000_V00", None, "targets")
     assert scanned["records"][-1]["acquisition_type"] == "targets"
 
 
@@ -1107,8 +1112,8 @@ def test_what_was_found_is_kept_beside_the_overview(monkeypatch):
     _discovered({"settings": {}})
     kept = sorted((state.run / "overview" / "analysis").glob("*_targets.json"))
     assert [path.name for path in kept] == [
-        "overview_aaaaaa_P0_T000000_targets.json",
-        "overview_aaaaaa_P1_T000000_targets.json",
+        "overview_P0_T000000_targets.json",
+        "overview_P1_T000000_targets.json",
     ]
     assert json.loads(kept[1].read_text(encoding="utf-8"))[0]["id"] == "P1_obj1"
 
@@ -1492,7 +1497,7 @@ def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(mon
             store, canvas_shape=(1, 32, 32), frames=1, channels=1,
             dtype="uint16", chunk=16, levels=2, voxel_size_um=(1, 1, 1),
             channel_blocks=[{"label": "signal", "color": "FFFFFF"}],
-            origin_um=(0, 0, index * 64), ome_zarr_version="0.5",
+            first_voxel_um=(0, 0.5, index * 64 + 0.5), ome_zarr_version="0.5",
         )
         for array in arrays:
             array[:] = (index + 1) * 100
@@ -1505,7 +1510,7 @@ def test_shorter_rerun_preserves_the_live_aggregate_and_republishes_coverage(mon
 
     def publish(held):
         view.publish(positions, dict.fromkeys(held, 1), canvas, bake=bake, composition={
-            "regions": "complete", "order": held, "xy_origin": "corner",
+            "regions": "complete", "order": held,
             "pyramid_reduction": "mean-xy2-crop-f32-rint-int",
         })
 

@@ -280,16 +280,15 @@ export const backend: Backend = {
    * depth and stage position each picture is. The one place a client learns
    * the paths of the files a run made.
    *
-   * `folder` is the page's own name for the acquisition this capture belongs
-   * to (overview, focussing, targets, ...), not part of the controller's
-   * contract. The bridge starts every file name with it, then the run's hash
-   * and the label (`{folder}_{hash}_{position_label}`), and files the record
-   * under the page's own label, with that stem as `file_stem`.
+   * `acquisition_type` is the page's own name for the acquisition this
+   * capture belongs to (overview, focussing, targets, ...). The bridge hands
+   * it to the driver, which puts it in its file names, and gives the driver
+   * the run's folder for that acquisition to save in.
    */
-  async acquire({ position_label, acquisition_settings = null, folder = null }: {
-    position_label: string; acquisition_settings?: Record<string, unknown> | null; folder?: string | null;
+  async acquire({ position_label, acquisition_settings = null, acquisition_type = null }: {
+    position_label: string; acquisition_settings?: Record<string, unknown> | null; acquisition_type?: string | null;
   }) {
-    return ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, { position_label, acquisition_settings, folder });
+    return ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, { position_label, acquisition_settings, acquisition_type });
   },
 
   /**
@@ -348,7 +347,7 @@ export const backend: Backend = {
           });
           say("capturing");
           const record = capturedBy(await ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, {
-            folder: "focussing", position_label: labels[index],
+            acquisition_type: "focussing", position_label: labels[index],
           }));
           say("scoring");
           landed = await ask<FocusPoint>(`${OURS}/focus/score`, { record, centre: at.z.position, point });
@@ -544,7 +543,7 @@ export const backend: Backend = {
           });
           standing = stood.z.position;
           const stack = capturedBy(await ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, {
-            folder: "target-focussing", position_label: labels[index], acquisition_settings: null,
+            acquisition_type: "target-focussing", position_label: labels[index], acquisition_settings: null,
           }));
           const scored = await ask<{ traces?: Traces | null }>(`${OURS}/targets/acquire/focus`, {
             record: stack, centre: standing, x: focusXY.x, y: focusXY.y,
@@ -564,7 +563,7 @@ export const backend: Backend = {
         const stood = focus && found && !found.found && !focusMoves && !zOffsetUm
           ? { z: { position: standing as number } } : await ask<XyzReading>(`${OURS}/xyz`, at);
         const record = capturedBy(await ask<ControllerAnswer<CaptureRecord>>(`${OURS}/acquire`, {
-          folder: "targets", position_label: labels[index], acquisition_settings: null,
+          acquisition_type: "targets", position_label: labels[index], acquisition_settings: null,
         }));
         const landed = await ask<CaptureRecord>(`${OURS}/targets/acquire/landed`, {
           record, position: { x, y, z: stood.z.position }, focus: found,

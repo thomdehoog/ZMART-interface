@@ -60,7 +60,7 @@ describe("the live target run", () => {
     ]);
     expect(calls[0][1]).toEqual({ positions, append: false });
     expect(calls[2][1]).toEqual({ x: 10, y: 20, z: 5 });
-    expect(calls[3][1]).toEqual({ folder: "targets", position_label: "L0", acquisition_settings: null });
+    expect(calls[3][1]).toEqual({ acquisition_type: "targets", position_label: "L0", acquisition_settings: null });
     expect(calls[4][1].position).toEqual({ x: 10, y: 20, z: 5 });
     expect(calls[4][1].focus).toBeNull();
     expect(seen).toEqual([[1, 2, 5, 1], [2, 2, 6, 2]]);
@@ -84,7 +84,7 @@ describe("the live target run", () => {
       "/api/target_acquisition/targets/acquire/end",
     ]);
     expect(calls[1][1]).toEqual({ job: "Focussing" });
-    expect(calls[3][1]).toEqual({ folder: "target-focussing", position_label: "L0", acquisition_settings: null });
+    expect(calls[3][1]).toEqual({ acquisition_type: "target-focussing", position_label: "L0", acquisition_settings: null });
     expect(calls[4][1]).toMatchObject({ centre: 5, x: 10, y: 20 });
     /* The target job first, then the drive to the peak the page chose from
        the curve by the map's own rule: a job switch may move the optics,

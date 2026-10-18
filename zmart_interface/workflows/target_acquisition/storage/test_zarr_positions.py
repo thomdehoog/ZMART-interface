@@ -2,9 +2,9 @@
 
 Both shapes the vendor writes are covered — one file per plane, and one file
 holding a whole capture — and what is asserted is the contract the viewer and
-the analysis stand on: OME-Zarr 0.5, axes t/c/z/y/x, the stage corner in the
-translation, z in specimen space whichever way a stack was swept, and the
-pixels round-tripping exactly.
+the analysis stand on: OME-Zarr 0.5, axes t/c/z/y/x, every level placed by the
+centre of its first voxel, z in specimen space whichever way a stack was swept,
+and the pixels round-tripping exactly.
 """
 
 from __future__ import annotations
@@ -106,17 +106,39 @@ class TestTheStore:
         original = tifffile.imread(record["planes"][1]["path"])
         assert np.array_equal(written, original)
 
-    def test_the_corner_is_the_stage_point_less_half_a_frame(self, tmp_path):
+    def test_every_level_is_placed_by_the_centre_of_its_first_voxel(self, tmp_path):
+        # OME-NGFF RFC-5: the centre of a voxel is the origin of the coordinates.
         record = one_file_per_plane(tmp_path, size=256)  # 2.5 um/px -> 640 um frame
         store = position_store_from_record(record, tmp_path / "positions")
         description = json.loads((store / "zarr.json").read_text())
-        finest = description["attributes"]["ome"]["multiscales"][0]["datasets"][0]
-        kinds = {t["type"]: t for t in finest["coordinateTransformations"]}
-        # (t, c, z, y, x): the centre was (x 1000, y 2000), the frame is 640 um.
-        assert kinds["translation"]["translation"][3] == pytest.approx(2000.0 - 320.0)
-        assert kinds["translation"]["translation"][4] == pytest.approx(1000.0 - 320.0)
-        assert kinds["scale"]["scale"][3] == pytest.approx(2.5)
-        assert kinds["scale"]["scale"][4] == pytest.approx(2.5)
+        datasets = description["attributes"]["ome"]["multiscales"][0]["datasets"]
+        assert len(datasets) == 2
+        for level, dataset in enumerate(datasets):
+            kinds = {t["type"]: t for t in dataset["coordinateTransformations"]}
+            pixel = 2.5 * 2**level
+            assert kinds["scale"]["scale"][3:] == pytest.approx([pixel, pixel])
+            # (t, c, z, y, x): the stage point (x 1000, y 2000) is the middle of
+            # the frame, 255 fine pixels from the first one's centre to the last
+            # one's; a coarse voxel's centre is the middle of the fine ones it
+            # was averaged from. Depth is the lowest plane at every level.
+            first = {"y": 2000.0 - 255 / 2 * 2.5, "x": 1000.0 - 255 / 2 * 2.5}
+            assert kinds["translation"]["translation"][2:] == pytest.approx([
+                -410.0,
+                first["y"] + 0.5 * (2**level - 1) * 2.5,
+                first["x"] + 0.5 * (2**level - 1) * 2.5,
+            ])
+            # The stage point is the middle of the picture at every level.
+            across = 256 // 2**level
+            assert kinds["translation"]["translation"][4] + (across - 1) / 2 * pixel == pytest.approx(1000.0)
+
+    def test_a_reader_of_the_format_places_the_first_voxel_where_it_was_written(self, tmp_path):
+        ngff_zarr = pytest.importorskip("ngff_zarr")
+        store = position_store_from_record(one_file_per_plane(tmp_path, size=256), tmp_path / "positions")
+        multiscales = ngff_zarr.from_ngff_zarr(str(store))
+        for level, image in enumerate(multiscales.images):
+            offset = 0.5 * (2**level - 1) * 2.5
+            assert image.translation["y"] == pytest.approx(2000.0 - 255 / 2 * 2.5 + offset)
+            assert image.translation["x"] == pytest.approx(1000.0 - 255 / 2 * 2.5 + offset)
 
     def test_a_flat_capture_retains_its_specimen_height(self, tmp_path):
         # Display placement belongs to the aggregate, never the original store.
@@ -359,9 +381,9 @@ class TestAStoreIsPublishedWhole:
             "coordinateTransformations"
         ]
         assert any(
-            abs(one.get("translation", [0] * 5)[-1] - (4321.0 - 64 * 2.5 / 2)) < 1e-6
+            abs(one.get("translation", [0] * 5)[-1] - (4321.0 - 63 / 2 * 2.5)) < 1e-6
             for one in translation
-        ), "the replaced store carries the new capture's corner"
+        ), "the replaced store carries the new capture's place"
         assert sorted(child.name for child in positions.iterdir()) == [second.name]
         assert not (tmp_path / "positions" / ".writing").exists()
 
@@ -444,7 +466,7 @@ def test_target_frames_compose_and_raise_without_rewriting_originals(tmp_path, b
     try:
         for order in (names, names[::-1]):
             view.publish(into, dict.fromkeys(names, 1), canvas, bake=bake,
-                         composition={"regions": "complete", "order": order, "xy_origin": "corner",
+                         composition={"regions": "complete", "order": order,
                                       "pyramid_reduction": "mean-xy2-crop-f32-rint-int"})
             made = view.outputs[STORE].composer()
             fine = np.zeros((512, 1024), dtype="uint16")

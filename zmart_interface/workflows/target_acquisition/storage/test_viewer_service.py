@@ -49,7 +49,8 @@ def test_invalid_overview_does_not_hide_committed_targets(monkeypatch, tmp_path,
         arrays = declare_image(
             store, canvas_shape=(1, 16, 16), frames=1, channels=1,
             dtype="uint16", chunk=16, levels=2,
-            voxel_size_um=(1, pixel, pixel), origin_um=(0, 0, 32 if kind == "targets" else 0),
+            voxel_size_um=(1, pixel, pixel),
+            first_voxel_um=(0, pixel / 2, (32 if kind == "targets" else 0) + pixel / 2),
             channel_blocks=[{"label": "signal", "color": "FFFFFF",
                              "window": {"start": 0, "end": 255, "min": 0, "max": 65535}}],
             ome_zarr_version="0.5",
@@ -173,13 +174,14 @@ def test_the_installed_viewer_is_a_version_this_interface_accepts():
     assert Path(found["path"]).name == "__init__.py"
 
 
-@pytest.mark.parametrize("installed_version", ["0.5.0rc4", "0.5.0", "0.5.3"])
+@pytest.mark.parametrize("installed_version", ["0.5.0rc6", "0.5.0", "0.5.3"])
 def test_the_tested_viewer_line_is_accepted(installed_version):
     service._accept_the_version(installed_version)
 
 
 @pytest.mark.parametrize(
-    "installed_version", ["0.4.0", "0.5.0.dev0", "0.5.0rc1", "0.5.0rc2", "0.5.0rc3", "0.6.0", "1.0.0"]
+    "installed_version",
+    ["0.4.0", "0.5.0.dev0", "0.5.0rc1", "0.5.0rc3", "0.5.0rc4", "0.5.0rc5", "0.6.0", "1.0.0"],
 )
 def test_a_viewer_outside_the_tested_line_is_refused(installed_version):
     with pytest.raises(RuntimeError, match=f"the ZMART viewer {installed_version} is installed"):
@@ -429,6 +431,9 @@ def test_a_growing_folder_is_opened_once_and_then_only_announced(monkeypatch, tm
 
     assert [route for route, _ in calls] == ["/api/stores/open", "/api/announce"]
     assert calls[0][1]["composition"]["regions"] == "complete"
+    # Every store is placed by the centre of its first voxel, which is what
+    # the viewer reads a translation as: the request names no other reading.
+    assert "xy_origin" not in calls[0][1]["composition"]
     assert len(calls[1][1]["publications"][0]["source_revisions"]) == 2
     assert not any(route == "/api/stores/close" for route, _ in calls)
 
@@ -898,7 +903,7 @@ def test_real_viewer_publishes_100_positions_without_holding_up_notifications(
                 chunk=16,
                 levels=2,
                 voxel_size_um=(1, 1, 1),
-                origin_um=(0, (i // 10) * 16, (i % 10) * 16),
+                first_voxel_um=(0, (i // 10) * 16 + 0.5, (i % 10) * 16 + 0.5),
                 channel_blocks=[
                     {
                         "label": "signal",
