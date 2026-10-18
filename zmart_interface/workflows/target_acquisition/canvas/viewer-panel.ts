@@ -1,13 +1,14 @@
 /**
- * The viewer's own controls, ported from the ZMART viewer's sidebar.
+ * The picture's display settings: this page's own controls for what the
+ * engine draws.
  *
- * The structure, the dress and the behaviour follow the viewer's
- * `app/page/src/LayerPanel.jsx` (its `data` and `channel settings` cards) as
- * closely as a vanilla port can: the 264px bar with its 14px fold strip, the
- * card-on-panel grounds, the eye glyph, the swatch that opens a palette, the
- * 60px histogram with dimmed out-of-window bars and two accent edge lines the
- * hand can drag, the min/max sliders with typed value boxes, and opacity per
- * channel. Where this file and that one disagree, that one is right.
+ * They are dressed like the ZMART viewer's own panel, so an operator meets one
+ * look in both: the 264px bar with its 14px fold strip, the card-on-panel
+ * grounds, the eye glyph, the swatch that opens a palette, the 60px histogram
+ * with dimmed out-of-window bars and two accent edge lines the hand can drag,
+ * the min/max sliders with typed value boxes, and opacity per channel. The
+ * likeness is a choice, not a tie: this page decides its controls, and tells
+ * the engine the values -- colour, window, opacity -- it should draw with.
  *
  * The rows are enumerated exactly the way the engine enumerates its own —
  * one per channel, acquisitions in order — so the flat index handed to
@@ -187,7 +188,9 @@ const INK = {
   ghost: "rgba(0, 0, 0, 0.05)", sliderTrack: "#c2c9d2",
 };
 
-/* The viewer's palette, verbatim (`LayerPanel.jsx` PALETTE + css()). */
+/* The colours a channel can be given here: the same few the ZMART viewer
+   offers, green and magenta first because they read best on dark ground and
+   stay legible to a colour-blind eye. This page's choice, kept here. */
 const PALETTE = [
   { name: "green", rgb: [0.0, 1.0, 0.4] },
   { name: "magenta", rgb: [1.0, 0.2, 1.0] },
@@ -466,7 +469,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, style?: string | null
 const HEADING = `font:${font(600, 11)};letter-spacing:.08em;text-transform:uppercase;color:${INK.textFaint};padding:0 12px 5px;`;
 const CARD = `border-top:1px solid ${INK.panelBorder};border-bottom:1px solid ${INK.panelBorder};padding:8px 0 12px;margin-bottom:12px;background:${INK.cardBg};flex-shrink:0;`;
 
-/** The viewer's eye, verbatim proportions. */
+/** The eye glyph: shown or hidden, drawn as the viewer draws it. */
 function anEye(open: boolean): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 16 16");

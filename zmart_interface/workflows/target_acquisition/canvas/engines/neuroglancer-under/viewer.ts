@@ -304,7 +304,7 @@ const FLAT_LAYOUT = "xy";
  * so this is a change of layout and a mode on each layer rather than anything
  * being loaded again — which is why the switch is instant and why it costs
  * nothing to offer. The same two names are what the standalone viewer switches
- * between; see `viz_studio/frontend/src/App.jsx` (in ZMART-microscopy).
+ * between; see `gui/source/App.tsx` in ZMART-viewer.
  */
 const VOLUME_LAYOUT = "3d";
 
