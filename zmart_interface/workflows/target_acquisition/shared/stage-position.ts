@@ -49,6 +49,17 @@ export interface StageAt {
 /** A stage reading as `get_xyz` answers it: each axis's position, in micrometres. */
 export type StageReading = { x?: { position: number }; y?: { position: number }; z?: { position: number } } | null;
 
+/**
+ * Where a reading says the stage stands, or null when it is not a whole
+ * reading. The controller's contract has every axis, z included; a reading
+ * missing one is incomplete, and is no position -- a height of 0 put in its
+ * place would be one the instrument never said.
+ */
+export function stageAt(reading: StageReading): StageAt | null {
+  if (!reading?.x || !reading.y || !reading.z) return null;
+  return { x: Number(reading.x.position), y: Number(reading.y.position), z: Number(reading.z.position) };
+}
+
 /** The one verb the watch asks of a backend. */
 interface ReadsTheStage {
   get_xyz(): Promise<StageReading>;
@@ -86,9 +97,8 @@ export function watchStagePosition(backend: ReadsTheStage, onPosition: (at: Stag
     });
     return Promise.race([backend.get_xyz(), tooLong])
       .then((xyz) => {
-        if (stopped || !xyz?.x || !xyz?.y) return null;
-        const at = { x: Number(xyz.x.position), y: Number(xyz.y.position), z: Number(xyz.z?.position ?? 0) };
-        onPosition(at);
+        const at = stopped ? null : stageAt(xyz);
+        if (at) onPosition(at);
         return at;
       })
       .catch((why) => {

@@ -22,7 +22,7 @@ import type { canvasPanel } from "./canvas/panel.ts";
 import type { Axes } from "./canvas/axes.ts";
 import type { View } from "./canvas/engines/opening-view.ts";
 import type { theCanvasOf } from "./microscope/canvas.ts";
-import type { StageAt } from "./shared/stage-position.ts";
+import { stageAt, type StageAt } from "./shared/stage-position.ts";
 import type { TaPage, ThePicture } from "./types.ts";
 
 /** The canvas panel as this workflow built it: the framework's panel, and its own parts. */
@@ -233,10 +233,7 @@ export function installTheCanvas(page: TaPage): CanvasOnThePage {
         const at = await page.backend.set_xyz({ x, y });
         /* The last refusal, if it is still showing, is no longer true. */
         if (document.getElementById("status-bar")?.textContent?.startsWith(REFUSED)) status.quiet();
-        return {
-          x: Number(at.x.position), y: Number(at.y.position),
-          z: Number(at.z?.position ?? 0),
-        };
+        return stageAt(at);
       } catch (why) {
         status.say(`${REFUSED}${(why as Error).message}`);
         return null;

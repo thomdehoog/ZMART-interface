@@ -4,7 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EVERY_MS, PATIENCE_MS, watchStagePosition, type StageAt, type StageReading }
+import { EVERY_MS, PATIENCE_MS, stageAt, watchStagePosition, type StageAt, type StageReading }
   from "./stage-position.ts";
 
 /* One get_xyz answer, in the controller's shape: each axis says its position. */
@@ -113,5 +113,20 @@ describe("watchStagePosition", () => {
     await vi.advanceTimersByTimeAsync(EVERY_MS);
     expect(seen).toEqual([{ x: 4, y: 4, z: 0 }]);
     watch.stop();
+  });
+});
+
+describe("stageAt", () => {
+  it("reads the three axes the controller reports", () => {
+    expect(stageAt(xyz(4800, 3200, -412))).toEqual({ x: 4800, y: 3200, z: -412 });
+  });
+
+  /* The controller's contract has every axis, z included. A reading without
+     one is incomplete, and is no position: a height of 0 put in its place
+     is one the instrument never said. */
+  it("takes a reading without an axis as no position, never as a height of 0", () => {
+    expect(stageAt({ x: { position: 4800 }, y: { position: 3200 } })).toBeNull();
+    expect(stageAt({ x: { position: 4800 }, z: { position: 5 } })).toBeNull();
+    expect(stageAt(null)).toBeNull();
   });
 });
