@@ -15,6 +15,8 @@ from pathlib import Path
 import zmart_viewer
 
 CHECKOUT = Path(__file__).resolve().parents[4]
+#: The viewer's declarations of its drawing code, as committed here for the type checker.
+DECLARATIONS = Path(__file__).resolve().parent / "engines" / "zmart-viewer-drawing"
 #: The neuroglancer engine, written in JavaScript or, once converted, TypeScript.
 ENGINE = next(
     path for path in (CHECKOUT / "zmart_interface/workflows/target_acquisition/canvas/engines/neuroglancer-under").glob("viewer.*")
@@ -58,3 +60,29 @@ def test_the_installed_viewer_is_the_pinned_one():
     assert zmart_viewer.__version__ == pinned[1], (
         f"the installed viewer is {zmart_viewer.__version__}, the pinned one {pinned[1]}"
     )
+
+
+def test_the_committed_declarations_are_the_installed_viewers():
+    """The checker reads the viewer's drawing code by a copy of the declarations it writes.
+
+    The type checker runs where no viewer is installed, so the interface keeps
+    the viewer's declarations (``drawing/declarations``) committed, and the
+    build takes the code itself from the installed viewer. This holds the two
+    equal, as the pin holds the versions: a viewer that changes what its drawing
+    code offers is a different copy here, written on purpose.
+    """
+    installed = Path(zmart_viewer.__file__).parent / "drawing" / "declarations"
+
+    def files(folder: Path) -> dict[str, str]:
+        return {
+            path.relative_to(folder).as_posix(): path.read_text(encoding="utf-8")
+            for path in sorted(folder.rglob("*.d.ts"))
+        }
+
+    ours, theirs = files(DECLARATIONS), files(installed)
+    assert sorted(ours) == sorted(theirs), (
+        "the committed declarations name other files than the installed viewer's; "
+        f"copy {installed} to {DECLARATIONS}"
+    )
+    differ = [name for name in ours if ours[name] != theirs[name]]
+    assert not differ, f"these differ from the installed viewer's, copy them again: {differ}"

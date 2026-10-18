@@ -23,6 +23,11 @@
     // `vite.config.js` maps them.
     "paths": {
       "neuroglancer/unstable/*": ["./node_modules/neuroglancer/lib/*"],
+      // The ZMART viewer's drawing code, by the declarations it writes for it.
+      // The build takes the code from the installed viewer (`vite.config.js`);
+      // the checker reads this committed copy, which a Python test holds equal
+      // to the installed viewer's (`test_the_drawing_comes_from_the_viewer.py`).
+      "zmart-viewer/drawing/*": ["./zmart_interface/workflows/target_acquisition/canvas/engines/zmart-viewer-drawing/*"],
       // The page's own addresses, as the dev server serves them: the specs import
       // modules into the browser by these.
       "/zmart_interface/*": ["./zmart_interface/*"]

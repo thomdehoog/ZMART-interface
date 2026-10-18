@@ -67,14 +67,16 @@ module.exports = {
     },
     {
       name: "resolvable",
-      comment: "An import that leads nowhere fails in the build; say so before it does. The viewer's drawing files are found by the build itself, in the installed viewer (tools/the-installed-viewer.mjs).",
+      comment: "An import that leads nowhere fails in the build; say so before it does. The viewer's drawing files are found by the build itself, in the installed viewer (tools/the-installed-viewer.mjs); the checker reads them by the committed copy of their declarations.",
       severity: "error",
       from: {},
       to: { couldNotResolve: true, pathNot: "^zmart-viewer/drawing/" },
     },
   ],
   options: {
-    doNotFollow: { path: "node_modules" },
+    /* The copy of the viewer's declarations is the viewer's, read as it is:
+       what it imports beside itself (its stylesheet) is in the viewer. */
+    doNotFollow: { path: ["node_modules", "/canvas/engines/zmart-viewer-drawing/"] },
     exclude: { path: "^zmart_interface/build/" },
     tsConfig: { fileName: "tsconfig.json" },
     enhancedResolveOptions: {
