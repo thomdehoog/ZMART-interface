@@ -10,6 +10,7 @@
     "vite.config.js"
   ],
   "project": ["zmart_interface/**/*.{js,mjs,ts}", "tools/*.mjs", "!zmart_interface/build/**"],
+  "ignoreDependencies": ["zmart-viewer"],
   "ignore": ["zmart_interface/workflows/*/canvas/engines/zmart-viewer-drawing/**"],
   "ignoreExportsUsedInFile": { "interface": true, "type": true }
 }

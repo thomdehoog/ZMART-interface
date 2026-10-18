@@ -3,80 +3,54 @@
  * host places that canvas between its background and annotation layers. Opt-in
  * transparency keeps acquired pixels opaque without background cut-outs.
  *
- * This file is the only place in the whole application that knows neuroglancer
- * exists. Everything around it — the page, the two gestures in `../gestures.ts`,
+ * The engine is driven through the ZMART viewer's drawing primitives
+ * (`zmart-viewer/drawing/primitives/`), the one way both the viewer's own window
+ * and this page steer neuroglancer: making it with its own interface off,
+ * keeping its layers in step with a scene, feeding it stores and refreshing
+ * them as they are committed, its axes, and its camera in micrometres. A fix
+ * there reaches both pages. What stays here is this page's own: how the run's
+ * acquisitions become a scene, where the view opens, and the handle the canvas
+ * drives (`../../viewer.ts`).
+ *
+ * Everything around this file — the page, the two gestures in `../gestures.ts`,
  * the carrier outline, the tile rectangles, the measurements — is written
- * against the small interface in
- * `../contract.md` and would work just as well with a different engine
- * underneath. That is deliberate, and it is worth saying why it is worth the
- * trouble.
+ * against that handle and would work just as well with a different engine
+ * underneath. So **please do not import anything from `neuroglancer/unstable/...`
+ * anywhere but here and the primitives.** Here it is imported for its types
+ * only.
  *
- * Every import below comes from a folder the neuroglancer package itself calls
- * `unstable`, which is its way of saying "these are our insides and we may move
- * them". Scattered across an application, that promise is frightening: an
- * upgrade moves one file and a dozen places stop compiling, in a dozen different
- * ways, none of which mention neuroglancer. Gathered into one module it is
- * merely a chore: the upgrade breaks this file and the test that exercises it,
- * both of which are about neuroglancer and nothing else, and the rest of the
- * application does not notice.
+ * Three things this file holds to:
  *
- * **So please do not import anything from `neuroglancer/unstable/...` anywhere
- * but here.** There is a check that nobody has:
- * `test_the_engine_stays_behind_its_adapter`, in
- * `viz_studio/tests/test_the_options_hold_together.py` (in ZMART-microscopy).
+ * 1. **Nothing lives in a module variable.** Everything one viewer knows lives
+ *    on its own object, and the engine's own state (its feeding, its memory of
+ *    what each layer was told) lives in the primitives' handle, made with the
+ *    engine and dropped with it. Two viewers can sit side by side, and closing
+ *    one genuinely closes it.
  *
- * ## What this file does differently from `frontend/src/engine.js`
- *
- * Four things, and each one is fixing something that made the older integration
- * awkward rather than being a matter of taste.
- *
- * 1. **Nothing lives in a module variable.** The older engine module keeps the
- *    addresses it has handed over, the counts it has seen and the queue of
- *    stores still to feed in variables belonging to the file itself, which means
- *    a page can hold exactly one viewer. Here every one of those lives on the
- *    instance, so two viewers can sit side by side — an overview and a detail
- *    scan, or the same run before and after a change — and neither disturbs the
- *    other. It also makes closing one genuinely close it.
- *
- * 2. **Addresses are passed in, never worked out.** The older scene builder puts
- *    `window.location.origin` in front of every store's address. That is right
- *    almost always and wrong exactly when it matters: served from somewhere
- *    else, or measured against a server on a port chosen at run time, it
- *    silently reads from the wrong place. Here the caller says where the data
- *    is, and an address without a scheme is refused outright rather than
+ * 2. **Addresses are passed in, never worked out.** The caller says where the
+ *    data is, and an address without a scheme is refused outright rather than
  *    quietly never fetched — which is what neuroglancer does with one, with no
- *    error and no request. That was measured on the sandwich probe, whose
- *    write-up is `viz_studio/SANDWICH.md` (in ZMART-microscopy) — a file that is not on this
- *    branch; it lives on `sandwich-probe`, commit `1277e30`, in its
- *    last section.
+ *    error and no request.
  *
- * 3. **Bindings, background colour and layout are each set in exactly one
- *    place**, at the bottom of `start`. The engine's own gesture table is
- *    emptied on purpose: in this arrangement the operator's canvas lies over the
- *    engine and catches every gesture, so the engine's defaults — the plain
- *    wheel stepping through the stack, four different ways to rotate — can never
- *    fire. `CONTROLS.md` explains why each of those had to go.
- *
- * 4. **The picture is placed where the store says it is, untouched.** Every
+ * 3. **The picture is placed where the store says it is, untouched.** Every
  *    store and published picture says where each level lies by the centre of
- *    its first voxel, which is what the engine reads, so nothing is moved
- *    here; `takeInTheLoadedSources` says what is done as a source loads.
+ *    its first voxel (OME-NGFF RFC-5), which is what the engine reads, so
+ *    nothing is moved here.
  *
  * The host owns the layer stack: application ground, this image, then marks.
  * In transparent 2D mode, authoritative acquired coverage keeps black image
  * pixels opaque while unacquired ground reveals the layer below.
  */
 
-import "neuroglancer/unstable/util/polyfills.js";
-import "neuroglancer/unstable/layer/enabled_frontend_modules.js";
-import "neuroglancer/unstable/datasource/enabled_frontend_modules.js";
-import "neuroglancer/unstable/kvstore/enabled_frontend_modules.js";
-import { makeMinimalViewer } from "neuroglancer/unstable/ui/minimal_viewer.js";
-import { WatchableCoordinateSpaceTransform } from "neuroglancer/unstable/coordinate_transform.js";
-import { makeLayer, deleteLayer } from "neuroglancer/unstable/layer/index.js";
-import "neuroglancer/unstable/ui/default_viewer.css";
-import "./engine-chrome.css";
-import { refreshSources } from "./source-refresh.ts";
+import type { Viewer } from "neuroglancer/unstable/viewer.js";
+import type { CoordinateSpace } from "neuroglancer/unstable/coordinate_transform.js";
+import type { LayerDataSource } from "neuroglancer/unstable/layer/layer_data_source.js";
+import { createViewer, type Engine } from "zmart-viewer/drawing/primitives/viewer.ts";
+import { coverageLayerFor, type EngineLayer } from "zmart-viewer/drawing/primitives/description.ts";
+import {
+  keepSpatialAxes, moveAlong, readTheAxis, startTimeAtTheFirstMoment, type AxisReading,
+} from "zmart-viewer/drawing/primitives/axes.ts";
+import { captureCamera, restoreCamera, whatIsOnScreen } from "zmart-viewer/drawing/primitives/camera.ts";
 import {
   shaderControlsFor as theViewersControls, shaderFor as theViewersProgram,
 } from "zmart-viewer/drawing/programs.js";
@@ -91,15 +65,6 @@ import { theMiddlePlaneOf } from "../planes.ts";
 // And where the specimen sits in the ground the run declared. This engine
 // keeps the store to itself, so it is read here the way the window is.
 import { whereTheSpecimenIsInThisStore } from "../where-the-specimen-is.ts";
-
-/*
- * Neuroglancer's own objects -- the viewer, its layers, its navigation state,
- * its chunk manager -- come from the folders the package calls unstable, and
- * this file reaches into their fields on purpose (see above). They are typed
- * `any` here and in no other file: the one place that knows neuroglancer is
- * the one place allowed not to know its types.
- */
-type Engine = any;
 
 /** A place, in micrometres. */
 interface XY {
@@ -130,7 +95,7 @@ export interface ChannelSpec {
   coverageSources?: string[];
   sourceDepths?: string[];
   sourceRevisions?: number[];
-  sourceGeometryRevisions?: unknown[];
+  sourceGeometryRevisions?: number[];
   view?: SourceView;
   channelIndex?: number;
   localPosition?: number[];
@@ -145,18 +110,17 @@ export interface Acquisition {
   name: string;
   channels?: ChannelSpec[];
   opaque?: boolean;
-  embeddingUrl?: string;
   [more: string]: unknown;
 }
 
-/** One channel as the engine draws it: its stores, its look, and the engine layer that draws it. */
+/** One channel as the engine draws it: its stores and its look. */
 interface Row {
   url: string;
   sources: string[];
   coverageSources?: string[];
   sourceDepths?: string[];
   sourceRevisions: number[];
-  sourceGeometryRevisions?: unknown[];
+  sourceGeometryRevisions?: number[];
   view?: SourceView;
   acquisition: string;
   opaque: boolean;
@@ -173,15 +137,6 @@ interface Row {
   attenuation?: number;
   depth?: string;
   controlIndex?: number;
-  managed: Engine | null;
-}
-
-/** The layer that says where an acquisition was imaged. */
-interface CoverageLayer {
-  managed: Engine;
-  depth?: string;
-  view?: SourceView;
-  row: Row;
 }
 
 /** How big the box is, in browser pixels, and how many real pixels go to one. */
@@ -215,36 +170,27 @@ interface Own {
   presentation: string;
   engineRect: Rect | null;
   engineHost: HTMLDivElement;
-  viewer: Engine;
+  engine: Engine | null;
   rows: Row[];
   watchSize: ResizeObserver | null;
-  stopWatchingTheSources: (() => void)[] | null;
+  /** How to stop following the picture's axes as its sources land. */
+  stopFollowingTheAxes: (() => void)[];
   stoodOnTheTable: boolean;
   destroyed: boolean;
   /** Measured when the surfaces are built, before anything is drawn. */
   size: Size | null;
-  coverageLayers?: Map<string, CoverageLayer>;
-  sourceVersions?: Map<string, { revision: number; geometry: unknown }>;
-  watchedSources?: WeakSet<object>;
-  embedding?: Engine;
-  embeddingUrl?: string;
-  showingPicture?: boolean;
+  showingPicture: boolean;
 }
 
 /**
- * Which of the engine's panel layouts to ask for, and which way round the axes
- * are handed over.
+ * Which of the engine's panel layouts to ask for.
  *
- * These two go together and must be changed together. The engine decides what
- * goes across the window, what goes down it and what goes into the screen from
- * the order of the axis list *and* the named layout, and the two interact.
- * Handing the axes over widest-first and asking for `xy` puts width across the
+ * Paired with the axis order the primitives hand the engine (width first,
+ * depth last; `pinTheAxesThatMeasureDistance`): `xy` puts width across the
  * window running to the right, height down it, and depth into the screen — the
  * plane an operator scrolls through, drawn the way round the specimen really is.
- *
- * The other pairing that also looks right — declared order with the layout `yz`
- * — draws every picture as a mirror image, and nothing anywhere reports it. That
- * shipped for months. `CONTROLS.md` §1a tells the story, and
+ * The other pairing that also looks right draws every picture as a mirror
+ * image, and nothing anywhere reports it; the viewer's
  * `tests/test_the_picture_is_not_mirrored.py` is what stops it coming back.
  */
 const FLAT_LAYOUT = "xy";
@@ -270,11 +216,10 @@ const UM_PER_M = 1e6;
  *                   drawing surfaces never shows.
  *   `presentation`  `"2d-overlay"` for sources placed in absolute stage z: the
  *                   picture opens at the lowest plane any stack holds, and a
- *                   flat source is kept in view at every depth (a published
- *                   projection through the shared depth binding). It changes
+ *                   flat source is kept in view at every depth. It changes
  *                   navigation and how a flat source's depth is read, never
  *                   where a source is placed.
- * @returns {Promise<Viewer>} the handle; see `../contract.md` for what it offers.
+ * @returns {Promise<Viewer>} the handle.
  *
  * It can fail in two ways worth knowing about: an address without a scheme is
  * refused straight away, and an acquisition that never says how big its voxels
@@ -311,20 +256,18 @@ export async function openViewer(element: HTMLElement, options: OpenOptions = {}
     // browser pixels: the whole box.
     engineRect: null,
     engineHost: document.createElement("div"),
-    viewer: null,
+    engine: null,
     // The channels, flattened across all acquisitions in the order they are
-    // drawn, each remembering the engine layer that draws it.
+    // drawn.
     rows: [],
     watchSize: null,
-    // How to stop listening for an acquisition's data arriving. Kept so that
-    // closing the viewer really lets go of everything; see
-    // `takeInTheLoadedSources` for what the listening is for.
-    stopWatchingTheSources: null,
+    stopFollowingTheAxes: [],
     // Whether the picture has been opened at the bottom of its stacks yet;
     // see `standOnTheTable`.
     stoodOnTheTable: false,
     destroyed: false,
     size: null,
+    showingPicture: true,
   };
 
   buildTheTwoSurfaces(own);
@@ -342,6 +285,11 @@ function sourceAddressIsWhole(address: string, acquisition: string) {
       "error and then never fetches anything at all, so this is refused " +
       "here instead. Pass the whole address, including http:// and the host.",
   );
+}
+
+/** The engine's viewer, while the page's viewer is open. */
+function viewerOf(own: Own): Viewer | null {
+  return own.engine?.viewer ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -381,8 +329,7 @@ function buildTheTwoSurfaces(own: Own) {
     position: "absolute",
     inset: "0",
     // One above the surface the bottom layer would go on, and one below the
-    // operator's own. The three numbers are the three layers of
-    // `viz_studio/THE_CANVAS.md` (in ZMART-microscopy), in order, written down in one place.
+    // operator's own: the three layers of the canvas, in order.
     zIndex: "1",
     pointerEvents: "none",
   });
@@ -409,9 +356,7 @@ function buildTheTwoSurfaces(own: Own) {
  * canvas pixel per browser pixel and lets the browser scale it up. What that
  * costs is sharpness rather than registration: the geometry still agrees exactly,
  * and the picture is simply drawn at two thirds of the resolution a dense screen
- * could show. It is recorded in `viz_studio/SANDWICH.md` (in ZMART-microscopy) §7 — on the branch
- * `sandwich-probe`, commit `1277e30`, rather than on this one — and it
- * is not this file's to fix.
+ * could show. It is not this file's to fix.
  */
 function fitTheSurfaces(own: Own) {
   const density = window.devicePixelRatio || 1;
@@ -474,16 +419,12 @@ function fitTheEngineToItsPatch(own: Own): Rect {
  * the count left out and the redraw kept, panning came back to 1 and zooming
  * stayed at 2 rather than 1 — so the redraw is what saves panning and the count
  * is what saves zooming.
- *
- * It reaches into a field rather than calling something, because there is
- * nothing to call. If a later version of the engine renames it, this file is
- * where it breaks, and the registration measurement is what says so.
  */
 function tellTheEngineItHasBeenResized(own: Own) {
-  const display = own.viewer?.display;
+  const display = viewerOf(own)?.display;
   if (!display) return;
   display.resizeGeneration += 1;
-  display.scheduleRedraw?.();
+  display.scheduleRedraw();
 }
 
 // ---------------------------------------------------------------------------
@@ -493,244 +434,173 @@ function tellTheEngineItHasBeenResized(own: Own) {
 /**
  * Start the engine, hand it the acquisitions, and settle everything that is set
  * once.
+ *
+ * The engine's own gestures are emptied (`"none"`): in this arrangement the
+ * operator's canvas lies over the engine and catches every gesture before the
+ * engine could see one. The ground behind the picture is the page's own colour,
+ * so that the seam between the two drawing surfaces cannot be seen — which is
+ * why the measurements deliberately use a different colour: a margin you cannot
+ * see is a margin you cannot measure. The engine's own furniture (axis lines,
+ * the annotations it draws by default) is off; the page draws whatever of that
+ * it wants, where it wants it.
  */
 async function start(own: Own, acquisitions: Acquisition[]) {
-  own.viewer = makeMinimalViewer({
-    target: own.engineHost,
-    showUIControls: false,
-    showTopBar: false,
-    showLayerPanel: false,
-    showLocation: false,
-    showPanelBorders: false,
-    showLayerDialog: false,
-    resetStateWhenEmpty: false,
-    transparentBackground: own.transparentBackground,
-  } as Parameters<typeof makeMinimalViewer>[0]);
-
-  // -- the three things that are set in exactly one place, here ------------
-
-  // Which panels are on screen. Paired with the axis order below; see FLAT_LAYOUT.
-  own.viewer.layout.restoreState(FLAT_LAYOUT);
-
-  // The engine's own furniture is off. It draws a cluster of layout buttons in
-  // one corner, a panel of axis names in another, axis lines through the middle
-  // and a scale bar per axis along the bottom — including one for time, which
-  // looks like a distance and is not one. The page draws whichever of those it
-  // wants, where it wants them, so none of this is a loss.
-  own.viewer.showDefaultAnnotations.value = false;
-  own.viewer.showAxisLines.value = false;
-  own.viewer.showScaleBar.value = false;
-
-  // The colour behind the picture, which is the page's own colour so that the
-  // seam between the two drawing surfaces cannot be seen. This is the whole
-  // point of the arrangement, and it is why the measurements deliberately use a
-  // different colour: a margin you cannot see is a margin you cannot measure.
-  own.viewer.crossSectionBackgroundColor.restoreState(own.background);
-
-  // The engine's gesture table, emptied. In this arrangement the operator's
-  // canvas lies over the engine and catches every gesture before the engine
-  // could see one, so this is belt as well as braces — but an unbound gesture
-  // and a gesture nobody tried look exactly alike, and a stacking order is one
-  // stylesheet edit away from being wrong. `CONTROLS.md` sets out what each of
-  // these used to do and why it had to go.
-  emptyTheEnginesOwnBindings(own.viewer);
-
-  // -- the acquisitions ---------------------------------------------------
-
+  own.engine = createViewer(own.engineHost, { gestures: "none", ground: own.background });
+  own.engine.setView({
+    layout: FLAT_LAYOUT, chrome: false, transparentBackground: own.transparentBackground,
+  });
+  followTheAxes(own, own.engine.viewer);
   await loadAcquisitions(own, acquisitions);
 }
 
+/**
+ * Keep the axes that measure distance on screen, and open the picture at the
+ * bottom of its stacks, as the picture's sources land.
+ *
+ * The picture's axes come from its sources, and they arrive as each source
+ * is read: a depth that lands after the first source has to be taken into the
+ * screen too (`keepSpatialAxes`), and the picture opened at the bottom of it.
+ */
+function followTheAxes(own: Own, viewer: Viewer) {
+  own.stopFollowingTheAxes.push(
+    keepSpatialAxes(viewer),
+    viewer.navigationState.position.coordinateSpace.changed.add(() => standOnTheTable(own)),
+  );
+}
+
 async function loadAcquisitions(own: Own, acquisitions: Acquisition[]) {
-  await loadEmbedding(own, acquisitions);
   own.rows = await rowsFor(acquisitions);
-  if (own.destroyed || !own.rows.length) return;
-  installRows(own);
-  await refreshPublishedRows(own);
-  await whenTheAxesAreKnown(own.viewer);
+  const viewer = viewerOf(own);
+  if (own.destroyed || !viewer || !own.rows.length) return;
+  drawTheRows(own);
+  await whenTheAxesAreKnown(viewer);
   if (own.destroyed) return;
-  pinTheAxesThatMeasureDistance(own.viewer);
-  startTimeAtTheFirstMoment(own.viewer);
-  takeInTheLoadedSources(own);
-  await finishOpeningAcquisitions(own, acquisitions);
+  startTimeAtTheFirstMoment(viewer);
+  standOnTheTable(own);
+  await finishOpeningAcquisitions(own, viewer, acquisitions);
 }
 
-async function loadEmbedding(own: Own, acquisitions: Acquisition[]) {
-  const url = acquisitions.find(a => a.channels?.some(c => c.view))?.embeddingUrl;
-  if (!url || own.embeddingUrl === url) return;
-  const api = await import(/* @vite-ignore */ url);
-  if (api.EMBEDDING_API_VERSION !== 1) throw new Error("Unsupported viewer embedding API");
-  own.embedding = api;
-  own.embeddingUrl = url;
+/**
+ * Hand the engine the scene: every row, in draw order, as the primitives keep
+ * layers in step with it. Only what changed is changed — a slider's value, a
+ * store that arrived, a revision committed into a store already drawn.
+ */
+function drawTheRows(own: Own) {
+  own.engine?.syncLayers(sceneOf(own));
 }
 
-/** A published projection is flat: it is kept in view at every depth the
-    picture may stand at, rather than sitting on one plane of the shared Z. */
-function bindNamedDepth(own: Own, row: Row, layer: Engine) {
-  if (row.view?.type !== "projection") return;
-  own.embedding.keepDepthLocal(layer, null, (value: Engine) => new WatchableCoordinateSpaceTransform(value));
-}
-
-/** Install only missing rows, keeping existing layers, controls and textures. */
-function installRows(own: Own) {
-  own.coverageLayers ??= new Map();
-  let layerIndex = 0;
-  /* Which acquisition a row belongs to, and whether it opens one: the
-     channels of one acquisition add together, and an acquisition drawn over
-     another covers it rather than mixing with it -- a target frame over the
-     overview is a picture of its own, not the sum of two. */
-  const acquisitionOf = (row: Partial<Row>) => `${row.acquisition ?? row.name?.split("/")[0] ?? ""}/${row.depth ?? ""}`;
-  const baseAcquisition = acquisitionOf(own.rows[0] ?? {});
-  for (const [at, row] of own.rows.entries()) {
-    const opensAnAcquisition = own.rows.findIndex((one) => acquisitionOf(one) === acquisitionOf(row)) === at;
-    if (opensAnAcquisition) for (const member of own.rows.filter(one => acquisitionOf(one) === acquisitionOf(row)
-        && one.coverageSources?.length)) {
-      let coverage = own.coverageLayers.get(member.layerName);
-      if (!coverage) {
-        const managed = makeLayer(own.viewer.layerSpecification, `__coverage__${member.layerName}`, {
-          type: "image", source: member.coverageSources, opacity: 1,
-          localPosition: member.localPosition ?? (member.channelIndex != null ? [member.channelIndex] : undefined),
-          shader: "#uicontrol invlerp covered(range=[0,1], clamp=false)\n"
-            + "void main() { emitRGBA(vec4(0.0,0.0,0.0,float(covered() > 0.0))); }",
-        });
-        own.viewer.layerSpecification.add(managed, layerIndex);
-        bindNamedDepth(own, member, managed.layer);
-        coverage = { managed, depth: member.depth, view: member.view, row: member };
-        own.coverageLayers.set(member.layerName, coverage);
-        const stop = managed.layer?.dataSourcesChanged?.add(
-          () => takeInTheLoadedSources(own),
-        );
-        if (stop) (own.stopWatchingTheSources ??= []).push(stop);
+/**
+ * The rows as the layers the engine draws, first at the bottom.
+ *
+ * The channels of one acquisition add together, and an acquisition drawn over
+ * another covers it rather than mixing with it -- a target frame over the
+ * overview is a picture of its own, not the sum of two. So the first channel of
+ * an acquisition drawn over another keeps the covering blend, and the program is
+ * opaque wherever it has data; its other channels add onto it alone. Where an
+ * acquisition's rows know which ground was acquired, that ground is laid first,
+ * black and opaque, so acquired black pixels stay opaque while unacquired ground
+ * stays clear; then every channel of it adds.
+ */
+function sceneOf(own: Own): EngineLayer[] {
+  const groupOf = (row: Row) => `${row.acquisition}/${row.depth ?? ""}`;
+  const bottom = own.rows.length ? groupOf(own.rows[0]) : "";
+  const opened = new Set<string>();
+  const scene: EngineLayer[] = [];
+  for (const row of own.rows) {
+    const group = groupOf(row);
+    const opens = !opened.has(group);
+    if (opens) {
+      opened.add(group);
+      for (const member of own.rows.filter(one => groupOf(one) === group)) {
+        if (member.coverageSources?.length) {
+          scene.push(coverageLayerFor(layerFor(own, member, "additive"), member.coverageSources, "default"));
+        }
       }
-      const manager = own.viewer.layerManager;
-      manager.reorderManagedLayer(manager.managedLayers.indexOf(coverage.managed), layerIndex++);
     }
-    const coversWhatIsBelow = opensAnAcquisition && acquisitionOf(row) !== baseAcquisition
-      && !row.coverageSources?.length;
-    const position = layerIndex++;
-    if (row.managed) {
-      const manager = own.viewer.layerManager;
-      manager.reorderManagedLayer(manager.managedLayers.indexOf(row.managed), position);
-      row.managed.layer.blendMode.restoreState(coversWhatIsBelow ? "default" : "additive");
-      continue;
-    }
-    const description = {
-      type: "image",
-      visible: own.showingPicture !== false && row.visible !== false,
-      // Smart Viewer 0.2's central rule: every position store of one channel
-      // is a source of the SAME layer.  Neuroglancer places each one from the
-      // transform in its OME-Zarr metadata.  Flattening this array into one
-      // acquisition per address is what produced 27 controls for a 3-channel,
-      // 3-by-3 overview and is deliberately impossible here.
-      source: row.sources.length === 1 ? row.sources[0] : row.sources,
-      shader: programFor(row),
-      shaderControls: controlsFor(row),
-      // How solid this layer is. The engine's own default for an image layer is
-      // a half, which is right for looking through one layer at another and
-      // wrong for the channels of one acquisition, because those are separate
-      // colours of the same specimen rather than one picture seen through
-      // another. Measured on a run recorded in two colours: with the default
-      // left alone the second channel reached the screen at 118 of a possible
-      // 255 where the first reached 237 — the colour the run names, drawn at
-      // half strength for no reason an operator could see.
-      //
-      // Nothing is lost by drawing each at its full strength, because what
-      // decides where a layer is see-through here is the little program the
-      // engine runs on the graphics card. It emits nothing at all where the
-      // stored number is nought. A supplied coverage layer keeps acquired black
-      // pixels opaque independently of that signal; unacquired ground stays clear.
-      opacity: 1,
-      /* Channels are added to one another, not painted over one another.
-       *
-       * They are separate colours of one specimen: a place that recorded both
-       * green and red is yellow, and nothing about it is "green seen through
-       * red". Stacked the ordinary way it is exactly that, because the shader
-       * below is opaque wherever the stored number clears the window's floor —
-       * so the channel drawn last covers every other one everywhere it has any
-       * signal at all. Measured on a two-colour skin biopsy: 0.011% of the
-       * window showed green against Viv's 0.029% on the same view, and Viv is
-       * doing the arithmetic this asks the engine for.
-       */
-      // Additive, however many positions feed the row: Smart Viewer 0.2's
-      // seam rule kept the engine's covering blend for a row of several
-      // stores, so that overlapping edge voxels could not brighten into
-      // seams; but under the covering rule the channel drawn last hid every
-      // other one wherever it had any signal, and a nine-tile overview
-      // showed as its last channel alone. The one exception is the first
-      // channel of an acquisition drawn over another: it keeps the covering
-      // blend, and the program above is opaque wherever it has data, so the
-      // acquisition covers what is below it and its other channels add onto
-      // it alone.
-      ...(coversWhatIsBelow ? {} : { blend: "additive" }),
-      // Where a store keeps its channels inside one array, this is what picks
-      // the channel out: the engine offers it as a dimension belonging to the
-      // layer, and each row pins it to its own index. Nothing splits the data —
-      // one store feeds every row that reads from it.
-      //
-      // It is said here, in the description the layer is built from, rather than
-      // written onto the layer afterwards. That is not tidiness. A layer built a
-      // moment ago does not yet know what dimensions its data has, so writing a
-      // position into it at that point writes into a space with no room in it
-      // and is simply lost. Measured before it was moved here: a run with two
-      // channels drew both of its layers from the same channel, so one colour
-      // was missing and the other was drawn twice.
-      ...(Array.isArray(row.localPosition)
-        ? { localPosition: row.localPosition }
-        : row.channelIndex != null
-          ? { localPosition: [row.channelIndex] }
-          : {}),
-    };
-    const managed = makeLayer(own.viewer.layerSpecification, row.layerName, description);
-    own.viewer.layerSpecification.add(managed, position);
-    row.managed = managed;
-    bindNamedDepth(own, row, managed.layer);
-    const stop = managed.layer?.dataSourcesChanged?.add(
-      () => takeInTheLoadedSources(own),
-    );
-    if (stop) (own.stopWatchingTheSources ??= []).push(stop);
+    const coversWhatIsBelow = opens && group !== bottom && !row.coverageSources?.length;
+    scene.push(layerFor(own, row, coversWhatIsBelow ? "default" : "additive"));
   }
-  syncCoverageVisibility(own);
+  return scene;
 }
 
-function syncCoverageVisibility(own: Own) {
-  for (const coverage of own.coverageLayers?.values() ?? []) {
-    coverage.managed.setVisible(own.showingPicture !== false
-      && coverage.row.visible !== false);
-  }
+/**
+ * One row as the engine is told to draw it.
+ *
+ * Every position store of one channel is a source of the SAME layer, placed by
+ * the transform in its own OME-Zarr metadata; flattening it into one
+ * acquisition per address is what once produced 27 controls for a 3-channel,
+ * 3-by-3 overview.
+ *
+ * Each layer is drawn at its full strength (`opacity: 1`). The engine's own
+ * default for an image layer is a half, which is right for looking through one
+ * layer at another and wrong for the channels of one acquisition: measured on a
+ * run recorded in two colours, the second channel reached the screen at 118 of a
+ * possible 255 where the first reached 237. Nothing is lost by it, because what
+ * decides where a layer is see-through is the program, which emits nothing
+ * where the stored number is nought.
+ *
+ * Where a store keeps its channels inside one array, the row's own index picks
+ * the channel out, as a dimension belonging to the layer, said in the
+ * description the layer is built from: written onto a layer built a moment ago
+ * it would land in a space with no room in it yet, and a two-channel run drew
+ * both of its layers from the same channel that way.
+ *
+ * A flat picture -- a published projection, or the flat stores of a channel --
+ * keeps its depth to itself, so it is drawn at whatever plane the picture
+ * stands at instead of on one plane of the shared depth.
+ */
+function layerFor(own: Own, row: Row, blend: "additive" | "default"): EngineLayer {
+  const localPosition = row.localPosition ?? (row.channelIndex != null ? [row.channelIndex] : undefined);
+  return {
+    type: "image",
+    name: row.layerName,
+    source: [...row.sources],
+    visible: own.showingPicture && row.visible,
+    shader: programFor(row),
+    shaderControls: controlsFor(row),
+    opacity: 1,
+    blend,
+    ...(localPosition ? { localPosition } : {}),
+    persistentFlat: row.depth === "flat" || row.view?.type === "projection",
+    sourceRevisions: row.sourceRevisions,
+    ...(row.sourceGeometryRevisions ? { sourceGeometryRevisions: row.sourceGeometryRevisions } : {}),
+  };
 }
 
-async function finishOpeningAcquisitions(own: Own, acquisitions: Acquisition[]) {
+async function finishOpeningAcquisitions(own: Own, viewer: Viewer, acquisitions: Acquisition[]) {
   // The engine chooses a starting magnification the first moment it believes it
   // knows what space the picture lives in, and for a moment that is an empty
   // space in which one voxel is one metre. Clearing it now makes it choose
   // again, this time knowing how big a voxel really is. Without this the viewer
   // opens on an empty rectangle with every piece of data present and correct.
-  own.viewer.navigationState.zoomFactor.reset();
-  own.viewer.perspectiveNavigationState.zoomFactor.reset();
+  viewer.navigationState.zoomFactor.reset();
+  viewer.perspectiveNavigationState.zoomFactor.reset();
 
   /* Having let the engine choose again, choose for it. Left alone it opens at one
      voxel to one screen pixel, which on a 1.1 µm store drops the operator inside
      the specimen at full magnification with nothing on screen to say where they
-     are. Where a run opens is not a property of an engine — `../opening-view.js`
-     holds the rule, and the Viv options obey the same one. Skipped where the box
-     has not been measured yet, since fitting to a box of no size would be worse
-     than the engine's own guess. */
+     are. Where a run opens is not a property of an engine — `../opening-view.ts`
+     holds the rule. Skipped where the box has not been measured yet, since
+     fitting to a box of no size would be worse than the engine's own guess. */
   /* Where the specimen is, so the view opens on it rather than on the middle of
      the ground the run declared. One small read; nothing else waits on it. */
   const specimen = own.presentation !== "2d-overlay" && acquisitions.length
     ? await whereTheSpecimenIsInThisStore(acquisitions[0].url)
     : null;
+  if (own.destroyed) return;
   if (own.size && own.size.width > 0 && own.size.height > 0) {
-    const ground = theGroundTheRunCovers(own);
+    const ground = theGroundTheRunCovers(viewer);
     const showingAllOfIt = theViewThatShowsAllOf(
       ground && specimen
-        ? { ...ground, specimenUm: theSpecimenInMicrometres(own, ground, specimen) }
+        ? { ...ground, specimenUm: theSpecimenInMicrometres(viewer, ground, specimen) }
         : ground,
       own.size,
     );
-    if (showingAllOfIt) writeTheView(own, showingAllOfIt);
+    if (showingAllOfIt) writeTheView(viewer, showingAllOfIt);
   }
-  openOnThePlaneWhereTheSpecimenIs(own, specimen);
+  openOnThePlaneWhereTheSpecimenIs(own, viewer, specimen);
 }
+
 
 // ---------------------------------------------------------------------------
 // What the run says about its own colours
@@ -753,13 +623,6 @@ async function finishOpeningAcquisitions(own: Own, acquisitions: Acquisition[]) 
 // falls back to a single white channel, so **a run recorded in two colours shows
 // only its first one**, in white, and nothing on screen says that the rest of
 // the acquisition is missing.
-//
-// The four pieces below are word for word the same in all three options, on
-// purpose. The three are meant to be comparable, and a difference in how they
-// read the same description would show up in the results as a difference
-// between the engines, which it is not. Two copies can drift apart, so **if you
-// change one of these four, change the other two files to match in the same
-// commit.**
 
 /** The colour a channel is drawn in when nobody has named one. */
 const WHITE = [1, 1, 1];
@@ -770,6 +633,23 @@ const WHITE = [1, 1, 1];
  * and it suits the twelve-bit cameras these runs are acquired on.
  */
 const AN_ORDINARY_WINDOW = { low: 0, high: 4095 };
+
+/** One channel as a run's own description names it (`omero.channels`). */
+interface DescribedChannel {
+  label?: string;
+  color?: unknown;
+  window?: { start?: unknown; end?: unknown } | null;
+}
+
+/** What this reads of a run's own description: its channels. */
+interface RunDescription {
+  omero?: { channels?: DescribedChannel[] };
+}
+
+/** A description file, as either version of the format writes it. */
+interface DescriptionFile extends RunDescription {
+  attributes?: RunDescription & { ome?: RunDescription };
+}
 
 /**
  * Six hex digits, the way a run writes a colour, as the three numbers from 0 to
@@ -806,10 +686,11 @@ function colourFromTheStore(hex: unknown): number[] {
  * When the run asked for nothing, the ordinary window above is used — the same
  * one this viewer would have used had there been no description at all.
  */
-function windowFromTheStore(described: Engine): Span | null {
-  const range = described?.window ?? {};
-  if (Number.isFinite(range.start) && Number.isFinite(range.end)) {
-    return { low: range.start, high: range.end };
+function windowFromTheStore(described: DescribedChannel | undefined): Span | null {
+  const { start, end } = described?.window ?? {};
+  if (typeof start === "number" && typeof end === "number"
+      && Number.isFinite(start) && Number.isFinite(end)) {
+    return { low: start, high: end };
   }
   /* Nothing, rather than the ordinary window. A run that names a colour and says
      nothing about how to display it is not the same as a run that asked for the
@@ -832,14 +713,12 @@ function windowFromTheStore(described: Engine): Span | null {
  * project writes keeps the two in step, so for our own runs they are the same
  * list. A foreign image that stored four colours and described only two would
  * have two of them drawn here, and the operator would have to notice. Counting
- * the picture's own channels instead would mean a second reading of the image
- * for one of the three options and none for the other two, which is exactly the
- * kind of difference between them this comparison is trying not to introduce.
+ * the picture's own channels instead would mean a second reading of every image.
  */
-function channelsTheStoreDescribes(attributes: Engine): ChannelSpec[] | null {
+function channelsTheStoreDescribes(attributes: RunDescription | null): ChannelSpec[] | null {
   const described = attributes?.omero?.channels;
   if (!Array.isArray(described) || !described.length) return null;
-  return described.map((channel: Engine, at: number) => ({
+  return described.map((channel, at) => ({
     name: channel?.label || `channel ${at + 1}`,
     colour: colourFromTheStore(channel?.color),
     window: windowFromTheStore(channel),
@@ -849,15 +728,10 @@ function channelsTheStoreDescribes(attributes: Engine): ChannelSpec[] | null {
 /**
  * The run's own description of an acquisition, fetched from the store.
  *
- * This is the one place where this option has to work harder than the other two,
- * and the difference is worth knowing rather than hiding. Viv hands a store's
- * whole description back alongside the picture, so the two Viv options already
- * have it in their hands and reading the channels out of it costs them nothing.
  * Neuroglancer reads the same description — it has to, in order to build a layer
  * at all — but it keeps it to itself: what it gives back is a layer, not the
- * text the layer was built from. So the only honest way for this option to learn
- * what a run calls its colours is to go and ask for the description itself. That
- * is one small request per acquisition, made once while the viewer is opening.
+ * text the layer was built from. So this asks for the description itself: one
+ * small request per acquisition, made once while the viewer is opening.
  *
  * The address the page passes carries a short suffix telling the engine which
  * shape of store to expect, written after a vertical bar as in
@@ -870,14 +744,14 @@ function channelsTheStoreDescribes(attributes: Engine): ChannelSpec[] | null {
  * @param {string} url the address the page gave for this acquisition.
  * @returns {Promise<object|null>} the store's description, or nothing.
  */
-async function theRunsOwnDescription(url: string): Promise<Engine> {
+async function theRunsOwnDescription(url: string): Promise<RunDescription | null> {
   const bar = url.indexOf("|");
   const address = (bar < 0 ? url : url.slice(0, bar)).replace(/\/+$/, "");
   // The two versions of the format keep the description in different places.
   // Version 2 writes a small `.zattrs` file beside the picture; version 3 folds
   // the same thing into `zarr.json`, under `attributes`. Both are tried, so that
   // a run written either way opens the same.
-  const spellings: [string, (doc: Engine) => Engine][] = [
+  const spellings: [string, (doc: DescriptionFile) => RunDescription][] = [
     [".zattrs", (doc) => doc],
     // Version 3 folds the description into `zarr.json` under `attributes`,
     // and OME-Zarr 0.5 folds the OME half one level further, under an `ome`
@@ -892,7 +766,7 @@ async function theRunsOwnDescription(url: string): Promise<Engine> {
       // somebody is watching them, and a viewer answering from a moment ago is
       // exactly what live viewing exists to avoid.
       const answer = await fetch(`${address}/${file}`, { cache: "no-store" });
-      if (answer.ok) return unwrap(await answer.json());
+      if (answer.ok) return unwrap(await answer.json() as DescriptionFile);
     } catch {
       // One of the two spellings is expected to be missing, so a failure here is
       // ordinary. It is only worth saying something if both of them fail, which
@@ -986,13 +860,11 @@ async function rowsFor(acquisitions: Acquisition[]): Promise<Row[]> {
         // itself — the middle of however many the store holds — so a page that
         // named one channel of a two-channel run was shown the *second* one,
         // drawn in the colour it had asked for the first. Nothing on screen
-        // could have told an operator that. The other two options have always
-        // said which channel they mean, and now all three do.
+        // could have told an operator that.
         channelIndex: channel.channelIndex === undefined ? within : channel.channelIndex,
         localPosition: channel.localPosition,
         visible: channel.visible !== false,
         weight: channel.weight ?? 1,
-        managed: null,
       });
     });
   }
@@ -1007,6 +879,8 @@ async function rowsFor(acquisitions: Acquisition[]): Promise<Row[]> {
       const covering = row.coverageSources;
       if (covering) part.coverageSources = indices.map(i => covering[i]);
       part.sourceRevisions = indices.map(i => row.sourceRevisions[i]);
+      const geometry = row.sourceGeometryRevisions;
+      if (geometry) part.sourceGeometryRevisions = indices.map(i => geometry[i]);
       part.url = part.sources[0];
       return [part];
     });
@@ -1016,127 +890,55 @@ async function rowsFor(acquisitions: Acquisition[]): Promise<Row[]> {
 }
 
 /**
- * Append acquisition/depth rows and refresh changed aggregates in place.
+ * Grow the open rows in place, and draw the acquisitions and depths that join.
  *
- * Smart Viewer publishes stable aggregate addresses with completed revisions.
+ * The viewer publishes stable aggregate addresses with committed revisions.
  * Another acquisition or depth kind can join an open picture without a reason
  * to destroy it: destroying revokes the old `/data/N/` endpoint while its
  * chunks are still in flight, and it also throws away navigation and operator
- * choices. This boundary accepts only the shape Viewer promises here — the
- * additional acquisition/channel rows and each old source list as an exact
- * prefix. Removing or replacing a source remains a genuinely different scene.
+ * choices. This accepts only the shape the viewer promises here — additional
+ * acquisition/channel rows, and each old source list as an exact prefix of its
+ * next — and returns false for anything else: removing or replacing a source is
+ * a genuinely different scene, which the caller opens afresh.
+ *
+ * A row already open keeps what the operator chose for it (whether it shows,
+ * its colour, window, weight and gamma); a row that joins takes those of the
+ * same channel of its acquisition, where one is open. The primitives then feed
+ * the new stores in, a group at a time, and refresh the ones whose revision
+ * moved.
  */
 async function addSourcesToTheOpenRows(own: Own, acquisitions: Acquisition[]): Promise<boolean> {
-  await loadEmbedding(own, acquisitions);
   if (own.destroyed) return false;
   if (!own.rows.length) {
     await loadAcquisitions(own, acquisitions);
     return true;
   }
   const wanted = await rowsFor(acquisitions);
-  if (own.destroyed) return false;
+  const viewer = viewerOf(own);
+  if (own.destroyed || !viewer) return false;
   const nextByName = new Map(wanted.map(row => [row.layerName, row]));
-
   for (const held of own.rows) {
     const next = nextByName.get(held.layerName);
-    if (!next || !held.managed?.layer || next.sources.length < held.sources.length) {
-      return false;
-    }
-    if (held.sources.some((source, sourceAt) => next.sources[sourceAt] !== source)) {
-      return false;
-    }
+    if (!next || !viewer.layerManager.getLayerByName(held.layerName)?.layer) return false;
+    if (next.sources.length < held.sources.length) return false;
+    if (held.sources.some((source, at) => next.sources[at] !== source)) return false;
   }
-
+  for (const row of wanted) {
+    for (const address of row.sources) sourceAddressIsWhole(address, row.acquisition);
+  }
   const heldByName = new Map(own.rows.map(row => [row.layerName, row]));
-  for (const held of own.rows) {
-    const layer = held.managed?.layer;
-    if (!layer) return false;
-    /* Every held row has its next, or the loop above returned. */
-    const next = nextByName.get(held.layerName)!;
-    const fresh = next.sources.slice(held.sources.length);
-    for (const address of fresh) {
-      sourceAddressIsWhole(address, held.acquisition);
-      // Use the same data-source-specification path as initial layer creation,
-      // so a position that lands later receives exactly the same OME-Zarr
-      // handling and source-local transform as the first one.
-      for (const source of layer.getDataSourceSpecifications({ source: [address] })) {
-        layer.addDataSource(source);
-      }
-      held.sources.push(address);
-    }
-    held.sourceRevisions = next.sourceRevisions;
-    held.sourceGeometryRevisions = next.sourceGeometryRevisions;
-    held.controlIndex = next.controlIndex;
-  }
   own.rows = wanted.map(row => {
-    const held = heldByName.get(row.layerName);
-    if (held) return held;
-    const channel = own.rows.find(one => one.acquisition === row.acquisition && one.name === row.name);
-    if (channel) {
-      row.visible = channel.visible;
-      row.colour = channel.colour;
-      row.window = channel.window;
-      row.weight = channel.weight;
-      row.gamma = channel.gamma;
-    }
-    return row;
+    const chosen = heldByName.get(row.layerName)
+      ?? own.rows.find(one => one.acquisition === row.acquisition && one.name === row.name);
+    if (!chosen) return row;
+    return {
+      ...row,
+      visible: chosen.visible, colour: chosen.colour, window: chosen.window,
+      weight: chosen.weight, gamma: chosen.gamma, attenuation: chosen.attenuation,
+    };
   });
-  installRows(own);
-  await refreshPublishedRows(own);
-  takeInTheLoadedSources(own);
+  drawTheRows(own);
   return true;
-}
-
-/** Cache revisions belong to the viewer, for as long as it is open. */
-async function refreshPublishedRows(own: Own) {
-  const versions = own.sourceVersions ??= new Map();
-  const nextVersions = new Map<string, { revision: number; geometry: unknown }>(), changed = new Set<string>();
-  const refreshed = new Set(), forgotten = new Set(), geometryReads: Promise<unknown>[] = [];
-  for (const row of own.rows) row.sources.forEach((url, at) => {
-    const next = { revision: row.sourceRevisions[at], geometry: row.sourceGeometryRevisions?.[at] };
-    const previous = versions.get(url);
-    nextVersions.set(url, next);
-    if (!previous || next.revision <= previous.revision) return;
-    if (row.view && (next.geometry == null || next.geometry !== previous.geometry)) {
-      const layers = [row.managed?.layer, own.coverageLayers?.get(row.layerName)?.managed.layer].filter(Boolean);
-      for (const layer of layers) for (const source of layer.dataSources)
-        geometryReads.push(own.embedding.refreshGeometry(source, own.viewer.chunkManager, refreshed, forgotten));
-    } else {
-      changed.add(url);
-      for (const source of row.coverageSources ?? []) changed.add(source);
-    }
-  });
-  await Promise.all(geometryReads);
-  refreshSources(own.viewer.chunkManager, changed);
-  for (const [url, version] of nextVersions) versions.set(url, version);
-}
-
-/**
- * Take away every gesture the engine binds for itself.
- *
- * The engine keeps a plain table mapping a gesture to an action, and it is ours
- * to write to. Emptying it is the one-line version of the long list in
- * `CONTROLS.md`: rotation bound four different ways, the plain wheel stepping
- * through the stack, ctrl and the wheel zooming, the right button recentring,
- * and a page-wide keyboard table whose space bar split the image into four
- * panels with no way back.
- *
- * The named tables are cleared rather than replaced, because replacing one with
- * an empty table of our own would leave whatever the engine adds in a later
- * version bound again.
- */
-function emptyTheEnginesOwnBindings(viewer: Engine) {
-  const tables = viewer.inputEventBindings;
-  if (!tables) return;
-  for (const name of Object.keys(tables)) {
-    const table = tables[name];
-    if (table && typeof table.clear === "function") table.clear();
-    // Some of the tables are stacks of tables, and the parents are where the
-    // engine's own defaults actually live.
-    for (const parent of table?.parents ?? []) {
-      if (parent && typeof parent.clear === "function") parent.clear();
-    }
-  }
 }
 
 /**
@@ -1146,7 +948,7 @@ function emptyTheEnginesOwnBindings(viewer: Engine) {
  * every conversion between the operator's micrometres and the screen would be
  * nonsense.
  */
-function whenTheAxesAreKnown(viewer: Engine): Promise<void> {
+function whenTheAxesAreKnown(viewer: Viewer): Promise<void> {
   const { position } = viewer.navigationState;
   return new Promise<void>((done) => {
     const look = () => {
@@ -1161,136 +963,6 @@ function whenTheAxesAreKnown(viewer: Engine): Promise<void> {
 }
 
 /**
- * Draw the axes that measure distance, and leave the rest to the page's sliders.
- *
- * An image says what each of its axes measures. Some are places in the specimen —
- * depth, height, width — and some are not: which moment this is, or which colour
- * of light was recorded. Only the first kind belongs on screen, and the engine
- * does not know that on its own: left alone it takes the first three axes in the
- * order they were written, which for a timelapse means drawing time against
- * depth and pinning width, so the specimen is nowhere on screen and nothing
- * reports a fault.
- *
- * Which axes measure distance is not guessed at. Metres are the only unit that
- * measures distance across a specimen; seconds do not, and an axis with no unit
- * does not.
- *
- * The order matters as much as the choice, and it is paired with `FLAT_LAYOUT`
- * at the top of this file. See the note there.
- */
-function pinTheAxesThatMeasureDistance(viewer: Engine) {
-  const space = viewer.navigationState.position.coordinateSpace.value;
-  if (!space?.names) return;
-  const distances: string[] = space.names.filter((_: string, at: number) => space.units?.[at] === "m");
-  if (distances.length < 2) return;
-  // Width first, depth last. An OME-Zarr image lists its distance axes
-  // slowest-changing first — depth, height, width — so reversing them is what
-  // puts width across the window and depth into the screen. The axes are
-  // taken by name where they carry the usual ones, because they do not
-  // always arrive in that order: a flat overview brings only width and
-  // height (its depth stays its own, see `takeInTheLoadedSources`), and the
-  // depth of a stack that lands later is listed after them.
-  const usual = ["x", "y", "z"];
-  const facing = distances.every((name) => usual.includes(name))
-    ? usual.filter((name) => distances.includes(name))
-    : distances.slice(0, 3).reverse();
-  // Called again whenever a source lands, so a depth that arrives after the
-  // first pinning is taken into the screen too; the engine keeps the axes it
-  // was given by name and would leave a later depth unseen. Left alone when
-  // nothing has changed, so that this does not disturb the view.
-  const { displayDimensions } = viewer.navigationState.pose;
-  const now = Array.from<number>(displayDimensions.value?.displayDimensionIndices ?? [])
-    .filter((at) => at >= 0)
-    .map((at): string => space.names[at]);
-  if (now.length === facing.length && now.every((name, at) => name === facing[at])) return;
-  try {
-    displayDimensions.restoreState(facing);
-  } catch {
-    // An engine that will not take them leaves the view as it was rather than
-    // leaving the page broken. This runs while an operator is waiting for their
-    // acquisition to appear, so it must not be the thing that stops it.
-  }
-}
-
-/**
- * Open a timelapse at its first moment rather than half way through it.
- *
- * The engine opens every axis in the middle, which is right for the axes that
- * measure the specimen and wrong for time: a recording is watched from the
- * beginning. It also shows on screen, because a run declares room for all the
- * moments it might record and fills them in as it goes — so the middle of a run
- * in progress is a black screen with the data sitting at the start, unseen.
- */
-function startTimeAtTheFirstMoment(viewer: Engine) {
-  const { position } = viewer.navigationState;
-  const space = position.coordinateSpace.value;
-  if (!space?.names || !space.units) return;
-  const at = Array.from(space.units).indexOf("s");
-  if (at < 0) return;
-  // Both conventions occur — a moment sitting on a whole number, or half way
-  // between two — and the first moment has to be worked out for the one in use
-  // or the view lands between two frames.
-  const onWholeNumbers = space.bounds.voxelCenterAtIntegerCoordinates[at];
-  const lower = space.bounds.lowerBounds[at];
-  const first = onWholeNumbers ? Math.ceil(lower) : Math.ceil(lower - 0.5) + 0.5;
-  if (!Number.isFinite(first) || position.value[at] === first) return;
-  const moved = Float32Array.from(position.value);
-  moved[at] = first;
-  position.value = moved;
-}
-
-/**
- * Take in the sources that have loaded: a flat picture keeps its depth to
- * itself, the axes that measure distance go on the screen, and the picture
- * opens at the bottom of its stacks.
- *
- * Where a picture lies needs nothing done here. Every store this project
- * writes, and every picture the viewer publishes from them, places each level
- * by the centre of its first voxel -- what OME-NGFF says a translation is
- * (RFC-5: the centre of a voxel is the origin of the coordinates) and what the
- * engine reads it as -- so the engine draws every level, the coarse ones too,
- * exactly where the store says.
- *
- * A flat picture (a published projection) has a depth of its own, which is
- * not the depth of the stacks beside it. Its `z` is renamed `z'`, an axis of
- * its own, so it is drawn at whatever plane the picture stands at instead of
- * on one plane of the shared depth. A source already renamed has no `z` left
- * to rename, so this can run every time the sources change.
- */
-function takeInTheLoadedSources(own: Own) {
-  // A newly installed source can notify before initial framing, and a depth
-  // that arrives with it is taken into the screen.
-  pinTheAxesThatMeasureDistance(own.viewer);
-  for (const row of [...own.rows, ...(own.coverageLayers?.values() ?? [])]) {
-    for (const source of row.managed?.layer?.dataSources ?? []) {
-      const placing = source?.loadState?.transform;
-      if (!placing?.value || !placing.defaultTransform) {
-        /* Not read yet. The list of sources changing is what brings this
-           pass round, and a source that finishes loading after the list
-           last changed would otherwise never be looked at -- the fourth
-           field of a four-field overview stayed one voxel thick that way,
-           and was not drawn. Asked once, when it has loaded. */
-        own.watchedSources ??= new WeakSet();
-        if (source?.changed && !own.watchedSources.has(source)) {
-          own.watchedSources.add(source);
-          source.changed.add(() => takeInTheLoadedSources(own));
-        }
-        continue;
-      }
-      if (row.depth !== "flat") continue;
-      const output = placing.outputSpace.value;
-      if (!output.names.includes("z")) continue;
-      placing.restoreState({ ...placing.toJSON(), outputDimensions:
-        Object.fromEntries(output.names.map((name: string, i: number) =>
-          [name === "z" ? "z'" : name, [output.scales[i], output.units[i]]])),
-      });
-    }
-  }
-  // The picture is opened at the bottom of a depth that arrived with this source.
-  standOnTheTable(own);
-}
-
-/**
  * Open the picture at the bottom of the stacks, once, when it first has a
  * depth to open at.
  *
@@ -1302,16 +974,19 @@ function takeInTheLoadedSources(own: Own) {
  * stack landing later must not pull the view back down.
  */
 function standOnTheTable(own: Own) {
-  if (own.presentation !== "2d-overlay" || own.stoodOnTheTable) return;
-  const info = own.viewer.navigationState.displayDimensionRenderInfo.value;
-  const depth = info?.displayDimensionIndices?.[2] ?? -1;
+  const viewer = viewerOf(own);
+  if (!viewer || own.presentation !== "2d-overlay" || own.stoodOnTheTable) return;
+  const depth = theDepthOnScreen(viewer);
   if (depth < 0) return;
-  const bottom = theLowestPlaneOf(own, depth);
+  const bottom = theLowestPlaneOf(viewer, depth);
   if (bottom === null) return;
   own.stoodOnTheTable = true;
-  const moved = Float32Array.from(own.viewer.navigationState.position.value);
-  moved[depth] = bottom;
-  own.viewer.navigationState.position.value = moved;
+  moveAlong(viewer, depth, bottom);
+}
+
+/** Which of the picture's axes goes into the screen, or -1 while none does. */
+function theDepthOnScreen(viewer: Viewer): number {
+  return viewer.navigationState.displayDimensionRenderInfo.value?.displayDimensionIndices?.[2] ?? -1;
 }
 
 /**
@@ -1320,15 +995,26 @@ function standOnTheTable(own: Own) {
  *
  * Stores are written in absolute stage z (`zarr_positions.py`), so the
  * shared axis's lower bound is the lowest plane any stack holds; flat
- * flat aggregates keep their depth local and
- * do not pull the bound about. Integer coordinates are voxel centres on
- * this axis, so the first plane's centre is half a voxel in from the bound.
+ * aggregates keep their depth local and do not pull the bound about. Where
+ * integer coordinates are voxel centres on this axis, the first plane's centre
+ * is half a voxel in from the bound.
  */
-function theLowestPlaneOf(own: Own, depth: number): number | null {
-  const space = own.viewer.navigationState.position.coordinateSpace.value;
+function theLowestPlaneOf(viewer: Viewer, depth: number): number | null {
+  const space = viewer.navigationState.position.coordinateSpace.value;
   const lower = space?.bounds?.lowerBounds?.[depth];
-  if (!Number.isFinite(lower)) return null;
+  if (lower === undefined || !Number.isFinite(lower)) return null;
   return space.bounds.voxelCenterAtIntegerCoordinates?.[depth] ? lower + 0.5 : lower;
+}
+
+/**
+ * The axis of the picture that counts time, read as the primitives read every
+ * axis, or null for a picture of one moment. Time is the axis measured in
+ * seconds.
+ */
+function theTimeAxis(viewer: Viewer | null): AxisReading | null {
+  const space = viewer?.navigationState.position.coordinateSpace.value;
+  const at = space?.units ? Array.from(space.units).indexOf("s") : -1;
+  return space && at >= 0 ? readTheAxis(viewer, space.names[at]) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1394,47 +1080,33 @@ function controlsFor(row: Row) {
 // should ever meet. It counts in "canonical voxels per screen pixel", where a
 // canonical voxel is the smallest voxel among the axes on screen — a number that
 // changes meaning when a different acquisition is opened. The store and the
-// stage both speak micrometres, so that is what crosses this boundary, and the
-// conversion lives here and nowhere else.
-//
-// The arithmetic, so it can be checked rather than trusted. The engine works out
-// how many voxels of an axis fall in one screen pixel as
-// `zoomFactor / canonicalVoxelFactors[i]`, and `canonicalVoxelFactors[i]` is the
-// size of that axis's voxel divided by the canonical one. Multiply those and the
-// axis drops out: metres per screen pixel is simply
-// `zoomFactor × canonicalVoxelPhysicalSize`, whichever axis you ask about.
+// stage both speak micrometres, so that is what crosses this boundary: the
+// primitives' camera (`captureCamera`, `restoreCamera`) does the exchange, and
+// this page names which two axes are across and down the window.
 
-/** Where each axis on screen sits in the image's own list, and how big it is. */
-function axesOnScreen(viewer: Engine) {
+/** Where each axis on screen sits in the image's own list, its name, and how big it is. */
+function axesOnScreen(viewer: Viewer) {
   const info = viewer.navigationState.displayDimensionRenderInfo.value;
-  const space = viewer.navigationState.position.coordinateSpace.value;
+  const space: CoordinateSpace = viewer.navigationState.position.coordinateSpace.value;
   const across = info.displayDimensionIndices[0];
   const down = info.displayDimensionIndices[1];
   return {
     across,
     down,
+    acrossName: space.names[across],
+    downName: space.names[down],
     // Micrometres per voxel along each axis on screen.
-    umAcross: (space?.scales?.[across] ?? 0) * UM_PER_M,
-    umDown: (space?.scales?.[down] ?? 0) * UM_PER_M,
-    umPerCanonicalVoxel: info.canonicalVoxelPhysicalSize * UM_PER_M,
+    umAcross: (space.scales?.[across] ?? 0) * UM_PER_M,
+    umDown: (space.scales?.[down] ?? 0) * UM_PER_M,
   };
 }
 
 /**
- * Put the view on the plane a stack should open on.
- *
- * Said rather than inherited. Left alone this engine opens in the middle of its
- * volume, which is the answer `planes.ts` gives — so the three options agreed
- * because two of them were told and the third happened to. A default that changed
- * on a version bump would have shown one engine a different slice of tissue from
- * the other, and nothing in the comparison would have said so.
- */
-/**
  * The specimen's position turned from voxels of the store into micrometres of
- * stage, which is what every option speaks.
+ * stage, which is what the page speaks.
  */
-function theSpecimenInMicrometres(own: Own, ground: { atUm: XY }, specimen: Record<string, number>): XY | null {
-  const axes = axesOnScreen(own.viewer);
+function theSpecimenInMicrometres(viewer: Viewer, ground: { atUm: XY }, specimen: Record<string, number>): XY | null {
+  const axes = axesOnScreen(viewer);
   if (!(axes.umAcross > 0) || !(axes.umDown > 0)) return null;
   if (specimen.x === undefined || specimen.y === undefined) return null;
   return {
@@ -1443,21 +1115,26 @@ function theSpecimenInMicrometres(own: Own, ground: { atUm: XY }, specimen: Reco
   };
 }
 
-function openOnThePlaneWhereTheSpecimenIs(own: Own, specimen: Record<string, number> | null) {
-  const info = own.viewer.navigationState.displayDimensionRenderInfo.value;
-  const space = own.viewer.navigationState.position.coordinateSpace.value;
-  const depth = info?.displayDimensionIndices?.[2] ?? -1;
+/**
+ * Put the view on the plane a stack should open on.
+ *
+ * Said rather than inherited. Left alone this engine opens in the middle of its
+ * volume, which is the answer `planes.ts` gives — but agreeing by coincidence is
+ * not agreeing, and a default that changed on a version bump would show another
+ * slice of tissue with nothing to say so.
+ */
+function openOnThePlaneWhereTheSpecimenIs(own: Own, viewer: Viewer, specimen: Record<string, number> | null) {
+  const space = viewer.navigationState.position.coordinateSpace.value;
+  const depth = theDepthOnScreen(viewer);
   if (depth < 0 || !space?.bounds) return;
-  const moved = Float32Array.from(own.viewer.navigationState.position.value);
   if (own.presentation === "2d-overlay") {
     /* The picture opens at the lowest plane any stack holds -- absolute
        stage z, as the writer places it. Navigation only selects that plane;
        it never rewrites a placement or infers one from whichever source
        loaded first. */
-    const bottom = theLowestPlaneOf(own, depth);
+    const bottom = theLowestPlaneOf(viewer, depth);
     if (bottom === null) return;
-    moved[depth] = bottom;
-    own.viewer.navigationState.position.value = moved;
+    moveAlong(viewer, depth, bottom);
     own.stoodOnTheTable = true;
     return;
   }
@@ -1466,11 +1143,9 @@ function openOnThePlaneWhereTheSpecimenIs(own: Own, specimen: Record<string, num
   );
   if (!(planes > 1)) return;
   // Where the specimen is, where it could be found; the middle of the declared
-  // stack otherwise, which is what this did before and is right when a run fills
-  // the room it asked for.
+  // stack otherwise, which is right when a run fills the room it asked for.
   const plane = specimen?.z ?? theMiddlePlaneOf(planes);
-  moved[depth] = space.bounds.lowerBounds[depth] + plane + 0.5;
-  own.viewer.navigationState.position.value = moved;
+  moveAlong(viewer, depth, space.bounds.lowerBounds[depth] + plane + 0.5);
 }
 
 /**
@@ -1485,10 +1160,9 @@ function openOnThePlaneWhereTheSpecimenIs(own: Own, specimen: Record<string, num
  * that axis's own scale; the two axes of a light-sheet store are rarely the same
  * size.
  */
-function theGroundTheRunCovers(own: Own) {
-  const axes = axesOnScreen(own.viewer);
-  const space = own.viewer.navigationState.position.coordinateSpace.value;
-  const bounds = space?.bounds;
+function theGroundTheRunCovers(viewer: Viewer) {
+  const axes = axesOnScreen(viewer);
+  const bounds = viewer.navigationState.position.coordinateSpace.value?.bounds;
   if (!bounds || !(axes.umAcross > 0) || !(axes.umDown > 0)) return null;
   const low = { x: bounds.lowerBounds[axes.across], y: bounds.lowerBounds[axes.down] };
   const high = { x: bounds.upperBounds[axes.across], y: bounds.upperBounds[axes.down] };
@@ -1500,78 +1174,97 @@ function theGroundTheRunCovers(own: Own) {
   };
 }
 
-/** The view the engine is showing now, in micrometres. */
-function readTheView(own: Own): View {
-  const axes = axesOnScreen(own.viewer);
-  const position = own.viewer.navigationState.position.value;
-  const zoom =
-    own.viewer.navigationState.zoomFactor.value * axes.umPerCanonicalVoxel;
+/** The view the engine is showing now, in micrometres; nothing to say while it has no axes. */
+function readTheView(viewer: Viewer | null): View {
+  const camera = viewer ? captureCamera(viewer) : null;
+  if (!viewer || !camera) return { centre: { x: 0, y: 0 }, zoom: 0 };
+  const axes = axesOnScreen(viewer);
   return {
-    centre: {
-      x: position[axes.across] * axes.umAcross,
-      y: position[axes.down] * axes.umDown,
-    },
-    zoom,
+    centre: { x: camera.positionUm[axes.acrossName], y: camera.positionUm[axes.downName] },
+    zoom: camera.zoomUm,
   };
 }
 
-/** Tell the engine where to look, in micrometres. */
-function writeTheView(own: Own, asked: { centre?: XY; zoom?: number }) {
-  const axes = axesOnScreen(own.viewer);
-  const navigation = own.viewer.navigationState;
-  const now = readTheView(own);
-  const centre = asked.centre || now.centre;
-  const zoom = asked.zoom !== undefined && asked.zoom > 0 ? asked.zoom : now.zoom;
-  if (axes.umAcross > 0 && axes.umDown > 0) {
-    const position = Float32Array.from(navigation.position.value);
-    position[axes.across] = centre.x / axes.umAcross;
-    position[axes.down] = centre.y / axes.umDown;
-    navigation.position.value = position;
+/**
+ * Tell the engine where to look, in micrometres. Only the two axes across and
+ * down the window are named, so every other axis -- the plane, the moment --
+ * stays exactly where it stands.
+ */
+function writeTheView(viewer: Viewer, asked: { centre?: XY; zoom?: number }) {
+  const camera = captureCamera(viewer);
+  if (!camera) return;
+  const axes = axesOnScreen(viewer);
+  const positionUm: Record<string, number> = {};
+  if (asked.centre) {
+    positionUm[axes.acrossName] = asked.centre.x;
+    positionUm[axes.downName] = asked.centre.y;
   }
-  if (zoom > 0 && axes.umPerCanonicalVoxel > 0) {
-    navigation.zoomFactor.value = zoom / axes.umPerCanonicalVoxel;
-  }
-}
-
-/** Which fraction of the flat picture is currently inside the engine panel. */
-function measurementBoxFor(own: Own): [[number, number], [number, number]] | null {
-  const { position } = own.viewer.navigationState;
-  const space = position.coordinateSpace.value;
-  if (!space?.rank) return null;
-  const render = own.viewer.navigationState.pose.displayDimensionRenderInfo.value;
-  const drawn = Array.from<number>(render?.displayDimensionIndices ?? []).slice(0, 2);
-  if (drawn.length < 2) return null;
-  let viewport = null;
-  for (const panel of own.viewer.display?.panels ?? []) {
-    if ("sliceView" in panel) viewport = panel.renderViewport;
-  }
-  if (!viewport?.logicalWidth || !viewport?.logicalHeight) return null;
-  const zoom = own.viewer.navigationState.zoomFactor.value;
-  const { lowerBounds, upperBounds } = space.bounds;
-  const centre = position.value;
-  const names = Array.from<string>(space.names);
-  const share: Record<string, [number, number]> = {};
-  drawn.forEach((axis, slot) => {
-    const factor = render.canonicalVoxelFactors[slot] || 1;
-    const pixels = slot === 0 ? viewport.logicalWidth : viewport.logicalHeight;
-    const half = (pixels / 2) * (zoom / factor);
-    const low = lowerBounds[axis];
-    const high = upperBounds[axis];
-    if (!Number.isFinite(low) || !Number.isFinite(high) || high <= low) return;
-    share[names[axis]] = [
-      (centre[axis] - half - low) / (high - low),
-      (centre[axis] + half - low) / (high - low),
-    ];
-  });
-  if (!share.y || !share.x) return null;
-  return [[share.y[0], share.x[0]], [share.y[1], share.x[1]]];
+  const zoomUm = asked.zoom !== undefined && asked.zoom > 0 ? asked.zoom : camera.zoomUm;
+  restoreCamera(viewer, { ...camera, positionUm, zoomUm });
 }
 
 // ---------------------------------------------------------------------------
 // The handle
 // ---------------------------------------------------------------------------
 
-/** The handle the canvas drives this engine with; `../contract.md` says what each part is for. */
+/** What `layersForMeasurement` reports of one store of a channel. */
+interface StoreStanding {
+  url: string | null;
+  matrix: number[] | null;
+  error: string | null;
+  dims: string[] | null;
+  scales: number[] | null;
+  units: string[] | null;
+  lower: number[] | null;
+  upper: number[] | null;
+  voxelCenterAtIntegerCoordinates: boolean[] | null;
+}
+
+/**
+ * What `layersForMeasurement` reports of one channel: its standing, and where
+ * the view stands. A type rather than an interface, so a reader that knows only
+ * some of its fields (the panel's `EngineRow`) can take it as it is.
+ */
+type ChannelStanding = {
+  name: string;
+  visible: boolean | undefined;
+  window: Span;
+  weight: number;
+  matrix: number[] | null;
+  error: string | null;
+  dims: string[] | null;
+  scales: number[] | null;
+  units: string[] | null;
+  lower: number[] | null;
+  upper: number[] | null;
+  sources: StoreStanding[];
+  navDims: string[];
+  nav: number[];
+};
+
+/** Where one store landed in the engine, as far as it has been read. */
+function standingOf(source: LayerDataSource, url: string | null): StoreStanding {
+  const state = source.loadState;
+  const loaded = state && "transform" in state ? state : null;
+  const landed = loaded?.transform.outputSpace.value;
+  return {
+    url,
+    matrix: loaded ? Array.from(loaded.transform.value.transform) : null,
+    error: state?.error?.message ?? null,
+    dims: landed ? Array.from(landed.names) : null,
+    scales: landed ? Array.from(landed.scales) : null,
+    units: landed ? Array.from(landed.units) : null,
+    lower: landed?.bounds ? Array.from(landed.bounds.lowerBounds) : null,
+    upper: landed?.bounds ? Array.from(landed.bounds.upperBounds) : null,
+    // Which convention the engine says this source counts in, per axis: true
+    // means integer coordinates fall on voxel centres. Kept for measurements only.
+    voxelCenterAtIntegerCoordinates: landed?.bounds
+      ? Array.from(landed.bounds.voxelCenterAtIntegerCoordinates)
+      : null,
+  };
+}
+
+/** The handle the canvas drives this engine with. */
 export type EngineViewer = ReturnType<typeof handleFor>;
 
 function handleFor(own: Own) {
@@ -1586,17 +1279,19 @@ function handleFor(own: Own) {
 
     /** Move the view. `centre` is in micrometres, `zoom` in µm per screen pixel. */
     setView(view: { centre?: XY; zoom?: number }) {
-      writeTheView(own, view);
+      const viewer = viewerOf(own);
+      if (viewer) writeTheView(viewer, view);
     },
 
     /** The view now on screen, in the same units. */
     getView() {
-      return readTheView(own);
+      return readTheView(viewerOf(own));
     },
 
-    /** The visible flat rectangle, normalized for Smart Viewer's measure API. */
+    /** The visible flat rectangle, normalized for the viewer's measure API. */
     measurementBox() {
-      return measurementBoxFor(own);
+      const viewer = viewerOf(own);
+      return viewer ? whatIsOnScreen(viewer) : null;
     },
 
     /**
@@ -1606,16 +1301,14 @@ function handleFor(own: Own) {
      * where it is visible and labelled — see `CONTROLS.md`.
      */
     setPlane(z: number) {
-      const info = own.viewer.navigationState.displayDimensionRenderInfo.value;
-      const space = own.viewer.navigationState.position.coordinateSpace.value;
-      const depth = info.displayDimensionIndices[2];
+      const viewer = viewerOf(own);
+      if (!viewer) return;
+      const depth = theDepthOnScreen(viewer);
+      const space = viewer.navigationState.position.coordinateSpace.value;
       if (depth < 0 || !space) return;
       const umPerVoxel = space.scales[depth] * UM_PER_M;
       if (!(umPerVoxel > 0)) return;
-      const moved = Float32Array.from(own.viewer.navigationState.position.value);
-      moved[depth] = z / umPerVoxel;
-      if (moved[depth] === own.viewer.navigationState.position.value[depth]) return;
-      own.viewer.navigationState.position.value = moved;
+      moveAlong(viewer, depth, z / umPerVoxel);
     },
 
     /**
@@ -1624,31 +1317,18 @@ function handleFor(own: Own) {
      * when there is only one moment: a single frame is not a timelapse.
      */
     theMomentsItCanShow() {
-      const space = own.viewer.navigationState.position.coordinateSpace.value;
-      if (!space?.units || !space.bounds) return null;
-      const at = Array.from(space.units).indexOf("s");
-      if (at < 0) return null;
-      const many = Math.round(space.bounds.upperBounds[at] - space.bounds.lowerBounds[at]);
+      const time = theTimeAxis(viewerOf(own));
+      if (!time) return null;
+      const many = time.max - time.min + 1;
       if (!(many > 1)) return null;
-      const onWholeNumbers = space.bounds.voxelCenterAtIntegerCoordinates[at];
-      const lower = space.bounds.lowerBounds[at];
-      const first = onWholeNumbers ? Math.ceil(lower) : Math.ceil(lower - 0.5) + 0.5;
-      const now = own.viewer.navigationState.position.value[at];
-      return { many, at: Math.min(Math.max(Math.round(now - first), 0), many - 1) };
+      return { many, at: Math.min(Math.max(Math.round(time.value - time.min), 0), many - 1) };
     },
 
     /** Which moment of a timelapse to show, counted from the first. */
     setMoment(t: number) {
-      const space = own.viewer.navigationState.position.coordinateSpace.value;
-      if (!space?.units) return;
-      const at = Array.from(space.units).indexOf("s");
-      if (at < 0) return;
-      const onWholeNumbers = space.bounds.voxelCenterAtIntegerCoordinates[at];
-      const lower = space.bounds.lowerBounds[at];
-      const first = onWholeNumbers ? Math.ceil(lower) : Math.ceil(lower - 0.5) + 0.5;
-      const moved = Float32Array.from(own.viewer.navigationState.position.value);
-      moved[at] = first + t;
-      own.viewer.navigationState.position.value = moved;
+      const viewer = viewerOf(own);
+      const time = theTimeAxis(viewer);
+      if (viewer && time) moveAlong(viewer, time.index, time.min + t);
     },
 
     /**
@@ -1670,11 +1350,7 @@ function handleFor(own: Own) {
      */
     showPicture(on?: boolean) {
       own.showingPicture = on !== false;
-      for (const row of own.rows) {
-        if (!row.managed) continue;
-        row.managed.setVisible(own.showingPicture && row.visible !== false);
-      }
-      syncCoverageVisibility(own);
+      drawTheRows(own);
     },
 
     /**
@@ -1682,39 +1358,24 @@ function handleFor(own: Own) {
      * brightness window applied to it.
      *
      * `index` counts across all the acquisitions in the order they are drawn,
-     * which is the order they appear in a list on screen.
+     * which is the order they appear in a list on screen. A channel switched on
+     * while the whole picture is off stays off on screen, and comes on with the
+     * picture. Everything travels as values for controls the compiled program
+     * declares — the colour included — so no change here recompiles it.
      */
     setChannel(index: number, { visible, colour, window: brightness, weight, gamma }: {
       visible?: boolean; colour?: number[]; window?: Span; weight?: number; gamma?: number;
     } = {}) {
       for (const row of own.rows.filter(one => one.controlIndex === index)) {
-        if (!row.managed) continue;
         if (visible !== undefined) row.visible = visible;
-        /* A channel switched on while the whole picture is off stays off on
-           screen, and comes on with the picture. Without this the page could
-           contradict itself: one channel drawn over a picture that is meant not to
-           be there. */
-        const shouldShow = own.showingPicture !== false && row.visible !== false;
-        if (row.managed.visible !== shouldShow) {
-          row.managed.setVisible(shouldShow);
-        }
-        syncCoverageVisibility(own);
-        const layer = row.managed.layer;
-        if (!layer) continue;
         if (colour) row.colour = colour;
         if (brightness) row.window = brightness;
         /* `weight` is the channel's own opacity, an extension the viewer's
-           panel uses; an option without it simply ignores the key. */
+           panel uses. */
         if (weight !== undefined) row.weight = weight;
         if (gamma !== undefined) row.gamma = gamma;
-        if (colour || brightness || weight !== undefined || gamma !== undefined) {
-          // Everything travels as values for controls the compiled program
-          // declares — the colour included, so no change here recompiles.
-          // Restored whole, never piecewise: a partial restore is how one
-          // control quietly resets another to its default.
-          layer.shaderControlState.restoreState(controlsFor(row));
-        }
       }
+      drawTheRows(own);
     },
 
     /**
@@ -1723,51 +1384,34 @@ function handleFor(own: Own) {
      * engine holds it, what space it landed in, and where the view stands.
      */
     layersForMeasurement() {
-      const space = own.viewer.navigationState.position.coordinateSpace.value;
-      const channels = new Map<number | undefined, { sources: unknown[]; [more: string]: unknown }>();
+      const viewer = viewerOf(own);
+      const space = viewer?.navigationState.position.coordinateSpace.value;
+      const channels = new Map<number | undefined, ChannelStanding>();
       for (const row of own.rows) {
-        const sources = Array.from<Engine>(row.managed?.layer?.dataSources ?? []).map((source, at) => {
-          const landed = source?.loadState?.transform?.outputSpace?.value;
-          return {
-            url: row.sources?.[at] ?? null,
-            matrix: source?.loadState?.transform?.value?.transform
-              ? Array.from(source.loadState.transform.value.transform)
-              : null,
-            error: source?.loadState?.error?.message ?? null,
-            dims: landed ? Array.from(landed.names) : null,
-            scales: landed ? Array.from(landed.scales) : null,
-            units: landed ? Array.from(landed.units) : null,
-            lower: landed?.bounds ? Array.from(landed.bounds.lowerBounds) : null,
-            upper: landed?.bounds ? Array.from(landed.bounds.upperBounds) : null,
-            // Which convention the engine says this source counts in, per
-            // axis: true means integer coordinates fall on voxel centres. Kept
-            // for measurements only.
-            voxelCenterAtIntegerCoordinates: landed?.bounds?.voxelCenterAtIntegerCoordinates
-              ? Array.from(landed.bounds.voxelCenterAtIntegerCoordinates)
-              : null,
-          };
-        });
-        const first = sources[0] ?? {};
+        const managed = viewer?.layerManager.getLayerByName(row.layerName);
+        const sources = (managed?.layer?.dataSources ?? [])
+          .map((source, at) => standingOf(source, row.sources[at] ?? null));
         const held = channels.get(row.controlIndex);
         if (held) {
           held.sources.push(...sources);
           continue;
         }
+        const first = sources[0];
         channels.set(row.controlIndex, {
           name: row.logicalName,
-          visible: row.managed?.visible,
+          visible: managed?.visible,
           window: row.window,
           weight: row.weight ?? 1,
-          matrix: first.matrix ?? null,
-          error: first.error ?? null,
-          dims: first.dims ?? null,
-          scales: first.scales ?? null,
-          units: first.units ?? null,
-          lower: first.lower ?? null,
-          upper: first.upper ?? null,
+          matrix: first?.matrix ?? null,
+          error: first?.error ?? null,
+          dims: first?.dims ?? null,
+          scales: first?.scales ?? null,
+          units: first?.units ?? null,
+          lower: first?.lower ?? null,
+          upper: first?.upper ?? null,
           sources,
           navDims: Array.from(space?.names ?? []),
-          nav: Array.from(own.viewer.navigationState.position.value ?? []),
+          nav: Array.from(viewer?.navigationState.position.value ?? []),
         });
       }
       return [...channels].sort(([a], [b]) => (a ?? 0) - (b ?? 0)).map(([, row]) => row);
@@ -1778,16 +1422,11 @@ function handleFor(own: Own) {
       if (own.destroyed) return;
       own.destroyed = true;
       own.watchSize?.disconnect();
-      for (const stop of own.stopWatchingTheSources || []) stop();
-      own.stopWatchingTheSources = null;
-      for (const row of own.rows) {
-        if (row.managed) deleteLayer(row.managed);
-      }
+      for (const stop of own.stopFollowingTheAxes) stop();
+      own.stopFollowingTheAxes = [];
       own.rows = [];
-      for (const coverage of own.coverageLayers?.values() ?? []) deleteLayer(coverage.managed);
-      own.coverageLayers?.clear();
-      own.viewer?.dispose?.();
-      own.viewer = null;
+      own.engine?.dispose();
+      own.engine = null;
       own.engineHost.remove();
     },
   };

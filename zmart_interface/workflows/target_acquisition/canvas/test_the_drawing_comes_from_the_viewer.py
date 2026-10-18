@@ -26,7 +26,12 @@ ENGINE = next(
 
 def test_the_installed_viewer_offers_what_the_build_reads():
     drawing = Path(zmart_viewer.__file__).parent / "drawing"
-    for name in ("programs.js", "neuroglancer-growth.mjs", "neuroglancer-patches.mjs"):
+    shared = re.search(r"THE_SHARED_DRAWING_FILES = \[(.*?)\];",
+                       (CHECKOUT / "tools/the-installed-viewer.mjs").read_text(encoding="utf-8"), re.S)
+    assert shared, "tools/the-installed-viewer.mjs names no shared drawing files"
+    names = re.findall(r'"([^"]+)"', shared[1])
+    assert "primitives/viewer.ts" in names, names
+    for name in names:
         assert (drawing / name).is_file(), f"the installed viewer has no {name}"
 
 

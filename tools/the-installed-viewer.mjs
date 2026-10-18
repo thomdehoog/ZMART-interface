@@ -2,12 +2,14 @@
  * Where the installed ZMART viewer keeps the drawing rules this page shares.
  *
  * This page and the viewer's own window draw with the same neuroglancer, and
- * they must draw the same way: the same little shader programs that turn a
- * stored value into a colour, and the same edits to neuroglancer that let a
- * picture keep its transparency and grow while it is on screen. The viewer
- * owns all of these, in its package's `drawing` folder, and this page takes
- * them from there rather than keeping copies of its own. Copies kept in line
- * by hand drifted; one owner cannot.
+ * they must draw the same way: the same primitives that steer it (making it,
+ * keeping its layers in step, feeding and refreshing stores, its axes and
+ * camera), the same little shader programs that turn a stored value into a
+ * colour, and the same edits to neuroglancer that let a picture keep its
+ * transparency and grow while it is on screen. The viewer owns all of these,
+ * in its package's `drawing` folder, and this page takes them from there
+ * rather than keeping copies of its own. Copies kept in line by hand drifted;
+ * one owner cannot.
  *
  * So the viewer has to be installed in the Python that builds the page, and
  * it has to be the release `pyproject.toml` pins: another viewer builds
@@ -29,8 +31,17 @@ function thePinnedViewer() {
 /** The files this page reads from the viewer, all in its `drawing` folder. */
 export const THE_SHARED_DRAWING_FILES = [
   "programs.js",
+  "embedding.js",
   "neuroglancer-growth.mjs",
   "neuroglancer-patches.mjs",
+  "primitives/viewer.ts",
+  "primitives/sync.ts",
+  "primitives/feeding.ts",
+  "primitives/description.ts",
+  "primitives/revisions.ts",
+  "primitives/axes.ts",
+  "primitives/camera.ts",
+  "primitives/chrome.css",
 ];
 
 /**
