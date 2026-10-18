@@ -24,7 +24,7 @@ types. Each workflow states the versions it works with in its own
 `workflow.json`:
 
 ```json
-{ "name": "target_acquisition", "version": "0.1.0", "api": "^0.2.0" }
+{ "name": "target_acquisition", "version": "0.2.0", "api": "^0.2.0" }
 ```
 
 The build, and the development server as it starts, stop with a sentence when

@@ -285,9 +285,17 @@ draws and what a press on it means, handed a `StageRun`
 travel, where the stage is, the scale bar -- and the order the stack is drawn
 in, the one thing no step can know.
 
-`engines/neuroglancer-under/viewer.ts` is the only file that knows
-neuroglancer exists, and the only file where neuroglancer's own objects are
-typed `any`: they come from the package's unstable insides.
+`engines/neuroglancer-under/viewer.ts` is the only file of the page that
+knows neuroglancer exists. It steers it through the ZMART viewer's drawing
+primitives (`zmart-viewer/drawing/primitives/`), the one way the viewer's own
+window steers it too: making the engine with its interface off, keeping its
+layers in step with a scene, feeding and refreshing stores, its axes and its
+camera in micrometres. What stays in the file is the page's own: how the
+run's acquisitions become a scene, where the view opens, and the handle the
+canvas drives. The build takes the primitives from the installed viewer
+(`tools/the-installed-viewer.mjs`); the type checker reads them by the copy of
+their declarations in `engines/zmart-viewer-drawing/`, which a test holds
+equal to the installed viewer's.
 
 ## The checks
 

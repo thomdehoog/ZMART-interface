@@ -26,7 +26,10 @@ is why `parts/` is empty.
 controller lives in the workflow, its Python half included: the bridge's
 routes, the mock microscope, the storage, the analysis. Copy the folder into
 another interface and it runs. Workflows share nothing with each other; a
-workflow uses only the workflow API and the npm packages the interface lists.
+workflow uses only the workflow API and the npm packages the interface lists,
+and one more source: the ZMART viewer's drawing code (`zmart-viewer/drawing/`),
+from the viewer release the interface pins, held by a committed copy of its
+declarations that a test keeps equal to the installed viewer's.
 
 **What belongs together sits together.** A module is one folder with one job,
 and files that change together live in it. A step is a folder: its
@@ -121,6 +124,7 @@ And for every change, refactor or not:
 | the API does not change under its version | `npm run check:api`, the frozen fixture |
 | a workflow fits the API it names | the build, against `workflow.json` |
 | types say what is true | `tsc --noEmit`, strict |
+| the viewer's drawing code is the pinned viewer's | the pin, and `test_the_drawing_comes_from_the_viewer.py` against the committed declarations |
 | the page does what the operator expects | the Playwright specs and the walk |
 
 The rest -- the oven test, one owner per fact, only the mock pretends -- is

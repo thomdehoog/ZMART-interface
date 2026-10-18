@@ -9,7 +9,8 @@ One engine fills the slot: `neuroglancer-under`, in `zmart_interface/workflows/t
 which draws the run's OME-Zarr images, served by ZMART-viewer, with neuroglancer. "Under"
 names the arrangement: the picture lies **underneath** the operator's own drawing (the
 carrier, the scan fields, the focus points, the targets), which the canvas draws above it.
-Merging it with ZMART-viewer's own engine is a later step.
+It steers neuroglancer through ZMART-viewer's drawing primitives, the same ones the viewer's
+own window uses, so the two draw a run the same way.
 
 ## What an engine is
 
