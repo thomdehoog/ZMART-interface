@@ -1386,59 +1386,6 @@ function countFromTheCornerOfTheVoxelRatherThanItsMiddle(own: Own) {
   standOnTheTable(own);
 }
 
-/** How many planes the deepest loaded source of one acquisition holds;
-    0 when none of its sources has loaded yet. */
-function planesDeepIn(own: Own, acquisition: string): number {
-  let deepest = 0;
-  for (const row of own.rows ?? []) {
-    if ((row.acquisition ?? row.name?.split("/")[0]) !== acquisition) continue;
-    for (const source of row.managed?.layer?.dataSources ?? []) {
-      const placed = source?.loadState?.transform?.value;
-      const inputSpace = placed?.inputSpace;
-      const from = inputSpace?.names?.indexOf("z") ?? -1;
-      if (from < 0 || !inputSpace?.bounds) continue;
-      const planes = Math.round(inputSpace.bounds.upperBounds[from] - inputSpace.bounds.lowerBounds[from]);
-      if (planes > deepest) deepest = planes;
-    }
-  }
-  return deepest;
-}
-
-/** Plane centres and spacing of the stack aggregates, in their displayed Z.
-    A published projection has no depth and is left out. */
-function aggregateDepthIn(own: Own, acquisition: string | null) {
-  let range: { lowUm: number; highUm: number; stepUm: number } | null = null;
-  for (const row of own.rows) {
-    if (row.depth !== "stack" || (acquisition !== null && row.acquisition !== acquisition)) continue;
-    for (const source of row.managed?.layer?.dataSources ?? []) {
-      const placement = source.loadState?.transform;
-      const space = placement?.value?.outputSpace;
-      const z = space?.names.findIndex((name: string) => name === "z" || name === "z'") ?? -1;
-      if (z < 0) continue;
-      for (const { box, transform } of space.boundingBoxes) {
-        // Shared aggregates are axis-aligned; this coefficient retains native
-        // plane spacing even when another acquisition changes the engine's units.
-        const axes = Array.from(box.lowerBounds as ArrayLike<number>, (_, axis) => axis)
-          .filter(axis => transform[axis * space.rank + z] !== 0);
-        if (axes.length !== 1) continue;
-        const axis = axes[0], scale = transform[axis * space.rank + z];
-        const planes = box.upperBounds[axis] - box.lowerBounds[axis];
-        if (!(planes > 1)) continue;
-        const unit = space.scales[z] * UM_PER_M;
-        const shift = transform[box.lowerBounds.length * space.rank + z];
-        const stepUm = Math.abs(scale) * unit;
-        const lowUm = (shift + Math.min(scale * box.lowerBounds[axis], scale * box.upperBounds[axis])) * unit + stepUm / 2;
-        const highUm = lowUm + (planes - 1) * stepUm;
-        if (![lowUm, highUm, stepUm].every(Number.isFinite) || !(stepUm > 0)) continue;
-        range = range ? { lowUm: Math.min(range.lowUm, lowUm), highUm: Math.max(range.highUm, highUm),
-          stepUm: Math.min(range.stepUm, stepUm) } : { lowUm, highUm, stepUm };
-      }
-    }
-  }
-  return range;
-}
-
-
 /**
  * Open the picture at the bottom of the stacks, once, when it first has a
  * depth to open at.
@@ -1754,52 +1701,6 @@ function handleFor(own: Own) {
      * Moving through the stack lives on a slider rather than on a gesture,
      * where it is visible and labelled — see `CONTROLS.md`.
      */
-    /**
-     * How deep the stack is, so a page can offer a way through it.
-     *
-     * Read out of the engine's own coordinate space, which spans every
-     * acquisition it has been given, and in the same micrometres `setPlane`
-     * counts in — the two are useless apart. Nothing when there is no depth to
-     * speak of: a single plane is not a stack.
-     */
-    theDepthItCanShow(acquisition: string | null = null) {
-      const info = own.viewer.navigationState.displayDimensionRenderInfo.value;
-      const space = own.viewer.navigationState.position.coordinateSpace.value;
-      const depth = info?.displayDimensionIndices?.[2] ?? -1;
-      if (depth < 0 || !space?.bounds) return null;
-      const umPerVoxel = space.scales[depth] * UM_PER_M;
-      if (own.rows.some(row => row.depth || row.view)) {
-        /* Aggregates: the stacks' own planes, and none for a projection. */
-        const range = aggregateDepthIn(own, acquisition);
-        return range && { ...range,
-          atUm: own.viewer.navigationState.position.value[depth] * umPerVoxel };
-      }
-      /* The engine's own space spans every acquisition it holds. Asked
-         about one, the answer is that one's: the deepest of its loaded
-         sources, so a flat overview beside a stack is still flat. */
-      const planes = acquisition === null
-        ? Math.round(space.bounds.upperBounds[depth] - space.bounds.lowerBounds[depth])
-        : planesDeepIn(own, acquisition);
-      if (!(umPerVoxel > 0) || !(planes > 1)) return null;
-      /* Counted from the first plane, not from the engine's own lower bound.
-         Those differ by half a voxel — this engine puts its bounds at voxel
-         *edges*, so a 833-plane stack at 5 µm reports itself as starting at
-         −2.5 µm — and a depth control that opens at minus two and a half
-         micrometres is describing the engine's arithmetic rather than the
-         specimen. It also has to match what `setPlane` below consumes, which
-         counts plane k at k voxels from the store's origin, and it has to match
-         what the other options answer, or the same stack is two different
-         depths depending on which engine happens to be drawing. */
-      const now = own.viewer.navigationState.position.value[depth];
-      return {
-        lowUm: 0,
-        highUm: (planes - 1) * umPerVoxel,
-        stepUm: umPerVoxel,
-        // Where the picture is now, counted from the first plane like the rest.
-        atUm: Math.max(now - space.bounds.lowerBounds[depth] - 0.5, 0) * umPerVoxel,
-      };
-    },
-
     setPlane(z: number) {
       const info = own.viewer.navigationState.displayDimensionRenderInfo.value;
       const space = own.viewer.navigationState.position.coordinateSpace.value;

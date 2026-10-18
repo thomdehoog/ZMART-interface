@@ -41,7 +41,7 @@ and the canvas's drawings would then put the same field in two places.
 the position it states in its own description (two images at different voxel sizes have only
 that position in common). `setChannel(index, { visible, colour, window })` changes how one
 channel is drawn; `showPicture(on)` turns the whole picture off and on without closing
-anything; `setPlane(z)` and `theDepthItCanShow()` step through a stack; `setMoment(t)` and
+anything; `setPlane(z)` steps through a stack; `setMoment(t)` and
 `theMomentsItCanShow()` through a time-lapse.
 
 **2. Follow it while it grows.** A run is drawn while the microscope is still writing it.
