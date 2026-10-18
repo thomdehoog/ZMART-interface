@@ -39,7 +39,7 @@ zmart_interface/
                    workflow's routes, knows no workflow. A workflow's Python
                    half imports of it only `bridge/api.py`.
     fixtures/      `three_steps/`, the framework's own test workflow, and
-                   `three_steps_at_1_0_0/`, its copy frozen at API 1.0.0.
+                   `three_steps_at_0_2_0/`, its copy frozen at API 0.2.0.
     types.ts       the types of the agreement, offered to workflows through
                    `api/`.
   api/           the workflow API: the one door a workflow uses into the
@@ -99,14 +99,14 @@ Every test stands beside what it tests.
 
 What a workflow may use of the interface, and what it declares for the
 interface to run it, is the workflow API: `zmart_interface/api/index.ts`,
-explained in `docs/the-workflow-api.md`. It is at **1.0.0**
+explained in `docs/the-workflow-api.md`. It is at **0.2.0**
 (`api/version.json`); each workflow states the range it fits in its
 `workflow.json`, and the build stops with a sentence when one does not fit.
 
 Two checks hold the API to its version. `api/report.txt` holds the
 declaration of every name the API offers, and `npm run check:api` fails when
 the API declares something else without a new version. And the fixture
-frozen at 1.0.0 must still type-check and walk.
+frozen at 0.2.0 must still type-check and walk.
 
 A workflow fills the API's types for itself. `WorkflowTypes` is one bag --
 its run's keys, its backend, what it lends its page, what its steps show --

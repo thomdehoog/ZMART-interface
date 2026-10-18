@@ -1,4 +1,4 @@
-// The workflow API 1.0.0: what a workflow may use, as the type checker declares it.
+// The workflow API 0.2.0: what a workflow may use, as the type checker declares it.
 // Written by `node tools/the-api-report.mjs --write`; held to the version by `--check`.
 
 export declare const API_VERSION: string;

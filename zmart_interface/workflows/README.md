@@ -38,7 +38,7 @@ target_acquisition/
                  chooser. Open this first — it is the whole workflow in one
                  screenful.
   workflow.json  its name, its own version, and the workflow API versions it
-                 fits ("api": "^1.0.0").
+                 fits ("api": "^0.2.0").
   types.ts       its run, its page and its steps, as the API's types filled in
                  for it (TaRun, TaPage, TaStep).
   steps/         one folder per step, connect/ to run_protocol/. Each holds

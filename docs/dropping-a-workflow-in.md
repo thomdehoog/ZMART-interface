@@ -54,7 +54,7 @@ Beside `flow.ts` goes a `workflow.json` naming the workflow, its own version,
 and the versions of the workflow API it works with:
 
 ```json
-{ "name": "my_workflow", "version": "0.1.0", "api": "^1.0.0" }
+{ "name": "my_workflow", "version": "0.1.0", "api": "^0.2.0" }
 ```
 
 The build stops, saying so, when the interface's API is outside that range.

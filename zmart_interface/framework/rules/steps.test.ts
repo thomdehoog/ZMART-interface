@@ -166,8 +166,8 @@ describe("a workflow that knows nothing about a microscope", () => {
   const three = FIXTURES.three_steps;
 
   it("is assembled from its folder like any other, and named from it", () => {
-    /* Beside it, its copy frozen at API 1.0.0 (`window/the-frozen-fixture.test.ts`). */
-    expect(Object.keys(FIXTURES)).toEqual(["three_steps", "three_steps_at_1_0_0"]);
+    /* Beside it, its copy frozen at API 0.2.0 (`window/the-frozen-fixture.test.ts`). */
+    expect(Object.keys(FIXTURES)).toEqual(["three_steps", "three_steps_at_0_2_0"]);
     expect(DEFAULT_WORKFLOW).toBe("three_steps");
     expect(three.name).toBe("Three steps");
     expect(three.blurb).toBeTruthy();

@@ -1,20 +1,20 @@
 // @vitest-environment jsdom
 /* The workflow API keeps its word.
 
-   `fixtures/three_steps_at_1_0_0/` is the framework's fixture as it stood when
-   the API became 1.0.0, and it is never edited. It uses every field and hook
+   `fixtures/three_steps_at_0_2_0/` is the framework's fixture as it stood when
+   the API was 0.2.0, and it is never edited. It uses every field and hook
    the API offered then. That it still type-checks is `tsc`'s to say; that it
    still walks -- the page built over it, its steps run in turn, its walk
    walking them again -- is said here. Should either stop holding, a workflow
-   written for 1.0.0 would no longer fit, and the API has changed in a way that
-   needs a new major version. */
+   written for 0.2.0 would no longer fit, and the API has changed in a way that
+   needs a new breaking version. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { assembleWorkflows } from "../rules/finding-workflows.ts";
-import * as frozen from "../fixtures/three_steps_at_1_0_0/flow.ts";
+import * as frozen from "../fixtures/three_steps_at_0_2_0/flow.ts";
 import { composeThePages } from "./pages.ts";
 
-const FOLDER = "three_steps_at_1_0_0";
+const FOLDER = "three_steps_at_0_2_0";
 
 function theFrame() {
   document.body.innerHTML = `
@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe("the fixture frozen at 1.0.0", () => {
+describe("the fixture frozen at 0.2.0", () => {
   it("is assembled with its five steps, numbered as it numbers them", () => {
     const page = opened();
     expect(page.steps().map((one) => one.id)).toEqual(["begin", "count", "finish", "look", "walk"]);

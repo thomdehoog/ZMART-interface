@@ -12,9 +12,9 @@
  *     node tools/the-api-report.mjs --write    write the report again
  *
  * `--write` refuses to change the report under the version it already names:
- * changing what the API declares means raising `api/version.json` first (minor
- * for an addition, major for anything a workflow could trip over; see
- * `docs/the-workflow-api.md`). `--check` runs in CI, so a change to the API that
+ * changing what the API declares means raising `api/version.json` first (the
+ * next version for an addition or a breaking change, as
+ * `docs/the-workflow-api.md` says). `--check` runs in CI, so a change to the API that
  * forgot its version stops there with a sentence saying so.
  *
  * Only what the API offers is in the report, and only its declarations: a

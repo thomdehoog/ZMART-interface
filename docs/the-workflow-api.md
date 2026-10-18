@@ -24,14 +24,17 @@ types. Each workflow states the versions it works with in its own
 `workflow.json`:
 
 ```json
-{ "name": "target_acquisition", "version": "0.1.0", "api": "^1.0.0" }
+{ "name": "target_acquisition", "version": "0.1.0", "api": "^0.2.0" }
 ```
 
 The build, and the development server as it starts, stop with a sentence when
 a workflow's range does not include the API's version, or when a workflow has
-no `workflow.json`. The API is at 1.0.0. Adding a hook or an optional field is
-a minor raise; a new required field, a changed argument, a changed default type
-or a changed moment of calling is a major one.
+no `workflow.json`. The API is at 0.2.0, and stays at 0.x until a second
+workflow has been written against it. Adding a hook or an optional field is an
+addition; a new required field, a changed argument, a changed default type or a
+changed moment of calling is a breaking change. While the API is 0.x, a
+breaking change raises the minor (0.2.0 to 0.3.0) and an addition the patch;
+from 1.0.0 on, a breaking change raises the major and an addition the minor.
 
 Two checks hold the API to its version:
 
@@ -42,12 +45,12 @@ Two checks hold the API to its version:
   --write` writes it again, and refuses to while `api/version.json` still names
   the version the report was written for. So a change to the API cannot reach
   `main` without its version.
-- **The frozen fixture.** `framework/fixtures/three_steps_at_1_0_0/` is the
-  framework's fixture as it stood at 1.0.0, never edited. It uses every field
+- **The frozen fixture.** `framework/fixtures/three_steps_at_0_2_0/` is the
+  framework's fixture as it stood at 0.2.0, never edited. It uses every field
   and hook the API offered then; it must still type-check, and
   `framework/window/the-frozen-fixture.test.ts` walks it. When it stops fitting,
-  the API has broken its word to the workflows written for 1.0.0: that is a new
-  major version, and a new frozen copy beside this one.
+  the API has broken its word to the workflows written for 0.2.0: that is a new
+  breaking version, and a new frozen copy beside this one.
 
 ## What a workflow may use
 

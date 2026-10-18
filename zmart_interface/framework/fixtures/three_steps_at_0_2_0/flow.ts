@@ -1,11 +1,11 @@
 /**
- * Three steps, as it stood when the workflow API became 1.0.0 -- frozen.
+ * Three steps, as it stood when the workflow API was 0.2.0 -- frozen.
  *
  * A copy of `../three_steps/flow.ts` that is never edited. It uses every field
- * and hook the API offered at 1.0.0, so while it still type-checks against the
+ * and hook the API offered at 0.2.0, so while it still type-checks against the
  * API and walks (`window/the-frozen-fixture.test.ts`), every workflow written
- * for 1.0.0 still fits. When it stops fitting, the API has broken its word:
- * that is a new major version, and a new frozen copy beside this one.
+ * for 0.2.0 still fits. When it stops fitting, the API has broken its word:
+ * that is a new breaking version, and a new frozen copy beside this one.
  *
  * What follows is the fixture's own description, as it was.
  *
