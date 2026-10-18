@@ -402,7 +402,6 @@ export function watchTheRun(ctx: WatchContext): { thePicture: ThePicture } {
       /** A field has landed, so there may be more of the scan to read. */
       mayHaveLanded() {
         if (openedOn?.startsWith("sources:")) return reopenIfTheRunGrew();
-        viewer?.tilesMayHaveLanded?.();
       },
       /** The session is over, and what was opened belongs to it. A reconnect
           is a fresh session: its run starts with nothing scanned, and the

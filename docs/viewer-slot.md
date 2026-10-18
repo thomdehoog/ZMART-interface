@@ -30,7 +30,6 @@ openViewer(element, options) → Promise<handle>
   canvas's drawing beneath shows through where nothing was imaged.
 - `presentation: "2d-overlay"` -- the run's stacks stand on one table, every stack's lowest
   plane at z = 0.
-- `onViewChanged(where)` -- called whenever the view settles.
 
 Everything is in **micrometres on the stage**: the centre of the view, the zoom (micrometres
 per screen pixel), the plane. No engine may expose its own notion of zoom, because the picture
@@ -49,8 +48,6 @@ anything; `setPlane(z)` and `theDepthItCanShow()` step through a stack; `setMome
 `addSources(acquisitions)` adds the fields that have landed since -- it answers `true` when the
 new list only grows the old one (the view, the colours and the brightness stay as they were),
 and `false` when something was removed or replaced, so the page opens the picture again.
-`tilesMayHaveLanded({ coverage })` says "go and look, a field may have arrived", with the
-newest record of which ground has been imaged.
 
 **3. Named views.** ZMART-viewer publishes, beside each acquisition, views of it that have names
 -- the brightest plane of every stack (a maximum projection), the top of the stack, a slice.
@@ -62,8 +59,6 @@ in view at every depth, since a projection has no depth of its own.
 **4. Follow the canvas.** The canvas owns the view; the picture follows it. `getView()` and
 `setView({ centre, zoom })` read and move the picture's view, and the page sets it from every
 view the canvas reports, so the picture never lags a wheel tick behind the drawings around it.
-`whereThingsAreDrawn()` gives the centre, the zoom, the box's size, and `project(x, y)` /
-`unproject(px, py)` between micrometres and screen pixels, for this very frame.
 
 And `destroy()`, which leaves the box empty. An engine keeps nothing in module variables, so a
 page can hold two at once.

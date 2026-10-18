@@ -17,7 +17,7 @@
  * somebody's idea of a good number, and there would be no way to tell which.
  * Driven by one file, a difference is a difference in the engine. It is also why
  * a page that embeds the canvas gets the two gestures without writing a line:
- * `openViewer` puts these listeners on, `destroy` takes them off, and the page
+ * the canvas's surface (`../surface.ts`) puts these listeners on, and the page
  * hears where the view went through `onViewChanged`.
  *
  * The listeners go on the box the viewer was opened inside, rather than on any
@@ -27,10 +27,7 @@
  * so there is one less thing the three could disagree about.
  *
  * **Every refusal is written out on purpose rather than simply left
- * unimplemented**, and each one is counted. An unbound gesture and a gesture
- * nobody tried look exactly alike on screen, so a measurement has to be able to
- * tell them apart, and the only way to do that is for the canvas to say plainly
- * what it turned away.
+ * unimplemented.**
  *
  * ## Lending a drag out
  *
@@ -63,21 +60,17 @@ export type Drag = Pointer & { phase: "started" | "moved" | "finished" };
 /** Whoever drags are handed to. `false` from the start turns the drag down. */
 export type DragHandler = (drag: Drag) => boolean | void;
 
-/** What the gestures answer: their tallies, the hand-over, and a stop. */
+/** What the gestures answer: the hand-over. */
 export interface Gestures {
-  refused: { shiftDrag: number; rightButton: number; ctrlWheel: number; keys: number };
-  accepted: { drags: number; wheels: number; dragsHandedOver: number; dragsHandedBack: number };
   handDragsTo(handler: DragHandler | null | undefined): void;
-  stop(): void;
 }
 
 /**
  * Listen on `element`, and turn the two allowed gestures into view changes.
  *
  * `getView` and `setView` are how this reaches whatever holds the current view,
- * in micrometres, and they are the only two things it needs. Returns a small
- * record of what was accepted and what was refused, the way to lend a drag out,
- * and the way to stop listening.
+ * in micrometres, and they are the only two things it needs. Returns the way to
+ * lend a drag out.
  */
 export function onlyPanAndZoom(
   element: HTMLElement, { getView, setView }: { getView: () => View; setView: (view: View) => void },
@@ -86,9 +79,6 @@ export function onlyPanAndZoom(
   // What a drag means at this moment. Nothing here means it pans, which is what
   // it does unless the application has said otherwise.
   let handDragOver: DragHandler | null = null;
-
-  const refused = { shiftDrag: 0, rightButton: 0, ctrlWheel: 0, keys: 0 };
-  const accepted = { drags: 0, wheels: 0, dragsHandedOver: 0, dragsHandedBack: 0 };
 
   /**
    * How large the box is, in browser pixels.
@@ -138,7 +128,6 @@ export function onlyPanAndZoom(
     // The right button used to recentre the view and shift with the left button
     // used to rotate it. Both are gone.
     if (event.button !== 0) {
-      refused.rightButton += 1;
       event.preventDefault();
       return;
     }
@@ -149,7 +138,6 @@ export function onlyPanAndZoom(
        one. So it is offered like any other drag. What it never does is pan,
        which is why nothing falls through when it is turned down. */
     if (event.shiftKey && !handDragOver) {
-      refused.shiftDrag += 1;
       event.preventDefault();
       return;
     }
@@ -179,14 +167,8 @@ export function onlyPanAndZoom(
       const took = dragging.handOver({ phase: "started", ...whereThePointerIs(event) });
       if (took === false) {
         dragging.handOver = null;
-        accepted.dragsHandedBack += 1;
-        if (dragging.neverPans) { dragging = null; refused.shiftDrag += 1; }
-        else accepted.drags += 1;
-      } else {
-        accepted.dragsHandedOver += 1;
+        if (dragging.neverPans) dragging = null;
       }
-    } else {
-      accepted.drags += 1;
     }
     element.setPointerCapture?.(event.pointerId);
     event.preventDefault();
@@ -237,14 +219,8 @@ export function onlyPanAndZoom(
     if (event.ctrlKey) {
       // Ctrl and the wheel is the engine's own way of zooming. Here the plain
       // wheel does that, and this combination does nothing at all.
-      refused.ctrlWheel += 1;
       return;
     }
-    // Counted here, before anything is asked of the viewer, for the same reason
-    // a drag is counted the moment it begins: the count has to say "this gesture
-    // reached us", and a count taken after the work would go missing exactly
-    // when the work went wrong.
-    accepted.wheels += 1;
     const view = getView();
     const size = sizeOfTheBox();
     const bounds = element.getBoundingClientRect();
@@ -267,14 +243,6 @@ export function onlyPanAndZoom(
     });
   };
 
-  const key = () => {
-    // Not one key moves the flat view. `r` and `e` rotated it, shift with the
-    // arrow keys tilted it out of the plane, the arrow keys stepped it sideways,
-    // and the comma, full stop and bracket keys moved through the stack and
-    // through time — which now belongs to the sliders.
-    refused.keys += 1;
-  };
-
   const swallowTheMenu = (event: Event) => event.preventDefault();
 
   element.addEventListener("pointerdown", down);
@@ -283,12 +251,8 @@ export function onlyPanAndZoom(
   element.addEventListener("pointercancel", up);
   element.addEventListener("wheel", wheel, { passive: false });
   element.addEventListener("contextmenu", swallowTheMenu);
-  window.addEventListener("keydown", key);
 
   return {
-    refused,
-    accepted,
-
     /**
      * Say what a drag means from now on.
      *
@@ -314,26 +278,6 @@ export function onlyPanAndZoom(
      */
     handDragsTo(handler: DragHandler | null | undefined) {
       handDragOver = handler || null;
-    },
-
-    /**
-     * Stop listening, and let go of everything.
-     *
-     * Every listener that was put on comes off again, including the one on the
-     * window. A viewer that is closed and leaves listeners behind looks fine
-     * until a second one is opened, at which point one movement of the hand is
-     * answered twice.
-     */
-    stop() {
-      element.removeEventListener("pointerdown", down);
-      element.removeEventListener("pointermove", move);
-      element.removeEventListener("pointerup", up);
-      element.removeEventListener("pointercancel", up);
-      element.removeEventListener("wheel", wheel);
-      element.removeEventListener("contextmenu", swallowTheMenu);
-      window.removeEventListener("keydown", key);
-      dragging = null;
-      handDragOver = null;
     },
   };
 }

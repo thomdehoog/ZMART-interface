@@ -27,7 +27,7 @@
  *
  * ## What this file does differently from `frontend/src/engine.js`
  *
- * Six things, and each one is fixing something that made the older integration
+ * Four things, and each one is fixing something that made the older integration
  * awkward rather than being a matter of taste.
  *
  * 1. **Nothing lives in a module variable.** The older engine module keeps the
@@ -50,28 +50,14 @@
  *    branch; it lives on `sandwich-probe`, commit `1277e30`, in its
  *    last section.
  *
- * 3. **The operator's drawing is repainted only from inside the engine's
- *    end-of-frame announcement**, using the view read at that instant. This is
- *    the whole discipline that makes the arrangement work: measured, it holds
- *    the two layers together to one screen pixel, where repainting as the mouse
- *    moves lets them drift by twenty-five. It is built in here rather than left
- *    to the page, so a page cannot get it wrong.
- *
- * 4. **Bindings, background colour and layout are each set in exactly one
+ * 3. **Bindings, background colour and layout are each set in exactly one
  *    place**, at the bottom of `start`. The engine's own gesture table is
  *    emptied on purpose: in this arrangement the operator's canvas lies over the
  *    engine and catches every gesture, so the engine's defaults — the plain
  *    wheel stepping through the stack, four different ways to rotate — can never
  *    fire. `CONTROLS.md` explains why each of those had to go.
  *
- * 5. **The picture stays on screen while new tiles are being fetched.** Told
- *    that a tile may have landed, the engine on its own throws away everything
- *    it has already decoded, so the window goes empty and fills back in — every
- *    few seconds, all through a run. That is fixed here, and the section
- *    "Going back to the store for what has arrived since" explains both the
- *    fault and what the engine does and does not give us to fix it with.
- *
- * 6. **The picture is placed where the store says it is.** Our writer says where
+ * 4. **The picture is placed where the store says it is.** Our writer says where
  *    an image sits by giving the corner of its first voxel; the engine reads the
  *    same description as giving the middle of it, and so drew every acquisition
  *    half a voxel early — about half a screen pixel at an ordinary
@@ -97,9 +83,6 @@ import { refreshSources } from "./source-refresh.ts";
 import {
   shaderControlsFor as theViewersControls, shaderFor as theViewersProgram,
 } from "zmart-viewer/drawing/programs.js";
-// The two gestures, from the one copy every option shares. See `../gestures.ts`
-// for why there is only one copy and what it costs to have three.
-import { onlyPanAndZoom, type DragHandler, type Gestures } from "../gestures.ts";
 import { theRangeAStoreHolds } from "../brightness.ts";
 // And where to open looking, which the engines disagree about by a factor of
 // twenty if left to themselves. See `../opening-view.ts`.
@@ -111,7 +94,6 @@ import { theMiddlePlaneOf } from "../planes.ts";
 // And where the specimen sits in the ground the run declared. This engine
 // keeps the store to itself, so it is read here the way the window is.
 import { whereTheSpecimenIsInThisStore } from "../where-the-specimen-is.ts";
-import type { Paint, Where } from "../../surface.ts";
 
 /*
  * Neuroglancer's own objects -- the viewer, its layers, its navigation state,
@@ -132,13 +114,6 @@ interface XY {
 interface Span {
   low: number;
   high: number;
-}
-
-/** The imaged regions, as `storage/coverage.py` records them: voxels of the full-resolution image. */
-export interface Coverage {
-  regions?: { x: [number, number]; y: [number, number]; [more: string]: unknown }[];
-  voxel_size_um?: { x: number; y: number; [axis: string]: number };
-  [more: string]: unknown;
 }
 
 /** What a published source is a view of: a projection, a stack. */
@@ -230,43 +205,25 @@ interface Rect {
 /** What `openViewer` is told. */
 export interface OpenOptions {
   acquisitions?: Acquisition[];
-  coverage?: Coverage | null;
   transparentBackground?: boolean;
   background?: string;
-  onViewChanged?: ((where: Where) => void) | null;
   presentation?: string;
-  boundToCoverage?: boolean;
 }
 
 /** Everything one viewer knows. */
 interface Own {
   element: HTMLElement;
-  coverage: Coverage | null;
   transparentBackground: boolean;
   background: string;
-  onViewChanged: ((where: Where) => void) | null;
   presentation: string;
-  boundToCoverage: boolean;
   engineRect: Rect | null;
-  wanted: View | null;
   engineHost: HTMLDivElement;
-  overlay: HTMLCanvasElement;
-  context: CanvasRenderingContext2D | null;
-  beneath: HTMLCanvasElement | null;
-  beneathContext: CanvasRenderingContext2D | null;
-  paintBeneath: Paint | null;
   viewer: Engine;
-  gestures: Gestures | null;
   rows: Row[];
-  paint: Paint | null;
-  stopFollowing: (() => void) | null;
   watchSize: ResizeObserver | null;
   stopWatchingTheSources: (() => void)[] | null;
   correctedLoadStates: WeakSet<object>;
   stoodOnTheTable: boolean;
-  superseded: Map<Engine, Set<unknown>>;
-  stopHoldingOn: (() => void) | null;
-  counted: { overlayPaints: number; groundPaints: number; enginePaints: number; letGoes: number; lastAsked: number };
   destroyed: boolean;
   /** Measured when the surfaces are built, before anything is drawn. */
   size: Size | null;
@@ -276,8 +233,6 @@ interface Own {
   embedding?: Engine;
   embeddingUrl?: string;
   showingPicture?: boolean;
-  showingVolume?: boolean;
-  stopTheWheel?: (() => void) | null;
 }
 
 /**
@@ -298,34 +253,8 @@ interface Own {
  */
 const FLAT_LAYOUT = "xy";
 
-/* And the arrangement for looking at the whole stack at once.
- *
- * The engine draws a volume by ray-casting through the layers it already holds,
- * so this is a change of layout and a mode on each layer rather than anything
- * being loaded again — which is why the switch is instant and why it costs
- * nothing to offer. The same two names are what the standalone viewer switches
- * between; see `gui/source/App.tsx` in ZMART-viewer.
- */
-const VOLUME_LAYOUT = "3d";
-
-/** How much to lift a volume's brightness over what suits the flat picture. */
-const A_VOLUME_NEEDS_LIFTING = 3;
-
 /** Metres to micrometres. The store speaks metres; the operator speaks µm. */
 const UM_PER_M = 1e6;
-
-/**
- * How far outside the imaged ground the engine is still allowed to draw, in
- * browser pixels, when the drawn region is bounded to the coverage record.
- *
- * Some slack rather than none, for two reasons. The record counts in whole
- * voxels and the screen in fractional pixels, so an exact fit would leave a
- * hairline of page colour along an edge as the view moved. And a page that draws
- * something around the edge of the picture — a frame, a label — has somewhere to
- * put it. Sixty-four pixels costs a handful of extra requests against the
- * hundreds that bounding saves.
- */
-const SLACK_AROUND_THE_IMAGED_GROUND = 64;
 
 /**
  * Open a viewer inside `element` and return the handle used to drive it.
@@ -341,15 +270,8 @@ const SLACK_AROUND_THE_IMAGED_GROUND = 64;
  *                   it out and the viewer reads the run's own description of its
  *                   colours out of the store. Say it and what you say is used
  *                   unchanged.
- *   `coverage`      the imaged regions, as `zmart_storage/coverage.py` records
- *                   them, or `null` when the run keeps no record. Used to decide
- *                   where the picture is allowed to show through.
  *   `background`    the page colour, as CSS text, so the seam between the two
  *                   drawing surfaces never shows.
- *   `onViewChanged` called whenever the view settles, with the same record
- *                   `whereThingsAreDrawn()` gives back: the centre and zoom in
- *                   micrometres, the size of the box, and `project`/`unproject`
- *                   for placing ordinary HTML elements in the same coordinates.
  *   `presentation`  `"2d-overlay"` for sources placed in absolute stage z: the
  *                   picture opens at the lowest plane any stack holds, and a
  *                   flat source is kept in view at every depth (a published
@@ -367,23 +289,9 @@ const SLACK_AROUND_THE_IMAGED_GROUND = 64;
 export async function openViewer(element: HTMLElement, options: OpenOptions = {}): Promise<EngineViewer> {
   const {
     acquisitions = [],
-    coverage = null,
     transparentBackground = false,
     background = "#000000",
-    onViewChanged = null,
     presentation = "source-geometry",
-    // Whether to give the engine only the part of the window that covers ground
-    // the run actually imaged. On by default wherever there is a record to go
-    // on, because it is the single largest saving in the whole arrangement:
-    // measured on a sparse canvas, a complete redraw went from 256 requests to
-    // 25 and from 1.30 seconds to 0.20 on a delay standing in for a network
-    // share, and the requests that went away were exactly the ones asking about
-    // ground nobody had been to. There is nothing lost by it, because the holes
-    // in the operator's drawing are the only place the picture shows anyway.
-    //
-    // It can be turned off, and one measurement does turn it off, so that the
-    // saving can be shown rather than asserted.
-    boundToCoverage = true,
   } = options;
 
   for (const acquisition of acquisitions) {
@@ -400,40 +308,17 @@ export async function openViewer(element: HTMLElement, options: OpenOptions = {}
   // the viewer does. Nothing is kept in a variable belonging to this file.
   const own: Own = {
     element,
-    coverage,
     transparentBackground,
     background,
-    onViewChanged,
     presentation,
-    boundToCoverage: boundToCoverage && Boolean(coverage?.regions?.length),
     // The rectangle within the box the engine is currently drawing in, in
-    // browser pixels. The whole box unless the drawn region is being bounded.
+    // browser pixels: the whole box.
     engineRect: null,
-    // The view the page last asked for, in micrometres. Kept because the patch
-    // the engine is given is worked out from where the view is going rather than
-    // from where it has been.
-    wanted: null,
     engineHost: document.createElement("div"),
-    overlay: document.createElement("canvas"),
-    context: null,
-    // The surface the application's own drawing goes on when it is meant to sit
-    // *beneath* the picture, and the drawing function for it. Both stay empty
-    // until a page actually asks for a bottom layer, so a page that never uses
-    // one costs exactly what it did before there was one.
-    beneath: null,
-    beneathContext: null,
-    paintBeneath: null,
     viewer: null,
-    // The two gestures, listening on the box. Put on when the viewer opens and
-    // taken off again when it closes, so a page that embeds this canvas gets
-    // dragging and the wheel without writing a line and without having to
-    // remember to tidy anything up.
-    gestures: null,
     // The channels, flattened across all acquisitions in the order they are
     // drawn, each remembering the engine layer that draws it.
     rows: [],
-    paint: null,
-    stopFollowing: null,
     watchSize: null,
     // How to stop listening for an acquisition's data arriving. Kept so that
     // closing the viewer really lets go of everything; see
@@ -446,38 +331,12 @@ export async function openViewer(element: HTMLElement, options: OpenOptions = {}
     // Whether the picture has been opened at the bottom of its stacks yet;
     // see `standOnTheTable`.
     stoodOnTheTable: false,
-    // The pieces of picture that have been superseded but are still on screen,
-    // one set of piece names per source the engine reads from. See
-    // `keepShowingThePictureWhileTheNewOneArrives` for what they are for; the
-    // short version is that they are the picture an operator is looking at
-    // while its replacement is being fetched, and letting go of them is exactly
-    // the thing that used to make the window flash empty.
-    superseded: new Map(),
-    // How to put the engine's own handling of arriving pieces back the way it
-    // was. Called when the viewer closes.
-    stopHoldingOn: null,
-    // How many times the operator's drawing has been repainted, and how many
-    // frames the engine has announced. Kept because a measurement has to be
-    // able to tell "the drawing never moved" from "the drawing moved to the
-    // wrong place", and on screen those look identical.
-    counted: {
-      overlayPaints: 0, groundPaints: 0, enginePaints: 0, letGoes: 0, lastAsked: 0,
-    },
     destroyed: false,
     size: null,
   };
 
   buildTheTwoSurfaces(own);
   await start(own, acquisitions);
-  // The two gestures go on last, once there is something for them to move. The
-  // three lines below are word for word the same in every option, because they
-  // have to be: if the three wired up dragging even slightly differently, a
-  // difference in how they feel would be a difference in the wiring rather than
-  // in the engines, and the whole comparison would stop meaning anything.
-  own.gestures = onlyPanAndZoom(element, {
-    getView: () => readTheView(own),
-    setView: (view) => writeTheView(own, view),
-  });
   return handleFor(own);
 }
 
@@ -498,7 +357,8 @@ function sourceAddressIsWhole(address: string, acquisition: string) {
 // ---------------------------------------------------------------------------
 
 /**
- * Put the engine's canvas down and the operator's canvas exactly on top of it.
+ * Put the engine's canvas down in the box. The operator's drawing goes over it
+ * from the canvas's own surface (`../../surface.ts`), not from here.
  *
  * Two lines of styling here were each learned the hard way and neither is
  * optional.
@@ -511,9 +371,8 @@ function sourceAddressIsWhole(address: string, acquisition: string) {
  * insides inside it.
  *
  * And the engine must not receive gestures at all, so it is made transparent to
- * the mouse rather than merely covered by something. The two gestures this file
- * puts on the box are the only ones there are, and they reach it because
- * nothing inside the box takes them first.
+ * the mouse rather than merely covered by something. The two gestures the
+ * canvas's surface listens for are the only ones there are.
  */
 function buildTheTwoSurfaces(own: Own) {
   const { element } = own;
@@ -536,21 +395,7 @@ function buildTheTwoSurfaces(own: Own) {
     pointerEvents: "none",
   });
 
-  own.overlay.className = "zmart-operators-drawing";
-  Object.assign(own.overlay.style, {
-    position: "absolute",
-    inset: "0",
-    width: "100%",
-    height: "100%",
-    zIndex: "2",
-    // Without this a drag on a touchpad scrolls the page instead of panning the
-    // view, and the two gestures stop being the only two.
-    touchAction: "none",
-  });
-
   element.appendChild(own.engineHost);
-  element.appendChild(own.overlay);
-  own.context = own.overlay.getContext("2d");
   fitTheSurfaces(own);
 
   // The window can be resized, and the engine's drawing area is sized by writing
@@ -561,26 +406,12 @@ function buildTheTwoSurfaces(own: Own) {
   own.watchSize = new ResizeObserver(() => {
     if (own.destroyed) return;
     fitTheSurfaces(own);
-    // The view is written again as well as the surfaces being resized, because
-    // where the engine's patch sits within a differently sized window is a
-    // different place, and the offset that follows from it has to be redone.
-    if (own.viewer && own.wanted) writeTheView(own, own.wanted);
-    // Repainted from the view the engine last drew with rather than anything
-    // newer, because that is still the picture on screen.
-    repaint(own);
   });
   own.watchSize.observe(element);
 }
 
 /**
- * Make both surfaces the size of the box, in real pixels as well as in the
- * browser's own.
- *
- * The operator's canvas is made as many real pixels across as the screen
- * actually has, and then everything is drawn in browser-pixel units, so a screen
- * that packs one and a half real pixels into each browser pixel gets a crisp
- * edge rather than a blurred one. This is invisible at a density of exactly one,
- * which is what makes getting it wrong so easy.
+ * Measure the box, and make the engine's drawing area its size.
  *
  * The engine takes no account of screen density at all — measured, it draws one
  * canvas pixel per browser pixel and lets the browser scale it up. What that
@@ -594,105 +425,21 @@ function fitTheSurfaces(own: Own) {
   const density = window.devicePixelRatio || 1;
   const width = own.element.clientWidth;
   const height = own.element.clientHeight;
-  own.overlay.width = Math.max(1, Math.round(width * density));
-  own.overlay.height = Math.max(1, Math.round(height * density));
-  if (own.beneath) {
-    own.beneath.width = own.overlay.width;
-    own.beneath.height = own.overlay.height;
-  }
   own.size = { width, height, density };
   fitTheEngineToItsPatch(own);
 }
 
 /**
- * Lay down the surface the bottom layer is drawn on, the first time a page asks
- * for one.
+ * Write the box's size onto the engine's element.
  *
- * It goes behind the engine's canvas, which is where the bottom layer of
- * `viz_studio/THE_CANVAS.md` (in ZMART-microscopy) belongs. Transparent 2D mode reveals it outside
- * acquired image coverage; opaque and volume modes retain their background.
- *
- * Made only when it is wanted. A page that never draws beneath the picture never
- * gets a third surface, never clears one every frame, and pays nothing for a
- * layer it is not using.
- */
-function makeTheSurfaceBeneath(own: Own) {
-  if (own.beneath) return;
-  const beneath = document.createElement("canvas");
-  own.beneath = beneath;
-  beneath.className = "zmart-ground-beneath";
-  Object.assign(beneath.style, {
-    position: "absolute",
-    inset: "0",
-    width: "100%",
-    height: "100%",
-    zIndex: "0",
-    pointerEvents: "none",
-  });
-  // Put in first, so it is behind both the engine and the operator's drawing
-  // however the browser happens to resolve the stacking order.
-  own.element.insertBefore(beneath, own.element.firstChild);
-  own.beneathContext = beneath.getContext("2d");
-  fitTheSurfaces(own);
-}
-
-/**
- * The imaged ground, in micrometres, out of the coverage record.
- *
- * The record counts in voxels of the full-resolution image, because that is what
- * the writer knows. Everything above this file counts in micrometres, so the two
- * are joined here, using the voxel size the record carries.
- */
-function imagedBounds(coverage: Coverage | null) {
-  if (!coverage?.regions?.length) return null;
-  const um = coverage.voxel_size_um || { x: 1, y: 1 };
-  const xs = coverage.regions.flatMap((r) => [r.x[0] * um.x, r.x[1] * um.x]);
-  const ys = coverage.regions.flatMap((r) => [r.y[0] * um.y, r.y[1] * um.y]);
-  return {
-    x0: Math.min(...xs), x1: Math.max(...xs),
-    y0: Math.min(...ys), y1: Math.max(...ys),
-  };
-}
-
-/**
- * Decide how much of the window the engine is given, and write it onto the
- * element.
- *
- * When the drawn region is bounded to the coverage record, the engine is given
- * only the part of the window that covers ground the run has actually imaged,
- * opened out a little. Everywhere else is ground nobody has been to, and asking
- * about it is where almost the whole cost of a redraw goes: on a sparse canvas
- * 247 requests out of 256 were for pieces nobody has written.
- *
- * This runs on every change of view rather than only when bounding is on, and
- * that is not tidiness. The engine's drawing area is sized by writing plain
- * pixel numbers onto its element; written once and not written again, a resized
- * window leaves the engine drawing at the old size, and two surfaces that
- * disagree about how large the window is disagree about everything that follows.
+ * The engine's drawing area is sized by writing plain pixel numbers onto its
+ * element; written once and not written again, a resized window leaves the
+ * engine drawing at the old size, and two surfaces that disagree about how
+ * large the window is disagree about everything that follows.
  */
 function fitTheEngineToItsPatch(own: Own): Rect {
   const { width, height } = own.size || { width: 0, height: 0 };
-  let rect: Rect = { left: 0, top: 0, width, height };
-  const bounds = own.boundToCoverage ? imagedBounds(own.coverage) : null;
-  const view = own.wanted;
-  if (bounds && view && view.zoom > 0) {
-    const toScreen = (x: number, y: number) => ({
-      x: width / 2 + (x - view.centre.x) / view.zoom,
-      y: height / 2 + (y - view.centre.y) / view.zoom,
-    });
-    const low = toScreen(bounds.x0, bounds.y0);
-    const high = toScreen(bounds.x1, bounds.y1);
-    const slack = SLACK_AROUND_THE_IMAGED_GROUND;
-    const left = Math.max(0, Math.floor(Math.min(low.x, high.x) - slack));
-    const top = Math.max(0, Math.floor(Math.min(low.y, high.y) - slack));
-    const right = Math.min(width, Math.ceil(Math.max(low.x, high.x) + slack));
-    const bottom = Math.min(height, Math.ceil(Math.max(low.y, high.y) + slack));
-    rect = {
-      left, top,
-      width: Math.max(1, right - left),
-      height: Math.max(1, bottom - top),
-    };
-  }
+  const rect: Rect = { left: 0, top: 0, width, height };
   const same = own.engineRect
     && own.engineRect.left === rect.left && own.engineRect.top === rect.top
     && own.engineRect.width === rect.width && own.engineRect.height === rect.height;
@@ -954,7 +701,7 @@ function installRows(own: Own) {
 
 function syncCoverageVisibility(own: Own) {
   for (const coverage of own.coverageLayers?.values() ?? []) {
-    coverage.managed.setVisible(own.showingPicture !== false && !own.showingVolume
+    coverage.managed.setVisible(own.showingPicture !== false
       && coverage.row.visible !== false);
   }
 }
@@ -976,9 +723,7 @@ async function finishOpeningAcquisitions(own: Own, acquisitions: Acquisition[]) 
      has not been measured yet, since fitting to a box of no size would be worse
      than the engine's own guess. */
   /* Where the specimen is, so the view opens on it rather than on the middle of
-     the ground the run declared — and so a volume turns about the specimen
-     instead of swinging around a point outside it. One small read; nothing else
-     waits on it. */
+     the ground the run declared. One small read; nothing else waits on it. */
   const specimen = own.presentation !== "2d-overlay" && acquisitions.length
     ? await whereTheSpecimenIsInThisStore(acquisitions[0].url)
     : null;
@@ -993,32 +738,6 @@ async function finishOpeningAcquisitions(own: Own, acquisitions: Acquisition[]) 
     if (showingAllOfIt) writeTheView(own, showingAllOfIt);
   }
   openOnThePlaneWhereTheSpecimenIs(own, specimen);
-
-  // -- the repaint discipline ---------------------------------------------
-  //
-  // The engine announces the end of every frame, and it does so from inside its
-  // own drawing function, which the browser is running as part of a single
-  // animation frame. So anything painted from inside the announcement reaches
-  // the screen in the same frame as the picture, rather than one frame later.
-  // And the engine reads the view at the moment it draws, so the view read from
-  // inside the announcement is the view it just drew with.
-  //
-  // That is the whole of the discipline, and it is not decoration: measured, it
-  // holds the two surfaces together to one screen pixel while the view is thrown
-  // about. Following the pointer instead gives twenty-five.
-  own.stopFollowing = own.viewer.display.updateFinished.add(() => {
-    if (own.destroyed) return;
-    own.counted.enginePaints += 1;
-    repaint(own);
-    // The whole placement rather than only the centre and the zoom, so that a
-    // page keeping ordinary HTML elements over or under the canvas can move them
-    // in the same instant the picture moved. See `whereThingsAreDrawn` on the
-    // handle for what it is for.
-    if (own.onViewChanged) own.onViewChanged(howThingsArePlaced(own));
-  });
-
-  // -- and the rule that keeps the picture on screen during a refresh -------
-  keepShowingThePictureWhileTheNewOneArrives(own);
 }
 
 // ---------------------------------------------------------------------------
@@ -1799,8 +1518,8 @@ function theLowestPlaneOf(own: Own, depth: number): number | null {
  * asks for one thing the viewer's window does not offer yet: gamma, which bends
  * the curve between the window's ends.
  */
-function programFor(row: Row, { asAVolume = false } = {}): string {
-  return theViewersProgram(asAVolume, null, row.opaque, { gamma: true });
+function programFor(row: Row): string {
+  return theViewersProgram(false, null, row.opaque, { gamma: true });
 }
 
 /**
@@ -1809,9 +1528,9 @@ function programFor(row: Row, { asAVolume = false } = {}): string {
  * Always restored whole, never piecewise: a partial restore is how one
  * control quietly resets another to its default.
  */
-function controlsFor(row: Row, { asAVolume = false } = {}) {
+function controlsFor(row: Row) {
   const [red, green, blue] = row.colour;
-  return theViewersControls(row.window, asAVolume, row.weight ?? 1, [red, green, blue], null,
+  return theViewersControls(row.window, false, row.weight ?? 1, [red, green, blue], null,
     row.attenuation ?? 0, row.gamma ?? 1);
 }
 
@@ -1848,131 +1567,6 @@ function axesOnScreen(viewer: Engine) {
     umDown: (space?.scales?.[down] ?? 0) * UM_PER_M,
     umPerCanonicalVoxel: info.canonicalVoxelPhysicalSize * UM_PER_M,
   };
-}
-
-/**
- * How far the middle of the engine's patch is from the middle of the window, in
- * browser pixels.
- *
- * Nought unless the drawn region is being bounded to the imaged ground. When it
- * is, the engine's patch is somewhere else in the window and its idea of "the
- * centre" is the centre of the patch — so this difference has to be added on the
- * way in and taken off on the way out, or a given point of specimen would land
- * in a different place on the window depending on whether bounding happened to
- * be on. The page must never be able to tell.
- */
-function howFarThePatchIsOffCentre(own: Own): XY {
-  const rect = own.engineRect;
-  const { width, height } = own.size || { width: 0, height: 0 };
-  if (!rect) return { x: 0, y: 0 };
-  return {
-    x: rect.left + rect.width / 2 - width / 2,
-    y: rect.top + rect.height / 2 - height / 2,
-  };
-}
-
-/**
- * Whose gestures are in charge, which depends on what is being looked at.
- *
- * **Flat: ours, and only two of them.** Dragging pans, the wheel zooms, nothing
- * rotates. That is decided in `viz_studio/CONTROLS.md` (in ZMART-microscopy) and it is not a
- * preference: the operator's carrier outline and tile positions are drawn in
- * stage coordinates over the picture, and a rotated flat view breaks that
- * correspondence silently — nothing errors, the drawing simply stops lining up.
- * So the engine's own bindings are cleared when a viewer opens.
- *
- * **A volume: the engine's own.** That same document says rotation is removed
- * *from the flat view*, and that a rotated view "comes back as a deliberate
- * control" when somebody needs it. A volume is that moment. There is no flat
- * drawing to line up with, turning the specimen over is the whole point of
- * looking at one, and neuroglancer already does it properly: drag rotates,
- * shift and drag moves the centre, and the wheel is left to us so that zooming
- * needs no modifier.
- *
- * Restored and cleared rather than merged, because a half-bound engine is the
- * state nobody can reason about — every gesture then belongs to whichever of the
- * two got to it first.
- */
-function handTheEngineItsOwnGestures(own: Own) {
-  if (own.showingVolume) {
-    /* Ours come off entirely, and that is the part that was missing.
-       
-       Installing the engine's bindings is not enough on its own: our handler
-       takes the pointer on `pointerdown` and calls `preventDefault`, which
-       suppresses the compatibility `mousedown` the engine's bindings are written
-       against. So the engine never saw a drag, our pan won, and the measurement
-       said so plainly — a drag moved the flat view's centre by 900 µm and turned
-       nothing. Two sets of handlers over one surface is not a thing to arbitrate;
-       one of them has to go. */
-    own.gestures?.stop();
-    own.gestures = null;
-    theTwoGesturesAVolumeNeeds(own, true);
-    theWheelZoomsTheCamera(own);
-    return;
-  }
-  own.stopTheWheel?.();
-  own.stopTheWheel = null;
-  theTwoGesturesAVolumeNeeds(own, false);
-  emptyTheEnginesOwnBindings(own.viewer);
-  own.gestures = own.gestures || onlyPanAndZoom(own.element, {
-    getView: () => readTheView(own),
-    setView: (view) => writeTheView(own, view),
-  });
-}
-
-/**
- * Turning and moving a volume, bound by name rather than by restoring defaults.
- *
- * `setDefaultInputEventBindings` was the obvious way and does not work here, for
- * a reason worth writing down: the engine's defaults live in tables shared by the
- * whole page, and `emptyTheEnginesOwnBindings` empties those tables rather than
- * detaching them. Once emptied they stay empty, so re-adding them as parents adds
- * nothing — measured, a drag then did nothing at all rather than rotating.
- *
- * So the two gestures a volume needs are named here. It is also the smaller
- * claim: a volume gets turning and moving, and not the twenty-odd other bindings
- * the engine ships, several of which `viz_studio/CONTROLS.md` (in ZMART-microscopy) removed on purpose.
- */
-function theTwoGesturesAVolumeNeeds(own: Own, wanted: boolean) {
-  const table = own.viewer.inputEventBindings?.perspectiveView;
-  if (!table?.set) return;
-  const turning = "at:mousedown0";
-  const moving = "at:shift+mousedown0";
-  if (!wanted) {
-    table.delete(turning);
-    table.delete(moving);
-    return;
-  }
-  // Plain drag turns it; shift and drag moves it. That is the engine's own
-  // arrangement for a three-dimensional view and what an operator asked for.
-  table.set(turning, { action: "rotate-via-mouse-drag", stopPropagation: true });
-  table.set(moving, { action: "translate-via-mouse-drag", stopPropagation: true });
-}
-
-/**
- * The plain wheel zooms the camera, without a modifier.
- *
- * The engine binds zoom to *control* and the wheel, and leaves the plain wheel
- * for stepping through slices — which a volume has none of. An operator turning
- * a specimen over expects the wheel to bring it closer, so the plain wheel is
- * bound here, to the camera the perspective view actually draws with.
- *
- * That is a different number from the flat view's magnification, and mixing them
- * up is what made zooming feel broken: the wheel moved `µm per pixel` from 6.45
- * to 1.07 while the specimen on screen did not change size by a single pixel,
- * because the flat view's zoom is not what a perspective camera draws with.
- */
-function theWheelZoomsTheCamera(own: Own) {
-  if (own.stopTheWheel) return;
-  const zoom = own.viewer.perspectiveNavigationState.zoomFactor;
-  const wheel = (event: WheelEvent) => {
-    event.preventDefault();
-    // The same feel as the flat view's wheel, which is one shared constant away
-    // from being literally the same line; see `../gestures.ts`.
-    zoom.value *= Math.exp(event.deltaY * 0.0015);
-  };
-  own.element.addEventListener("wheel", wheel, { passive: false });
-  own.stopTheWheel = () => own.element.removeEventListener("wheel", wheel);
 }
 
 /**
@@ -2061,11 +1655,10 @@ function readTheView(own: Own): View {
   const position = own.viewer.navigationState.position.value;
   const zoom =
     own.viewer.navigationState.zoomFactor.value * axes.umPerCanonicalVoxel;
-  const off = howFarThePatchIsOffCentre(own);
   return {
     centre: {
-      x: position[axes.across] * axes.umAcross - off.x * zoom,
-      y: position[axes.down] * axes.umDown - off.y * zoom,
+      x: position[axes.across] * axes.umAcross,
+      y: position[axes.down] * axes.umDown,
     },
     zoom,
   };
@@ -2078,15 +1671,10 @@ function writeTheView(own: Own, asked: { centre?: XY; zoom?: number }) {
   const now = readTheView(own);
   const centre = asked.centre || now.centre;
   const zoom = asked.zoom !== undefined && asked.zoom > 0 ? asked.zoom : now.zoom;
-  // Remembered before the patch is worked out, because the patch is worked out
-  // from where the view is about to be rather than from where it was.
-  own.wanted = { centre, zoom };
-  fitTheEngineToItsPatch(own);
-  const off = howFarThePatchIsOffCentre(own);
   if (axes.umAcross > 0 && axes.umDown > 0) {
     const position = Float32Array.from(navigation.position.value);
-    position[axes.across] = (centre.x + off.x * zoom) / axes.umAcross;
-    position[axes.down] = (centre.y + off.y * zoom) / axes.umDown;
+    position[axes.across] = centre.x / axes.umAcross;
+    position[axes.down] = centre.y / axes.umDown;
     navigation.position.value = position;
   }
   if (zoom > 0 && axes.umPerCanonicalVoxel > 0) {
@@ -2094,203 +1682,11 @@ function writeTheView(own: Own, asked: { centre?: XY; zoom?: number }) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// The operator's own drawing
-// ---------------------------------------------------------------------------
-
-/**
- * How the canvas is placed on the screen at this instant.
- *
- * One record, worked out in one place, and used for three things: the frame each
- * of the page's two drawings is handed, the announcement when the view settles,
- * and the answer to `whereThingsAreDrawn()`. Keeping them the same object is what
- * makes an ordinary HTML element positioned from `project` land in exactly the
- * same place as a shape drawn with it.
- *
- * `project` turns micrometres into browser pixels from the top-left of the box;
- * `unproject` goes the other way, which is what a click or a drag needs.
- */
-function howThingsArePlaced(own: Own): Where {
-  const { width, height, density } = own.size!;
-  const view = readTheView(own);
-  return {
-    centre: view.centre,
-    zoom: view.zoom,
-    width,
-    height,
-    density,
-    project: (x: number, y: number) => ({
-      x: width / 2 + (x - view.centre.x) / view.zoom,
-      y: height / 2 + (y - view.centre.y) / view.zoom,
-    }),
-    unproject: (x: number, y: number) => ({
-      x: view.centre.x + (x - width / 2) * view.zoom,
-      y: view.centre.y + (y - height / 2) * view.zoom,
-    }),
-  };
-}
-
-/**
- * Repaint the page's own drawings from the view the engine has just drawn with.
- *
- * Both slots are painted from the same instant: the ground beneath the picture
- * first and the operator's marks above it second, each with the same view, the
- * same size and the same conversion from micrometres to screen pixels. That is
- * what makes all three layers move together.
- *
- * Each drawing function is handed everything it needs to place a shape in
- * micrometres and nothing that would let it ask the engine a question, which is
- * what keeps one piece of drawing code working over every option.
- */
-function repaint(own: Own) {
-  if (own.destroyed) return;
-  const { width, height, density } = own.size!;
-  const placed = howThingsArePlaced(own);
-  const frameFor = (context: CanvasRenderingContext2D) => ({ ...placed, context, coverage: own.coverage });
-  if (own.paintBeneath && own.beneathContext) {
-    const context = own.beneathContext;
-    context.setTransform(density, 0, 0, density, 0, 0);
-    context.clearRect(0, 0, width, height);
-    own.paintBeneath(frameFor(context));
-    own.counted.groundPaints += 1;
-  }
-  if (own.paint && own.context) {
-    const context = own.context;
-    context.setTransform(density, 0, 0, density, 0, 0);
-    context.clearRect(0, 0, width, height);
-    own.paint(frameFor(context));
-    own.counted.overlayPaints += 1;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Going back to the store for what has arrived since
-// ---------------------------------------------------------------------------
-//
-// **Keeping the picture on screen while it is being fetched again.** This
-// section exists because of one thing an operator sees, so it is worth
-// describing that first and the machinery second.
-//
-// New position URLs append without invalidation. A published source revision
-// refreshes that store's decoded chunks, while explicit legacy refreshes may
-// still invalidate the whole picture. Keep its GPU chunks visible until their
-// replacements arrive; invalidating the worker cache alone must not flash a
-// blank canvas.
-
-/**
- * Keep every piece of picture already on screen until its replacement arrives.
- *
- * The engine's worker and the page talk to each other in short messages, one per
- * piece of picture: "here is a fresh piece", "that piece has gone". Among them
- * is one message with no piece named at all, which means "let go of everything
- * you decoded from this source" — and that single message is the whole of the
- * blank. This intercepts exactly that one message and answers it by remembering
- * what was on screen instead of clearing it.
- *
- * Two things then have to be tidied up, and both are done here rather than left
- * to chance.
- *
- * A piece that is kept has to be let go of at the moment its replacement lands,
- * or the graphics card would quietly hold two copies of the same picture for
- * ever. A replacement announces itself by arriving under a name that is already
- * in use, which is what the second half of this function watches for.
- *
- * And a piece that is kept but never asked for again — ground the operator has
- * scrolled away from, which the engine has no reason to fetch a second time —
- * is let go of when the *next* refresh comes round, in `tilesMayHaveLanded`.
- * That bounds what is being held to a single refresh's worth of scenery.
- *
- * **That bound is per source, and it is worth knowing what happens when there
- * are many of them.** A picture built from one store holds one store's worth,
- * which is what this was written for and is comfortably within what a graphics
- * card will keep. A picture built from a hundred stores, each handed over as a
- * source of its own, holds a hundred stores' worth at once — against the same
- * fixed budget on the card.
- *
- * Nobody has measured what that costs, and until somebody does it is only an
- * observation about how the bound is drawn, not a known fault. It is written
- * down because it is the kind of thing that would be hard to find later: if a
- * picture ever looks starved of detail on a large run, the engine's own counts
- * of what it is holding are the first place to point.
- *
- * It was briefly offered here as the explanation for a picture built from a
- * hundred separate sources coming out wrong. **That was wrong, and the real
- * cause has since been found and had nothing to do with this function.** The
- * script preparing those hundred stores deleted the placement each one carried,
- * so every tile collapsed toward the origin and piled on the others. This is
- * left as a note about a bound worth knowing, and no longer as a suspect for
- * anything.
- */
-function keepShowingThePictureWhileTheNewOneArrives(own: Own) {
-  const queue = own.viewer?.chunkManager?.chunkQueueManager;
-  if (!queue || typeof queue.applyChunkUpdate !== "function") return;
-  const asTheEngineWouldHave = queue.applyChunkUpdate.bind(queue);
-
-  queue.applyChunkUpdate = (message: Engine) => {
-    const source = queue.rpc.get(message.source);
-    if (source === undefined) return asTheEngineWouldHave(message);
-
-    // "Let go of everything you decoded from this source." It is the only
-    // message that names no piece, and `message.promise` tells it apart from the
-    // one other message that names none — a direct request for a piece's
-    // contents, which is a question rather than an instruction.
-    if (message.promise === undefined && message.id === undefined) {
-      let holding = own.superseded.get(source);
-      if (holding === undefined) {
-        holding = new Set();
-        own.superseded.set(source, holding);
-      }
-      // A selective refresh must also retire this source's previous generation.
-      for (const piece of holding) {
-        if (source.chunks.has(piece)) source.deleteChunk(piece);
-      }
-      holding.clear();
-      for (const piece of source.chunks.keys()) holding.add(piece);
-      // Nothing on screen changed, and saying so is not a white lie: every piece
-      // the engine was drawing a moment ago is still there to be drawn.
-      return false;
-    }
-
-    // A replacement for a piece that is still on screen. Letting go of the old
-    // one here, rather than leaving it to be overwritten, is what returns its
-    // room on the graphics card.
-    if (message.new && source.chunks.has(message.id)) {
-      source.deleteChunk(message.id);
-      own.superseded.get(source)?.delete(message.id);
-    }
-    return asTheEngineWouldHave(message);
-  };
-
-  own.stopHoldingOn = () => {
-    delete queue.applyChunkUpdate;
-    own.superseded.clear();
-  };
-}
-
-/**
- * Let go of the pieces kept through the last refresh that were never replaced.
- *
- * A piece is replaced during a refresh if the engine wants to draw it, which
- * means everything the operator is actually looking at is exchanged within that
- * one refresh. What is left over is scenery: ground that was on screen at some
- * point and is not now. Holding it costs room on the graphics card that the
- * engine no longer knows about, so it is let go of when the next refresh comes
- * round, and the picture on screen does not change when it goes.
- */
-function letGoOfWhatWasAlreadyReplaced(own: Own) {
-  for (const [source, holding] of own.superseded) {
-    for (const piece of holding) {
-      if (source.chunks.has(piece)) source.deleteChunk(piece);
-    }
-  }
-  own.superseded.clear();
-}
-
 /** Which fraction of the flat picture is currently inside the engine panel. */
 function measurementBoxFor(own: Own): [[number, number], [number, number]] | null {
   const { position } = own.viewer.navigationState;
   const space = position.coordinateSpace.value;
-  if (!space?.rank || own.showingVolume) return null;
+  if (!space?.rank) return null;
   const render = own.viewer.navigationState.pose.displayDimensionRenderInfo.value;
   const drawn = Array.from<number>(render?.displayDimensionIndices ?? []).slice(0, 2);
   if (drawn.length < 2) return null;
@@ -2451,65 +1847,6 @@ function handleFor(own: Own) {
     },
 
     /**
-     * Change one channel: whether it shows, what colour it is drawn in, and the
-     * brightness window applied to it.
-     *
-     * `index` counts across all the acquisitions in the order they are drawn,
-     * which is the order they appear in a list on screen.
-     */
-    /** Whether this engine can draw the stack as a volume. */
-    canShowVolume: true,
-
-    canShowVolumeBecause:
-      "neuroglancer ray-casts through the layers it already holds, so the whole "
-      + "stack is drawn from what is open rather than fetched again",
-
-    /**
-     * Draw the whole stack rather than one plane of it.
-     *
-     * Two things at once, and both are needed: the engine is asked for its
-     * three-dimensional arrangement, and every image layer is told to render as
-     * a volume. Either alone gives a picture that looks like a mistake — the
-     * layout without the mode shows one flat plane floating in a rotatable space,
-     * and the mode without the layout changes nothing anybody can see.
-     *
-     * Nothing is fetched. The volume is drawn out of the pieces already decoded,
-     * which is what makes this a switch rather than an operation.
-     */
-    showVolume(on?: boolean) {
-      own.showingVolume = on !== false;
-      syncCoverageVisibility(own);
-      own.viewer.layout.restoreState(own.showingVolume ? VOLUME_LAYOUT : FLAT_LAYOUT);
-      own.viewer.uiConfiguration.transparentBackground.value = own.transparentBackground && !own.showingVolume;
-      handTheEngineItsOwnGestures(own);
-      for (const row of own.rows) {
-        const layer = row.managed?.layer;
-        if (!layer?.volumeRenderingMode) continue;
-        layer.volumeRenderingMode.restoreState(own.showingVolume ? "on" : "off");
-        /* How brightly a volume is drawn, which is a separate number from the
-           window and starts at nought — so a volume drawn through a window that
-           suits the flat picture comes out barely visible. Measured on a skin
-           biopsy: 1.3% of the window lit as a volume against 15.7% flat, with
-           this untouched. It is a logarithmic gain, so a few counts is a large
-           change; this is a starting point an operator should be able to move,
-           and a control for it is the obvious next thing this panel wants. */
-        if (layer.volumeRenderingGain) {
-          layer.volumeRenderingGain.value = own.showingVolume ? A_VOLUME_NEEDS_LIFTING : 0;
-        }
-        // And the little program, because how a sample contributes is the whole
-        // difference between a volume and a fog. See `programFor`. A fresh
-        // program starts on its controls' defaults, so the row's own values
-        // are restored right after it — whole, never piecewise.
-        if (layer.fragmentMain) {
-          layer.fragmentMain.value = programFor(row, { asAVolume: own.showingVolume });
-          layer.shaderControlState.restoreState(
-            controlsFor(row, { asAVolume: own.showingVolume }),
-          );
-        }
-      }
-    },
-
-    /**
      * Draw the acquisitions, or do not — the viewer stays open either way.
      *
      * Turning the picture off used to mean opening the canvas again with no
@@ -2535,6 +1872,13 @@ function handleFor(own: Own) {
       syncCoverageVisibility(own);
     },
 
+    /**
+     * Change one channel: whether it shows, what colour it is drawn in, and the
+     * brightness window applied to it.
+     *
+     * `index` counts across all the acquisitions in the order they are drawn,
+     * which is the order they appear in a list on screen.
+     */
     setChannel(index: number, { visible, colour, window: brightness, weight, gamma }: {
       visible?: boolean; colour?: number[]; window?: Span; weight?: number; gamma?: number;
     } = {}) {
@@ -2563,42 +1907,13 @@ function handleFor(own: Own) {
           // declares — the colour included, so no change here recompiles.
           // Restored whole, never piecewise: a partial restore is how one
           // control quietly resets another to its default.
-          layer.shaderControlState.restoreState(
-            controlsFor(row, { asAVolume: own.showingVolume }),
-          );
+          layer.shaderControlState.restoreState(controlsFor(row));
         }
       }
     },
 
     /**
-     * Say what a drag means now.
-     *
-     * The canvas owns the mechanics of every gesture; the application owns what
-     * a drag currently *means*. Hand over a function and dragging stops panning:
-     * each drag is given to that function instead — once as it begins, once for
-     * every movement of the hand, and once when the operator lets go. Hand over
-     * nothing, or `null`, and dragging pans again, which is what it does until
-     * somebody says otherwise.
-     *
-     * The function is called with `{ phase, at, screen }`: `phase` is
-     * `"started"`, `"moved"` or `"finished"`, `at` is where the pointer is on
-     * the stage in micrometres, and `screen` is where it is in the box in
-     * browser pixels. Micrometres are what a mark on the specimen has to be
-     * recorded in — a mark kept in screen pixels would slide off the sample the
-     * moment the operator panned or zoomed.
-     *
-     * This is the whole of the mechanism, and it is deliberately no more than
-     * that. Nothing here draws anything, and this option never learns *why* the
-     * meaning changed. In the operator's window that is decided by the panel on
-     * the right, which is where choosing a tool belongs.
-     */
-    handDragsTo(handler: DragHandler | null | undefined) {
-      own.gestures?.handDragsTo(handler);
-    },
-
-    /**
-     * Every row's standing, for a measurement — like `gesturesSoFar`, not
-     * part of the interface an application would use. What a test needs when
+     * Every row's standing, for a measurement. What a test needs when
      * a layer is invisible and nothing on screen says why: whether the
      * engine holds it, what space it landed in, and where the view stands.
      */
@@ -2654,151 +1969,13 @@ function handleFor(own: Own) {
       return [...channels].sort(([a], [b]) => (a ?? 0) - (b ?? 0)).map(([, row]) => row);
     },
 
-    /**
-     * The operator's own drawing.
-     *
-     * Hand over one function. It is called at the moment this option considers
-     * correct — here, from inside the engine's end-of-frame announcement — with
-     * the view that frame was drawn from. The page never knows which option is
-     * underneath it, which is what makes comparing them fair.
-     */
-    drawOver(paint: Paint | null) {
-      own.paint = paint;
-      repaint(own);
-    },
-
-    /**
-     * The application's own drawing, beneath the picture.
-     *
-     * The same shape of function as `drawOver`, called at the same moments with
-     * the same frame, so a page writes the two the same way. Hand over `null` to
-     * say there is nothing beneath, and no surface is laid down at all.
-     *
-     * Visible outside image footprints when transparentBackground is enabled
-     * in 2D; opaque mode and volume rendering retain the original background.
-     */
-    drawUnder(paint: Paint | null) {
-      own.paintBeneath = paint;
-      if (paint) makeTheSurfaceBeneath(own);
-      repaint(own);
-    },
-
-    /**
-     * Where the canvas is looking, in a form good enough to place an ordinary
-     * HTML element in micrometres.
-     *
-     * The two drawing slots take a function and give back a flat picture, which
-     * is right for shapes that must stay locked to the specimen — and it is why
-     * they stay locked as well as they do. But a drawing context cannot hold an
-     * HTML element, so a label pinned to a tile, a menu, a handle with its own
-     * event listeners, anything with a life of its own, has to be an ordinary
-     * element positioned over or under the canvas.
-     *
-     * This is what lets an application do that in the canvas's own coordinate
-     * system. `project(x, y)` turns micrometres into browser pixels measured
-     * from the top-left of the box the viewer was opened inside, which is
-     * exactly what `left` and `top` want; `unproject` goes back, which is what a
-     * click needs. The same record is handed to `onViewChanged` every time the
-     * view settles, so an element can be moved in the same instant the picture
-     * moved rather than a frame later.
-     *
-     * Which side of the canvas such an element may go on is not a free choice:
-     * above the canvas always works, below it only where the engine's canvas
-     * lets what is behind it show through.
-     */
-    whereThingsAreDrawn() {
-      return howThingsArePlaced(own);
-    },
-
-    /**
-     * "Go and look, a tile may have arrived."
-     *
-     * Nothing on disk announces a new tile. The images are declared at full size
-     * before any tile exists and their description is identical before and
-     * after, so there is nothing for a watcher to notice. Worse, the engine
-     * remembers every piece of image it has decoded **including the pieces it
-     * found to be empty**, with no time limit — so a tile written into ground it
-     * has already looked at is not "slow to appear", it is never fetched again
-     * at all.
-     *
-     * The decoded pieces live in a background worker, and this sends word to
-     * that worker to read them again. **The picture on screen is not disturbed
-     * while that happens**: every piece the operator can see stays exactly where
-     * it is and is exchanged for its replacement at the moment that replacement
-     * finishes downloading. The section above
-     * `keepShowingThePictureWhileTheNewOneArrives` says how, and why it had to be
-     * done that way rather than by asking the engine for something finer: the
-     * engine's worker has no instruction narrower than "read this whole
-     * resolution level again", so the newly imaged ground cannot be singled out.
-     *
-     * What it costs: only the pieces actually on screen are asked for again,
-     * because the engine fetches what it needs to draw and nothing else. That
-     * number follows the size of the window rather than the size of the
-     * specimen, so it is the same on forty terabytes as on forty megabytes.
-     * Anything the operator had scrolled past is fetched again if they scroll
-     * back to it, which is the price and it is a fair one.
-     *
-     * Returns how many of the engine's readers were sent back to the store, so
-     * that a measurement can tell "it was asked and nothing happened" from "it
-     * was never asked" — two failures that look identical on screen and have
-     * quite different causes.
-     */
-    tilesMayHaveLanded({ coverage }: { coverage?: Coverage | null } = {}) {
-      // A newer coverage record, when the caller has one.
-      //
-      // This is not decoration and it is not optional in practice. The record
-      // says where the run has imaged, and while a run is going that answer
-      // changes — that is the whole point of it. Two things are worked out from
-      // it: where the operator's drawing cuts its holes, and how much of the
-      // window the engine is given. Both were settled when the viewer opened,
-      // so without this a tile written outside the ground the run had reached at
-      // that moment is drawn nowhere and shows through nothing.
-      //
-      // Measured before this was here: a tile written into fresh ground never
-      // appeared at all, while tiles written inside the old bounds appeared
-      // straight away — which looks exactly like an engine failing to notice new
-      // data and is nothing of the sort.
-      if (coverage) {
-        own.coverage = coverage;
-        own.boundToCoverage = own.boundToCoverage
-          && Boolean(coverage.regions?.length);
-        if (own.wanted) writeTheView(own, own.wanted);
-      }
-      // Anything still being held from the last refresh is scenery the operator
-      // has moved away from, so this is the moment to let it go. It happens
-      // before the readers are sent back to the store rather than after, so that
-      // the pieces about to be kept are not swept away along with it.
-      letGoOfWhatWasAlreadyReplaced(own);
-      const shared = own.viewer.chunkManager?.rpc?.objects;
-      if (!shared) return 0;
-      let asked = 0;
-      for (const [, held] of shared) {
-        if (!held || typeof held.invalidateCache !== "function") continue;
-        held.invalidateCache();
-        asked += 1;
-      }
-      own.counted.letGoes += 1;
-      own.counted.lastAsked = asked;
-      return asked;
-    },
-
     /** Close the viewer and let go of everything it was holding. */
     destroy() {
       if (own.destroyed) return;
       own.destroyed = true;
-      // The gestures come off first. Listeners left behind on a box that is
-      // still in the page would go on answering the operator's hand after the
-      // viewer they belonged to had gone. The little record of what they saw is
-      // kept rather than thrown away, so that a check can still ask a closed
-      // viewer whether anything reached it after it shut.
-      own.gestures?.stop();
       own.watchSize?.disconnect();
-      own.stopFollowing?.();
-      own.stopHoldingOn?.();
       for (const stop of own.stopWatchingTheSources || []) stop();
       own.stopWatchingTheSources = null;
-      own.paint = null;
-      own.paintBeneath = null;
       for (const row of own.rows) {
         if (row.managed) deleteLayer(row.managed);
       }
@@ -2808,39 +1985,6 @@ function handleFor(own: Own) {
       own.viewer?.dispose?.();
       own.viewer = null;
       own.engineHost.remove();
-      own.overlay.remove();
-      own.beneath?.remove();
-      own.beneath = null;
-    },
-
-    /**
-     * How much drawing has actually happened.
-     *
-     * Not part of the interface an application would use, and deliberately named
-     * so that it reads as what it is. The measurements need it for one narrow
-     * purpose: on screen, "the drawing never moved" and "the drawing moved to
-     * the wrong place" look identical when the right answer is that nothing
-     * should have happened. Every number the measurements *report* still comes
-     * from a photograph.
-     */
-    countsForMeasurement() {
-      return { ...own.counted };
-    },
-
-    /**
-     * What the two gestures have accepted, and what they have turned away.
-     *
-     * Not part of the interface an application would use, and deliberately
-     * named so that it reads as what it is. The measurements need it for one
-     * narrow reason: on screen, a gesture that was refused and a gesture nobody
-     * made look exactly alike, so without a count a canvas that had quietly
-     * stopped listening altogether would pass a check that nothing moved.
-     */
-    gesturesSoFar() {
-      return {
-        refused: { ...(own.gestures?.refused || {}) },
-        accepted: { ...(own.gestures?.accepted || {}) },
-      };
     },
   };
 }
