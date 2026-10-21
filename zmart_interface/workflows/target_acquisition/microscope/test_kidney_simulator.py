@@ -38,7 +38,7 @@ def test_focus_and_preview_use_canonical_kidney_not_vendor_tiffs(tmp_path, monke
     record = a_z_stack(tmp_path, heights=heights[::-1] if reverse else heights, acquisition_type="focussing")
     vendor = tmp_path / "vendor.xlif"
     vendor.write_text('<Image SystemTypeName="SIMULATOR"/>')
-    record["vendor_metadata"] = [str(vendor)]
+    record["files"].append(str(vendor))
     for plane in record["planes"]:
         plane.update(x_um=512, y_um=512)
     from pathlib import Path

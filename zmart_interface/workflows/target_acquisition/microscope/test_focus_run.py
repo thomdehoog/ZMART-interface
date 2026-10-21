@@ -91,8 +91,8 @@ def test_the_stack_is_filed_under_the_run_and_its_measurement_kept_beside_it(tmp
     measured = measure_one_stack(record, x=1.0, y=2.0, centre=0.0, score=_score,
                                  output=output, keep=kept.append, cost={"capture": 0.25})
     assert kept == [record], "the caller keeps every landed stack, scored or not"
-    assert all(str(output.data) in plane["path"] for plane in record["planes"])
-    written = json.loads(next((output.root / "analysis").glob("*_focus.json")).read_text())
+    assert all(str(output) in plane["path"] for plane in record["planes"])
+    written = json.loads(next((output / "analysis").glob("*_focus.json")).read_text())
     assert written["z_um"] == 0.5 and written["x_um"] == 1.0
     assert set(measured["cost_s"]) == {"capture", "score"}
 
@@ -103,10 +103,11 @@ def test_a_point_measured_again_keeps_the_first_measurement(tmp_path):
     the first one's rather than over it."""
     run = prepare_experiment(tmp_path / "out", "target-acquisition", hash6="abc123")
     output = prepare_acquisition(run, "focussing")
-    measure_one_stack(a_stack(output.data, sharp=0.5), x=1.0, y=2.0, centre=0.0, score=_score, output=output)
-    again = a_stack(output.data, sharp=0.75, named="focussing_P0_001")
+    (output / "data").mkdir()
+    measure_one_stack(a_stack(output / "data", sharp=0.5), x=1.0, y=2.0, centre=0.0, score=_score, output=output)
+    again = a_stack(output / "data", sharp=0.75, named="focussing_P0_001")
     measure_one_stack(again, x=1.0, y=2.0, centre=0.0, score=_score, output=output)
-    kept = {path.name: json.loads(path.read_text())["z_um"] for path in (output.root / "analysis").iterdir()}
+    kept = {path.name: json.loads(path.read_text())["z_um"] for path in (output / "analysis").iterdir()}
     assert kept == {"focussing_P0_T000000_focus.json": 0.5, "focussing_P0_001_T000000_focus.json": 0.75}
 
 

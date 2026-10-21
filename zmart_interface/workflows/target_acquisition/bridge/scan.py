@@ -95,9 +95,7 @@ def scan_worker(
                 # When the frame was taken: a rerun rewrites the same label,
                 # and the page tells the new pixels from the old by this.
                 record["taken"] = time.time()
-                output.move_record_images(
-                    record, prepare_acquisition(run, acquisition_type).data
-                )
+                output.move_record_images(record, prepare_acquisition(run, acquisition_type))
             if record.get("timing_s"):
                 # Where the seconds of this site went, as the driver clocked them.
                 print(

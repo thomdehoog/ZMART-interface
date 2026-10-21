@@ -33,7 +33,7 @@ def test_preview_uses_the_same_canonical_mip_as_detection(tmp_path, monkeypatch)
     record = a_z_stack(tmp_path, heights=(4, 0, -4), acquisition_type="overview")
     vendor = tmp_path / "vendor.xlif"
     vendor.write_text('<Image SystemTypeName="SIMULATOR"/>')
-    record["vendor_metadata"] = [vendor]
+    record["files"].append(str(vendor))
     for plane in record["planes"]:
         plane.update(x_um=32, y_um=32)
     record["planes"] = [

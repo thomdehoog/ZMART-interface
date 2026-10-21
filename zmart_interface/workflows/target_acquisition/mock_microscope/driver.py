@@ -500,15 +500,16 @@ def acquire(
 
     Every file name is ``acquisition_type``, then ``position_label``, as the
     workflow gave them; the mock adds the time point, channel and plane. The
-    files go straight into ``output_folder``, or the connection's
-    ``output_root`` when it is None, and a name already used there gets
-    ``_001``, ``_002``, ... so an earlier capture is never overwritten.
-    Captures and saves in one step -- there is no separate export.
+    files go into ``data`` in ``output_folder``, or in the connection's
+    ``output_root`` when it is None, as the Leica lays out the folder it is
+    given, and a name already used there gets ``_001``, ``_002``, ... so an
+    earlier capture is never overwritten. Captures and saves in one step --
+    there is no separate export.
     """
     _require_open(handle)
     _read_the_settings(handle)
     settings = _with_defaults(handle, acquisition_settings)
-    root = Path(output_folder) if output_folder is not None else _the_output_root(handle)
+    root = (Path(output_folder) if output_folder is not None else _the_output_root(handle)) / "data"
     stem = _a_free_stem(root, f"{acquisition_type}_{position_label}")
     # The stage is standing at the centre of the range; the job says how far
     # either side to go and in what steps. One 2-D plane per file, flat, which
@@ -557,8 +558,6 @@ def acquire(
         "position": _user_position(handle),
         "files": [*(plane["path"] for plane in planes), str(printed)],
         "planes": planes,
-        # What the driver printed about this capture, beside the images.
-        "metadata": [str(printed)],
     }
 
 
@@ -769,7 +768,7 @@ def _print_the_state(handle: MockHandle, root: Path, stem: str) -> Path:
 
     The state is embedded in the image too, where reading it costs opening a
     picture. In ``metadata/ZMART_state`` beside the images -- where the
-    interface files it, beside the vendor's own account, one folder per
+    Leica prints it, beside the vendor's own account, one folder per
     party -- it can simply be read. One file per
     acquisition: the name of the images without the channel and the z-slice,
     which one state spans.

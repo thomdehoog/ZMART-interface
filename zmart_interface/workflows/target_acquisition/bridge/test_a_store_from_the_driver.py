@@ -174,8 +174,8 @@ class FakeSession:
 
 def test_the_driver_is_given_the_acquisition_type_and_the_runs_folder_for_it(tmp_path):
     """The label goes as it is, the kind of acquisition beside it, and the
-    folder to save in is the run's ``data`` folder for that kind. The answer
-    is the controller's, untouched."""
+    folder to save in is the run's folder for that kind. The answer is the
+    controller's, untouched."""
     session = FakeSession()
     instrument = Instrument(session)
     instrument.run = tmp_path / "a-run_a1b2c3"
@@ -185,9 +185,9 @@ def test_the_driver_is_given_the_acquisition_type_and_the_runs_folder_for_it(tmp
 
     assert session.asked == {
         "position_label": "K00_M000000_G000000_P000001_V00", "acquisition_settings": None,
-        "acquisition_type": "overview", "output_folder": str(instrument.run / "overview" / "data"),
+        "acquisition_type": "overview", "output_folder": str(instrument.run / "overview"),
     }
-    assert (instrument.run / "overview" / "data").is_dir()
+    assert (instrument.run / "overview").is_dir()
     assert answer == {"success": True, "output": {
         "position_label": "K00_M000000_G000000_P000001_V00", "acquisition_type": "overview",
         "files": [], "planes": [],
@@ -212,16 +212,16 @@ def test_a_rerun_never_overwrites_an_earlier_capture(mock_session, tmp_path):
     from ..storage.output import move_record_images, prepare_acquisition, prepare_experiment
 
     mock_session.run = prepare_experiment(tmp_path / "out", "a-run", hash6="a1b2c3")
-    data = prepare_acquisition(mock_session.run, "overview").data
+    acquisition = prepare_acquisition(mock_session.run, "overview")
     first = mock_session.acquire(position_label="K00_M000000_G000000_P000001_V00", acquisition_type="overview")
     before = {path: Path(path).read_bytes() for path in first["files"]}
     again = mock_session.acquire(position_label="K00_M000000_G000000_P000001_V00", acquisition_type="overview")
 
     assert not set(first["files"]) & set(again["files"])
-    assert {Path(plane["path"]).parent for plane in first["planes"]} == {data}
+    assert {Path(plane["path"]).parent for plane in first["planes"]} == {acquisition / "data"}
     assert {path: Path(path).read_bytes() for path in first["files"]} == before
     for record in (first, again):
-        move_record_images(record, data)
+        move_record_images(record, acquisition)
     assert {path: Path(path).read_bytes() for path in first["files"]} == before
     assert all(Path(path).is_file() for path in again["files"])
 
@@ -235,11 +235,11 @@ def test_the_viewer_is_told_where_the_drivers_projections_are(run, monkeypatch):
     data = run / "focussing" / "data"
     data.mkdir(parents=True)
     stack = a_driver_store(data, "focussing_000001_F1.ome.zarr", np.zeros((1, 1, 3, 8, 8), np.uint16))
-    projection = a_driver_store(run / "focussing" / "projections", "focussing_000001_F1.ome.zarr",
-                                np.zeros((1, 1, 1, 8, 8), np.uint16))
+    # The driver's projection, under the store's own name in ``projections`` beside ``data``.
+    a_driver_store(run / "focussing" / "projections", "focussing_000001_F1.ome.zarr",
+                   np.zeros((1, 1, 1, 8, 8), np.uint16))
     record = a_record_from(stack, channels=1, label="F1")
     record["planes"] = [{**record["planes"][0], "z": z} for z in range(3)]
-    record["projections"] = [str(projection)]
     flat = a_driver_store(run / "overview" / "data", "overview_000002_A1.ome.zarr", np.zeros((1, 1, 1, 8, 8), np.uint16))
 
     pictures.keep_position_as_zarr(record, "focussing")

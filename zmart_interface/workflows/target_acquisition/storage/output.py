@@ -1,10 +1,10 @@
 """Small, workflow-owned output layout helpers.
 
 The workflow owns experiment/acquisition folders, and gives a driver the
-acquisition's ``data`` folder to save in. Drivers own image filenames and
-return the files they saved; this module only files them, without renaming
-them, in the acquisition's ``data`` folder, moving those a driver saved in a
-place of its own.
+acquisition's folder to save in. Inside it the driver owns the layout and the
+filenames, and returns the files it saved; this module only files those a
+driver saved in a place of its own, in the acquisition's folder, keeping the
+layout and the names it gave them.
 """
 
 from __future__ import annotations
@@ -13,21 +13,12 @@ import os
 import re
 import shutil
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$")
 _HASH_RE = re.compile(r"^[0-9a-z]{6}$")
 _CREATE_ATTEMPTS = 16
-
-
-@dataclass(frozen=True)
-class AcquisitionOutput:
-    """One workflow acquisition-type directory."""
-
-    root: Path
-    data: Path
 
 
 def checked_name(value: str, *, field: str) -> str:
@@ -84,18 +75,12 @@ def prepare_experiment(output_root: Any, experiment: str, *, hash6: str | None =
     return path
 
 
-def prepare_acquisition(
-    experiment_root: Any,
-    acquisition_type: str,
-) -> AcquisitionOutput:
-    """Create ``<experiment>/<acquisition_type>/data``."""
+def prepare_acquisition(experiment_root: Any, acquisition_type: str) -> Path:
+    """Create and return ``<experiment>/<acquisition_type>``, the folder a driver saves the acquisition in."""
 
-    name = checked_name(acquisition_type, field="acquisition_type")
-    root = Path(experiment_root) / name
-    root.mkdir(parents=True, exist_ok=True)
-    data = root / "data"
-    data.mkdir(exist_ok=True)
-    return AcquisitionOutput(root=root, data=data)
+    folder = Path(experiment_root) / checked_name(acquisition_type, field="acquisition_type")
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
 
 
 def run_hash(run: Any) -> str:
@@ -144,26 +129,20 @@ def position_label(
     return f"K{carrier:02d}_M{compartment:06d}_G{group:06d}_P{position:06d}_V{view:02d}"
 
 
-def move_record_images(record: dict, data_dir: Any) -> dict:
+def move_record_images(record: dict, acquisition: Any) -> dict:
     """File every file a capture saved in the run, unchanged, and update the record's paths.
 
     ``files`` is where the driver lists every file it saved, the name the
     ZMART Controller's contract fixes so the interface finds the pictures on
-    any microscope. Each file lands in *data_dir* under its own name, except
-    two kinds of description that sit beside the images: the state the driver
-    printed (named under ``metadata``) goes to ``data_dir/metadata/ZMART_state``,
-    and the microscope software's own metadata (named under
-    ``vendor_metadata``) to ``data_dir/metadata/vendor``. What was made from
-    the capture goes beside ``data``: a projection (``projections``) to
-    ``projections/``, the driver's log of the capture (``log``) to ``log/``. Every file a plane
-    or a description names must be one of the files, so that the record can
-    never disagree with itself about what was saved. The files keep the
-    layout the driver gave them in the folder it saved the capture in, their
-    common folder (over the files the lists above do not file elsewhere): the
-    images at its top land in *data_dir*, and the state it
-    printed under ``metadata/ZMART_state`` lands under the same names in
-    *data_dir*. A driver given the ``data`` folder saves straight into it, so
-    its files are already where they belong and stay there.
+    any microscope. Every file a plane names must be one of them, so that the
+    record can never disagree with itself about what was saved.
+
+    The layout is the driver's. A driver given the *acquisition* folder saves
+    straight into it, in folders of its own (the Leica keeps its stores in
+    ``data``, its projections and its log beside it), so its files are
+    already where they belong and stay there. A driver whose software saves
+    in a place of its own has its files moved into *acquisition*, keeping the
+    layout they have under their common folder.
 
     Every source and destination is checked before the first move. If a later
     move fails, the files already moved go back where they were, so one
@@ -177,28 +156,16 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
         )
     sources = list(dict.fromkeys(Path(value) for value in files))
     named = [plane["path"] for plane in record.get("planes", [])]
-    named += [*record.get("metadata", []), *record.get("vendor_metadata", [])]
-    named += [*record.get("projections", []), *record.get("log", [])]
     unlisted = [value for value in named if Path(value) not in sources]
     if unlisted:
         raise RuntimeError(f"the capture names {unlisted}, not among the files it saved")
 
-    destination = Path(data_dir)
-    beside = {
-        **{Path(value): destination / "metadata" / "vendor" for value in record.get("vendor_metadata", [])},
-        **{Path(value): destination / "metadata" / "ZMART_state" for value in record.get("metadata", [])},
-        # Made from the capture, so beside ``data`` rather than in it.
-        **{Path(value): destination.parent / "projections" for value in record.get("projections", [])},
-        **{Path(value): destination.parent / "log" for value in record.get("log", [])},
-    }
-    # The folder the capture was saved in: common to the files no list above files elsewhere.
-    kept = [source for source in sources if source not in beside] or sources
-    saved_in = Path(os.path.commonpath([source.parent for source in kept]))
-    filed = [
-        (source, beside[source] / source.name if source in beside
-         else destination / source.relative_to(saved_in))
-        for source in sources
-    ]
+    destination = Path(acquisition)
+    if all(source.resolve().is_relative_to(destination.resolve()) for source in sources):
+        saved_in = destination
+    else:
+        saved_in = Path(os.path.commonpath([source.parent for source in sources]))
+    filed = [(source, destination / source.relative_to(saved_in)) for source in sources]
     targets = [target for _, target in filed]
     if len(targets) != len(set(targets)):
         raise RuntimeError("acquire returned different files with the same filename")
@@ -227,7 +194,4 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
     record["files"] = [mapped[source] for source in sources]
     for plane in record.get("planes", []):
         plane["path"] = mapped[Path(plane["path"])]
-    for key in ("metadata", "vendor_metadata", "projections", "log"):
-        if record.get(key):
-            record[key] = [mapped[Path(value)] for value in record[key]]
     return record

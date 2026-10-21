@@ -115,7 +115,7 @@ def measure_one_stack(
     """
     cost = dict(cost or {})
     if output is not None:
-        move_record_images(record, output.data)
+        move_record_images(record, output)
         # The caller's own keeping of the landed capture -- the bridge
         # converts it to the run's canonical store -- for every stack,
         # lost or scored.
@@ -136,7 +136,7 @@ def measure_one_stack(
     if output is not None:
         # The whole measurement, not just the score: a kept height that
         # does not say where it was measured cannot be accounted for.
-        _keep(measurement, output.root, record)
+        _keep(measurement, output, record)
     return measurement
 
 

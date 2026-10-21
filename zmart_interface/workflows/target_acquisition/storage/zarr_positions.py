@@ -86,7 +86,8 @@ def position_store_from_record(record: dict, into: Path | str, *, pixel_provider
     if pixel_provider is not None:
         from ..microscope.simulator_guard import assert_simulator
 
-        assert_simulator(record.get("vendor_metadata") or [], record["position_label"])
+        described = [path for path in record.get("files", []) if path.endswith(".xlif")]
+        assert_simulator(described, record["position_label"])
     for attempt in range(WRITE_ATTEMPTS):
         try:
             return _write_a_position(record, into, pixel_provider=pixel_provider)

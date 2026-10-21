@@ -94,8 +94,10 @@ def _needs_the_analysis_environment(name: str) -> None:
 
 
 def _a_mock_session(instrument) -> Instrument:
-    """The mock microscope through the controller, as the bridge connects it."""
-    return Instrument(ZmartController(mock_microscope, instrument))
+    """The mock microscope through the controller, as the bridge connects it: given the run."""
+    session = Instrument(ZmartController(mock_microscope, instrument))
+    session.run = state.run
+    return session
 
 
 class _Driver:
@@ -529,7 +531,7 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
         "acquisition_type": "overview",
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
-    path = str(session.run / "overview" / "data" / "overview_K00_M000001_G000000_P000007_V00.tiff")
+    path = str(session.run / "overview" / "overview_K00_M000001_G000000_P000007_V00.tiff")
     assert answer == {"success": True, "output": {
         "position_label": "K00_M000001_G000000_P000007_V00",
         "acquisition_type": "overview",
@@ -573,7 +575,7 @@ def test_the_settings_a_capture_is_given_reach_the_driver(monkeypatch):
     })
     assert driver.asked[-1] == (
         "K00_M000002_G000001_P000003_V00", {"trigger": "full"},
-        "targets", str(session.run / "targets" / "data"),
+        "targets", str(session.run / "targets"),
     )
 
 
@@ -1638,7 +1640,8 @@ def test_targets_are_really_focussed_and_taken_on_the_mock(mock_instrument, monk
     # conversion failed on the path alone.
     monkeypatch.setattr(state, "run", Path(tempfile.mkdtemp(prefix="zmt-")) / "run")
     state.run.mkdir()
-    # What connect does: the analysis writes into this run.
+    # What connect does: the session saves into this run, and the analysis writes into it.
+    session.run = state.run
     monkeypatch.setattr(warm, "run_folder", None)
     monkeypatch.setattr(warm, "_analysis", None)
     warm.open(state.run)

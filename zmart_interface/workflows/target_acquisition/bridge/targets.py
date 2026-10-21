@@ -114,7 +114,7 @@ def target_landed(asked: dict) -> dict:
         record["requested_position_um"]["z"],
     )
     with state.the_instruments_turn:
-        output.move_record_images(record, prepare_acquisition(state.the_run(), "targets").data)
+        output.move_record_images(record, prepare_acquisition(state.the_run(), "targets"))
     pictures.keep_position_as_zarr(record, "targets")
     records = state.records.setdefault("targets", [])
     replaced = next(

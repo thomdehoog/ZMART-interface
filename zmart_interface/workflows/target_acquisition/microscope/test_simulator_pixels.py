@@ -14,7 +14,7 @@ def test_saved_planes_stay_unchanged_and_pixels_follow_specimen_z(tmp_path, heig
     record = a_z_stack(tmp_path, heights=heights)
     vendor = tmp_path / "vendor.xlif"
     vendor.write_text('<Image SystemTypeName="SIMULATOR"/>')
-    record["vendor_metadata"] = [vendor]
+    record["files"].append(str(vendor))
     for plane in record["planes"]:
         plane.update(x_um=32, y_um=32)
     original = {p["path"]: Path(p["path"]).read_bytes() for p in record["planes"]}
@@ -37,7 +37,7 @@ def test_identity_and_missing_files_do_not_become_synthetic_success(tmp_path, id
     if identity:
         vendor = tmp_path / "vendor.xlif"
         vendor.write_text(f'<Image SystemTypeName="{identity}"/>')
-        record["vendor_metadata"] = [vendor]
+        record["files"].append(str(vendor))
     record["planes"][0]["path"] = str(tmp_path / "missing.tif")
     with pytest.raises((RuntimeError, FileNotFoundError)):
         position_store_from_record(record, tmp_path / "positions", pixel_provider=SimulatorPixels())

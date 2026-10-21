@@ -61,11 +61,11 @@ LABEL = "K00_M000000_G000000_P000000_V00"
 def test_every_file_name_is_the_acquisition_type_then_the_label(mock_instrument, tmp_path):
     """The workflow names the kind and the place; the mock adds only the time point, channel and plane.
 
-    The files land straight in the output folder acquire is given, the state
-    beside them under ``metadata/ZMART_state``, and a second capture under the
-    same label never overwrites the first: it gets ``_001``.
+    The files land in ``data`` in the output folder acquire is given, the
+    state beside them under ``metadata/ZMART_state``, and a second capture
+    under the same label never overwrites the first: it gets ``_001``.
     """
-    folder = tmp_path / "a-run_a1b2c3" / "overview" / "data"
+    folder = tmp_path / "a-run_a1b2c3" / "overview"
     folder.mkdir(parents=True)
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
@@ -73,7 +73,7 @@ def test_every_file_name_is_the_acquisition_type_then_the_label(mock_instrument,
         again = raw.acquire(LABEL, acquisition_type="overview", output_folder=folder)["output"]
     finally:
         raw.disconnect()
-    root = os.path.realpath(folder)
+    root = os.path.realpath(folder / "data")
     assert [os.path.basename(plane["path"]) for plane in first["planes"]] == [
         f"overview_{LABEL}_T000000_C{channel:02d}_Z00000.ome.tiff" for channel in range(3)
     ]
@@ -87,14 +87,14 @@ def test_every_file_name_is_the_acquisition_type_then_the_label(mock_instrument,
 
 
 def test_without_a_folder_the_mock_saves_where_it_was_plugged_in(mock_instrument):
-    """No output folder: the connection's ``output_root``, under the controller's default kind."""
+    """No output folder: ``data`` in the connection's ``output_root``, under the controller's default kind."""
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
         answer = raw.acquire(LABEL)["output"]
     finally:
         raw.disconnect()
     assert os.path.dirname(os.path.realpath(answer["planes"][0]["path"])) == os.path.realpath(
-        mock_instrument["output_root"]
+        os.path.join(mock_instrument["output_root"], "data")
     )
     assert os.path.basename(answer["planes"][0]["path"]).startswith(f"acquisition_{LABEL}_T000000_")
     assert answer["acquisition_type"] == "acquisition"

@@ -22,9 +22,11 @@ from .zarr_positions import position_store_from_record  # noqa: E402, I001
 
 
 def a_record(planes: list[dict]) -> dict:
+    """A capture as the controller answers one: every file saved, and the planes in them."""
     return {
         "acquisition_type": "overview",
         "position_label": "K00_M000000_G000000_P000007_V00",
+        "files": list(dict.fromkeys(plane["path"] for plane in planes)),
         "planes": planes,
     }
 

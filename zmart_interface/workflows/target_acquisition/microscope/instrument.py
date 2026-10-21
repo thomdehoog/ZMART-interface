@@ -136,15 +136,15 @@ class Instrument:
         ``acquisition_type`` is the interface's own name for which acquisition
         this capture belongs to (``"overview"``, ``"focussing"``, ...). The
         driver puts it in its file names and metadata, beside the label. With
-        a run open, the driver is also given the run's ``data`` folder for
-        that acquisition to save in; a driver whose software saves in its own
+        a run open, the driver is also given the run's folder for that
+        acquisition to save in, laid out its own way; a driver whose software saves in its own
         place saves there instead, and the answer lists where. A driver never
         overwrites an earlier file, so a label taken again in the run is saved
         under a name of its own.
         """
         output_folder = None
         if acquisition_type is not None and self.run is not None:
-            output_folder = str(prepare_acquisition(self.run, acquisition_type).data)
+            output_folder = str(prepare_acquisition(self.run, acquisition_type))
         return self.session.acquire(
             position_label=position_label, acquisition_settings=acquisition_settings,
             acquisition_type=acquisition_type, output_folder=output_folder,
