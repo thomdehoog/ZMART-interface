@@ -4,17 +4,11 @@
  * The list comes from the bridge (`GET /api/instruments`) as names: the
  * interface's own mock microscope, `interface-mock`, then every driver
  * registered on this computer, by its name
- * (`zmart_controller.get_drivers()`, the controller's own mock, `mock`,
- * first). Connect sends the chosen name back. The page never invents an
+ * (`zmart_controller.get_drivers()`). Connect sends the chosen name back. The page never invents an
  * instrument; it only puts friendlier words on the names it happens to know.
  */
 
-/**
- * The interface's own pretend microscope, by the name the bridge offers it
- * under. The ZMART Controller has a pretend microscope of its own too (a
- * slide of beads, listed as `mock`), and an operator who chose "Mock" must
- * get this one.
- */
+/** The interface's own pretend microscope, by the name the bridge offers it under. */
 export const THE_MOCK = "interface-mock";
 
 /** Whether a listed name is the interface's own mock. */
@@ -31,8 +25,6 @@ export interface KnownMicroscope {
 
 export const MICROSCOPES: Record<string, KnownMicroscope> = {
   [THE_MOCK]: { label: "Mock", detail: "the interface's pretend microscope",
-    api: "Mock API", apiDetail: "in-process · made-up data" },
-  mock: { label: "Mock beads", detail: "the controller's pretend microscope",
     api: "Mock API", apiDetail: "in-process · made-up data" },
 };
 

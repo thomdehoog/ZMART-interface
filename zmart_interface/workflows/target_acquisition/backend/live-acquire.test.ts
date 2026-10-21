@@ -27,8 +27,8 @@ function bridgeTakingTargets({ peak = 12, curve = true, declining = false, stand
     }
     if (route === "/api/target_acquisition/state") return answer({ applied: body });
     if (route === "/api/target_acquisition/acquire") {
-      if (declining) return answer({ success: false, content: { reason: "the laser is off", files: [], planes: [] } });
-      return answer({ success: true, content: { position_label: body.position_label } });
+      if (declining) return answer({ success: false, output: { reason: "the laser is off", files: [], planes: [] } });
+      return answer({ success: true, output: { position_label: body.position_label } });
     }
     if (route === "/api/target_acquisition/targets/acquire/focus") {
       return answer({ z: curve ? peak : null, lost: !curve, traces: curve ? { brenner: curveAt(peak) } : null });
@@ -179,7 +179,7 @@ describe("the live target run", () => {
     expect(drives).toEqual([10]);
   });
 
-  it("lands the capture's content, not the controller's envelope around it", async () => {
+  it("lands the capture's output, not the controller's envelope around it", async () => {
     const calls = bridgeTakingTargets();
     await backend.acquireTargets({ positions: positions.slice(0, 1), state: null });
     const landed = theFirstTo(calls, "/api/target_acquisition/targets/acquire/landed");

@@ -34,11 +34,11 @@ class Stage:
         self.moves = []
 
     def get_xyz(self):
-        return {"success": True, "content": {axis: {"position": v} for axis, v in self.standing.items()}}
+        return {"success": True, "output": {axis: {"position": v} for axis, v in self.standing.items()}}
 
     def set_xyz(self, x, y, z):
         self.moves.append((x, y, z))
-        return {"success": True, "content": {"x": {"position": x}, "y": {"position": y}, "z": {"position": z}}}
+        return {"success": True, "output": {"x": {"position": x}, "y": {"position": y}, "z": {"position": z}}}
 
 
 def test_a_drive_never_sends_the_objective_to_a_height_nobody_reported(monkeypatch):

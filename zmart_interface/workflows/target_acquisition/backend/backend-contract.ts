@@ -203,10 +203,10 @@ function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
           acquisition_type: "overview", position_label: label,
         });
         /* The controller's own answer, as a Python script receives it. */
-        expect(Object.keys(answer).sort(), "the controller's two parts").toEqual(["content", "success"]);
+        expect(Object.keys(answer).sort(), "the controller's two parts").toEqual(["output", "success"]);
         expect(answer.success).toBe(true);
-        /* Succeeded, as just held: the content is the record. */
-        const record = answer.content as CaptureRecord;
+        /* Succeeded, as just held: the output is the record. */
+        const record = answer.output as CaptureRecord;
         expect(record.position_label).toBe(label);
         /* `files` is the name the ZMART Controller's contract fixes for every
            file a capture saved; each plane's file is one of them. How a
@@ -241,10 +241,10 @@ function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
            reading and its canvas; the travel stays inside the driver. */
         const at = await backend.get_xyz();
         for (const axis of ["x", "y", "z"] as const) {
-          expect(Object.keys(at[axis]).sort(), `${axis} reads position, unit, actuator, actuators and canvas`)
-            .toEqual(["actuator", "actuators", "canvas", "position", "unit"]);
-          expect(Object.keys(at[axis].actuators), `${axis}'s actuator is one of its motors`)
-            .toContain(at[axis].actuator);
+          expect(Object.keys(at[axis]).sort(), `${axis} reads position, unit, used_actuator, actuator_readings and canvas`)
+            .toEqual(["actuator_readings", "canvas", "position", "unit", "used_actuator"]);
+          expect(Object.keys(at[axis].actuator_readings), `${axis}'s used actuator is one of its motors`)
+            .toContain(at[axis].used_actuator);
           const { canvas } = at[axis];
           expect(Array.isArray(canvas) && canvas.length === 2, `${axis} has a canvas`).toBe(true);
           const [low, high] = canvas as Span;
@@ -268,10 +268,10 @@ function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
         const travel = await theTravelOf(backend);
         const going = across(travel, 0.5, 0.5);
         await backend.set_xyz({ ...going, z: um(await backend.get_xyz()).z });
-        const { content } = await backend.acquire({
+        const { output } = await backend.acquire({
           acquisition_type: "overview", position_label: "contract",
         });
-        const record = content as CaptureRecord;
+        const record = output as CaptureRecord;
         expect(record.planes.length, "a capture has planes").toBeGreaterThan(0);
         for (const plane of record.planes) {
           for (const key of ["t", "c", "z"] as const) {

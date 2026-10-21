@@ -74,18 +74,18 @@ async function request(route: string, payload?: unknown): Promise<Record<string,
 const rest = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * The content inside the controller's answer to `acquire`, or the driver's
+ * The output inside the controller's answer to `acquire`, or the driver's
  * reason as a plain sentence when the microscope declined. The bridge passes
- * the controller's `{success, content}` on untouched, so the page reads a
+ * the controller's `{success, output}` on untouched, so the page reads a
  * capture exactly as a Python script does.
  */
 function capturedBy(answer: ControllerAnswer<CaptureRecord>): CaptureRecord {
-  const content = answer?.content;
-  if (answer?.success === true) return content as CaptureRecord;
-  const reason = typeof content === "string"
-    ? content
-    : (content as { reason?: string; message?: string } | null)?.reason
-      ?? (content as { message?: string } | null)?.message;
+  const output = answer?.output;
+  if (answer?.success === true) return output as CaptureRecord;
+  const reason = typeof output === "string"
+    ? output
+    : (output as { reason?: string; message?: string } | null)?.reason
+      ?? (output as { message?: string } | null)?.message;
   throw new Error(`the microscope could not capture an image: ${reason ?? "the driver gave no reason"}`);
 }
 
@@ -275,8 +275,8 @@ export const backend: Backend = {
 
   /**
    * Capture once where the stage is standing: `acquire` through the
-   * controller, answering as the controller does — `{success, content}`, the
-   * content's `files` naming every file saved and its `planes` which channel,
+   * controller, answering as the controller does — `{success, output}`, the
+   * output's `files` naming every file saved and its `planes` which channel,
    * depth and stage position each picture is. The one place a client learns
    * the paths of the files a run made.
    *

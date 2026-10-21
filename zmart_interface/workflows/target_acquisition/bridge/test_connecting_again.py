@@ -40,21 +40,21 @@ class Stage:
         self.on_capture = on_capture
 
     def get_xyz(self):
-        return {"success": True, "content": {axis: {"position": 0.0} for axis in "xyz"}}
+        return {"success": True, "output": {axis: {"position": 0.0} for axis in "xyz"}}
 
     def set_xyz(self, x, y, z):
         time.sleep(self.pause_s)
         self.moves.append((x, y, z))
-        return {"success": True, "content": {"x": {"position": x}, "y": {"position": y}, "z": {"position": z}}}
+        return {"success": True, "output": {"x": {"position": x}, "y": {"position": y}, "z": {"position": z}}}
 
     def acquire(self, *, position_label, acquisition_settings, acquisition_type, output_folder):
         self.captures += 1
         if self.on_capture is not None:
             self.on_capture(self.captures)
-        return {"success": True, "content": {"position_label": position_label, "planes": [], "files": []}}
+        return {"success": True, "output": {"position_label": position_label, "planes": [], "files": []}}
 
     def get_acquisition_settings(self):
-        return {"success": True, "content": {}}
+        return {"success": True, "output": {}}
 
     def disconnect(self):
         self.closed = True

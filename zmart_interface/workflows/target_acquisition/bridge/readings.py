@@ -218,8 +218,8 @@ def apply_state(asked: dict) -> dict:
 def capture(asked: dict) -> dict:
     """Capture once where the stage is standing, and answer as the controller does.
 
-    The answer is the controller's own, ``{"success": ..., "content": ...}``,
-    passed on untouched: the content's ``files`` lists every file the capture
+    The answer is the controller's own, ``{"success": ..., "output": ...}``,
+    passed on untouched: the output's ``files`` lists every file the capture
     saved and its ``planes`` say which channel, depth and stage position each
     picture is. What one capture wrote is known only to the capture, so it is
     answered whole rather than picked over, and a capture the microscope

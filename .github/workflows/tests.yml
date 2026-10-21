@@ -83,13 +83,14 @@ jobs:
         python-version: ["3.11", "3.12"]
     env:
       # The ZMART-analysis workflows the focus and detection tests run, in a
-      # checkout beside this one.
+      # checkout beside this one, at the release pyproject.toml installs.
       ZMART_ANALYSIS_WORKFLOWS: ${{ github.workspace }}/ZMART-analysis
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
           repository: ZMB-UZH/ZMART-analysis
+          ref: v0.6.0rc1
           path: ZMART-analysis
       - uses: actions/setup-python@v5
         with:

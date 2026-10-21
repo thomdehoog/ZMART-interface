@@ -81,14 +81,15 @@ loads that setup every time it connects, and the interface's Connect step shows 
 loaded.
 
 Then install the driver into the controller's registry, once on this computer, by pointing
-it at the driver's `zmart_driver.json` or the folder holding it. That file gives the driver's
-name and the connection it needs; the command prints the name:
+it at the driver's folder, the one holding `zmart_controller_plugin/`. Its
+`zmart_controller_plugin.json` gives the driver's name and the connection it needs; the
+command prints the name:
 
 ```powershell
-python -c "import zmart_drivers.leica.stellaris5_y42h93.navigator_expert as d, zmart_controller, pathlib; print(zmart_controller.register_driver(pathlib.Path(d.__file__).parent))"
+python -c "import zmart_drivers.leica.stellaris_y42h93.navigator_expert as d, zmart_controller, pathlib; print(zmart_controller.register_driver(pathlib.Path(d.__file__).parent))"
 ```
 
-The Connect step then offers it under that name, beside the two pretend microscopes.
+The Connect step then offers it under that name, beside the interface's pretend microscope.
 
 The interface's own mock microscope needs no registering: the interface offers it itself. A
 computer that registered it by its folder anyway, before it moved into target acquisition

@@ -21,7 +21,9 @@ models = pytest.importorskip("ome_zarr_models.v05.image")
 
 from ome_zarr_models.v05.axes import Axis  # noqa: E402
 from pydantic_zarr.v3 import ArraySpec  # noqa: E402
-from zmart_controller.template.zmart_driver import ZmartDriver  # noqa: E402
+from zmart_controller.template.zmart_controller_plugin.zmart_controller_plugin import (  # noqa: E402
+    ZmartControllerPlugin,
+)
 
 from ..microscope.instrument import Instrument  # noqa: E402
 from ..storage import viewer_service  # noqa: E402
@@ -164,7 +166,7 @@ class FakeSession:
 
     def acquire(self, **asked):
         self.asked = asked
-        return {"success": True, "content": {
+        return {"success": True, "output": {
             "position_label": asked["position_label"], "acquisition_type": asked["acquisition_type"],
             "files": [], "planes": [],
         }}
@@ -186,7 +188,7 @@ def test_the_driver_is_given_the_acquisition_type_and_the_runs_folder_for_it(tmp
         "acquisition_type": "overview", "output_folder": str(instrument.run / "overview" / "data"),
     }
     assert (instrument.run / "overview" / "data").is_dir()
-    assert answer == {"success": True, "content": {
+    assert answer == {"success": True, "output": {
         "position_label": "K00_M000000_G000000_P000001_V00", "acquisition_type": "overview",
         "files": [], "planes": [],
     }}
@@ -273,7 +275,7 @@ def test_the_view_asks_the_viewer_to_read_the_given_projections(monkeypatch, tmp
     assert body["views"]["projections_given"] is True
 
 
-class NotSetUp(ZmartDriver):
+class NotSetUp(ZmartControllerPlugin):
     """A class driver whose data location is not set up yet."""
 
     def __init__(self, connection):
@@ -286,7 +288,7 @@ class NotSetUp(ZmartDriver):
         return True, ("A scope in memory. +z points up.", {
             "limits": {"done": True, "says": "published"},
             "data_location": {"done": False, "says": "run set_data_location.ipynb once"},
-        }, False)
+        }, False, {})
 
     def get_actuators(self):
         return True, tuple({"options": ["m"], "default": "m"} for _ in "xyz")
@@ -327,14 +329,14 @@ def test_the_run_folder_is_made_under_the_interfaces_own_folder(monkeypatch, tmp
         connecting.close_the_last_session()
 
 
-@pytest.mark.parametrize("installed", ["0.4.0rc1", "0.4.0", "0.4.7"])
+@pytest.mark.parametrize("installed", ["0.4.0rc4", "0.4.0", "0.4.7"])
 def test_a_controller_whose_acquire_takes_the_type_and_the_folder_is_accepted(installed):
     from . import connecting
 
     connecting.accept_the_controller(installed)
 
 
-@pytest.mark.parametrize("installed", ["0.2.0", "0.3.0", "0.3.7", "0.5.0"])
+@pytest.mark.parametrize("installed", ["0.2.0", "0.3.0", "0.4.0rc3", "0.5.0"])
 def test_an_older_or_newer_controller_is_refused_in_words(installed):
     from . import connecting
 

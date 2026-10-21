@@ -12,12 +12,14 @@ an overview field and finer pixels over them, so a target on the page reads
 as the close look it is.
 
 Every command answers in the controller's two-part shape; the ``session``
-fixture reads the content of each, as the bridge does.
+fixture reads the output of each, as the bridge does.
 """
 
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 
 import pytest
 from zmart_controller import ZmartController, check_acquire_answer, validate_driver
@@ -46,8 +48,10 @@ def test_an_acquisition_lists_every_file_it_saved(mock_instrument):
     finally:
         raw.disconnect()
     assert check_acquire_answer(answer) == []
-    content = answer["content"]
-    assert content["files"] == [plane["path"] for plane in content["planes"]] + content["metadata"]
+    content = answer["output"]
+    # The images, then the state printed beside them.
+    assert content["files"][:-1] == [plane["path"] for plane in content["planes"]]
+    assert content["files"][-1].endswith("_ZMART_state.json")
     assert "images" not in content
 
 
@@ -65,8 +69,8 @@ def test_every_file_name_is_the_acquisition_type_then_the_label(mock_instrument,
     folder.mkdir(parents=True)
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        first = raw.acquire(LABEL, acquisition_type="overview", output_folder=folder)["content"]
-        again = raw.acquire(LABEL, acquisition_type="overview", output_folder=folder)["content"]
+        first = raw.acquire(LABEL, acquisition_type="overview", output_folder=folder)["output"]
+        again = raw.acquire(LABEL, acquisition_type="overview", output_folder=folder)["output"]
     finally:
         raw.disconnect()
     root = os.path.realpath(folder)
@@ -74,7 +78,7 @@ def test_every_file_name_is_the_acquisition_type_then_the_label(mock_instrument,
         f"overview_{LABEL}_T000000_C{channel:02d}_Z00000.ome.tiff" for channel in range(3)
     ]
     assert {os.path.dirname(os.path.realpath(plane["path"])) for plane in first["planes"]} == {root}
-    assert os.path.realpath(first["metadata"][0]) == os.path.join(
+    assert os.path.realpath(first["files"][-1]) == os.path.join(
         root, "metadata", "ZMART_state", f"overview_{LABEL}_T000000_ZMART_state.json"
     )
     assert os.path.basename(again["planes"][0]["path"]) == f"overview_{LABEL}_001_T000000_C00_Z00000.ome.tiff"
@@ -86,7 +90,7 @@ def test_without_a_folder_the_mock_saves_where_it_was_plugged_in(mock_instrument
     """No output folder: the connection's ``output_root``, under the controller's default kind."""
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        answer = raw.acquire(LABEL)["content"]
+        answer = raw.acquire(LABEL)["output"]
     finally:
         raw.disconnect()
     assert os.path.dirname(os.path.realpath(answer["planes"][0]["path"])) == os.path.realpath(
@@ -99,7 +103,7 @@ def test_without_a_folder_the_mock_saves_where_it_was_plugged_in(mock_instrument
 def test_the_mock_saves_where_it_is_told(mock_instrument):
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        assert raw.get_info()["content"]["chooses_its_own_folder"] is False
+        assert raw.get_info()["output"]["chooses_its_own_folder"] is False
     finally:
         raw.disconnect()
 
@@ -108,8 +112,8 @@ def test_the_acquisition_settings_say_only_how_to_trigger(mock_instrument):
     """Every capture runs the selected job, the mock's stored acquisition; which job is state."""
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        settings = raw.get_acquisition_settings()["content"]
-        state = raw.get_state()["content"]["changeable"]
+        settings = raw.get_acquisition_settings()["output"]
+        state = raw.get_state()["output"]["changeable"]
     finally:
         raw.disconnect()
     assert settings == {"trigger": {"options": ["full"], "default": "full", "active": "full"}}
@@ -119,14 +123,14 @@ def test_the_acquisition_settings_say_only_how_to_trigger(mock_instrument):
 def test_the_mock_names_its_default_motor_and_says_which_one_moved(mock_instrument):
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        motors = raw.get_actuators()["content"]
-        by_default = raw.get_xyz()["content"]["z"]["actuator"]
-        chosen = raw.set_xyz(0.0, 0.0, 5.0, with_actuators={"z": "piezo"})["content"]["z"]
+        motors = raw.get_actuators()["output"]
+        by_default = raw.get_xyz()["output"]["z"]["used_actuator"]
+        chosen = raw.set_xyz(0.0, 0.0, 5.0, with_actuators={"z": "piezo"})["output"]["z"]
     finally:
         raw.disconnect()
     assert motors["z"] == {"options": ["motoric", "galvo", "piezo"], "default": "motoric"}
     assert by_default == "motoric"
-    assert chosen["actuator"] == "piezo" and chosen["actuators"]["piezo"] == 5.0
+    assert chosen["used_actuator"] == "piezo" and chosen["actuator_readings"]["piezo"] == 5.0
 
 
 def test_a_stack_says_which_depth_and_height_each_picture_is(mock_instrument):
@@ -138,7 +142,7 @@ def test_a_stack_says_which_depth_and_height_each_picture_is(mock_instrument):
     finally:
         raw.disconnect()
     assert check_acquire_answer(answer) == []
-    planes = answer["content"]["planes"]
+    planes = answer["output"]["planes"]
     assert [plane["z"] for plane in planes] == list(range(len(planes)))
     heights = [plane["z_um"] for plane in planes]
     assert heights == sorted(heights) and len(set(heights)) == len(planes) > 1
@@ -158,12 +162,18 @@ def test_the_canvas_holds_a_picture_taken_anywhere_the_stage_can_go(mock_instrum
     deepest = max((one["z_planes"] - 1) * one["z_step_um"] for one in stacks)
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        report = raw.get_xyz()["content"]
+        report = raw.get_xyz()["output"]
     finally:
         raw.disconnect()
     for axis, half in (("x", widest / 2), ("y", widest / 2), ("z", deepest / 2)):
         low, high = mock_driver.TRAVEL_UM[axis]
-        assert list(report[axis]) == ["position", "unit", "actuator", "actuators", "canvas"], axis
+        assert list(report[axis]) == [
+            "position",
+            "unit",
+            "used_actuator",
+            "actuator_readings",
+            "canvas",
+        ], axis
         assert report[axis]["canvas"] == [low - half, high + half], axis
     assert deepest > 0, "the mock takes stacks, so z's canvas goes past the travel"
 
@@ -172,7 +182,7 @@ def test_the_mock_says_nothing_of_a_canvas_in_get_info(mock_instrument):
     """The area pictures can cover is get_xyz's, per axis; get_info no longer carries a copy."""
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        assert "canvas" not in raw.get_info()["content"]
+        assert "canvas" not in raw.get_info()["output"]
     finally:
         raw.disconnect()
 
@@ -181,8 +191,8 @@ def test_a_field_taken_before_the_stage_has_moved_lies_within_the_canvas(mock_in
     """Right after Connect, where an operator may first press Acquire, the field is on the canvas."""
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
-        canvas = raw.get_xyz()["content"]
-        report = raw.acquire(position_label="P0")["content"]
+        canvas = raw.get_xyz()["output"]
+        report = raw.acquire(position_label="P0")["output"]
     finally:
         raw.disconnect()
     plane = report["planes"][0]
@@ -198,11 +208,17 @@ def test_every_answer_comes_in_two_parts(mock_instrument):
     try:
         info = raw.get_info()
         assert info["success"] is True
-        assert {"description", "connection_status", "setup"} <= set(info["content"])
-        assert "output_root" not in info["content"]
-        saving = info["content"]["setup"]["saving"]
+        assert {"description", "connection_status", "setup"} <= set(info["output"])
+        assert "output_root" not in info["output"]
+        saving = info["output"]["setup"]["saving"]
         assert saving["done"] is True and mock_instrument["output_root"] in saving["says"]
-        assert list(raw.get_xyz()["content"]["x"]) == ["position", "unit", "actuator", "actuators", "canvas"]
+        assert list(raw.get_xyz()["output"]["x"]) == [
+            "position",
+            "unit",
+            "used_actuator",
+            "actuator_readings",
+            "canvas",
+        ]
     finally:
         raw.disconnect()
 
@@ -212,14 +228,14 @@ def test_a_move_outside_the_travel_is_refused_and_nothing_moves(mock_instrument)
 
     The mock raises before anything moves, and the controller turns that into
     the declined answer every caller reads: ``success`` False, with the
-    reason as the content.
+    reason as the output.
     """
     raw = ZmartController(mock_microscope, mock_instrument)
     try:
         refused = raw.set_xyz(10_000_000.0, 0.0, 0.0)
         assert refused["success"] is False
-        assert "x = 1e+07 um is outside the stage's travel" in refused["content"]
-        assert raw.get_xyz()["content"]["x"]["position"] == 0.0
+        assert "x = 1e+07 um is outside the stage's travel" in refused["output"]
+        assert raw.get_xyz()["output"]["x"]["position"] == 0.0
     finally:
         raw.disconnect()
 
@@ -337,7 +353,8 @@ def test_the_settings_live_in_the_file_and_whoever_wrote_last_wins(session):
         "trigger": {"options": ["full"], "default": "full", "active": "full"}
     }
     record = session.acquire(acquisition_type="overview", position_label="P0")
-    assert record["job"] == "Focussing"
+    # The state printed beside the capture names the job it ran.
+    assert json.loads(Path(record["files"][-1]).read_text())["changeable"]["job"] == "Focussing"
     with pytest.raises(ValueError):
         mock_driver.write_instrument_settings({"job": "HiRes"}, where)
 

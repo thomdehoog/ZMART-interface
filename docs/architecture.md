@@ -204,13 +204,14 @@ keep; its test holds the pretend backend to them on every change and a
 running bridge to them when asked.
 
 Behind the bridge, `microscope/instrument.py` reads the controller's answers
-once for everyone. Every command answers `{"success": ..., "content": ...}`;
-the bridge hands back the content and turns `success: False` into a sentence
+once for everyone. Every command answers `{"success": ..., "output": ...}`;
+the bridge hands back the output and turns `success: False` into a sentence
 the page shows where the operator pressed. A capture is the exception: its
-answer goes to the page untouched, so the page reads the content's `files`
+answer goes to the page untouched, so the page reads the output's `files`
 and `planes` exactly as a Python script would. `get_xyz` and `set_xyz` answer
 the same thing: each axis's `position` in micrometres, its `unit`, the raw
-reading of every motor under `actuators`, and the `canvas` -- everywhere a
+reading of every motor under `actuator_readings`, the one it moved by as
+`used_actuator`, and the `canvas` -- everywhere a
 picture can show, the travel widened by half a field. The travel stays in
 the driver: a move past it is refused with a sentence the operator sees.
 

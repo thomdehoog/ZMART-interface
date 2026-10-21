@@ -62,7 +62,7 @@ Each path below is under ``/api/target_acquisition/``.
   contract says a client's instructions go.
 * ``POST acquire`` — capture once where the stage is standing
   (``acquire``), answering with the controller's own answer, untouched:
-  ``{"success", "content"}``, the content's ``files`` naming every file saved and
+  ``{"success", "output"}``, the output's ``files`` naming every file saved and
   its ``planes`` which channel, depth and stage position each picture is. The
   one place a client learns the paths of the files a run made.
 * ``GET viewer`` — whether the picture server beside the run is up, and

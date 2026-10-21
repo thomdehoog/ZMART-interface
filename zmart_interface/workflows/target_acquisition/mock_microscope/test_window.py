@@ -8,6 +8,9 @@ job the window was not showing.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from . import driver
@@ -29,7 +32,8 @@ def test_a_job_chosen_in_the_window_is_the_one_the_driver_stands_on(mock_session
     assert Api().state()["job"] == "Target"
     assert mock_session.get_state()["changeable"]["job"] == "Target"
     record = mock_session.acquire(acquisition_type="targets", position_label="T0")
-    assert record["job"] == "Target"
+    # The state printed beside the capture names the job it ran.
+    assert json.loads(Path(record["files"][-1]).read_text())["changeable"]["job"] == "Target"
 
 
 def test_a_job_the_mock_does_not_have_is_refused():

@@ -9,6 +9,7 @@ place of its own.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import uuid
@@ -156,9 +157,13 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
     the capture goes beside ``data``: a projection (``projections``) to
     ``projections/``, the driver's log of the capture (``log``) to ``log/``. Every file a plane
     or a description names must be one of the files, so that the record can
-    never disagree with itself about what was saved. A file that is already
-    where it belongs -- a driver given the ``data`` folder saves straight into
-    it -- stays where it is.
+    never disagree with itself about what was saved. The files keep the
+    layout the driver gave them in the folder it saved the capture in, their
+    common folder (over the files the lists above do not file elsewhere): the
+    images at its top land in *data_dir*, and the state it
+    printed under ``metadata/ZMART_state`` lands under the same names in
+    *data_dir*. A driver given the ``data`` folder saves straight into it, so
+    its files are already where they belong and stay there.
 
     Every source and destination is checked before the first move. If a later
     move fails, the files already moved go back where they were, so one
@@ -186,7 +191,14 @@ def move_record_images(record: dict, data_dir: Any) -> dict:
         **{Path(value): destination.parent / "projections" for value in record.get("projections", [])},
         **{Path(value): destination.parent / "log" for value in record.get("log", [])},
     }
-    filed = [(source, beside.get(source, destination) / source.name) for source in sources]
+    # The folder the capture was saved in: common to the files no list above files elsewhere.
+    kept = [source for source in sources if source not in beside] or sources
+    saved_in = Path(os.path.commonpath([source.parent for source in kept]))
+    filed = [
+        (source, beside[source] / source.name if source in beside
+         else destination / source.relative_to(saved_in))
+        for source in sources
+    ]
     targets = [target for _, target in filed]
     if len(targets) != len(set(targets)):
         raise RuntimeError("acquire returned different files with the same filename")

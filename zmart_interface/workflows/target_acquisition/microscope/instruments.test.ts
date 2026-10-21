@@ -13,27 +13,24 @@ import { pretendInstruments } from "../backend/pretend.ts";
 
 describe("choicesFrom", () => {
   it("offers one microscope per listed name, in list order", () => {
-    const choices = choicesFrom([THE_MOCK, "mock", "stellaris"]);
-    expect(choices.map((m) => m.key)).toEqual([THE_MOCK, "mock", "stellaris"]);
-    expect(choices.map((m) => m.apis[0].instrument)).toEqual([THE_MOCK, "mock", "stellaris"]);
+    const choices = choicesFrom([THE_MOCK, "beads", "stellaris"]);
+    expect(choices.map((m) => m.key)).toEqual([THE_MOCK, "beads", "stellaris"]);
+    expect(choices.map((m) => m.apis[0].instrument)).toEqual([THE_MOCK, "beads", "stellaris"]);
   });
 
   it("uses the page's words for names it knows, and the name itself otherwise", () => {
-    const [mock, beads, leica] = choicesFrom(pretendInstruments());
+    const [mock, leica] = choicesFrom(pretendInstruments());
     expect(mock.label).toBe("Mock");
     expect(mock.apis[0].label).toBe("Mock API");
-    expect(beads.label).toBe("Mock beads");
     expect(leica.label).toBe("stellaris");
     expect(leica.apis[0].label).toBe("ZMART driver");
   });
 
-  it("finds the interface's own mock, not the controller's", () => {
-    /* The ZMART Controller has a pretend microscope of its own, a slide of
-       beads, listed as "mock". The page's "Mock" must never quietly be it. */
-    expect(theMockAmong(choicesFrom(["mock", THE_MOCK]))).toEqual({ microscope: THE_MOCK, api: THE_MOCK });
-    expect(theMockAmong(choicesFrom(["mock"]))).toBeNull();
+  it("finds the interface's own mock wherever it is listed, and only it", () => {
+    expect(theMockAmong(choicesFrom(["stellaris", THE_MOCK]))).toEqual({ microscope: THE_MOCK, api: THE_MOCK });
+    expect(theMockAmong(choicesFrom(["stellaris"]))).toBeNull();
     expect(isTheMock(THE_MOCK)).toBe(true);
-    expect(isTheMock("mock")).toBe(false);
+    expect(isTheMock("stellaris")).toBe(false);
   });
 
   it("describes a session by its name", () => {

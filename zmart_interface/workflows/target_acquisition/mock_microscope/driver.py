@@ -9,10 +9,9 @@ sharp height changes from place to place, blurred by how far the focus is
 from it, and here and there a speck of dust that is sharp at the wrong
 height -- the failure a focus routine has to survive.
 
-The functions here return their answers as they are. The controller's
-two-part reply, ``{"success": ..., "content": ...}``, is added by the plug-in
-next door (``zmart_controller_plugin.py``), which ``zmart_driver.json`` names
-for the ZMART Controller when the mock is plugged in.
+The functions here return their answers as they are. The plug-in in
+``zmart_controller_plugin/`` hands them to the ZMART Controller, which writes
+the answer every client reads, ``{"success": ..., "output": ...}``.
 
 What this mock does not have: a setup of its own. A real driver loads its
 origin, travel limits and calibration from the setup the operator made once
@@ -438,11 +437,11 @@ def _user_position(handle: MockHandle) -> dict[str, float]:
 
 
 def get_xyz(handle: MockHandle, *, with_actuators: dict | None = None) -> dict:
-    """Where the stage is, per axis: ``position``, ``unit``, ``actuator``, ``actuators``, ``canvas``.
+    """Where the stage is, per axis: ``position``, ``unit``, ``used_actuator``, ``actuator_readings``, ``canvas``.
 
-    ``position`` is in micrometres from the origin. ``actuator`` is the motor
-    this call used: the one ``with_actuators`` named, or the default.
-    ``actuators`` gives every motor of the axis with its own raw reading: for
+    ``position`` is in micrometres from the origin. ``used_actuator`` is the
+    motor this call used: the one ``with_actuators`` named, or the default.
+    ``actuator_readings`` gives every motor of the axis with its own raw reading: for
     z, how far the coarse drive, the galvo and the piezo each stand from their
     own zero. ``canvas`` is everywhere a picture can show along that axis (see
     :data:`CANVAS_UM`): the travel, widened by half a field and half a stack.
@@ -461,8 +460,8 @@ def get_xyz(handle: MockHandle, *, with_actuators: dict | None = None) -> dict:
         axis: {
             "position": user[axis],
             "unit": "micrometer",
-            "actuator": chosen[axis],
-            "actuators": readings[axis],
+            "used_actuator": chosen[axis],
+            "actuator_readings": readings[axis],
             "canvas": list(CANVAS_UM[axis]),
         }
         for axis in ("x", "y", "z")

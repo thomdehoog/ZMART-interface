@@ -84,15 +84,15 @@ def test_operator_anchors_once_per_connection_not_per_capture(tmp_path, monkeypa
         reads = 0
 
         def get_info(self):
-            return {"success": True, "content": {"description": "a session in memory", "setup": {}}}
+            return {"success": True, "output": {"description": "a session in memory", "setup": {}}}
 
         def get_xyz(self):
             self.reads += 1
-            content = {axis: {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0},
+            content = {axis: {"position": 0.0, "unit": "micrometer", "actuator_readings": {"motoric": 0.0},
                               "canvas": [-50.0, 1050.0]}
                        for axis in ("x", "y", "z")}
             content["z"]["position"] = self.height
-            return {"success": True, "content": content}
+            return {"success": True, "output": content}
 
         def disconnect(self):
             pass

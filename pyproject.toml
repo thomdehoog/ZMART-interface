@@ -25,7 +25,7 @@ dependencies = [
     # interface opens a ZmartController of its own and lists the drivers the
     # controller's registry knows. Its acquire is given the kind of acquisition
     # and the folder to save in.
-    "zmart-controller @ git+https://github.com/ZMB-UZH/ZMART-controller@v0.4.0rc1",
+    "zmart-controller @ git+https://github.com/ZMB-UZH/ZMART-controller@v0.4.0rc4",
     # The picture server that shows the run as it is acquired. Pinned to a
     # release, because the page is built with the viewer's drawing files: the
     # build stops when the installed viewer is not this one.
@@ -33,7 +33,7 @@ dependencies = [
     # The engine that scores focus and finds objects, each step in its own
     # environment (the zmart_analysis package). Its workflows stay in a
     # checkout of the repository; see zmart_interface/workflows/target_acquisition/analysis/workflows.py.
-    "zmart-analysis @ git+https://github.com/ZMB-UZH/ZMART-analysis@v0.5.0rc7",
+    "zmart-analysis @ git+https://github.com/ZMB-UZH/ZMART-analysis@v0.6.0rc1",
     # Reading and writing the OME-Zarr images every capture is kept as.
     "ngio==1.1.0",
     "zarr>=3,<4",
@@ -84,7 +84,7 @@ namespaces = false
 # says how.
 "zmart_interface" = ["build/**/*"]
 # The mock's driver file: what the controller's registry reads to install it.
-"zmart_interface.workflows.target_acquisition.mock_microscope" = ["zmart_driver.json", "kidney-plane.npz"]
+"zmart_interface.workflows.target_acquisition.mock_microscope" = ["zmart_controller_plugin/*.json", "zmart_controller_plugin/*.py", "kidney-plane.npz"]
 
 [tool.pytest.ini_options]
 testpaths = ["zmart_interface"]

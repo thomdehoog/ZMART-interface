@@ -23,9 +23,9 @@ export type Span = [number, number];
 interface AxisReading {
   position: number;
   unit: string;
-  /** The motor this axis moved by: one of `actuators`. */
-  actuator: string;
-  actuators: Record<string, number>;
+  /** The motor this axis moved by: one of `actuator_readings`. */
+  used_actuator: string;
+  actuator_readings: Record<string, number>;
   canvas: Span;
 }
 
@@ -69,7 +69,7 @@ export interface CaptureRecord {
 /** The controller's two-part answer. */
 export interface ControllerAnswer<T> {
   success: boolean;
-  content: T | string | { reason?: string; message?: string } | null;
+  output: T | string | { reason?: string; message?: string } | null;
 }
 
 /** One sharpness curve, by measure. */

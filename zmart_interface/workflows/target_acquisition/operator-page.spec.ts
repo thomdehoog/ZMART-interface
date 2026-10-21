@@ -546,10 +546,9 @@ test("a recorded preset unfolds to show everything that was read", async ({ page
 
 test("the microscope is a mock or a registered driver, and the api follows it", async ({ page }) => {
   const scopes = await page.locator(".field select").first().locator("option").allInnerTexts();
-  expect(scopes).toHaveLength(3);
+  expect(scopes).toHaveLength(2);
   expect(scopes[0]).toContain("Mock");
-  expect(scopes[1]).toContain("Mock beads");
-  expect(scopes[2]).toContain("stellaris");
+  expect(scopes[1]).toContain("stellaris");
   const apis = () => page.locator(".field select").nth(1).locator("option").allInnerTexts();
   expect((await apis()).join()).toContain("Mock API");
   await page.locator(".field select").first().selectOption({ label: "stellaris" });

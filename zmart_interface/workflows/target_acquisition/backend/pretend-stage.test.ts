@@ -23,7 +23,7 @@ describe("the pretend stage", () => {
 
   it("answers each axis with its position, its unit, its motor, its motors and its canvas, in micrometres", async () => {
     const at = await backend.get_xyz();
-    expect(Object.keys(at.x).sort()).toEqual(["actuator", "actuators", "canvas", "position", "unit"]);
+    expect(Object.keys(at.x).sort()).toEqual(["actuator_readings", "canvas", "position", "unit", "used_actuator"]);
     expect(um(at)).toEqual({ x: 4800, y: 3200, z: -412 });
   });
 

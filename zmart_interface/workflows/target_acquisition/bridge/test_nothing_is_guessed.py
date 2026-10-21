@@ -28,7 +28,7 @@ class Reporting:
         self.observed = observed
 
     def get_state(self):
-        return {"success": True, "content": {"changeable": {}, "observed": self.observed}}
+        return {"success": True, "output": {"changeable": {}, "observed": self.observed}}
 
 
 def read(observed, monkeypatch):

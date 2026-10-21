@@ -212,7 +212,7 @@ export const backend: Backend = {
 
   /**
    * Capture once where the stage is standing, answering as the bridge does:
-   * `{success, content}`, the content holding `files` and `planes`.
+   * `{success, output}`, the output holding `files` and `planes`.
    *
    * `acquisition_type` is the page's name for the acquisition the capture
    * belongs to. Like a driver, this pretend instrument names every file by it
@@ -236,10 +236,9 @@ export const backend: Backend = {
     const path = `${free}_T000000_C00_Z00000.ome.tiff`;
     return {
       success: true,
-      content: {
+      output: {
         position_label,
         acquisition_type: kind,
-        position: { ...where },
         files: [path],
         /* Where each plane was taken travels with it, as the real record's
            planes do: the record is the only thing that knows. */
@@ -553,7 +552,7 @@ const TRAVEL_UM = { x: 120_000, y: 80_000 };
 
 /** The list a microscope PC with the Leica installed as "stellaris" would
  *  offer: the interface's mock first, then the controller's list. */
-export const pretendInstruments = () => [THE_MOCK, "mock", "stellaris"];
+export const pretendInstruments = () => [THE_MOCK, "stellaris"];
 
 const pretendConnectionStatus = ({ instrument }: { instrument?: string }): Record<string, string> => ({
   "Microscope reachable": instrument && MICROSCOPES[instrument] ? "in-process" : "127.0.0.1:8895",
@@ -596,7 +595,7 @@ let where = pretendPositionUm();
     pretend stage has one motor per axis, and it reads what the axis reads. */
 const standingAt = (at: { x: number; y: number; z: number }): XyzReading => {
   const axis = (name: "x" | "y" | "z") => ({
-    position: at[name], unit: "micrometer", actuator: "motoric", actuators: { motoric: at[name] },
+    position: at[name], unit: "micrometer", used_actuator: "motoric", actuator_readings: { motoric: at[name] },
     canvas: [...TRAVEL_RANGE_UM[name]] as [number, number],
   });
   return { x: axis("x"), y: axis("y"), z: axis("z") };

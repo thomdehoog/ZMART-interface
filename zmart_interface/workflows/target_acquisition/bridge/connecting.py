@@ -48,7 +48,7 @@ def instruments() -> list[str]:
 def saved_connection(name: str) -> dict:
     """The connection a listed microscope is plugged in with, before anything is added to it.
 
-    For an installed driver, the connection its ``zmart_driver.json`` gives.
+    For an installed driver, the connection its ``zmart_controller_plugin.json`` gives.
     Finding it imports the driver, which is why a name that is not listed is
     refused first: the page can only ever name a microscope this computer
     offers.
@@ -66,7 +66,7 @@ def saved_connection(name: str) -> dict:
 #: trigger; from 0.4.0 acquire is given the kind of acquisition and the folder
 #: to save in, and get_info says whether the microscope chooses its own folder
 #: instead: the interface decides where its own runs go.
-CONTROLLER_VERSIONS = ">=0.4.0rc1,<0.5"
+CONTROLLER_VERSIONS = ">=0.4.0rc4,<0.5"
 
 
 def accept_the_controller(installed_version: str) -> None:

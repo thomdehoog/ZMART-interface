@@ -22,7 +22,7 @@ function bridgeMeasuringFocus(first: (route: string) => Answer | Promise<Answer 
       drives.push(body);
       return ok({ x: { position: body.x }, y: { position: body.y }, z: { position: body.z ?? 0 } });
     }
-    if (route === "/api/target_acquisition/acquire") return ok({ success: true, content: { position_label: body.position_label } });
+    if (route === "/api/target_acquisition/acquire") return ok({ success: true, output: { position_label: body.position_label } });
     if (route === "/api/target_acquisition/focus/score") {
       return ok({ ...body.point, z: body.centre - 10, zAuto: body.centre - 10, lost: false });
     }

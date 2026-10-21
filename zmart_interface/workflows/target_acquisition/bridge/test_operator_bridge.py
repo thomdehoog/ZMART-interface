@@ -48,7 +48,7 @@ class _Enveloped:
     """A stub driver session, answering the way the controller does: in two parts.
 
     The stubs below return their content, which keeps them short to read;
-    this wraps each answer as ``{"success": True, "content": ...}``, the shape
+    this wraps each answer as ``{"success": True, "output": ...}``, the shape
     every ZMART driver gives through the controller.
     """
 
@@ -62,7 +62,7 @@ class _Enveloped:
             return found
 
         def answered(*args, **kwargs):
-            return {"success": True, "content": found(*args, **kwargs)}
+            return {"success": True, "output": found(*args, **kwargs)}
 
         return answered
 
@@ -269,7 +269,7 @@ def _measured(asked):
             "x": point["x"], "y": point["y"],
             **({"z": start} if isinstance(start, (int, float)) else {}),
         })
-        record = readings.capture({"acquisition_type": "focussing", "position_label": begun["labels"][index]})["content"]
+        record = readings.capture({"acquisition_type": "focussing", "position_label": begun["labels"][index]})["output"]
         focus.score_focus({"record": record, "centre": at["z"]["position"], "point": point})
     focus.end_focus({})
     assert ledgers.focus["error"] is None, ledgers.focus["error"]
@@ -530,7 +530,7 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
         "position_label": "K00_M000001_G000000_P000007_V00",
     })
     path = str(session.run / "overview" / "data" / "overview_K00_M000001_G000000_P000007_V00.tiff")
-    assert answer == {"success": True, "content": {
+    assert answer == {"success": True, "output": {
         "position_label": "K00_M000001_G000000_P000007_V00",
         "acquisition_type": "overview",
         "files": [path],
@@ -541,14 +541,14 @@ def test_a_capture_answers_as_the_controller_does(monkeypatch):
 
 def test_a_capture_the_microscope_declined_is_answered_not_raised(monkeypatch):
     """A script sees ``success`` false and the driver's reason; so does the page."""
-    declined = {"success": False, "content": {"reason": "the image never arrived", "files": [],
+    declined = {"success": False, "output": {"reason": "the image never arrived", "files": [],
                                               "planes": []}}
 
     class _Declining:
         context = {"driver": "declining"}
 
         def get_acquisition_settings(self):
-            return {"success": True, "content": {}}
+            return {"success": True, "output": {}}
 
         def acquire(self, **_asked):
             return declined
@@ -661,12 +661,12 @@ def _targets_taken(positions, *, append=False, focus=None):
         if focus:
             stack = readings.capture({
                 "acquisition_type": "target-focussing", "position_label": begun["labels"][index],
-            })["content"]
+            })["output"]
             found = targets.score_target_focus({"record": stack, "centre": at["z"]["position"],
                                                 "x": position["x"], "y": position["y"]})
             if found["z"] is not None:
                 at = stage.drive_to({"x": position["x"], "y": position["y"], "z": found["z"]})
-        record = readings.capture({"acquisition_type": "targets", "position_label": begun["labels"][index]})["content"]
+        record = readings.capture({"acquisition_type": "targets", "position_label": begun["labels"][index]})["output"]
         targets.target_landed({
             "record": record,
             "position": {"x": position["x"], "y": position["y"], "z": at["z"]["position"]},
@@ -1298,9 +1298,9 @@ def test_a_driver_that_gives_no_canvas_is_said_so_plainly():
     than drawing an area somebody guessed.
     """
     reading = {
-        "x": {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0}, "canvas": [-1.0, 11.0]},
-        "y": {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0}},
-        "z": {"position": 0.0, "unit": "micrometer", "actuators": {"motoric": 0.0}, "canvas": [-1.0, 11.0]},
+        "x": {"position": 0.0, "unit": "micrometer", "actuator_readings": {"motoric": 0.0}, "canvas": [-1.0, 11.0]},
+        "y": {"position": 0.0, "unit": "micrometer", "actuator_readings": {"motoric": 0.0}},
+        "z": {"position": 0.0, "unit": "micrometer", "actuator_readings": {"motoric": 0.0}, "canvas": [-1.0, 11.0]},
     }
     with pytest.raises(RuntimeError, match=r"does not say where its pictures can show along y"):
         connecting.the_viewers_area(reading)
@@ -1859,22 +1859,26 @@ def test_before_a_session_the_list_comes_from_the_interfaces_own_folder(monkeypa
 def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_drivers(tmp_path):
     """The Connect step offers the interface's mock, then the controller's list of drivers.
 
-    A driver installed once on the computer (its ``zmart_driver.json``
-    registered) appears by its name, and connect plugs it in by that name with
+    A driver installed once on the computer (its folder, with
+    ``zmart_controller_plugin/``, registered) appears by its name, and connect plugs it in by that name with
     the connection the file gives. The interface's mock is offered once,
     installed or not. A name that is not listed is refused before anything is
     imported.
     """
-    beads = tmp_path / "beads"
-    beads.mkdir()
-    (beads / "zmart_driver.py").write_text("from zmart_controller.mock import *  # noqa\n")
-    (beads / "zmart_driver.json").write_text(json.dumps({
-        "name": "beads", "driver": "zmart_driver.py", "connection": {"mock_timing": "instant"},
+    plugin = tmp_path / "beads" / "zmart_controller_plugin"
+    plugin.mkdir(parents=True)
+    (plugin / "zmart_controller_plugin.py").write_text(
+        "from zmart_controller.template.zmart_controller_plugin.zmart_controller_plugin import (\n"
+        "    ZmartControllerPlugin,\n"
+        ")\n"
+    )
+    (plugin / "zmart_controller_plugin.json").write_text(json.dumps({
+        "name": "beads", "connection": {"mock_timing": "instant"},
     }))
-    register_driver(beads)
+    register_driver(plugin.parent)
     register_driver(Path(mock_microscope.__file__).parent)
 
-    assert connecting.instruments() == ["interface-mock", "mock", "beads"]
+    assert connecting.instruments() == ["interface-mock", "beads"]
     assert connecting.saved_connection("beads") == {"mock_timing": "instant"}
     # As the interface offers it: with its own window opened beside the session.
     assert connecting.saved_connection("interface-mock") == {"client": "mock-client", "open_window": True}
