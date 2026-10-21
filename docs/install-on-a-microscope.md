@@ -61,7 +61,7 @@ The built page comes inside the package, so nothing is built on the microscope.
 ```powershell
 cd C:\ProgramData\MinicondaZMB\home\<user>
 git clone https://github.com/ZMB-UZH/ZMART-analysis
-python ZMART-analysis\workflows\alignment\environments\setup_env.py --step main
+python ZMART-analysis\workflows\focus\environments\setup_env.py --step main
 python ZMART-analysis\workflows\object_analysis\environments\setup_env.py --step classical
 python ZMART-analysis\workflows\object_analysis\environments\setup_env.py --step cellpose   # Robust detection only
 python ZMART-analysis\workflows\object_analysis\environments\setup_env.py --step umap       # the multidimensional plots

@@ -18,8 +18,8 @@ def _forget_what_was_loaded():
 
 
 def _a_checkout(root):
-    (root / "workflows" / "alignment" / "pipelines").mkdir(parents=True)
-    (root / "workflows" / "alignment" / "pipelines" / "focus.yaml").write_text("steps: []\n")
+    (root / "workflows" / "focus" / "pipelines").mkdir(parents=True)
+    (root / "workflows" / "focus" / "pipelines" / "focus.yaml").write_text("steps: []\n")
     (root / "workflows" / "object_analysis" / "steps").mkdir(parents=True)
     (root / "workflows" / "object_analysis" / "steps" / "read_images.py").write_text("WHERE = 'the checkout'\n")
     return root

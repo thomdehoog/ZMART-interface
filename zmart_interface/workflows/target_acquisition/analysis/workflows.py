@@ -72,7 +72,7 @@ def pipeline_yaml(name: str) -> Path:
     """Where a pipeline's YAML is, by its name, under whichever workflow has it.
 
     A pipeline's name does not say its workflow: ``focus`` lives in
-    ``alignment``, ``object_analysis_watershed`` in ``object_analysis``.
+    ``focus``, ``object_analysis_watershed`` in ``object_analysis``.
     """
     root = workflows_root()
     found = sorted(root.glob(f"*/pipelines/{name}.yaml"))

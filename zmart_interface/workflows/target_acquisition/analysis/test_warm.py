@@ -226,7 +226,7 @@ def test_the_process_shares_one_analysis():
 
 def test_a_pipeline_is_found_by_its_name_under_whichever_workflow_has_it():
     assert warm.pipeline_yaml("focus").is_file()
-    assert warm.pipeline_yaml("focus").parent.parent.name == "alignment"
+    assert warm.pipeline_yaml("focus").parent.parent.name == "focus"
     assert warm.pipeline_yaml("object_analysis_cellpose").is_file()
     # A workflow's second pipeline: the same steps, the segmentation done another way.
     watershed = warm.pipeline_yaml("object_analysis_watershed")

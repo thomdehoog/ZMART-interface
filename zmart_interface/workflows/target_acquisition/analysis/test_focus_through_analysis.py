@@ -29,8 +29,8 @@ from .workflows import step_module
 
 #: The focus pipeline's two steps, loaded from the ZMART-analysis workflows the
 #: way the engine's worker loads them, and run here in this process.
-read_images = step_module("alignment", "read_images").run
-score_focus = step_module("alignment", "score_focus").run
+read_images = step_module("focus", "read_images").run
+score_focus = step_module("focus", "score_focus").run
 
 #: How close the recovered height must be to the sample's own. The stack steps
 #: just over a micrometre, and the parabola refines between planes, so a chain
