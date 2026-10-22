@@ -60,11 +60,11 @@ The built page comes inside the package, so nothing is built on the microscope.
 
 ```powershell
 cd C:\ProgramData\MinicondaZMB\home\<user>
-git clone https://github.com/ZMB-UZH/ZMART-analysis
-python ZMART-analysis\workflows\focus\environments\setup_env.py --step main
-python ZMART-analysis\workflows\object_analysis\environments\setup_env.py --step classical
-python ZMART-analysis\workflows\object_analysis\environments\setup_env.py --step cellpose   # Robust detection only
-python ZMART-analysis\workflows\object_analysis\environments\setup_env.py --step umap       # the multidimensional plots
+git clone -b v0.6.0rc4 https://github.com/ZMB-UZH/ZMART-analysis
+conda env create -f ZMART-analysis\workflows\focus\environments\main.yml
+conda env create -f ZMART-analysis\workflows\object_analysis\environments\classical.yml
+conda env create -f ZMART-analysis\workflows\object_analysis\environments\cellpose.yml   # Robust detection only
+conda env create -f ZMART-analysis\workflows\object_analysis\environments\umap.yml       # the multidimensional plots
 setx ZMART_ANALYSIS_WORKFLOWS C:\ProgramData\MinicondaZMB\home\<user>\ZMART-analysis
 ```
 
@@ -86,7 +86,7 @@ it at the driver's folder, the one holding `zmart_controller_plugin/`. Its
 command prints the name:
 
 ```powershell
-python -c "import zmart_drivers.leica.stellaris_y42h93.navigator_expert as d, zmart_controller, pathlib; print(zmart_controller.register_driver(pathlib.Path(d.__file__).parent))"
+python -c "import zmart_drivers.leica.stellaris.navigator_expert as d, zmart_controller, pathlib; print(zmart_controller.register_driver(pathlib.Path(d.__file__).parent))"
 ```
 
 The Connect step then offers it under that name, beside the interface's pretend microscope.
