@@ -45,15 +45,24 @@ export function redrawSoon(page: TaPage): void {
  * one run. One row is marked as the one the step is taken with, so switching
  * between them is a click rather than a second reading. */
 
-/* The one mistake every reading after the overview's invites: importing
-   with LAS X still on the overview's job. Said under the reading rather
-   than refused -- the reading is fine as a reading, and a job can serve
-   two steps when that is meant. */
-const sameSettingAsTheOverview = (state: TaRun) => (record: Recording): string | null => {
-  const job = record.changeable?.job;
-  const overview = activeRecording(state.overviewPreset)?.changeable?.job;
-  return job && overview && job === overview ? "Same setting as for the overview scan" : null;
+/** Whether two recordings hold the same settings: their whole changeable half,
+    whatever keys the driver uses, compared as it reported them. */
+export const sameSettings = (a?: Recording | null, b?: Recording | null): boolean => {
+  const said = (record?: Recording | null) =>
+    record?.changeable && Object.keys(record.changeable).length
+      ? JSON.stringify(record.changeable, Object.keys(record.changeable).sort())
+      : null;
+  return said(a) !== null && said(a) === said(b);
 };
+
+/* The one mistake every reading after the overview's invites: importing
+   with the microscope still set as for the overview. Said under the reading
+   rather than refused -- the reading is fine as a reading, and one setting
+   can serve two steps when that is meant. */
+const sameSettingAsTheOverview = (state: TaRun) => (record: Recording): string | null =>
+  sameSettings(record, activeRecording(state.overviewPreset))
+    ? "Same settings as for the overview scan"
+    : null;
 
 /* Which step each recording is a setting of: the one whose box it is
    recorded in. */

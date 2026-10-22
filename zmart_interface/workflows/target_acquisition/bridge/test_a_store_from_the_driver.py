@@ -98,7 +98,7 @@ def test_a_tiff_capture_is_still_converted(run, announced, monkeypatch):
     converted = []
     monkeypatch.setattr(
         pictures, "position_store_from_record",
-        lambda record, folder, *, pixel_provider=None: converted.append(folder) or Path(folder) / "x.ome.zarr",
+        lambda record, folder: converted.append(folder) or Path(folder) / "x.ome.zarr",
     )
     monkeypatch.setattr(pictures, "frame_um_of", lambda store: 1.0)
     record = {"position_label": "A1", "planes": [{"path": str(run / "a.ome.tif"), "c": 0, "z": 0, "t": 0}]}
@@ -329,14 +329,14 @@ def test_the_run_folder_is_made_under_the_interfaces_own_folder(monkeypatch, tmp
         connecting.close_the_last_session()
 
 
-@pytest.mark.parametrize("installed", ["0.4.0rc4", "0.4.0", "0.4.7"])
+@pytest.mark.parametrize("installed", ["0.4.0rc6", "0.4.0", "0.4.7"])
 def test_a_controller_whose_acquire_takes_the_type_and_the_folder_is_accepted(installed):
     from . import connecting
 
     connecting.accept_the_controller(installed)
 
 
-@pytest.mark.parametrize("installed", ["0.2.0", "0.3.0", "0.4.0rc3", "0.5.0"])
+@pytest.mark.parametrize("installed", ["0.2.0", "0.3.0", "0.4.0rc5", "0.5.0"])
 def test_an_older_or_newer_controller_is_refused_in_words(installed):
     from . import connecting
 

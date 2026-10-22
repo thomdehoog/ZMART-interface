@@ -38,7 +38,6 @@ from pathlib import Path
 from typing import Any
 
 from ..storage.output import free_name, move_record_images
-from .simulator_guard import NonSimulatorFrameError
 
 #: The kind of acquisition a focus stack is. It is what tells the instrument to
 #: take a stack rather than a picture: the settings imported for this kind of
@@ -104,7 +103,7 @@ def measure_one_stack(
     own keeping, score it, and keep the measurement beside the stack. What
     comes back is the measurement the page draws as one point of the map. A
     stack that cannot be scored is a LOST point, with the stack it came from
-    still filed; only a simulator frame where none was allowed is let through.
+    still filed.
 
     The heights are used exactly as reported. Each plane's ``z_um`` is a stage
     position in the frame ``set_xyz`` takes -- that is the controller's
@@ -128,8 +127,6 @@ def measure_one_stack(
     try:
         found = score(record)
         cost["score"] = time.perf_counter() - began
-    except NonSimulatorFrameError:
-        raise
     except Exception as why:  # noqa: BLE001 -- one bad point must not end the map
         log_focus_scoring_failed(index, why)
     measurement = _the_measurement(x, y, found, cost, record)

@@ -20,8 +20,8 @@ from . import state
 
 #: What the operator is told to check when the microscope leaves a size out.
 CHECK_THE_JOB = (
-    "check that the job's image settings can be read in the microscope's own "
-    "software, then read the settings again"
+    "check that the image settings can be read in the microscope's own software, "
+    "then read the settings again"
 )
 
 
@@ -36,33 +36,6 @@ def flatten(prefix: str, mapping: dict, rows: list) -> None:
             )
 
 
-def optics(observed: dict) -> str:
-    """How the light path reads on one line: magnification, aperture, zoom.
-
-    What an operator checks a configuration by: which lens, and how much light
-    it collects. The scanner's zoom was here too and came off again — it is one
-    more number on a line that is read at a glance, and the objective and the
-    pixel size already say what the picture will be. A driver that does not
-    report its optics gets nothing here
-    and the caller falls back to naming the instrument, because a line of
-    blanks says less than a serial number.
-    """
-    lens = observed.get("objective") or observed.get("active_objective") or {}
-    said = []
-    if lens.get("name"):
-        # The Leica names its lens outright, and the name is what identifies
-        # it on the shelf; magnification and aperture only qualify it.
-        said.append(str(lens["name"]))
-    elif lens.get("magnification"):
-        said.append(f"{lens['magnification']:g}x")
-    if lens.get("numerical_aperture"):
-        na = f"{lens['numerical_aperture']:g} NA"
-        if lens.get("immersion"):
-            na = f"{na} {lens['immersion']}"
-        said.append(na)
-    return " · ".join(said)
-
-
 def a_number(value) -> float | None:
     """A positive, finite number, or nothing. Booleans are not numbers here."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -70,70 +43,15 @@ def a_number(value) -> float | None:
     return float(value) if value > 0 and value == value and value != float("inf") else None
 
 
-def format_across(observed: dict) -> float | None:
-    """How many pixels wide a frame is, however the driver says it.
-
-    ``"2048 x 2048"`` is LAS X's own wording, straight out of the job's
-    ``format``; a pair of numbers is what a driver reports when it has already
-    parsed that. Only the first figure is read — a plan is laid in square
-    frames, and a non-square one would need the whole page to grow a second
-    dimension before it could be honoured rather than silently halved.
-    """
-    said = observed.get("format")
-    if isinstance(said, str) and "x" in said.lower():
-        first = said.lower().split("x")[0].strip()
-        try:
-            return a_number(float(first))
-        except ValueError:
-            return None
-    if isinstance(said, dict):
-        return a_number(said.get("x"))
-    if isinstance(said, (list, tuple)) and said:
-        return a_number(said[0])
-    return a_number(observed.get("pixels_x"))
-
-
-def frame_across(observed: dict, pixel_um: float) -> int:
-    """How wide one frame is on the sample, in micrometres.
-
-    Two ways of knowing, in the order they are worth believing.
-
-    **What the instrument measured.** ``frame_size``, shaped like
-    ``pixel_size``: LAS X reports ``imageSize`` and the driver parses it. That
-    is the field of view itself, and nothing derived from it can be more true.
-
-    **The format and the pixel size.** Failing a field of view, how many pixels
-    across times how much sample each covers. This is why the format has to
-    reach here at all: it changes — an operator switching a job from 512 to
-    2048 changes the ground one frame covers by a factor of four, and a plan
-    laid at the old frame would tile the sample with holes or overlaps nobody
-    asked for.
-
-    When the instrument says neither, the frame is not known, and this raises
-    rather than assume one: a plan laid on an assumed frame has gaps or
-    overlaps that nothing on the page would explain.
-    """
-    reported = observed.get("frame_size")
-    if isinstance(reported, dict):
-        said = a_number(reported.get("x"))
-        if said is not None:
-            return round(said)
-    across = format_across(observed)
-    if across is None:
-        raise RuntimeError(
-            "the microscope did not report how wide its image is (neither its field of view "
-            f"nor how many pixels across), so a scan cannot be planned; {CHECK_THE_JOB}"
-        )
-    return round(across * pixel_um)
-
-
 def pixel_size_um(observed: dict) -> float | None:
     """How much sample one pixel covers, in micrometres, or None when not reported.
 
-    ``or {}``, not a default: the Leica reports ``pixel_size`` as None when
-    the job's geometry fails to parse, and a default never fires on None.
+    The controller's own key, the same on every microscope: ``pixel_size_um``,
+    ``[x, y]`` for the current settings. A plan is laid in square frames, so x
+    is read.
     """
-    return a_number((observed.get("pixel_size") or {}).get("x"))
+    said = observed.get("pixel_size_um")
+    return a_number(said[0]) if isinstance(said, (list, tuple)) and said else None
 
 
 def required_pixel_size_um(observed: dict) -> float:
@@ -149,6 +67,26 @@ def required_pixel_size_um(observed: dict) -> float:
     return measured
 
 
+def frame_across(observed: dict) -> int:
+    """How wide one frame is on the sample, in micrometres: its pixels across times their size.
+
+    Both are the controller's own keys for the current settings,
+    ``image_size_px`` and ``pixel_size_um``, so a plan is laid at the frame the
+    microscope is set to: a switch from 512 to 2048 pixels changes the ground
+    one frame covers by a factor of four, and a plan at the old frame would
+    tile the sample with holes or overlaps nobody asked for. When the
+    microscope does not say, this raises rather than assume a frame.
+    """
+    said = observed.get("image_size_px")
+    across = a_number(said[0]) if isinstance(said, (list, tuple)) and said else None
+    if across is None:
+        raise RuntimeError(
+            "the microscope did not report how many pixels its image has, so a scan cannot "
+            f"be planned; {CHECK_THE_JOB}"
+        )
+    return round(across * required_pixel_size_um(observed))
+
+
 def reading(kind: str) -> dict:
     """The instrument's state, now, as the reading the window records.
 
@@ -162,19 +100,17 @@ def reading(kind: str) -> dict:
     session = state.require_session()
     settings = session.get_state()
     observed = settings.get("observed", {})
-    frame_um = frame_across(observed, required_pixel_size_um(observed))
+    frame_um = frame_across(observed)
 
     rows: list = []
     flatten("", settings.get("changeable", {}), rows)
     flatten("", observed, rows)
 
-    summary = (optics(observed) or observed.get("serial")
-               or observed.get("serial_number")
-               or state.context.get("name", "instrument"))
-    # The frame, not the pixel size: a collapsed configuration is read to
-    # answer "how much ground does one press get me", and a pixel size answers
-    # that only once multiplied by a format the line does not carry.
-    summary = f"{summary} · {frame_um} × {frame_um} µm"
+    # The instrument and the frame, the two things every driver says: a
+    # collapsed configuration is read to answer "how much ground does one
+    # press get me". What else the driver reports (its objective, say) is the
+    # driver's own and stands in the detail below, as the driver said it.
+    summary = f"{state.context.get('name', 'instrument')} · {frame_um} × {frame_um} µm"
     reading = {
         "summary": summary, "detail": rows, "frameUm": frame_um,
         # The reapplicable half, kept with the reading: a recording is the

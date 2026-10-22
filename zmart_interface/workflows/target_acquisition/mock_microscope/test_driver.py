@@ -311,14 +311,15 @@ def test_the_hires_job_images_small_and_fine(session):
     anything is captured."""
     session.set_state({"changeable": {"job": "Target"}})
     observed = session.get_state()["observed"]
-    assert observed["frame_size"]["x"] == 128.0 and observed["pixel_size"]["x"] == 1.0
+    assert observed["image_size_px"] == [128, 128] and observed["pixel_size_um"] == [1.0, 1.0]
     record = session.acquire(acquisition_type="targets", position_label="T0")
     assert _frame_px(record) == 128
     with tifffile.TiffFile(record["planes"][0]["path"]) as held:
         physical = held.ome_metadata
     assert 'PhysicalSizeX="1.0"' in physical
     session.set_state({"changeable": {"job": "Overview"}})
-    assert session.get_state()["observed"]["frame_size"]["x"] == 1024.0
+    observed = session.get_state()["observed"]
+    assert observed["image_size_px"][0] * observed["pixel_size_um"][0] == 1024.0
 
 
 def test_a_target_frame_is_the_same_tissue_looked_at_closer(session):
@@ -363,6 +364,7 @@ def test_the_focussing_job_images_a_stacks_frame(session, tmp_path):
     """Under the Focussing job a stack is 256 um of 1 um pixels, whole: the
     job's frame is the stack's frame, not halved again."""
     session.set_state({"changeable": {"job": "Focussing"}})
-    assert session.get_state()["observed"]["frame_size"]["x"] == 256.0
+    observed = session.get_state()["observed"]
+    assert observed["image_size_px"][0] * observed["pixel_size_um"][0] == 256.0
     record = session.acquire(acquisition_type="focussing", position_label="F0")
     assert _frame_px(record) == 256

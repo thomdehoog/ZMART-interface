@@ -672,7 +672,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         inTheInstrument.choose("Focussing");
         await record(page, "target-focus-recording", "target af");
         await expect(page.locator("#target-focus-recording .rec-warn").first())
-          .toContainText("Same job as the focus map's");
+          .toContainText("Same settings as the focus map's");
         await shot(page, "acquire-focus-same-job");
         /* The fine job at the targets' magnification, imported over it:
            the warning goes with the job it was about. */

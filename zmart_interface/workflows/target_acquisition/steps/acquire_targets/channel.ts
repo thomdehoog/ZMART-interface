@@ -9,6 +9,7 @@
 
 import { emptySlot, activeRecording, type Slot } from "../../microscope/recordings.ts";
 import { renderRecordingSlot } from "../../shared/recording-slot.ts";
+import { sameSettings } from "../../shared/page-helpers.ts";
 import galleryWidget from "./gallery.ts";
 import { stopFollowingTheRun } from "./run.ts";
 import type { Channel } from "../../../../api/index.ts";
@@ -131,13 +132,13 @@ export const galleryChannel: Channel<TargetAcquisition> = {
       recordingSlot: (into, opts) => renderRecordingSlot(into, page.recordingOptions(opts)),
       changed: () => page.renderActionBar(),
       /* Focussing before each target: the switch, and the sentence under
-         its own recording when the job read is one another step uses --
-         a job left selected in LAS X from the step before is the usual
-         cause, and it should be seen. A sentence, never a refusal. */
+         its own recording when the settings read are another step's --
+         settings left in place on the microscope from the step before are
+         the usual cause, and it should be seen. A sentence, never a refusal. */
       focusOf: (key) => state.acquiredTiles[key]?.focus ?? null,
       focusOn: () => state.targetFocusOn,
-      /* Unticked is as it was before the first tick: the job imported
-         under the switch is forgotten, not kept out of sight. */
+      /* Unticked is as it was before the first tick: the settings imported
+         under the switch are forgotten, not kept out of sight. */
       setFocusOn: (on) => {
         state.targetFocusOn = !!on;
         if (!on) state.targetFocus = emptySlot("autofocus", 1);
@@ -146,15 +147,13 @@ export const galleryChannel: Channel<TargetAcquisition> = {
       },
       zOffsetUm: () => state.targetZOffsetUm,
       setZOffsetUm: (v) => { state.targetZOffsetUm = v; page.stateEdited("acquire"); },
-      sameJobElsewhere: (record) => {
-        const job = record.changeable?.job;
-        if (!job) return null;
+      sameSettingsElsewhere: (record) => {
         const elsewhere: [Slot, string][] = [
-          [state.focusPreset, "Same job as the focus map's"],
-          [state.overviewPreset, "Same job as the overview scan's"],
-          [state.targetType, "Same job as the target acquisition's"],
+          [state.focusPreset, "Same settings as the focus map's"],
+          [state.overviewPreset, "Same settings as the overview scan's"],
+          [state.targetType, "Same settings as the target acquisition's"],
         ];
-        const hit = elsewhere.find(([slot]) => activeRecording(slot)?.changeable?.job === job);
+        const hit = elsewhere.find(([slot]) => sameSettings(record, activeRecording(slot)));
         return hit ? hit[1] : null;
       },
     });

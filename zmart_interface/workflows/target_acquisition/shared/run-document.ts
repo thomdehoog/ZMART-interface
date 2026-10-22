@@ -64,9 +64,9 @@ export interface TilePlan {
   notes: string[];
 }
 
-/** How a target was focussed before its capture: the job, the map's height, and the peak its stack found, if it found one. */
+/** How a target was focussed before its capture: the settings, the map's height, and the peak its stack found, if it found one. */
 export interface TargetFocussing {
-  job: unknown;
+  settings: unknown;
   z_map_um: number | null;
   z_peak_um: number | null;
   found: boolean;

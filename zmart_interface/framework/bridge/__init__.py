@@ -21,8 +21,8 @@ Run on its own, for a browser instead of the window::
     python -m zmart_interface.framework.bridge --port 8600
 
 It starts every workflow's Python half with it: target acquisition offers
-its own mock microscope first, and the LAS X simulator's stand-in pixels when
-asked (``zmart_interface/workflows/target_acquisition/bridge/starting.py``).
+its own mock microscope first
+(``zmart_interface/workflows/target_acquisition/bridge/starting.py``).
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).

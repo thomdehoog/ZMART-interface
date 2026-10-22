@@ -51,19 +51,6 @@ run: Path | None = None
 #: nowhere to say it -- it connects with the entry the list offered.
 output_root: str | None = None
 
-#: How to make pixels that stand in for the captured ones, when whoever started
-#: the bridge asked for them: ``pixels_for(z_um)`` answers a provider anchored
-#: at the height the stage stands at. The interface hands over the LAS X
-#: simulator's synthetic specimen when started with ``--simulator-pixels``
-#: (``workflows/target_acquisition/bridge/starting.py``); None means the
-#: captured pixels are kept.
-pixels_for = None
-
-#: The provider made from ``pixels_for`` for the session that is open, or
-#: None. One per session, anchored at connect; it has a ``recipe`` that is
-#: written beside the run, so a run made with stand-in pixels says so.
-pixel_provider = None
-
 
 def require_session() -> Instrument:
     """The open session, or a refusal that says what to do."""

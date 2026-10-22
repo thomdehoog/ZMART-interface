@@ -8,7 +8,6 @@ import pytest
 
 from ..storage.output import prepare_acquisition, prepare_experiment
 from .focus_run import as_state, measure_one_stack
-from .simulator_guard import NonSimulatorFrameError
 
 
 def a_stack(folder, *, centre=0.0, heights=None, sharp=1.0, label="P0", named=None):
@@ -109,20 +108,6 @@ def test_a_point_measured_again_keeps_the_first_measurement(tmp_path):
     measure_one_stack(again, x=1.0, y=2.0, centre=0.0, score=_score, output=output)
     kept = {path.name: json.loads(path.read_text())["z_um"] for path in (output / "analysis").iterdir()}
     assert kept == {"focussing_P0_T000000_focus.json": 0.5, "focussing_P0_001_T000000_focus.json": 0.75}
-
-
-def test_a_simulator_refusal_while_keeping_stops_the_map(tmp_path):
-    """Synthetic pixels refused on a real frame must stop the run, never be filed as one lost point."""
-    run = prepare_experiment(tmp_path / "out", "target-acquisition", hash6="abc123")
-    staging = tmp_path / "staging"
-    staging.mkdir()
-
-    def refuse(_record):
-        raise NonSimulatorFrameError("not a simulator")
-
-    with pytest.raises(NonSimulatorFrameError):
-        measure_one_stack(a_stack(staging), x=0.0, y=0.0, centre=0.0, score=_score,
-                          output=prepare_acquisition(run, "focussing"), keep=refuse)
 
 
 def test_recorded_settings_are_wrapped_as_the_driver_reads_them():

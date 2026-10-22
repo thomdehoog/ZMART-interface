@@ -17,19 +17,14 @@ import threading
 
 from ..analysis import detection, warm
 from ..storage.output import free_name
-from . import ledgers, plots, readings, state
+from . import ledgers, plots, state
 
 
 def find_targets():
-    """The finder for this session: detection through the warm analysis, in
-    the pixels the instrument reports. Built when discovery starts rather than
-    at import, so the bridge loads with no analysis installed."""
-    with state.the_instruments_turn:
-        observed = state.require_session().get_state().get("observed", {})
-    # Detection turns the diameter the operator set, in micrometres, into
-    # pixels: at a guessed size every object would be measured wrong.
-    pixel_um = readings.required_pixel_size_um(observed)
-    return detection.through(warm.the_analysis(), pixel_um=pixel_um)
+    """The finder for this session: detection through the warm analysis, each
+    field read from its own store. Built when discovery starts rather than at
+    import, so the bridge loads with no analysis installed."""
+    return detection.through(warm.the_analysis())
 
 
 def discover_targets(asked: dict) -> dict:

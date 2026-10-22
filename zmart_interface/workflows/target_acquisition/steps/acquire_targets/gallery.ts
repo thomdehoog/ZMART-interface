@@ -70,7 +70,7 @@ export interface GalleryContext {
   setFocusOn?(on: boolean): void;
   zOffsetUm?(): number;
   setZOffsetUm?(v: number): void;
-  sameJobElsewhere(record: Recording): string | null;
+  sameSettingsElsewhere(record: Recording): string | null;
 }
 
 /**
@@ -262,11 +262,11 @@ export default {
       focusRecording.hidden = !focusOn.checked;
       if (!focusOn.checked) return;
       ctx.recordingSlot(focusRecording, {
-        label: "Target focussing job", key: "targetFocus",
+        label: "Target focussing settings", key: "targetFocus",
         unnamed: true,
         takes: "Import target focussing settings",
         retakes: "Update",
-        warn: ctx.sameJobElsewhere,
+        warn: ctx.sameSettingsElsewhere,
         changed: () => ctx.changed?.(),
       });
     };

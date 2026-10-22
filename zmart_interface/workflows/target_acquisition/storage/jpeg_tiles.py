@@ -346,8 +346,8 @@ def picture_as_displayed(
     sample the canvas shows, not a brighter cousin made with the scan-wide
     stretch the small copies wear.
 
-    When ``store`` is supplied, read its canonical first-timepoint MIP, including
-    any simulator substitution made at ingestion. TIFFs remain the legacy fallback.
+    When ``store`` is supplied, read its canonical first-timepoint MIP. TIFFs
+    remain the legacy fallback.
     """
     import numpy as np
     import tifffile

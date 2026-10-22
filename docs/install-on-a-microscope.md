@@ -60,7 +60,7 @@ The built page comes inside the package, so nothing is built on the microscope.
 
 ```powershell
 cd C:\ProgramData\MinicondaZMB\home\<user>
-git clone -b v0.6.0rc4 https://github.com/ZMB-UZH/ZMART-analysis
+git clone -b v0.6.0rc5 https://github.com/ZMB-UZH/ZMART-analysis
 conda env create -f ZMART-analysis\workflows\focus\environments\main.yml
 conda env create -f ZMART-analysis\workflows\object_analysis\environments\classical.yml
 conda env create -f ZMART-analysis\workflows\object_analysis\environments\cellpose.yml   # Robust detection only
@@ -111,8 +111,8 @@ zmart-interface --output-root D:\ZMART-data
 
 This opens the operator window with its bridge beside it. `--output-root` is where the interface
 keeps its runs, one folder per run; choose it on the drive the microscope saves to, so each
-capture's files are moved into the run rather than copied. Without it the window cannot connect. Never pass `--simulator-pixels` on a
-real instrument. For a browser instead of the window:
+capture's files are moved into the run rather than copied. Without it the window cannot connect.
+For a browser instead of the window:
 `python -m zmart_interface.framework.bridge --port 8600 --output-root D:\ZMART-data` and open
 `http://127.0.0.1:8600`.
 One controlling process at a time.

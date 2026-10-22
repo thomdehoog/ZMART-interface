@@ -37,10 +37,7 @@ def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
 
     A conversion that fails is filed on the record rather than felling the
     scan: the vendor's files are on disk and the conversion can be run again,
-    while a stage drive cut short cannot. The one exception is an error that
-    says it must stop the run (``stops_the_run``): stand-in pixels refusing a
-    frame that is not theirs to replace, say, which filed as one failed field
-    would let a run carry on over real data.
+    while a stage drive cut short cannot.
     """
     try:
         store = the_drivers_store(record)
@@ -58,17 +55,13 @@ def keep_position_as_zarr(record: dict, acquisition_type: str) -> None:
                 projections_in = folder
         else:
             folder = state.the_run() / "positions" / acquisition_type
-            record["zarr"] = str(position_store_from_record(record, folder, pixel_provider=state.pixel_provider))
-        if state.pixel_provider is not None:
-            record["synthetic_pixels"] = state.pixel_provider.recipe
+            record["zarr"] = str(position_store_from_record(record, folder))
         # The frame's true width on the sample. A recording made before the
         # run says what was promised; the instrument may have stood on
         # another job by the time it captured, and the page draws, crops and
         # opens the ground over what actually landed.
         record["frame_um"] = frame_um_of(record["zarr"])
-    except Exception as why:  # noqa: BLE001 -- filed, not fatal, unless it stops the run
-        if getattr(why, "stops_the_run", False):
-            raise
+    except Exception as why:  # noqa: BLE001 -- filed, not fatal
         record["zarr_error"] = str(why)
         return
     # The viewer beside this bridge links the folder into one live picture;

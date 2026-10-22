@@ -407,39 +407,21 @@ def _frame(observed, monkeypatch):
     return readings.reading("acquisition")["frameUm"]
 
 
-def test_a_frame_size_is_read_the_way_a_pixel_size_is(monkeypatch):
-    """Measured beats derived.
-
-    `frame_size`, shaped like `pixel_size`: LAS X's ``imageSize``, parsed by
-    the driver into micrometres per axis. A format times a pixel size is
-    arithmetic on two rounded numbers that can disagree with it. Only `x` is
-    read — a plan is laid in square frames.
-    """
+def test_the_image_size_and_the_pixel_size_make_the_frame(monkeypatch):
+    """The controller's own keys for the current settings: how many pixels, and how
+    large each is -- and they change with the settings, which is the whole point.
+    Only x is read; a plan is laid in square frames."""
     assert _frame(
-        {"pixel_size": {"x": 0.33}, "frame_size": {"x": 676.4, "y": 676.4, "unit": "um"}},
-        monkeypatch) == 676
-
-
-def test_the_format_and_the_pixel_size_make_the_frame(monkeypatch):
-    """When no field of view is reported, the format is what says how wide it
-    is — and the format changes, which is the whole point."""
+        {"pixel_size_um": [0.33, 0.33], "image_size_px": [2048, 2048]}, monkeypatch) == 676
     assert _frame(
-        {"pixel_size": {"x": 0.33}, "format": "2048 x 2048"}, monkeypatch) == 676
-    assert _frame(
-        {"pixel_size": {"x": 0.33}, "format": "512 x 512"}, monkeypatch) == 169
+        {"pixel_size_um": [0.33, 0.33], "image_size_px": [512, 512]}, monkeypatch) == 169
 
 
-def test_a_format_said_as_numbers_counts_the_same(monkeypatch):
-    """A driver may say it as a pair rather than as a string."""
-    assert _frame(
-        {"pixel_size": {"x": 0.5}, "pixels_x": 1024, "pixels_y": 1024}, monkeypatch) == 512
-
-
-def test_an_instrument_that_says_neither_is_refused_rather_than_guessed(monkeypatch):
-    """A frame nobody measured is not drawn: 512 px was a stand-in for a format
+def test_an_instrument_that_says_no_image_size_is_refused_rather_than_guessed(monkeypatch):
+    """A frame nobody reported is not drawn: 512 px was a stand-in for a size
     nobody reported, and a plan laid on it had gaps or overlaps."""
     with pytest.raises(RuntimeError, match="how many pixels"):
-        _frame({"pixel_size": {"x": 1.0}}, monkeypatch)
+        _frame({"pixel_size_um": [1.0, 1.0]}, monkeypatch)
 
 
 # --- what the instrument offers ----------------------------------------------
@@ -1228,29 +1210,25 @@ def test_a_start_height_is_an_instruction_not_an_answer(driver):
     assert "startZ" not in got["points"][0]
 
 
-def test_the_reading_survives_a_leica_shaped_state(monkeypatch):
-    """The adapter reports `serial_number` and `active_objective`, and its
-    `pixel_size` is None when job geometry fails to parse. The reading read
-    the mock's keys and crashed on the None; then it guessed 1 µm. Now the
-    None is refused in a sentence, and a measured state reads by the Leica's
-    own keys."""
+def test_a_reading_reads_no_drivers_own_keys(monkeypatch):
+    """Only the controller's keys make the reading; the rest is the driver's own.
+
+    A driver reports its pixel size as None when its settings cannot be read:
+    that is refused in a sentence, never guessed. Whatever else it reports
+    (an objective, a serial number) stands in the detail as it said it, and the
+    summary is the instrument and its frame."""
     monkeypatch.setattr(state, "session", _plugged(_Optics({
-        "serial_number": "STELLARIS-1", "active_objective": {"magnification": 20.0},
-        "pixel_size": None, "frame_size": None,
+        "objective": {"name": "20x"}, "image_size_px": [512, 512], "pixel_size_um": None,
     })))
     with pytest.raises(RuntimeError, match="did not report its pixel size"):
         readings.reading("acquisition")
 
-    measured = {"pixel_size": {"x": 0.5}, "frame_size": {"x": 256.0}}
     monkeypatch.setattr(state, "session", _plugged(_Optics({
-        "serial_number": "STELLARIS-1", "active_objective": {"magnification": 20.0}, **measured,
+        "objective": {"name": "20x"}, "image_size_px": [512, 512], "pixel_size_um": [0.5, 0.5],
     })))
-    assert "20x" in readings.reading("acquisition")["summary"]
-
-    monkeypatch.setattr(state, "session", _plugged(_Optics({
-        "serial_number": "STELLARIS-1", **measured,
-    })))
-    assert "STELLARIS-1" in readings.reading("acquisition")["summary"]
+    said = readings.reading("acquisition")
+    assert said["summary"].endswith("256 × 256 µm")
+    assert ["objective · name", "20x"] in said["detail"]
 
 
 def test_a_fresh_connect_forgets_the_last_sessions_runs(monkeypatch, tmp_path):
@@ -1306,17 +1284,6 @@ def test_a_driver_that_gives_no_canvas_is_said_so_plainly():
     }
     with pytest.raises(RuntimeError, match=r"does not say where its pictures can show along y"):
         connecting.the_viewers_area(reading)
-
-
-def test_the_optics_line_names_the_leica_lens(monkeypatch):
-    """The Leica's objective is {name, magnification, slotIndex} -- no
-    aperture, no immersion. The name is what identifies the lens on the
-    shelf, and the line read only the mock's sub-keys."""
-    monkeypatch.setattr(state, "session", _plugged(_Optics({
-        "active_objective": {"name": "HC PL APO 63x/1.40 OIL CS2", "magnification": 63.0},
-        "pixel_size": {"x": 0.1}, "frame_size": {"x": 102.4},
-    })))
-    assert "HC PL APO 63x/1.40 OIL CS2" in readings.reading("acquisition")["summary"]
 
 
 def test_the_recorded_settings_reach_the_instrument_before_a_focus_map(driver):

@@ -12,7 +12,6 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
-import json
 import sys
 import time
 from importlib.metadata import version
@@ -66,7 +65,7 @@ def saved_connection(name: str) -> dict:
 #: trigger; from 0.4.0 acquire is given the kind of acquisition and the folder
 #: to save in, and get_info says whether the microscope chooses its own folder
 #: instead: the interface decides where its own runs go.
-CONTROLLER_VERSIONS = ">=0.4.0rc4,<0.5"
+CONTROLLER_VERSIONS = ">=0.4.0rc6,<0.5"
 
 
 def accept_the_controller(installed_version: str) -> None:
@@ -121,14 +120,6 @@ def connect(asked: dict) -> dict:
         info = session.get_info()
         standing = session.get_xyz()
         area = the_viewers_area(standing)
-        # Pixels that stand in for the captured ones, when the starter asked
-        # for them (the LAS X simulator's synthetic specimen): one set per
-        # session, anchored at the height the stage stands at now, and never
-        # re-anchored for a new job, tile or stack.
-        provider = (
-            state.pixels_for(float(standing["z"]["position"]))
-            if state.pixels_for is not None else None
-        )
         if state.output_root is None:
             # What the microscope says it still needs set up, in its own words.
             missing = [
@@ -141,9 +132,6 @@ def connect(asked: dict) -> dict:
                 + (f" (not set up on {name!r}: {'; '.join(missing)})" if missing else "")
             )
         run = prepare_experiment(state.output_root, experiment)
-        if provider is not None:
-            (run / "synthetic-specimen.json").write_text(
-                json.dumps(provider.recipe, indent=2), encoding="utf-8")
     except Exception:
         # A microscope that cannot describe itself, say where its pictures
         # can show, or be given a folder to save into is not a session to
@@ -153,7 +141,6 @@ def connect(asked: dict) -> dict:
         raise
     state.session = session
     state.context = {**session.context, "name": name}
-    state.pixel_provider = provider
     session.run = run
     state.run = run
     # The analysis writes its records and files into this run.
@@ -256,7 +243,6 @@ def disconnect() -> dict:
         state.session.disconnect()
         state.session = None
     state.run = None
-    state.pixel_provider = None
     # The context is the session's: a name left over from the last one
     # made the next session's readings pretend it was the mock.
     state.context = {}

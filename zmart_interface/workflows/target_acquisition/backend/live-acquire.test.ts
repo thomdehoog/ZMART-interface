@@ -92,7 +92,7 @@ describe("the live target run", () => {
     expect(calls[5][1]).toEqual({ job: "Target" });
     expect(calls[6][1]).toEqual({ x: 10, y: 20, z: 12 });
     expect(calls[8][1].position.z).toBe(12);
-    expect(calls[8][1].focus).toEqual({ job: "Focussing", z_map_um: 5, z_peak_um: 12, found: true });
+    expect(calls[8][1].focus).toEqual({ settings: { job: "Focussing" }, z_map_um: 5, z_peak_um: 12, found: true });
     expect(said).toEqual(["focussing on target 1 of 1", "imaging target 1 of 1", null]);
   });
 
@@ -128,7 +128,7 @@ describe("the live target run", () => {
     expect(drives).toEqual([5]);
     const landed = theFirstTo(calls, "/api/target_acquisition/targets/acquire/landed");
     expect(landed.position.z).toBe(5);
-    expect(landed.focus).toEqual({ job: "Focussing", z_map_um: 5, z_peak_um: null, found: false });
+    expect(landed.focus).toEqual({ settings: { job: "Focussing" }, z_map_um: 5, z_peak_um: null, found: false });
   });
 
   it("lands at the height the stage stood at when there is no map and no peak", async () => {
@@ -142,7 +142,7 @@ describe("the live target run", () => {
     });
     const landed = theFirstTo(calls, "/api/target_acquisition/targets/acquire/landed");
     expect(landed.position.z).toBe(33);
-    expect(landed.focus).toEqual({ job: "Focussing", z_map_um: null, z_peak_um: null, found: false });
+    expect(landed.focus).toEqual({ settings: { job: "Focussing" }, z_map_um: null, z_peak_um: null, found: false });
   });
 
   /* The operator's z offset is added once, to the height chosen for the

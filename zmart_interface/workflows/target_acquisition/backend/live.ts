@@ -527,7 +527,7 @@ export const backend: Backend = {
            which need not be the middle of the tile imaged after it. */
         const focusXY = focusAt ?? { x, y };
         const focusMoves = focusXY.x !== x || focusXY.y !== y;
-        let found: { job: unknown; z_map_um: number | null; z_peak_um: number | null; found: boolean } | null = null;
+        let found: { settings: unknown; z_map_um: number | null; z_peak_um: number | null; found: boolean } | null = null;
         /* Where the objective stood for the stack: the height the target is
            taken at when the stack shows no peak, map or no map. */
         let standing: number | null = null;
@@ -551,7 +551,7 @@ export const backend: Backend = {
           const curve = scored.traces?.[focus.metric];
           const peak = curve?.samples?.length ? pickPeak(findCandidates(curve.samples)) : null;
           found = {
-            job: focus.state?.job ?? null, z_map_um: typeof zMap === "number" && Number.isFinite(zMap) ? zMap : null,
+            settings: focus.state ?? null, z_map_um: typeof zMap === "number" && Number.isFinite(zMap) ? zMap : null,
             z_peak_um: peak ? peak.z : null, found: peak !== null,
           };
           if (peak) at = { x, y, z: lifted(peak.z) };

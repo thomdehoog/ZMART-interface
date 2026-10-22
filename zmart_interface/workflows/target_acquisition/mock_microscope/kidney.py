@@ -8,8 +8,7 @@ used, three channels of 512 x 512 pixels, and that plane is kept here in
 fetches the whole 25 MB stack from the internet the first time it is asked,
 and the microscope computer has no network.
 
-Two things draw on it: the mock microscope, which lays it across its whole
-stage, and the synthetic pixels that stand in for the LAS X simulator's.
+The mock microscope lays it across its whole stage.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).

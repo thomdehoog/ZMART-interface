@@ -71,7 +71,7 @@ WRITE_ATTEMPTS = 3
 WRITE_RETRY_S = 0.3
 
 
-def position_store_from_record(record: dict, into: Path | str, *, pixel_provider=None) -> Path:
+def position_store_from_record(record: dict, into: Path | str) -> Path:
     """Write one OME-Zarr 0.5 position from a capture's record, and return it.
 
     ``record`` is what the driver's acquire returned — its ``planes`` name the
@@ -83,14 +83,9 @@ def position_store_from_record(record: dict, into: Path | str, *, pixel_provider
     A rename the file system denies is tried again, in a fresh place, up to
     :data:`WRITE_ATTEMPTS` times; one denied for good raises as itself.
     """
-    if pixel_provider is not None:
-        from ..microscope.simulator_guard import assert_simulator
-
-        described = [path for path in record.get("files", []) if path.endswith(".xlif")]
-        assert_simulator(described, record["position_label"])
     for attempt in range(WRITE_ATTEMPTS):
         try:
-            return _write_a_position(record, into, pixel_provider=pixel_provider)
+            return _write_a_position(record, into)
         except PermissionError as denied:
             if attempt == WRITE_ATTEMPTS - 1:
                 raise
@@ -117,16 +112,14 @@ def frame_um_of(store: Path | str) -> float:
     raise RuntimeError(f"{store} declares no pixel size")
 
 
-def _write_a_position(record: dict, into: Path | str, *, pixel_provider=None) -> Path:
+def _write_a_position(record: dict, into: Path | str) -> Path:
     """One attempt at :func:`position_store_from_record`."""
     planes = record.get("planes") or []
     if not planes:
         raise RuntimeError("the capture reported no planes, so there is nothing to keep")
 
     z_model = _the_z_model(record, planes)
-    volume, pixel_size_um = _the_volume_of(
-        planes, depth_order=z_model["array_order"], pixel_provider=pixel_provider,
-    )
+    volume, pixel_size_um = _the_volume_of(planes, depth_order=z_model["array_order"])
     frames, channels, nz, ny, nx = volume.shape
     dz = z_model["spacing_um"]
     first_voxel_um = the_first_voxel_centre_of(
@@ -184,8 +177,6 @@ def _write_a_position(record: dict, into: Path | str, *, pixel_provider=None) ->
     description.setdefault("attributes", {})["zmart_microscopy"] = {
         "z_coordinate": z_model,
     }
-    if pixel_provider is not None:
-        description["attributes"]["zmart_microscopy"]["synthetic_pixels"] = pixel_provider.recipe
     _describe_mean_pyramid(description)
     description_path.write_text(json.dumps(description, indent=2), encoding="utf-8")
 
@@ -244,7 +235,6 @@ def _publish(built: Path, published: Path) -> Path:
 
 def _the_volume_of(
     planes: list[dict], depth_order: list[int] | None = None,
-    *, pixel_provider=None,
 ) -> tuple[np.ndarray, tuple[float, float]]:
     """The capture as one ``(t, c, z, y, x)`` array, and its (y, x) µm/voxel.
 
@@ -285,11 +275,6 @@ def _the_volume_of(
         for plane in planes:
             held = files[str(plane["path"])]
             image = _one_plane_of(held, plane)
-            if pixel_provider is not None:
-                replacement = pixel_provider(image.shape, image.dtype, plane=plane, pixel_um=pixel_size_um)
-                if replacement.shape != image.shape or replacement.dtype != image.dtype:
-                    raise ValueError("Synthetic pixels must preserve the saved plane's shape and dtype")
-                image = replacement
             if volume is None:
                 volume = np.zeros(
                     (len(frames), len(channels), len(depth), *image.shape),

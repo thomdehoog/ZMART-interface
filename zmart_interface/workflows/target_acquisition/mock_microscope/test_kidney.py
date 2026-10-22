@@ -18,7 +18,6 @@ import types
 import numpy as np
 import pytest
 
-from ..microscope import simulator_pixels
 from . import kidney
 
 
@@ -31,10 +30,8 @@ def no_network(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "skimage.data", types.SimpleNamespace(kidney=unreachable))
     kidney.the_kidney_plane.cache_clear()
-    simulator_pixels.KidneyPixels._texture.cache_clear()
     yield
     kidney.the_kidney_plane.cache_clear()
-    simulator_pixels.KidneyPixels._texture.cache_clear()
 
 
 def test_the_plane_is_read_from_the_package_without_the_network(no_network):
@@ -60,9 +57,3 @@ def test_the_mock_takes_a_picture_without_the_network(no_network, monkeypatch):
     monkeypatch.setattr(driver, "_sample", None)
     sample = driver._the_micrograph(np)
     assert sample.shape == (3, 512, 512)
-
-
-def test_the_simulators_pixels_need_no_network_either(no_network):
-    texture = simulator_pixels.KidneyPixels._texture()
-    assert texture.shape == (3, 512, 512)
-    assert 0.0 <= texture.min() and texture.max() <= 1.0

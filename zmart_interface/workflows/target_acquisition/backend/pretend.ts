@@ -394,14 +394,14 @@ export const backend: Backend = {
       if (stopAsked.acquire) { stopped = true; break; }
       const say = (phase: string) => onDoing?.(`${phase} target ${index + 1} of ${positions.length}`);
       let z = p.z ?? null;
-      let found: { job: unknown; z_map_um: number | null; z_peak_um: number | null; found: boolean } | null = null;
+      let found: { settings: unknown; z_map_um: number | null; z_peak_um: number | null; found: boolean } | null = null;
       if (focus) {
         say("focussing on");
         const { points } = await this.measureFocus([{ x: (p.focusAt ?? p).x, y: (p.focusAt ?? p).y, startZ: z ?? undefined }],
           { metric: focus.metric, extent: focus.extent ?? [1, 1] });
         const [got] = points;
         const peak = got?.zAuto ?? null;
-        found = { job: focus.state?.job ?? null, z_map_um: z, z_peak_um: peak, found: peak !== null && Number.isFinite(peak) };
+        found = { settings: focus.state ?? null, z_map_um: z, z_peak_um: peak, found: peak !== null && Number.isFinite(peak) };
         if (peak !== null && found.found) z = peak;
       }
       if (z !== null && Number.isFinite(z)) z += zOffsetUm;

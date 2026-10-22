@@ -23,8 +23,8 @@ def test_capture_channels_match_first_timepoint_reader(tmp_path):
     record = a_z_stack(tmp_path, heights=(0,), acquisition_type="overview")
     plane = record["planes"][0]
     record["planes"] = [{**plane, "t": t, "c": c} for t in (4, 5) for c in (2, 7)]
-    record["zarr"] = "completed.ome.zarr"
-    given = detection.what_was_captured(record, field=0, pixel_um=1, settings={})
+    record["zarr"] = str(position_store_from_record(record, tmp_path / "positions"))
+    given = detection.what_was_captured(record, field=0, settings={})
     assert given["channels"] == [0]
     assert given["extra_channel_indices"] == [1]
 
@@ -44,12 +44,11 @@ def test_real_detector_sees_objects_outside_middle_plane(tmp_path, depth):
     given = detection.what_was_captured(
         record,
         field=0,
-        pixel_um=0.1,
         settings={"method": "fast", "threshold": 100, "diameter": 14, "border": 2},
     )
     assert given["z_selection"] == "max"
-    assert given["tile_z_um"] is None
-    assert given["diameter"] == 14  # stored 1 um/px, not the instrument-now 0.1
+    assert "tile_z_um" not in given
+    assert given["diameter"] == 14  # the store's 1 um/px
     assert given["border_margin_px"] == 2
     old = segmented(record["zarr"], "mid")
     result = segmented(record["zarr"], given["z_selection"])

@@ -53,7 +53,7 @@ _DEFAULT_ACTUATORS: dict[str, str] = {"x": "motoric", "y": "motoric", "z": "moto
 #: picture wrongly, and only on the second one would anybody notice. The frames
 #: are small so that a test can take a hundred of them, and the pixel is
 #: correspondingly large -- 256 of them across 1024 um, which is what
-#: ``frame_size`` reports, and at which the sample's nuclei come out a few
+#: its state reports, and at which the sample's nuclei come out a few
 #: tens of micrometres wide, the size a detector is told to look for.
 _PIXEL_UM = 4.0
 
@@ -799,13 +799,10 @@ def get_state(handle: MockHandle) -> dict:
                 "immersion": handle.immersion,
             },
             "zoom": handle.zoom,
-            # The job's own geometry: what a capture under it will be.
-            "pixel_size": {"x": frame_of(handle.job)[1], "y": frame_of(handle.job)[1], "unit": "um"},
-            "frame_size": {
-                "x": frame_of(handle.job)[0] * frame_of(handle.job)[1],
-                "y": frame_of(handle.job)[0] * frame_of(handle.job)[1],
-                "unit": "um",
-            },
+            # The controller's own keys: the image size and pixel size of the
+            # current settings, which the job owns here, as on a real instrument.
+            "image_size_px": [frame_of(handle.job)[0]] * 2,
+            "pixel_size_um": [frame_of(handle.job)[1]] * 2,
         },
     }
 

@@ -43,7 +43,7 @@ def what_was_captured(record: dict) -> dict:
         # Canonical TCZYX stores pack T/C from zero and Z in physical order.
         # The analysis reader obtains plane heights from that same store.
         return {"image_path": record["zarr"]}
-    if record.get("synthetic_pixels") or record.get("zarr_error"):
+    if record.get("zarr_error"):
         raise RuntimeError("Focus requires its canonical position; refusing different vendor pixels")
     every = record.get("planes") or []
     if not every:

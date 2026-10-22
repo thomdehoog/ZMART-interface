@@ -1,4 +1,4 @@
-"""Canonical pixels, projection identity and simulator refusal across consumers."""
+"""Canonical pixels and projection identity across consumers."""
 
 import json
 from types import SimpleNamespace
@@ -13,35 +13,17 @@ from ..bridge import pictures, state
 from ..storage import jpeg_tiles
 from ..storage.test_zarr_positions import a_z_stack
 from ..storage.zarr_positions import position_store_from_record
-from .simulator_guard import NonSimulatorFrameError
-from .simulator_pixels import SimulatorPixels
 
 read_images = step_module("object_analysis", "read_images")
 segment_watershed = step_module("object_analysis", "segment_watershed")
 
 
-def test_simulator_refusal_propagates_out_of_ingestion(tmp_path, monkeypatch):
-    record = a_z_stack(tmp_path)
-    monkeypatch.setattr(state, "run", tmp_path)
-    monkeypatch.setattr(state, "pixel_provider", SimulatorPixels())
-    with pytest.raises(NonSimulatorFrameError):
-        pictures.keep_position_as_zarr(record, "overview")
-    assert not record.get("zarr")
-
-
 def test_preview_uses_the_same_canonical_mip_as_detection(tmp_path, monkeypatch):
     record = a_z_stack(tmp_path, heights=(4, 0, -4), acquisition_type="overview")
-    vendor = tmp_path / "vendor.xlif"
-    vendor.write_text('<Image SystemTypeName="SIMULATOR"/>')
-    record["files"].append(str(vendor))
-    for plane in record["planes"]:
-        plane.update(x_um=32, y_um=32)
     record["planes"] = [
         {**p, "c": c, "t": t} for p in record["planes"] for c in (2, 7) for t in (3, 4)
     ]
-    record["zarr"] = str(
-        position_store_from_record(record, tmp_path / "positions", pixel_provider=SimulatorPixels())
-    )
+    record["zarr"] = str(position_store_from_record(record, tmp_path / "positions"))
     monkeypatch.setattr(state, "records", {"overview": [record]})
     monkeypatch.setattr(state, "displayed_pictures", {})
     monkeypatch.setattr(jpeg_tiles, "_as_jpeg", lambda pixels, quality: pixels)
@@ -68,7 +50,7 @@ def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
     array[0, 1, 1] = 2
     array[0, 1, 2] = 900
     inp = {
-        **detection.what_was_captured(record, field=0, pixel_um=1, settings={}),
+        **detection.what_was_captured(record, field=0, settings={}),
         "image_path": record["zarr"],
         "channels": [0],
         "extra_channel_indices": [1],
@@ -78,7 +60,6 @@ def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
         "diameter": 14,
         "gpu": False,
         "output_dir": str(tmp_path / "analysis"),
-        "synthetic_pixels": SimulatorPixels.recipe,
     }
     read = read_images.run({"input": inp, "metadata": {"verbose": 0}}, {})
     # The extra channel is read as a maximum projection too, for the features.
@@ -88,7 +69,7 @@ def test_extra_channel_features_read_max_and_checkpoint_identifies_it(tmp_path):
     checkpoint = json.loads(
         next((tmp_path / "analysis").rglob("detection_checkpoint.json")).read_text()
     )
-    assert checkpoint["synthetic_pixels"] == SimulatorPixels.recipe
+    assert checkpoint["z_selection"] == "max"
     assert result["segment_watershed"]["segmentation_params"]["z_selection"] == "max"
     # The projection is part of the segmentation's identity
     middle = read_images.run({"input": {**inp, "z_selection": "mid"}, "metadata": {"verbose": 0}}, {})
@@ -110,6 +91,6 @@ def test_target_area_and_radius_use_captured_calibration(tmp_path):
     analysis = SimpleNamespace(
         run=lambda *args: {"object_analysis": {"objects": {"properties": table}}}
     )
-    result = detection.through(analysis, pixel_um=0.1)(record, 0, {})
+    result = detection.through(analysis)(record, 0, {})
     assert result["cells"][0]["area"] == 100
     assert result["cells"][0]["r"] == pytest.approx(np.sqrt(100 / np.pi))

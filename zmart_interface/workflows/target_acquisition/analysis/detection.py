@@ -25,108 +25,59 @@ PIPELINES = {"robust": "object_analysis_cellpose", "fast": "object_analysis_wate
 #: Where each pipeline's segmentation step leaves its record, with the device it ran on.
 SEGMENTATION_STEPS = ("segment_cellpose", "segment_watershed")
 
-#: Which way the image's axes point on the stage: a column to the right is
-#: +x, a row down is +y. The mock cuts its frames straight from the sample, so
-#: for it this is simply true. A real driver knows its own turn (the Leica
-#: keeps it in ``orientation.json``) and the record is where it belongs; until
-#: a record carries it, this is the assumption, made in one place.
-IMAGE_TO_STAGE = [[1.0, 0.0], [0.0, 1.0]]
+def pixel_size_of(record: dict) -> float:
+    """The pixel size the capture was taken at, in micrometres, from its OME-Zarr store.
 
-
-def pixel_size_of(record: dict, fallback: float) -> float:
-    """The pixel size the capture was taken at, in micrometres.
-
-    From the capture's own OME-Zarr store when it has one: the scale the
-    writer recorded is the instrument's word at the time of the capture.
-    ``fallback`` is what the instrument reports *now*, which is only right
-    while the same job is still selected -- a detection re-run after the
-    target job was chosen took the 40x pixel size for the 10x overview, and
-    a 30 um diameter became 211 px.
+    The store is the one account of the capture. What the microscope reports
+    *now* is only right while the same settings are still in place: a
+    detection re-run after the target job was chosen took the 40x pixel size
+    for the 10x overview, and a 30 um diameter became 211 px.
     """
     store = record.get("zarr")
     if not store:
-        return float(fallback)
-    try:
-        import zarr  # noqa: PLC0415 -- kept off the import path, as the bridge does
+        raise RuntimeError("the capture has no OME-Zarr store, so there is nothing to detect on")
+    import zarr  # noqa: PLC0415 -- kept off the import path, as the bridge does
 
-        attrs = dict(zarr.open(str(store), mode="r").attrs)
-        multiscale = ((attrs.get("ome") or attrs).get("multiscales") or [{}])[0]
-        axes = [axis.get("name") for axis in multiscale.get("axes", [])]
-        for transform in multiscale["datasets"][0].get("coordinateTransformations", []):
-            if transform.get("type") == "scale":
-                return float(transform["scale"][axes.index("x") if "x" in axes else -1])
-    except Exception:  # noqa: BLE001 -- a store that will not say is answered by the fallback
-        pass
-    return float(fallback)
+    multiscale = dict(zarr.open(str(store), mode="r").attrs)["ome"]["multiscales"][0]
+    axes = [axis.get("name") for axis in multiscale.get("axes", [])]
+    for transform in multiscale["datasets"][0].get("coordinateTransformations", []):
+        if transform.get("type") == "scale" and "x" in axes:
+            return float(transform["scale"][axes.index("x")])
+    raise RuntimeError(f"the capture's store {store} does not say its pixel size")
 
 
-def what_was_captured(record: dict, *, field: int, pixel_um: float, settings: dict) -> dict:
-    """The step's input for one field: its first channel, and where it was taken.
+def what_was_captured(record: dict, *, field: int, settings: dict) -> dict:
+    """The step's input for one field: the capture's store, and how to find the objects in it.
 
-    Detection reads the Z maximum, and the first channel is the one a sample's
-    nuclei are in. Where the field is comes off the record, because the
-    acquisition is the only thing that knows. The settings arrive in the
-    page's units -- a diameter in micrometres -- and leave in the detector's,
-    pixels, since the detector has never seen the instrument.
+    The store says where the field lies, how large a pixel is and which
+    colours it holds; the analysis reads all of that from it, so none of it is
+    handed alongside. Segmentation reads the first colour and the Z maximum;
+    the other colours ride along by index, each a column of features to gate
+    on. The settings arrive in the page's units -- a diameter in micrometres
+    -- and leave in the detector's, pixels, at the store's pixel size.
     """
     planes = record.get("planes") or []
-    first_time = min((int(p.get("t", 0)) for p in planes), default=0)
-    planes = [p for p in planes if int(p.get("t", 0)) == first_time]
-    lowest_index = min((int(p.get("z", 0)) for p in planes), default=0)
-    every = [plane for plane in planes if int(plane.get("z", 0)) == lowest_index]
-    if not every:
-        raise RuntimeError(
-            "the capture reported no planes, so there is nothing to detect on"
-        )
-    # The first channel the capture has, whatever the instrument numbers it:
-    # requiring the number 0 refused a Leica job whose channels start at 1.
-    first = min(int(plane.get("c", 0)) for plane in every)
-    plane = next(plane for plane in every if int(plane.get("c", 0)) == first)
-    others = sorted(
-        (p for p in every if int(p.get("c", 0)) != first),
-        key=lambda p: int(p.get("c", 0)),
-    )
+    if not planes:
+        raise RuntimeError("the capture reported no planes, so there is nothing to detect on")
+    pixel_um = pixel_size_of(record)
+    store = Path(record["zarr"])
+    colours = len({int(plane.get("c", 0)) for plane in planes})
     given = {
-        **({"synthetic_pixels": record["synthetic_pixels"]} if record.get("synthetic_pixels") else {}),
-        "image_path": plane["path"],
+        "image_path": str(store),
         "tile_id": [record["acquisition_type"], int(field), 0],
-        "tile_stage_xy_um": [float(plane["x_um"]), float(plane["y_um"])],
-        "tile_z_um": float(plane["z_um"]),
-        "source_pixel_size_um": [pixel_size_of(record, pixel_um)] * 2,
-        "image_to_stage": IMAGE_TO_STAGE,
+        "channels": [0],
+        "z_selection": "max",
         "gpu": True,
     }
-    pixel_um = given["source_pixel_size_um"][0]
-    stacked = len({p.get("z", 0) for p in planes}) > 1
-    if stacked and not record.get("zarr"):
-        raise RuntimeError("Stack detection requires the completed OME-Zarr position")
-    if others:
-        # Segmentation stays on the first channel; the rest ride along so
-        # the features can be measured on every colour -- each measured
-        # column (intensity_mean_c1, ...) becomes a gating axis with no
-        # page work at all.
-        given["extra_channel_paths"] = [p["path"] for p in others]
-    if record.get("zarr"):
-        # The capture's canonical form is its OME-Zarr position, and the
-        # analysis reads it when there is one: the same reader handles both
-        # (`load_plane`), so this only renames the door. The store's channels
-        # are packed 0..n-1, so channel 0 is the first channel whatever the
-        # instrument numbered it; segmentation stays on it, and the rest ride
-        # along by index for the per-colour features. Results stay filed
-        # beside the vendor's `data`, where every reader already looks.
-        given["image_path"] = record["zarr"]
-        given["channels"] = [0]
-        given["z_selection"] = "max"
-        if stacked:
-            given["tile_z_um"] = None
-        given.pop("extra_channel_paths", None)
-        if others:
-            given["extra_channel_indices"] = list(range(1, len(others) + 1))
-        analysis = Path(plane["path"]).parent
-        while analysis.name and analysis.name != "data":
-            analysis = analysis.parent
-        if analysis.name == "data":
-            given["output_dir"] = str(analysis.parent / "analysis")
+    if colours > 1:
+        given["extra_channel_indices"] = list(range(1, colours))
+    # The results are filed beside the ``data`` the capture was saved in, where the
+    # page reads the masks from: found from a plane's file, since a capture saved
+    # as files is kept as a store of its own in the run's ``positions``.
+    saved = Path(planes[0]["path"])
+    data = next((folder for folder in (saved, *saved.parents) if folder.name == "data"), None)
+    if data is not None:
+        given["output_dir"] = str(data.parent / "analysis")
     # How the objects are found: the page's word for it is the step's.
     method = settings.get("method") or "robust"
     if method not in PIPELINES:
@@ -181,7 +132,7 @@ def as_targets(table: dict, *, field: int, pixel_um: float) -> list[dict]:
     return targets
 
 
-def through(analysis: Any, *, pixel_um: float) -> Callable[[dict, int, dict], dict]:
+def through(analysis: Any) -> Callable[[dict, int, dict], dict]:
     """Find the targets in each field through *analysis*, whose workers are running.
 
     The analysis is passed in and never built here, so its lifetime is the
@@ -191,15 +142,16 @@ def through(analysis: Any, *, pixel_um: float) -> Callable[[dict, int, dict], di
     to the CPU took ten times longer and nothing on the page said why.
     """
 
-    def found_in(result: dict, given: dict, field: int) -> dict:
+    def found_in(result: dict, record: dict, field: int) -> dict:
         # The table stands under the pipeline's name; the segmentation step's
         # own record stands beside it, stripped of its arrays, and that is
         # where the device it ran on is written.
         detection = next((result[step] for step in SEGMENTATION_STEPS if step in result), {})
         device = (detection.get("detector_params") or {}).get("device")
         return {
-            "cells": as_targets(result["object_analysis"], field=field,
-                                pixel_um=given["source_pixel_size_um"][0]),
+            "cells": as_targets(
+                result["object_analysis"], field=field, pixel_um=pixel_size_of(record)
+            ),
             "device": device,
         }
 
@@ -207,8 +159,8 @@ def through(analysis: Any, *, pixel_um: float) -> Callable[[dict, int, dict], di
         """One field at a time by a call; many at once by :meth:`each`."""
 
         def __call__(self, record: dict, field: int, settings: dict) -> dict:
-            given = what_was_captured(record, field=field, pixel_um=pixel_um, settings=settings)
-            return found_in(analysis.run(PIPELINES[given["method"]], given), given, field)
+            given = what_was_captured(record, field=field, settings=settings)
+            return found_in(analysis.run(PIPELINES[given["method"]], given), record, field)
 
         def each(self, records: dict, settings: dict, *, at_once: int, until=None):
             """Find in every field of *records* (``{field: record}``), *at_once*
@@ -216,7 +168,7 @@ def through(analysis: Any, *, pixel_um: float) -> Callable[[dict, int, dict], di
             ``(field, error)`` for one whose pipeline failed. Fields are
             independent, so the order they land in is the engine's."""
             givens = {
-                field: what_was_captured(record, field=field, pixel_um=pixel_um, settings=settings)
+                field: what_was_captured(record, field=field, settings=settings)
                 for field, record in records.items()
             }
             pipelines = {PIPELINES[given["method"]] for given in givens.values()}
@@ -226,7 +178,7 @@ def through(analysis: Any, *, pixel_um: float) -> Callable[[dict, int, dict], di
                 if isinstance(outcome, Exception):
                     yield field, outcome
                 else:
-                    yield field, found_in(outcome, givens[field], field)
+                    yield field, found_in(outcome, records[field], field)
 
     return Finder()
 
