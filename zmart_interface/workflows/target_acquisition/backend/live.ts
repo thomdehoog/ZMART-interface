@@ -35,7 +35,8 @@ import { atBridge } from "../../../api/index.ts";
 import { PENDING, isFailed } from "../microscope/connection-status.ts";
 import { findCandidates, pickPeak } from "../shared/focus-curves.ts";
 import type {
-  Backend, CaptureRecord, Connecting, ControllerAnswer, FocusAsk, FocusPoint, FoundField, Opening, Place, PlotColumns, PublishedAcquisition,
+  Backend, CaptureRecord, Connecting, ControllerAnswer, FocusAsk, FocusPoint, FoundField, Instruments, Opening, Place, PlotColumns,
+  PublishedAcquisition,
   Reading, RunProgress, ScanPosition, TargetFocus, TargetPosition, Traces, ViewerStatus, WrittenProtocol, XyzReading,
 } from "./verbs.ts";
 
@@ -131,9 +132,9 @@ export const backend: Backend = {
     return atBridge(`${OURS}/view/${acquisitionType}`);
   },
 
-  /** What can be connected to: the interface's list of microscopes, from the bridge. */
+  /** What can be connected to, each with its driver's settings, and where the last run went: from the bridge. */
   async instruments() {
-    return (await ask<{ instruments: string[] }>(`${OURS}/instruments`)).instruments;
+    return ask<Instruments>(`${OURS}/instruments`);
   },
 
   /**
@@ -182,11 +183,12 @@ export const backend: Backend = {
    * has failed.
    */
   async connect(session: Opening | null | undefined, { onChecks, onCheck }: Connecting = {}) {
-    /* The password travels with the connection: a gate that demanded it and
-       then discarded it authenticated nothing. What a driver does with it is
-       the driver's business. */
+    /* What the operator typed travels with the connection: the bridge puts
+       it over the connection saved for the driver, for the settings that
+       driver names. What a driver does with it is the driver's business. */
     await ask(`${OURS}/connect`, {
-      instrument: session?.instrument, password: session?.password, experiment: EXPERIMENT,
+      instrument: session?.instrument, host: session?.host, config: session?.config, password: session?.password,
+      output_root: session?.outputRoot, experiment: EXPERIMENT,
     });
     let keys: string[] | null = null;
     const answered = new Set<string>();

@@ -55,7 +55,7 @@ describe.skipIf(!bridgeAt)("the live backend keeps the same promises", () => {
        first, and a test that took the first entry would open a session on a
        real microscope and move it. Driving the real one is a deliberate act,
        so it takes a word from whoever is running this. */
-    const offered = await live.instruments();
+    const offered = (await live.instruments()).instruments.map((one) => one.name);
     const mockDriver = offered.find(isTheMock);
     /* Exactly "yes": a variable left over from another run, or set to "no",
        must not count as permission to move a real stage. */

@@ -5,13 +5,16 @@
  * needs to see the answers: an autofocus that fails an hour into a run
  * because the storage path was never writable is a bad way to find out. So
  * the card is two boxes. The first is what the session is opened with — the
- * microscope, its API, the password — and it locks once the session is open,
- * because everything after this was read through it. The second is what the
- * driver said when it opened: one row per check its `get_info` reports
- * (whether the stage answers, which limits and calibration it loaded, where
- * images go), each waiting until its answer arrives. How a microscope is set
- * up -- its limits, its origin, its calibration -- belongs to the driver's own
- * setup, so the card offers no choice of configuration: it shows what the
+ * same six fields for every microscope: the microscope, its API, the host,
+ * the password, the config and the output folder — and it locks once the
+ * session is open, because everything after this was read through it. Host,
+ * password and config are the driver's to need: typed over what it saved
+ * where its connection names them, "not needed" where it does not. The
+ * second box is what the driver said when it opened: one row per check its
+ * `get_info` reports (whether the stage answers, which limits and
+ * calibration it loaded, where images go), each waiting until its answer
+ * arrives. How a microscope is set up -- its limits, its origin, its
+ * calibration -- belongs to the driver's own setup: the card shows what the
  * driver says it stands on.
  *
  * The card reaches for nothing around it. What it shows and what it does
@@ -21,7 +24,7 @@
 
 import { sideGroup } from "../../../../api/index.ts";
 import { isFailed } from "../../microscope/connection-status.ts";
-import type { Choice, Session } from "../../microscope/instruments.ts";
+import { takeTheSavedSettings, type Choice, type Session } from "../../microscope/instruments.ts";
 import type { Check, ListedProtocol } from "../../shared/run-document.ts";
 
 /** What the card shows and what it does, handed in by the Connect channel. */
@@ -87,40 +90,46 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
     scopeSel.addEventListener("change", () => {
       session.microscope = scopeSel.value;
       session.api = ctx.chosenMicroscope()?.apis[0]?.key ?? null;
+      takeTheSavedSettings(session, ctx.chosenMicroscope());
       ctx.changed();
     });
 
-    const api = document.createElement("label");
+    /* One API per microscope: the driver's, said rather than chosen. */
+    const api = document.createElement("div");
     api.className = "field";
-    api.innerHTML = "<span>API</span><select></select>";
-    const apiSel = api.querySelector("select")!;
-    for (const a of ctx.chosenMicroscope()?.apis ?? []) {
-      const o = document.createElement("option");
-      o.value = a.key;
-      o.textContent = a.detail ? `${a.label} · ${a.detail}` : a.label;
-      apiSel.append(o);
-    }
-    apiSel.value = session.api ?? "";
-    apiSel.disabled = locked || !ctx.chosenMicroscope();
-    apiSel.addEventListener("change", () => {
-      session.api = apiSel.value;
-      ctx.changed();
-    });
+    api.innerHTML = "<span>API</span><span></span>";
+    const chosenApi = ctx.chosenMicroscope()?.apis.find((a) => a.key === session.api);
+    api.lastElementChild!.textContent = chosenApi?.detail ? `${chosenApi.label} · ${chosenApi.detail}` : chosenApi?.label ?? "";
 
-    const pw = document.createElement("label");
-    pw.className = "field";
-    pw.innerHTML = '<span>Password</span><input type="password" autocomplete="current-password">';
-    const pwInput = pw.querySelector("input")!;
-    pwInput.value = session.password;
-    pwInput.disabled = locked;
-    /* Typing must not rebuild the card: re-rendering destroys the very
-       input being typed into, which drops focus after every keystroke.
-       Only what depends on the password is touched. */
-    pwInput.addEventListener("input", () => {
-      session.password = pwInput.value;
-    });
+    /* A field the operator types into. Typing must not rebuild the card:
+       re-rendering destroys the very input being typed into, which drops
+       focus after every keystroke. Only the session is touched. A setting
+       the driver does not need is greyed out and says so. */
+    const named = ctx.chosenMicroscope()?.settings ?? {};
+    const typed = (label: string, key: "host" | "password" | "config" | "outputRoot", needed: boolean) => {
+      const row = document.createElement("label");
+      row.className = "field";
+      row.innerHTML = key === "password"
+        ? '<span></span><input type="password" autocomplete="current-password">'
+        : '<span></span><input type="text">';
+      row.querySelector("span")!.textContent = label;
+      const input = row.querySelector("input")!;
+      if (needed) input.value = session[key];
+      else input.placeholder = "not needed";
+      input.disabled = locked || !needed;
+      input.addEventListener("input", () => {
+        session[key] = input.value;
+      });
+      return row;
+    };
 
-    form.append(scope, api, pw);
+    form.append(
+      scope, api,
+      typed("Host", "host", "host" in named),
+      typed("Password", "password", "password" in named),
+      typed("Config", "config", "config" in named),
+      typed("Output folder", "outputRoot", true),
+    );
 
     /* The protocol to open on: a new one, or one a finished run wrote on
        this machine. The list is the

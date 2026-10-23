@@ -98,8 +98,7 @@ async function runStep(page: Page, ms = 1000) {
 }
 
 /** Connect has its own button at the end of its card, not one the frame drives. */
-async function connect(page: Page, password = "hunter2") {
-  await page.locator('.field input[type="password"]').fill(password);
+async function connect(page: Page) {
   await page.locator(".session-foot button.run").click();
   await page.waitForTimeout(2200);
   /* The wait above matches the rehearsal's pace; this expect covers the slow
@@ -261,18 +260,23 @@ test("the page offers exactly the workflows that are declared", async ({ page })
   }
 });
 
-test("a session opens with the password left empty", async ({ page }) => {
-  // the page ships with no password at all: a prefilled one is a credential
-  // everybody has. And none is demanded either: the field is the instrument's
-  // to want, so Connect is ready as soon as an instrument is chosen, and the
-  // page says nothing about a password being needed.
-  const pw = page.locator('.field input[type="password"]');
-  await expect(pw).toHaveValue("");
+test("the same six fields for every microscope, and what its driver does not need says so", async ({ page }) => {
+  // the mock's connection names no host, password or config: each is shown,
+  // greyed out as not needed, and Connect is ready without them. The page
+  // ships with no password at all: a prefilled one is a credential everybody has.
+  const rows = page.locator(".session-form .field");
+  await expect(rows.locator("> span:first-child")).toHaveText(
+    ["Microscope", "API", "Host", "Password", "Config", "Output folder", "Protocol"]);
+  for (const name of ["Host", "Password", "Config"]) {
+    const input = rows.filter({ hasText: name }).locator("input");
+    await expect(input, name).toBeDisabled();
+    await expect(input, name).toHaveValue("");
+    await expect(input, name).toHaveAttribute("placeholder", "not needed");
+  }
+  await expect(rows.filter({ hasText: "Output folder" }).locator("input")).toBeEnabled();
   await expect(page.locator(".session-foot button.run")).toBeEnabled();
   await expect(page.locator(".session-hint")).toHaveCount(0);
   await expect(page.locator(".session-foot")).not.toContainText("password");
-  await pw.fill("hunter2");
-  await expect(page.locator(".session-foot button.run")).toBeEnabled();
 });
 
 test("the column beside the canvas is the step's channel, with nothing to switch to", async ({ page }) => {
@@ -344,19 +348,18 @@ test("the channel folds away to the right and comes back", async ({ page }) => {
   expect(viewOpen.zoom).toBeCloseTo(viewBefore.zoom, 9);
 });
 
-test("typing the password does not throw the field away", async ({ page }) => {
-  const pw = page.locator('.field input[type="password"]');
-  await pw.fill("");
-  await pw.click();
-  await page.keyboard.type("hunter2", { delay: 30 });
+test("typing into a field does not throw the field away", async ({ page }) => {
+  const folder = page.locator(".session-form .field").filter({ hasText: "Output folder" }).locator("input");
+  await folder.fill("");
+  await folder.click();
+  await page.keyboard.type("D:/runs", { delay: 30 });
   // rebuilding the card on every keystroke destroys the input being typed into
-  expect(await pw.inputValue()).toBe("hunter2");
-  expect(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type === "password")).toBe(true);
+  expect(await folder.inputValue()).toBe("D:/runs");
+  expect(await folder.evaluate((input) => input === document.activeElement)).toBe(true);
   await expect(page.locator(".session-foot button.run")).toBeEnabled();
 });
 
 test("every check is asked at once, and each one ticks as it answers", async ({ page }) => {
-  await page.locator('.field input[type="password"]').fill("hunter2");
   await page.locator(".session-foot button.run").click();
 
   // the whole list arrives with the session; only the marks are waiting on
@@ -388,6 +391,8 @@ test("connecting reports what it checked, and what that came to", async ({ page 
 
 test("an open session is not editable, and Disconnect is the way out", async ({ page }) => {
   const fields = page.locator(".session-form select, .session-form input");
+  const folder = page.locator(".session-form .field").filter({ hasText: "Output folder" }).locator("input");
+  await folder.fill("D:/runs");
   await connect(page);
   await expect(fields.first(), "an open session is what the run rests on").toBeDisabled();
   await expect(page.locator(".check-row")).toHaveCount(6);
@@ -409,7 +414,7 @@ test("an open session is not editable, and Disconnect is the way out", async ({ 
   await expect(page.locator(".check-row")).toHaveCount(0);
   // the checks box goes with them, leaving the session's own heading alone
   await expect(page.locator("#canvas-side .side-group-title")).toHaveCount(1);
-  await expect(page.locator('.field input[type="password"]')).toHaveValue("hunter2");
+  await expect(folder).toHaveValue("D:/runs");
   await expect(page.locator('.step:has-text("Define Carrier")').first()).toBeDisabled();
 
   // and the next session starts where any run does: what the closed one
@@ -549,11 +554,13 @@ test("the microscope is a mock or a registered driver, and the api follows it", 
   expect(scopes).toHaveLength(2);
   expect(scopes[0]).toContain("Mock");
   expect(scopes[1]).toContain("stellaris");
-  const apis = () => page.locator(".field select").nth(1).locator("option").allInnerTexts();
-  expect((await apis()).join()).toContain("Mock API");
+  /* One API per microscope: said, not chosen. A driver that names none is
+     reached through itself, so its name is what is said. */
+  const api = page.locator(".session-form .field").nth(1);
+  await expect(api).toContainText("Mock API");
+  await expect(api.locator("select, input")).toHaveCount(0);
   await page.locator(".field select").first().selectOption({ label: "stellaris" });
-  await page.waitForTimeout(150);
-  expect((await apis()).join()).toContain("ZMART driver");
+  await expect(api).toHaveText(/^API\s*stellaris$/);
 });
 
 test("nothing advances by itself, and the next step stays locked until it can run",

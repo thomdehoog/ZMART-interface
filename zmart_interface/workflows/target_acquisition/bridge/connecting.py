@@ -2,9 +2,12 @@
 
 The Connect step lists what this computer can drive (``/api/instruments``):
 what whoever started the bridge offered first (the interface offers its own
-mock microscope there), then every driver the controller's registry knows. Connecting opens a ``ZmartController`` of the bridge's own
-for the chosen one, makes the run folder every capture goes under, and
-starts the picture server beside it. Disconnecting closes all of that.
+mock microscope there), then every driver the controller's registry knows,
+each with the settings of its connection the step shows. Connecting opens a
+``ZmartController`` of the bridge's own for the chosen one, with what the
+operator typed put over the connection it was saved with, makes the run
+folder every capture goes under, and starts the picture server beside it.
+Disconnecting closes all of that.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -34,14 +37,43 @@ from . import discovery, ledgers, scan, state
 offered: dict[str, tuple[object, dict]] = {}
 
 
-def instruments() -> list[str]:
-    """The microscopes the Connect step offers, by name, in the order it shows them.
+#: The settings of a driver's connection the Connect step shows, when the
+#: connection names them; the API is the driver's own and is only shown.
+SHOWN_SETTINGS = ("api_type", "host", "password", "config")
+
+#: The ones the operator may type over what was saved. A password is only
+#: ever typed: the controller refuses a driver file that holds one, and the
+#: bridge never hands one out or keeps one.
+TYPED_SETTINGS = ("host", "password", "config")
+
+
+def listed() -> dict[str, dict]:
+    """The microscopes the Connect step offers, by name in the order it shows them, each with its connection.
 
     What the starter offered first -- the interface puts its mock there, so a
     page opened by accident drives nothing real -- then every driver
     installed on this computer, as the controller lists them.
     """
-    return [*offered, *(name for name in get_instruments() if name not in offered)]
+    return {
+        **{name: connection for name, (driver, connection) in offered.items()},
+        **{name: connection for name, connection in get_instruments().items() if name not in offered},
+    }
+
+
+def instruments() -> list[dict]:
+    """The microscopes the Connect step offers, each with the settings of its connection it shows.
+
+    ``{"name", "settings"}``: of :data:`SHOWN_SETTINGS`, the ones the
+    connection names, with the value each was saved with -- a password only
+    as named, its value always ``None``. A setting the connection does not
+    name is one the driver does not need, and the step says so.
+    """
+    return [
+        {"name": name, "settings": {
+            key: None if key == "password" else connection[key] for key in SHOWN_SETTINGS if key in connection
+        }}
+        for name, connection in listed().items()
+    ]
 
 
 def saved_connection(name: str) -> dict:
@@ -54,8 +86,8 @@ def saved_connection(name: str) -> dict:
     """
     if name in offered:
         return dict(offered[name][1])
-    if name not in instruments():
-        raise ValueError(f"no microscope is listed as {name!r}; listed: {instruments()}")
+    if name not in listed():
+        raise ValueError(f"no microscope is listed as {name!r}; listed: {list(listed())}")
     return find_driver(name)[1]
 
 
@@ -89,9 +121,13 @@ A_RUN = "run"
 def connect(asked: dict) -> dict:
     """Open the session for one of the listed microscopes and answer with the driver's account.
 
-    ``asked["instrument"]`` is a name from :func:`instruments`, and
-    ``asked["password"]``, when given, is what the operator typed; it is
-    handed to the driver with the connection that was saved for it.
+    ``asked["instrument"]`` is a name from :func:`instruments`. What the
+    operator typed on the Connect step goes over the connection that was
+    saved for it: ``host``, ``password`` and ``config`` for the ones that
+    connection names, and ``output_root``, the folder the run is made under.
+    A field left empty keeps what was saved, and the folder is the one the
+    last run went to (at first ``--output-root``). Once the run folder is
+    made, the folder is kept as the last one used.
     ``asked["experiment"]`` is what the workflow calls its runs: the run
     folder is ``<experiment>_<hash>``. It is checked to be a plain folder
     name before anything is opened.
@@ -102,10 +138,12 @@ def connect(asked: dict) -> dict:
         raise ValueError("connect needs the name of one of the microscopes listed by /api/instruments")
     experiment = checked_name(asked.get("experiment") or A_RUN, field="experiment")
     connection = saved_connection(name)
-    if asked.get("password"):
-        connection["password"] = asked["password"]
-    if state.output_root is not None:
-        connection["output_root"] = state.output_root
+    for key in TYPED_SETTINGS:
+        if key in connection and asked.get(key):
+            connection[key] = asked[key]
+    output_root = asked.get("output_root") or state.output_root
+    if output_root is not None:
+        connection["output_root"] = output_root
     # The session before this one is closed first. A page that is reloaded
     # connects again, and the old session was left open behind the new one:
     # the microscope software still had a client, and a scan still running
@@ -120,18 +158,19 @@ def connect(asked: dict) -> dict:
         info = session.get_info()
         standing = session.get_xyz()
         area = the_viewers_area(standing)
-        if state.output_root is None:
+        if output_root is None:
             # What the microscope says it still needs set up, in its own words.
             missing = [
                 f"{item}: {said.get('says')}" for item, said in (info.get("setup") or {}).items()
                 if isinstance(said, dict) and not said.get("done")
             ]
             raise RuntimeError(
-                "the interface was not told where to put its runs; start it with "
-                "--output-root and a folder, ideally on the drive the microscope saves to"
+                "the interface was not told where to put its runs; give an Output folder, "
+                "or start it with --output-root and a folder, ideally on the drive the "
+                "microscope saves to"
                 + (f" (not set up on {name!r}: {'; '.join(missing)})" if missing else "")
             )
-        run = prepare_experiment(state.output_root, experiment)
+        run = prepare_experiment(output_root, experiment)
     except Exception:
         # A microscope that cannot describe itself, say where its pictures
         # can show, or be given a folder to save into is not a session to
@@ -140,6 +179,8 @@ def connect(asked: dict) -> dict:
         session.disconnect()
         raise
     state.session = session
+    # The folder this run went to is the one the Connect step offers next.
+    state.output_root = output_root
     state.context = {**session.context, "name": name}
     session.run = run
     state.run = run

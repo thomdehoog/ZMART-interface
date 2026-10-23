@@ -12,6 +12,7 @@
  */
 
 import type { ChannelSpec } from "../canvas/engines/neuroglancer-under/viewer.ts";
+import type { ListedInstrument } from "../microscope/instruments.ts";
 import type { Reading } from "../microscope/settings.ts";
 import type { Sample } from "../microscope/pretend-sample/sweep.ts";
 
@@ -183,10 +184,19 @@ export interface Connecting {
   onCheck?(index: number, value: string): void;
 }
 
-/** What the session is opened with. */
+/** What can be connected to, and the folder the last run went to (at first `--output-root`). */
+export interface Instruments {
+  instruments: ListedInstrument[];
+  output_root: string | null;
+}
+
+/** What the session is opened with: the chosen name, and what the operator typed. */
 export interface Opening {
   instrument?: string;
   password?: string;
+  host?: string;
+  config?: string;
+  outputRoot?: string;
   [more: string]: unknown;
 }
 
@@ -230,7 +240,7 @@ export interface TargetFocus {
 export interface Backend {
   viewOf(acquisitionType: string): string | null;
   viewerSources(onStatus?: (status: ViewerStatus) => void): Promise<PublishedAcquisition[] | null>;
-  instruments(): Promise<string[]>;
+  instruments(): Promise<Instruments>;
   connect(session: Opening | null | undefined, connecting?: Connecting): Promise<{ info: Record<string, unknown> }>;
   disconnect(): Promise<void>;
   info(): Promise<Record<string, unknown>>;

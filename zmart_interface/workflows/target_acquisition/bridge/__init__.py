@@ -36,7 +36,8 @@ Each path below is under ``/api/target_acquisition/``.
 * ``POST connect`` — open the session through the controller. The reply
   carries the driver's own account of itself (``get_info``), which is what the
   window's connection checks show. ``GET instruments`` lists what can be
-  connected to, ``GET info`` is the driver's account of the open session,
+  connected to, each with the settings of its connection the Connect step
+  shows, and the folder the last run went to; ``GET info`` is the driver's account of the open session,
   and ``POST disconnect`` closes it.
 * ``GET setting`` — **a readout, never a procedure.** The instrument's
   current state (``get_state``), shaped into the reading the window records:
@@ -171,7 +172,8 @@ def routes(register) -> None:
     """
     # The session, the stage, the instrument's settings and a capture, in
     # the order the page meets them.
-    register("GET", "instruments", lambda asked, query: {"instruments": connecting.instruments()})
+    register("GET", "instruments", lambda asked, query: {
+        "instruments": connecting.instruments(), "output_root": state.output_root})
     register("POST", "connect", lambda asked, query: connect(asked))
     register("POST", "disconnect", lambda asked, query: in_the_instruments_turn(connecting.disconnect))
     register("GET", "info", lambda asked, query: in_the_instruments_turn(

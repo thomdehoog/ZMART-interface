@@ -11,7 +11,7 @@
 
 import { applyProtocol, protocolFits, type Protocol } from "../../shared/protocol.ts";
 import { freshSettings } from "../../shared/run-document.ts";
-import { choicesFrom, theMockAmong, type Choice } from "../../microscope/instruments.ts";
+import { choicesFrom, takeTheSavedSettings, theMockAmong, type Choice } from "../../microscope/instruments.ts";
 import { activeRecording } from "../../microscope/recordings.ts";
 import { renderSessionCard } from "./session-card.ts";
 import type { Channel } from "../../../../api/index.ts";
@@ -26,15 +26,19 @@ export const chosenInstrument = (page: TaPage): string | null => chosenApi(page)
 
 /* Ask the backend what can be connected to, and choose for the operator
    when nothing is chosen yet: the mock when it is listed, so a page opened
-   by accident drives nothing, otherwise the first entry. */
+   by accident drives nothing, otherwise the first entry, with what its
+   driver saved. The output folder is where the last run went, until the
+   operator names another. */
 export function listInstruments(page: TaPage): Promise<void> {
   const state = page.run;
-  return page.backend.instruments().then((list) => {
-    state.instruments = choicesFrom(list);
+  return page.backend.instruments().then(({ instruments, output_root }) => {
+    state.instruments = choicesFrom(instruments);
+    state.session.outputRoot ||= output_root ?? "";
     if (!chosenMicroscope(page)) {
       const mock = theMockAmong(state.instruments);
       state.session.microscope = mock?.microscope ?? state.instruments[0]?.key ?? null;
       if (mock) state.session.api = mock.api;
+      takeTheSavedSettings(state.session, chosenMicroscope(page));
     }
     if (!chosenApi(page)) state.session.api = chosenMicroscope(page)?.apis[0]?.key ?? null;
     renderSetup(page); page.renderActionBar();

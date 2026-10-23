@@ -34,7 +34,6 @@ test("Interrupt ends the focus map between two points", async ({ page }) => {
   test.setTimeout(300_000);
 
   await page.goto(process.env.BUILT_PAGE ? `http://127.0.0.1:${PORT}/` : `/?bridge=${encodeURIComponent(`http://127.0.0.1:${PORT}`)}`);
-  await page.locator('.field input[type="password"]').fill("hunter2");
   await page.locator(".session-foot button.run").click();
   await expect(page.locator('.step.done:has-text("Connect")')).toBeVisible({ timeout: 60_000 });
   await gotoStep(page, "Define Carrier");

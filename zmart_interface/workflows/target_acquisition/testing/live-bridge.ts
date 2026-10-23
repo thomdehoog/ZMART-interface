@@ -107,7 +107,7 @@ export async function startTheBridge({ port, connect = true }: { port: number; c
   }
 
   const { instruments } = await ask("/api/target_acquisition/instruments");
-  const scope = instruments.find(isTheMock);
+  const scope = instruments.map((one: { name: string }) => one.name).find(isTheMock);
   if (!scope) throw new Error("the bridge has no mock microscope to connect to");
   const opened = connect ? await ask("/api/target_acquisition/connect", { instrument: scope, experiment: "target-acquisition" }) : null;
 

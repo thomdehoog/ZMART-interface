@@ -10,7 +10,6 @@ import { test, expect, type Page } from "@playwright/test";
  */
 
 const connect = async (page: Page) => {
-  await page.locator('.field input[type="password"]').fill("hunter2");
   await page.locator(".session-foot button.run").click();
   await expect(page.locator('.step:has-text("Define Carrier")').first())
     .toBeEnabled({ timeout: 15_000 });

@@ -40,7 +40,6 @@ test("Connect opens an empty middle viewer; focusing and overview fill it above 
     if (message.type() === "error") errors.push(message.text());
   });
   await page.goto(process.env.ZMART_TEST_BUILT ? bridge!.at : `/?bridge=${encodeURIComponent(bridge!.at)}`);
-  await page.locator('.field input[type="password"]').fill("hunter2");
   await page.locator(".session-foot button.run").click();
   await expect(page.locator('.step.done:has-text("Connect")')).toBeVisible({ timeout: 60_000 });
   await page.waitForFunction(() => !!window.__thePicture, null, { timeout: 60_000 });

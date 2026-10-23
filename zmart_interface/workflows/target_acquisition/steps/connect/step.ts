@@ -1,7 +1,8 @@
 /**
  * Step 1 — Connect.
  *
- * Choose the microscope, its API and the password, then open the session.
+ * Choose the microscope, fill in what its driver needs and the folder the
+ * run goes to, then open the session.
  * Every run that drives a microscope starts here: nothing can be measured,
  * moved or imaged until there is a session to do it through.
  *

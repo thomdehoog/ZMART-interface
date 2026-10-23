@@ -230,7 +230,7 @@ function promisesOfTheController(expect: ExpectStatic): BackendPromise[] {
       async keep(backend) {
         const checks: string[] = [];
         await backend.connect(
-          { instrument: (await backend.instruments())[0] },
+          { instrument: (await backend.instruments()).instruments[0].name },
           { onChecks: (keys) => checks.push(...keys) },
         );
         /* The page lays the stage out from `get_xyz`'s canvas and lists the

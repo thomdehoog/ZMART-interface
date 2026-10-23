@@ -23,7 +23,6 @@ async function recordSlot(page: Page, host: string, name: string) {
 test("the panel stands between the picture and the channel", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("/?backend=pretend");
-  await page.locator('.field input[type="password"]').fill("hunter2");
   await page.locator(".session-foot button.run").click();
   await page.waitForTimeout(2200);
   await gotoStep(page, "Define Carrier");

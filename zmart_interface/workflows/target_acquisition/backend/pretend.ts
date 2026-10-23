@@ -32,7 +32,7 @@
  * University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
  */
 
-import { MICROSCOPES, THE_MOCK } from "../microscope/instruments.ts";
+import { MICROSCOPES, THE_MOCK, type ListedInstrument } from "../microscope/instruments.ts";
 import { sampleReading } from "../microscope/settings.ts";
 import { makeRng } from "../microscope/pretend-sample/rng.ts";
 import { sweep } from "../microscope/pretend-sample/sweep.ts";
@@ -97,9 +97,9 @@ export const backend: Backend = {
     return null;
   },
 
-  /** What can be connected to: the interface's list of microscopes, as the bridge gives it. */
+  /** What can be connected to, as the bridge gives it; no run has gone anywhere yet. */
   async instruments() {
-    return pretendInstruments();
+    return { instruments: pretendInstruments(), output_root: null };
   },
 
   /**
@@ -551,8 +551,10 @@ export const backend: Backend = {
 const TRAVEL_UM = { x: 120_000, y: 80_000 };
 
 /** The list a microscope PC with the Leica installed as "stellaris" would
- *  offer: the interface's mock first, then the controller's list. */
-export const pretendInstruments = () => [THE_MOCK, "stellaris"];
+ *  offer: the interface's mock first, then the controller's list. As their
+ *  drivers' connections are saved, neither names a host, a password or a config. */
+export const pretendInstruments = (): ListedInstrument[] =>
+  [THE_MOCK, "stellaris"].map((name) => ({ name, settings: {} }));
 
 const pretendConnectionStatus = ({ instrument }: { instrument?: string }): Record<string, string> => ({
   "Microscope reachable": instrument && MICROSCOPES[instrument] ? "in-process" : "127.0.0.1:8895",

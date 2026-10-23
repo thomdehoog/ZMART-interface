@@ -1848,7 +1848,7 @@ def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_dri
     register_driver(plugin.parent)
     register_driver(Path(mock_microscope.__file__).parent)
 
-    assert connecting.instruments() == ["interface-mock", "beads"]
+    assert [one["name"] for one in connecting.instruments()] == ["interface-mock", "beads"]
     assert connecting.saved_connection("beads") == {"mock_timing": "instant"}
     # As the interface offers it: with its own window opened beside the session.
     assert connecting.saved_connection("interface-mock") == {"client": "mock-client", "open_window": True}

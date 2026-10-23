@@ -38,7 +38,6 @@ async function walkToScan(page: Page) {
   };
 
   await page.goto(`/?bridge=${encodeURIComponent(`http://127.0.0.1:${PORT}`)}`);
-  await page.locator('.field input[type="password"]').fill("hunter2");
   await page.locator(".session-foot button.run").click();
   await page.locator('.step.done:has-text("Connect")').waitFor({ timeout: 60_000 });
 

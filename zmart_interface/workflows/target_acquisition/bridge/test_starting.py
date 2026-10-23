@@ -22,19 +22,19 @@ from . import connecting, starting, state
 
 
 def test_target_acquisition_offers_its_mock_first(monkeypatch):
-    monkeypatch.setattr(connecting, "get_instruments", lambda: ["stellaris", mock_microscope.NAME])
+    monkeypatch.setattr(connecting, "get_instruments", lambda: {"stellaris": {}, mock_microscope.NAME: {}})
     bridge = server.serve(0)
     try:
-        assert connecting.instruments() == [mock_microscope.NAME, "stellaris"]
+        assert [one["name"] for one in connecting.instruments()] == [mock_microscope.NAME, "stellaris"]
     finally:
         bridge.shutdown()
         bridge.server_close()
 
 
 def test_without_its_own_mock_the_list_is_the_controllers(monkeypatch):
-    monkeypatch.setattr(connecting, "get_instruments", lambda: ["stellaris"])
+    monkeypatch.setattr(connecting, "get_instruments", lambda: {"stellaris": {}})
     monkeypatch.setattr(connecting, "offered", {})
-    assert connecting.instruments() == ["stellaris"]
+    assert [one["name"] for one in connecting.instruments()] == ["stellaris"]
 
 
 def test_the_mock_is_offered_with_its_window():
