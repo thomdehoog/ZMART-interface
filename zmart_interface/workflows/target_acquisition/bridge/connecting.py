@@ -65,7 +65,7 @@ def saved_connection(name: str) -> dict:
 #: trigger; from 0.4.0 acquire is given the kind of acquisition and the folder
 #: to save in, and get_info says whether the microscope chooses its own folder
 #: instead: the interface decides where its own runs go.
-CONTROLLER_VERSIONS = ">=0.4.0rc6,<0.5"
+CONTROLLER_VERSIONS = ">=0.4.0rc7,<0.5"
 
 
 def accept_the_controller(installed_version: str) -> None:

@@ -25,7 +25,7 @@ dependencies = [
     # interface opens a ZmartController of its own and lists the drivers the
     # controller's registry knows. Its acquire is given the kind of acquisition
     # and the folder to save in.
-    "zmart-controller @ git+https://github.com/ZMB-UZH/ZMART-controller@v0.4.0rc6",
+    "zmart-controller @ git+https://github.com/ZMB-UZH/ZMART-controller@v0.4.0rc7",
     # The picture server that shows the run as it is acquired. Pinned to a
     # release, because the page is built with the viewer's drawing files: the
     # build stops when the installed viewer is not this one.
@@ -58,7 +58,7 @@ dependencies = [
 [project.optional-dependencies]
 # The drivers for real microscopes. Install the extra of the driver too, for
 # example the Leica's: pip install "zmart-drivers[leica] @ git+...".
-drivers = ["zmart-drivers @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b5"]
+drivers = ["zmart-drivers @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b6"]
 # What working on the interface needs beyond running it: pytest, the reader
 # of the OME description inside a TIFF, which the analysis steps run in-process
 # use, and ruff, which checks the Python as the automatic checks do (pinned, so
