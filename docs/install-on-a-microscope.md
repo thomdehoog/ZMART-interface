@@ -60,7 +60,7 @@ The built page comes inside the package, so nothing is built on the microscope.
 
 ```powershell
 cd C:\ProgramData\MinicondaZMB\home\<user>
-git clone -b v0.6.0rc5 https://github.com/ZMB-UZH/ZMART-analysis
+git clone -b v0.6.0rc6 https://github.com/ZMB-UZH/ZMART-analysis
 conda env create -f ZMART-analysis\workflows\focus\environments\main.yml
 conda env create -f ZMART-analysis\workflows\object_analysis\environments\classical.yml
 conda env create -f ZMART-analysis\workflows\object_analysis\environments\cellpose.yml   # Robust detection only
@@ -74,9 +74,10 @@ the first press of a session pays the start-up of those workers once.
 
 ### 4. The driver
 
-Install the driver's extra (for the Leica: `pip install "zmart-drivers[leica] @ git+https://github.com/ZMB-UZH/ZMART-drivers"`),
+Install the driver's extra (for the Leica: `pip install "zmart-drivers[leica] @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b8"`),
 and do the driver's own setup for this microscope -- its limits, origin and, for the Leica,
-the image orientation and objective calibration. Each driver's README says how. The driver
+the image orientation and objective calibration. Each driver's README says how; the Leica
+driver has a setup wizard for it: `python -m zmart_drivers.leica.stellaris.navigator_expert.driver_setup.wizard`. The driver
 loads that setup every time it connects, and the interface's Connect step shows what it
 loaded.
 
