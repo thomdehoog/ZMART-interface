@@ -1765,6 +1765,7 @@ def test_a_finished_run_writes_its_protocol_where_the_next_session_lists_it(monk
         run = Path(root) / "target-acquisition_a1b2c3"
         run.mkdir()
         monkeypatch.setattr(state, "run", run)
+        monkeypatch.setattr(protocols, "PROTOCOL_LIBRARY", Path(root) / "protocols")
         written = protocols.save_protocol({"protocol": {"version": 1, "carrier": {"rows": 2}}})
         assert Path(written["written"]) == run / "protocol.json"
         assert json.loads((run / "protocol.json").read_text(encoding="utf-8")) == {
@@ -1801,9 +1802,10 @@ def test_a_saved_protocol_lives_in_the_library_and_is_listed_with_the_runs(monke
         assert len(protocols.protocols()["protocols"]) == 2
 
 
-def test_without_a_session_there_is_no_protocol_to_list_or_write(monkeypatch):
+def test_without_a_session_there_is_no_protocol_to_list_or_write(monkeypatch, tmp_path):
     monkeypatch.setattr(state, "run", None)
     monkeypatch.setattr(state, "output_root", None)
+    monkeypatch.setattr(protocols, "PROTOCOL_LIBRARY", tmp_path / "protocols")
     assert protocols.protocols() == {"protocols": []}
     with pytest.raises(RuntimeError, match="no session"):
         protocols.save_protocol({"protocol": {}})
