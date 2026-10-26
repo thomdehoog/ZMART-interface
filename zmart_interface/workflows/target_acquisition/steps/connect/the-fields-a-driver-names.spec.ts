@@ -35,10 +35,10 @@ test("a driver's named settings are shown filled, and handed over on Connect", a
 
   const rows = page.locator(".session-form .field");
   const field = (name: string) => rows.filter({ hasText: name }).locator("input");
-  await page.locator(".field select").first().selectOption("stellaris");
+  await page.locator(".field select").first().selectOption("stellaris-y42h93");
 
-  await expect(page.locator(".field select").first().locator("option:checked")).toHaveText("stellaris · stellaris-y42h93");
-  await expect(rows.nth(1)).toHaveText(/^API\s*Navigator Expert$/);
+  await expect(page.locator(".field select").first().locator("option:checked")).toHaveText("stellaris-y42h93");
+  await expect(rows.nth(1).locator("option:checked")).toHaveText("Navigator Expert");
   await expect(rows.locator("span:first-child")).toHaveText([
     "Microscope", "API", "Host", "Client", "Password", "Config", "Output folder", "Protocol",
   ]);
@@ -69,4 +69,38 @@ test("a driver's named settings are shown filled, and handed over on Connect", a
   await expect(field("Host")).toBeEnabled();
   await expect(field("Host")).toHaveValue("");
   await expect(field("Host")).toHaveAttribute("placeholder", "not used by this driver");
+});
+
+test("a driver that lists its configs has them chosen from, the most recent first", async ({ page }) => {
+  const configs = ["config_20261026_1952", "config_20260907_0714"];
+  await page.route(`${BRIDGE}/api/target_acquisition/instruments`, (route) => route.fulfill({
+    json: {
+      instruments: [
+        { name: "interface-mock", settings: {}, configs: null },
+        { name: "stellaris", settings: { host: "localhost", client: "PythonClient", config: null }, configs },
+      ],
+      output_root: "D:/runs",
+    },
+  }));
+  await page.route(`${BRIDGE}/api/target_acquisition/protocols`, (route) => route.fulfill({ json: { protocols: [] } }));
+  const sent: Record<string, unknown>[] = [];
+  await page.route(`${BRIDGE}/api/target_acquisition/connect`, (route) => {
+    sent.push(route.request().postDataJSON());
+    return route.fulfill({ json: { error: "the test opens no session" } });
+  });
+  await page.goto(`/?bridge=${encodeURIComponent(BRIDGE)}`);
+
+  const config = page.locator(".session-form .field").filter({ hasText: "Config" }).locator("select");
+  await page.locator(".field select").first().selectOption("stellaris");
+  await expect(config.locator("option")).toHaveText(configs);
+  await expect(config).toHaveValue("config_20261026_1952");
+
+  await config.selectOption("config_20260907_0714");
+  await page.locator(".session-foot button.run").click();
+  await expect(page.locator(".check-row.failed")).toContainText("the test opens no session");
+  expect(sent[0]).toMatchObject({ instrument: "stellaris", config: "config_20260907_0714" });
+
+  // the mock keeps none: its config is typed
+  await page.locator(".field select").first().selectOption("interface-mock");
+  await expect(page.locator(".session-form .field").filter({ hasText: "Config" }).locator("input")).toBeVisible();
 });

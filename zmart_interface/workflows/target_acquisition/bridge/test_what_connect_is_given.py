@@ -16,6 +16,8 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from .. import mock_microscope
@@ -61,13 +63,45 @@ def test_each_microscope_is_listed_with_the_settings_its_connection_names(monkey
         {"name": mock_microscope.NAME, "settings": {
             "microscope": "mock", "api_type": "Mock API", "host": "localhost", "client": "mock-client",
             "password": None, "config": None,
-        }},
+        }, "configs": None},
         {"name": "names-them", "settings": {
             "microscope": "scope-1", "api_type": "socket", "host": "10.0.0.5", "client": "c",
             "password": None, "config": None,
-        }},
-        {"name": "stellaris", "settings": {"microscope": "s-1", "host": ""}},
+        }, "configs": None},
+        {"name": "stellaris", "settings": {"microscope": "s-1", "host": ""}, "configs": None},
     ]
+
+
+class KeepsConfigsPlugin:
+    """The plugin of a driver that says which configs it keeps."""
+
+    @staticmethod
+    def configurations():
+        return ["config_20261026_1952", "config_20260907_0714"]
+
+
+class CannotSayPlugin:
+    """The plugin of a driver that fails to say."""
+
+    @staticmethod
+    def configurations():
+        raise OSError("the config folder cannot be read")
+
+
+#: The drivers, as the controller is handed a driver package: something holding its plugin.
+KeepsConfigs = SimpleNamespace(ZmartControllerPlugin=KeepsConfigsPlugin)
+CannotSay = SimpleNamespace(ZmartControllerPlugin=CannotSayPlugin)
+
+
+def test_a_driver_that_lists_its_configs_has_them_offered_the_most_recent_first(monkeypatch):
+    monkeypatch.setitem(connecting.offered, "keeps", (KeepsConfigs, {"config": None}))
+    monkeypatch.setitem(connecting.offered, "cannot-say", (CannotSay, {"config": None}))
+    monkeypatch.setattr(connecting, "get_instruments", lambda: {})
+    listed = {one["name"]: one["configs"] for one in connecting.instruments()}
+    assert listed["keeps"] == ["config_20261026_1952", "config_20260907_0714"]
+    # One that cannot say, and the mock that keeps none, are typed into.
+    assert listed["cannot-say"] is None
+    assert listed[mock_microscope.NAME] is None
 
 
 def test_a_password_is_only_ever_named_never_given(monkeypatch):

@@ -21,7 +21,7 @@ import type { TaPage, TargetAcquisition } from "../../types.ts";
    of its drivers. The name under them is what Connect sends. */
 export const chosenMicroscope = (page: TaPage): Choice | undefined =>
   page.run.instruments.find((m) => m.key === page.run.session.microscope);
-const chosenApi = (page: TaPage) => chosenMicroscope(page)?.apis.find((a) => a.key === page.run.session.api);
+export const chosenApi = (page: TaPage) => chosenMicroscope(page)?.apis.find((a) => a.key === page.run.session.api);
 export const chosenInstrument = (page: TaPage): string | null => chosenApi(page)?.instrument ?? null;
 
 /* Ask the backend what can be connected to, and choose for the operator
@@ -37,8 +37,8 @@ export function listInstruments(page: TaPage): Promise<void> {
     if (!chosenMicroscope(page)) {
       const mock = theMockAmong(state.instruments);
       state.session.microscope = mock?.microscope ?? state.instruments[0]?.key ?? null;
-      if (mock) state.session.api = mock.api;
-      takeTheSavedSettings(state.session, chosenMicroscope(page));
+      state.session.api = mock?.api ?? chosenMicroscope(page)?.apis[0]?.key ?? null;
+      takeTheSavedSettings(state.session, chosenApi(page));
     }
     if (!chosenApi(page)) state.session.api = chosenMicroscope(page)?.apis[0]?.key ?? null;
     renderSetup(page); page.renderActionBar();

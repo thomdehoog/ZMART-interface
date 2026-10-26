@@ -20,7 +20,7 @@ import time
 from importlib.metadata import version
 
 from zmart_controller import ZmartController
-from zmart_controller.registry import find_driver, get_instruments
+from zmart_controller.registry import find_driver, get_instruments, plugin_class
 
 from ..analysis import warm
 from ..microscope.instrument import Instrument
@@ -67,17 +67,35 @@ def listed() -> dict[str, dict]:
 def instruments() -> list[dict]:
     """The microscopes the Connect step offers, each with the settings of its connection it shows.
 
-    ``{"name", "settings"}``: of :data:`SHOWN_SETTINGS`, the ones the
-    connection names, with the value each was saved with -- a password only
-    as named, its value always ``None``. A setting the connection does not
-    name is one the driver does not need, and the step says so.
+    ``{"name", "settings", "configs"}``: of :data:`SHOWN_SETTINGS`, the ones
+    the connection names, with the value each was saved with -- a password
+    only as named, its value always ``None``. A setting the connection does
+    not name is one the driver does not need, and the step says so.
+    ``configs`` is what :func:`configurations` finds.
     """
     return [
         {"name": name, "settings": {
             key: None if key == "password" else connection[key] for key in SHOWN_SETTINGS if key in connection
-        }}
+        }, "configs": configurations(name)}
         for name, connection in listed().items()
     ]
+
+
+def configurations(name: str) -> list[str] | None:
+    """The configs a listed microscope's driver keeps, as its ``config`` may name them, or None.
+
+    A driver's plugin may say which it keeps, the most recent first, with a
+    ``configurations()`` that is asked before connecting; the Connect step
+    then offers them to choose from. None when it does not say, or cannot
+    answer: then the config is typed.
+    """
+    try:
+        driver = offered[name][0] if name in offered else find_driver(name)[0]
+        ask = getattr(plugin_class(driver), "configurations", None)
+        return [str(one) for one in ask()] if callable(ask) else None
+    except Exception as why:  # noqa: BLE001 -- a driver that cannot list its configs is typed into
+        print(f"{name}: its configs could not be listed: {why}", file=sys.stderr, flush=True)
+        return None
 
 
 def saved_connection(name: str) -> dict:

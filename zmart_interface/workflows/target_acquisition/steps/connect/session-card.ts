@@ -102,26 +102,40 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
     }
     scopeSel.value = session.microscope ?? "";
     scopeSel.disabled = locked || !ctx.instruments().length;
+    const chosenApi = () => ctx.chosenMicroscope()?.apis.find((a) => a.key === session.api);
     scopeSel.addEventListener("change", () => {
       session.microscope = scopeSel.value;
       session.api = ctx.chosenMicroscope()?.apis[0]?.key ?? null;
-      takeTheSavedSettings(session, ctx.chosenMicroscope());
+      takeTheSavedSettings(session, chosenApi());
       ctx.changed();
     });
 
-    /* One API per microscope: the driver's, said rather than chosen. */
-    const api = document.createElement("div");
+    /* The API: each driver the microscope is reached through, chosen; each
+       brings what its own file saved. */
+    const api = document.createElement("label");
     api.className = "field";
-    api.innerHTML = "<span>API</span><span></span>";
-    const chosenApi = ctx.chosenMicroscope()?.apis.find((a) => a.key === session.api);
-    api.lastElementChild!.textContent = chosenApi?.detail ? `${chosenApi.label} · ${chosenApi.detail}` : chosenApi?.label ?? "";
+    api.innerHTML = "<span>API</span><select></select>";
+    const apiSel = api.querySelector("select")!;
+    for (const a of ctx.chosenMicroscope()?.apis ?? []) {
+      const o = document.createElement("option");
+      o.value = a.key;
+      o.textContent = a.detail ? `${a.label} · ${a.detail}` : a.label;
+      apiSel.append(o);
+    }
+    apiSel.value = session.api ?? "";
+    apiSel.disabled = locked || !ctx.chosenMicroscope();
+    apiSel.addEventListener("change", () => {
+      session.api = apiSel.value;
+      takeTheSavedSettings(session, chosenApi());
+      ctx.changed();
+    });
 
     /* A field the operator types into. Typing must not rebuild the card:
        re-rendering destroys the very input being typed into, which drops
        focus after every keystroke. Only the session is touched. Every field
        can be typed into; one the driver's connection does not name is
        filled with nothing, and a driver leaves a word it does not need. */
-    const named = ctx.chosenMicroscope()?.settings ?? {};
+    const named = chosenApi()?.settings ?? {};
     const typed = (label: string, key: "host" | "client" | "password" | "config" | "outputRoot", needed: boolean) => {
       const row = document.createElement("label");
       row.className = "field";
@@ -145,10 +159,33 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
       typed("Client", "client", "client" in named),
       typed("Password", "password", "password" in named),
     );
-    working.form.append(
-      typed("Config", "config", "config" in named),
-      typed("Output folder", "outputRoot", true),
-    );
+    /* The config, chosen from the ones the driver keeps, the most recent
+       first, when it says which; typed when it does not. New configs are
+       made in the driver's own setup. */
+    const kept = chosenApi()?.configs ?? null;
+    const configRow = () => {
+      if (!kept) return typed("Config", "config", "config" in named);
+      const row = document.createElement("label");
+      row.className = "field";
+      row.innerHTML = "<span>Config</span><select></select>";
+      const pick = row.querySelector("select")!;
+      for (const name of kept) {
+        const o = document.createElement("option");
+        o.value = name; o.textContent = name;
+        pick.append(o);
+      }
+      if (!kept.length) {
+        const o = document.createElement("option");
+        o.value = ""; o.textContent = "none kept yet: make one in the driver's setup";
+        pick.append(o);
+      }
+      pick.value = kept.includes(session.config) ? session.config : kept[0] ?? "";
+      session.config = pick.value;
+      pick.disabled = locked || !kept.length;
+      pick.addEventListener("change", () => { session.config = pick.value; });
+      return row;
+    };
+    working.form.append(configRow(), typed("Output folder", "outputRoot", true));
 
     /* The protocol to open on: a new one, or one a finished run wrote on
        this machine. The list is the
@@ -205,7 +242,7 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
         if (pick.value === "__file__") { fileInput.click(); return; }
         ctx.chooseProtocol(pick.value || null);
       });
-      const protocol = box("Protocol");
+      const protocol = box("Target acquisition protocol");
       protocol.form.append(row, fileInput);
       const note = document.createElement("p");
       note.className = "setup-note";
