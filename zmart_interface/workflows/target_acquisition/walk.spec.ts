@@ -252,8 +252,15 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       const overview = await ask(page, PORT, "/api/target_acquisition/scan");
       expect(overview).toMatchObject({ error: null, stopped: false, done: TEST_TILES, of: TEST_TILES });
       expect(overview.records).toHaveLength(TEST_TILES);
-      expect((await page.evaluate(() => window.__theRunState!() as TheRun)).scannedFields, "the fields are the test tiles")
-        .toHaveLength(TEST_TILES);
+      const scannedFields = (await page.evaluate(() => window.__theRunState!() as TheRun)).scannedFields ?? [];
+      expect(scannedFields, "the fields are the test tiles").toHaveLength(TEST_TILES);
+      /* Each label names the tile's place in the whole plan, as the full scan
+         names it: numbered 0, 1, 2 instead, a test tile shared its label with
+         another place, and its masks were drawn there (STELLARIS, 2026-10-26). */
+      const labelled = overview.records.map((record: { position_label: string }) => record.position_label);
+      expect(labelled.map((label: string) => Number(/_P(\d+)_/.exec(label)![1])),
+        `each label is the tile's place in the plan: ${labelled.join(", ")} for ${scannedFields.join(", ")}`)
+        .toEqual([...scannedFields].sort((a, b) => a - b));
       expect(overview.records.filter((record: { zarr_error?: unknown }) => record.zarr_error)).toEqual([]);
       await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 60_000 });
       await rest(3000);

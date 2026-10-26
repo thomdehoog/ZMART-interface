@@ -35,10 +35,15 @@ export function runScan(page: TaPage, s: TaStep): Promise<RunAnswer> {
   return page.backend.scanOverview({
     /* Each position at the measured focus height for that place. One
        with no surface to read carries no height, and the bridge images
-       it where the objective stands -- never at an invented zero. */
-    positions: state.scanned.plan.map((p: SentTile) => {
+       it where the objective stands -- never at an invented zero. Each is
+       numbered by its place in the whole plan, so a label names one place
+       whatever is scanned: test tiles numbered 0, 1, 2 shared their labels
+       with other places of the full scan, and one tile's masks were drawn
+       on another (STELLARIS, 2026-10-26). */
+    positions: state.scanned.plan.map((p: SentTile, k: number) => {
       const z = page.surfaceZAt(p.x, p.y);
-      return page.stage.toStage(z === null ? p : { ...p, z });
+      const at = page.stage.toStage(z === null ? p : { ...p, z });
+      return { ...at, position_index: chosen[k] };
     }),
     /* The recorded overview configuration, reapplied as the scan starts:
        a recording that gated the step and configured nothing left every
