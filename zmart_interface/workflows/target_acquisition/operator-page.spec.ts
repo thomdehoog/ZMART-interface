@@ -413,8 +413,9 @@ test("an open session is not editable, and Disconnect is the way out", async ({ 
   await page.locator(".session-foot button.danger").click();
   await expect(fields.first(), "and the form is answerable again").toBeEnabled();
   await expect(page.locator(".check-row")).toHaveCount(0);
-  // the checks box goes with them, leaving the session's own heading alone
-  await expect(page.locator("#canvas-side .side-group-title")).toHaveCount(1);
+  // the checks box goes with them, leaving the session's own three boxes alone
+  await expect(page.locator("#canvas-side .side-group-title"))
+    .toHaveText(["Connect to the microscope", "Driver configuration", "Protocol"]);
   await expect(folder).toHaveValue("D:/runs");
   await expect(page.locator('.step:has-text("Define Carrier")').first()).toBeDisabled();
 
