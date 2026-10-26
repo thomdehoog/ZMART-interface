@@ -60,7 +60,7 @@ The built page comes inside the package, so nothing is built on the microscope.
 
 ```powershell
 cd C:\ProgramData\MinicondaZMB\home\<user>
-git clone -b v0.6.0rc6 https://github.com/ZMB-UZH/ZMART-analysis
+git clone -b v0.6.0rc7 https://github.com/ZMB-UZH/ZMART-analysis
 conda env create -f ZMART-analysis\workflows\focus\environments\main.yml
 conda env create -f ZMART-analysis\workflows\object_analysis\environments\classical.yml
 conda env create -f ZMART-analysis\workflows\object_analysis\environments\cellpose.yml   # Robust detection only
