@@ -43,10 +43,23 @@ export interface DriverSettings {
   config?: string | null;
 }
 
-/** A microscope as the bridge lists it: its name, and its driver's settings. */
+/** A microscope as the bridge lists it: its name, its driver's settings, and the configs it keeps. */
 export interface ListedInstrument {
   name: string;
   settings: DriverSettings;
+  /** The configs the driver keeps, the most recent first; null when it does not say, and the config is typed. */
+  configs?: string[] | null;
+}
+
+/** One driver a microscope is reached through: its API, the name Connect sends, and what its file saved. */
+export interface Api {
+  key: string;
+  label: string;
+  detail: string;
+  instrument: string;
+  settings: DriverSettings;
+  /** The configs the driver keeps, the most recent first; null when the config is typed. */
+  configs: string[] | null;
 }
 
 /** One microscope on the Connect card, with the drivers it is reached through. */
@@ -54,29 +67,33 @@ export interface Choice {
   key: string;
   label: string;
   detail: string;
-  apis: { key: string; label: string; detail: string; instrument: string }[];
-  settings: DriverSettings;
+  apis: Api[];
 }
 
 /**
  * The listed microscopes, shaped the way the Connect card asks: one per
- * name, each with the one driver it is plugged in through, named by the API
- * its connection gives, else by the page's words or the driver's name. List
- * order is kept.
+ * microscope, each with every driver it is reached through. Drivers whose
+ * connections name the same microscope are one microscope with several
+ * APIs; a driver that names none is a microscope of its own, by its name.
+ * Each driver is named by the API its connection gives, else by the page's
+ * words or the driver's name. List order is kept.
  */
 export function choicesFrom(instruments: ListedInstrument[] | null | undefined): Choice[] {
-  return (instruments ?? []).map(({ name, settings }) => {
+  const choices: Choice[] = [];
+  for (const { name, settings, configs } of instruments ?? []) {
     const known = MICROSCOPES[name];
-    return {
-      key: name,
-      label: known?.label ?? name,
-      detail: known?.detail ?? settings.microscope ?? "",
-      apis: [{
-        key: name, label: settings.api_type || known?.api || name, detail: known?.apiDetail ?? "", instrument: name,
-      }],
-      settings,
-    };
-  });
+    const key = settings.microscope || name;
+    let scope = choices.find((one) => one.key === key);
+    if (!scope) {
+      scope = { key, label: known?.label ?? key, detail: known?.detail ?? "", apis: [] };
+      choices.push(scope);
+    }
+    scope.apis.push({
+      key: name, label: settings.api_type || known?.api || name, detail: known?.apiDetail ?? "", instrument: name,
+      settings, configs: configs ?? null,
+    });
+  }
+  return choices;
 }
 
 /**
@@ -85,8 +102,11 @@ export function choicesFrom(instruments: ListedInstrument[] | null | undefined):
  * is not listed.
  */
 export function theMockAmong(choices: Choice[] | null | undefined): { microscope: string; api: string } | null {
-  const scope = (choices ?? []).find((one) => isTheMock(one.key));
-  return scope ? { microscope: scope.key, api: scope.apis[0].key } : null;
+  for (const scope of choices ?? []) {
+    const api = scope.apis.find((one) => isTheMock(one.instrument));
+    if (api) return { microscope: scope.key, api: api.key };
+  }
+  return null;
 }
 
 /** The session the Connect card is filling in. */
@@ -120,11 +140,14 @@ export const DEFAULT_SESSION: Session = {
   outputRoot: "",
 };
 
-/** Put the chosen driver's saved host, client and config in the session, for the operator to change. */
-export function takeTheSavedSettings(session: Session, choice: Choice | undefined): void {
-  session.host = choice?.settings.host ?? "";
-  session.client = choice?.settings.client ?? "";
-  session.config = choice?.settings.config ?? "";
+/** Put the chosen driver's saved host, client and config in the session, for the operator to change.
+    A driver that lists its configs gets the one its file names when it keeps it, else its most recent. */
+export function takeTheSavedSettings(session: Session, api: Api | undefined): void {
+  session.host = api?.settings.host ?? "";
+  session.client = api?.settings.client ?? "";
+  const saved = api?.settings.config ?? "";
+  const kept = api?.configs;
+  session.config = kept ? (kept.includes(saved) ? saved : kept[0] ?? "") : saved;
 }
 
 export const describeSession = ({ instrument }: { instrument?: string | null }): string => {

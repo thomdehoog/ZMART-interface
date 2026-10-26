@@ -37,8 +37,8 @@ export function listInstruments(page: TaPage): Promise<void> {
     if (!chosenMicroscope(page)) {
       const mock = theMockAmong(state.instruments);
       state.session.microscope = mock?.microscope ?? state.instruments[0]?.key ?? null;
-      if (mock) state.session.api = mock.api;
-      takeTheSavedSettings(state.session, chosenMicroscope(page));
+      state.session.api = mock?.api ?? chosenMicroscope(page)?.apis[0]?.key ?? null;
+      takeTheSavedSettings(state.session, chosenApi(page));
     }
     if (!chosenApi(page)) state.session.api = chosenMicroscope(page)?.apis[0]?.key ?? null;
     renderSetup(page); page.renderActionBar();

@@ -415,7 +415,7 @@ test("an open session is not editable, and Disconnect is the way out", async ({ 
   await expect(page.locator(".check-row")).toHaveCount(0);
   // the checks box goes with them, leaving the session's own three boxes alone
   await expect(page.locator("#canvas-side .side-group-title"))
-    .toHaveText(["Connect to the microscope", "Driver configuration", "Protocol"]);
+    .toHaveText(["Connect to the microscope", "Driver configuration", "Target acquisition protocol"]);
   await expect(folder).toHaveValue("D:/runs");
   await expect(page.locator('.step:has-text("Define Carrier")').first()).toBeDisabled();
 
@@ -551,17 +551,17 @@ test("a recorded preset unfolds to show everything that was read", async ({ page
   await expect(page.locator(".rec-detail")).toHaveCount(0);
 });
 
-test("the microscope is a mock or a registered driver, and the api follows it", async ({ page }) => {
+test("the microscope is a mock or a registered driver, and the api is chosen from its drivers", async ({ page }) => {
   const scopes = await page.locator(".field select").first().locator("option").allInnerTexts();
   expect(scopes).toHaveLength(2);
   expect(scopes[0]).toContain("Mock");
-  expect(scopes[1]).toContain("stellaris");
-  /* One API per microscope: said, not chosen, as the driver's connection names it. */
-  const api = page.locator(".session-form .field").nth(1);
-  await expect(api).toContainText("Mock API");
-  await expect(api.locator("select, input")).toHaveCount(0);
-  await page.locator(".field select").first().selectOption("stellaris");
-  await expect(api).toHaveText(/^API\s*LAS X CAM API - Navigator Expert$/);
+  expect(scopes[1]).toContain("stellaris-y42h93");
+  /* The API: each driver the microscope is reached through, as its connection names it. */
+  const api = page.locator(".session-form .field").nth(1).locator("select");
+  await expect(api.locator("option:checked")).toHaveText("Mock API · in-process · made-up data");
+  await page.locator(".field select").first().selectOption("stellaris-y42h93");
+  await expect(api.locator("option")).toHaveText(["LAS X CAM API - Navigator Expert"]);
+  await expect(api).toHaveValue("stellaris");
 });
 
 test("nothing advances by itself, and the next step stays locked until it can run",

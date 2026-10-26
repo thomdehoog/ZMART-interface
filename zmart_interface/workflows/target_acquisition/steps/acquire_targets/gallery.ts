@@ -103,19 +103,28 @@ function smallPicture(src: string | null, draw: DrawPicture): HTMLCanvasElement 
   };
   paint();
   if (src) {
-    const requested = new Image();
-    requested.onload = () => {
-      img = requested;
-      failed = false;
-      cv.removeAttribute("aria-label");
-      paint();
+    /* A picture asked for the moment its capture lands is not published
+       yet, and one failed answer left "Preview unavailable" for good
+       (STELLARIS, 2026-10-26). So it is asked again, a little later each
+       time, for about a minute, while the canvas is still shown. */
+    let tries = 0;
+    const ask = () => {
+      const requested = new Image();
+      requested.onload = () => {
+        img = requested;
+        failed = false;
+        cv.removeAttribute("aria-label");
+        paint();
+      };
+      requested.onerror = () => {
+        failed = true;
+        cv.setAttribute("aria-label", "Preview unavailable");
+        paint();
+        if (tries < 6) setTimeout(() => { if (cv.isConnected || tries === 0) ask(); }, 1000 * 2 ** tries++);
+      };
+      requested.src = src;
     };
-    requested.onerror = () => {
-      failed = true;
-      cv.setAttribute("aria-label", "Preview unavailable");
-      paint();
-    };
-    requested.src = src;
+    ask();
   }
   if (typeof ResizeObserver !== "undefined") {
     const watch = new ResizeObserver(() => { if (cv.isConnected) paint(); });

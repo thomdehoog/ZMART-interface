@@ -552,15 +552,16 @@ const TRAVEL_UM = { x: 120_000, y: 80_000 };
 
 /** The list a microscope PC with the Leica installed as "stellaris" would
  *  offer: the interface's mock first, then the controller's list, each with
- *  the connection words its driver's file names, as they are saved. */
+ *  the connection words its driver's file names, as they are saved. The mock
+ *  keeps no configs; the Leica lists the ones it keeps, the most recent first. */
 export const pretendInstruments = (): ListedInstrument[] => [
   { name: THE_MOCK, settings: {
     microscope: "mock", api_type: "Mock API", host: "localhost", client: "mock-client", password: null, config: null,
-  } },
+  }, configs: null },
   { name: "stellaris", settings: {
     microscope: "stellaris-y42h93", api_type: "LAS X CAM API - Navigator Expert", host: "localhost",
     client: "PythonClient", password: null, config: null,
-  } },
+  }, configs: ["config_20261026_1952", "config_20260907_0714"] },
 ];
 
 const pretendConnectionStatus = ({ instrument }: { instrument?: string }): Record<string, string> => ({
