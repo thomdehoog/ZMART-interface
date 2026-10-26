@@ -120,9 +120,13 @@ export const galleryChannel: Channel<TargetAcquisition> = {
       pictureOf: (id) => {
         const where = page.pictureOf("targets", state.acquiredTiles[id]?.label ?? state.acquiredLabels[id]);
         /* Stamped by the capture, so a rerun's frame is a new address and
-           the pair on show refreshes rather than keeping the old one. */
+           the pair on show refreshes rather than keeping the old one. The
+           address has a query only when the panel has display settings for
+           the targets: without one, "&taken" became part of the file's name,
+           and every target's preview was unavailable (STELLARIS, whose
+           channels are named by their dye, 2026-10-26). */
         const taken = state.acquiredTiles[id]?.taken;
-        return where && taken ? `${where}&taken=${taken}` : where;
+        return where && taken ? `${where}${where.includes("?") ? "&" : "?"}taken=${taken}` : where;
       },
       selected: () => state.selectedTarget,
       /* Whether the current selection is the gallery's own quiet follow
