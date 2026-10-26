@@ -1,13 +1,14 @@
 """The Connect step's fields: what the bridge tells the page, and what it hands the driver.
 
-Every microscope shows the same six fields on the Connect step: the
-microscope, its API, the host, the password, the config and the output
-folder. The bridge tells the page, per listed microscope, which of the
-driver's settings its connection names and the value each was saved with
--- never a password's value, only that one is needed -- and the folder the
-last run went to. On connect, what the operator typed goes over the saved
-connection, for the settings the driver names, plus the output folder, in
-the one dict the controller is opened with.
+Every microscope shows the same seven fields on the Connect step, the
+controller's connection words: the microscope, its API, the host, the
+client, the password, the config and the output folder. The bridge tells
+the page, per listed microscope, which of them its driver's connection
+names and the value each was saved with -- never a password's value, only
+that one is needed -- and the folder the last run went to. On connect,
+what the operator typed goes over the saved connection, plus the output
+folder, in the one dict the controller is opened with; a driver uses the
+words it needs and leaves the rest.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -20,9 +21,12 @@ import pytest
 from .. import mock_microscope
 from . import connecting, routes, state
 
-#: A driver whose connection names a host, a password and a config, and a
-#: setting of its own that the Connect step does not show.
-NAMES_THEM = {"api_type": "socket", "host": "10.0.0.5", "password": None, "config": None, "client": "c"}
+#: A driver whose connection names the connection words, and a setting of
+#: its own that the Connect step does not show.
+NAMES_THEM = {
+    "microscope": "scope-1", "api_type": "socket", "host": "10.0.0.5", "client": "c",
+    "password": None, "config": None, "output_root": None, "api_delay_ms": None,
+}
 
 
 class Opened(Exception):
@@ -54,9 +58,15 @@ def test_each_microscope_is_listed_with_the_settings_its_connection_names(monkey
     monkeypatch.setitem(connecting.offered, "names-them", (object(), dict(NAMES_THEM)))
     monkeypatch.setattr(connecting, "get_instruments", lambda: {"stellaris": {"microscope": "s-1", "host": ""}})
     assert connecting.instruments() == [
-        {"name": mock_microscope.NAME, "settings": {}},
-        {"name": "names-them", "settings": {"api_type": "socket", "host": "10.0.0.5", "password": None, "config": None}},
-        {"name": "stellaris", "settings": {"host": ""}},
+        {"name": mock_microscope.NAME, "settings": {
+            "microscope": "mock", "api_type": "Mock API", "host": "localhost", "client": "mock-client",
+            "password": None, "config": None,
+        }},
+        {"name": "names-them", "settings": {
+            "microscope": "scope-1", "api_type": "socket", "host": "10.0.0.5", "client": "c",
+            "password": None, "config": None,
+        }},
+        {"name": "stellaris", "settings": {"microscope": "s-1", "host": ""}},
     ]
 
 
@@ -76,30 +86,32 @@ def test_the_list_says_where_the_runs_went_last(monkeypatch):
     assert [one["name"] for one in answer["instruments"]] == [mock_microscope.NAME]
 
 
-def test_what_the_operator_typed_goes_over_the_saved_connection_for_the_settings_the_driver_names(
-        monkeypatch, handed):
+def test_what_the_operator_typed_goes_over_the_saved_connection(monkeypatch, handed):
     monkeypatch.setitem(connecting.offered, "names-them", (object(), dict(NAMES_THEM)))
     with pytest.raises(Opened):
         connecting.connect({
-            "instrument": "names-them", "host": "10.0.0.9", "config": "C:/scope/setup.xml",
+            "instrument": "names-them", "host": "10.0.0.9", "client": "zmart", "config": "C:/scope/setup.xml",
             "password": "hunter2", "output_root": "D:/chosen",
-            # Neither is the operator's to set: the API is the driver's, and so is its client.
-            "api_type": "grpc", "client": "another",
+            # Neither is the operator's to set: the microscope and its API are the driver's.
+            "microscope": "another", "api_type": "grpc",
         })
     assert handed == [{
-        "api_type": "socket", "host": "10.0.0.9", "password": "hunter2", "config": "C:/scope/setup.xml",
-        "client": "c", "output_root": "D:/chosen",
+        **NAMES_THEM, "host": "10.0.0.9", "client": "zmart", "password": "hunter2",
+        "config": "C:/scope/setup.xml", "output_root": "D:/chosen",
     }]
 
 
-def test_a_setting_the_driver_does_not_name_is_not_handed_to_it(monkeypatch, handed):
-    monkeypatch.setitem(connecting.offered, "names-none", (object(), {"client": "c"}))
+def test_a_word_the_driver_does_not_name_is_handed_on_for_it_to_leave(monkeypatch, handed):
+    monkeypatch.setitem(connecting.offered, "names-none", (object(), {"mock_timing": "instant"}))
     with pytest.raises(Opened):
         connecting.connect({
-            "instrument": "names-none", "host": "10.0.0.9", "config": "x.xml", "password": "hunter2",
-            "output_root": "D:/chosen",
+            "instrument": "names-none", "host": "10.0.0.9", "client": "zmart", "config": "x.xml",
+            "password": "hunter2", "output_root": "D:/chosen",
         })
-    assert handed == [{"client": "c", "output_root": "D:/chosen"}]
+    assert handed == [{
+        "mock_timing": "instant", "host": "10.0.0.9", "client": "zmart", "password": "hunter2",
+        "config": "x.xml", "output_root": "D:/chosen",
+    }]
 
 
 def test_a_field_left_empty_keeps_what_was_saved(monkeypatch, handed):

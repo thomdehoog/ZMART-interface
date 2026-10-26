@@ -4,13 +4,16 @@
  * Connecting is not one action but a handful of questions, and the operator
  * needs to see the answers: an autofocus that fails an hour into a run
  * because the storage path was never writable is a bad way to find out. So
- * the card is two boxes. The first is what the session is opened with — the
- * same six fields for every microscope: the microscope, its API, the host,
- * the password, the config and the output folder — and it locks once the
- * session is open, because everything after this was read through it. Host,
- * password and config are the driver's to need: typed over what it saved
- * where its connection names them, "not needed" where it does not. The
- * second box is what the driver said when it opened: one row per check its
+ * the card is what the session is opened with, and then what came back.
+ * What it is opened with is the controller's seven connection words, the
+ * same for every microscope, in two boxes: the microscope, its API, the
+ * host, the client and the password, which reach the microscope; then the
+ * config and the output folder, how the driver works with it. A third box
+ * holds the protocol the run opens on. All of it locks once the session is
+ * open, because everything after this was read through it. The microscope
+ * and its API are the driver's; the rest are typed, filled with what the
+ * driver saved, and a driver leaves the ones it does not need. Below them,
+ * what the driver said when it opened: one row per check its
  * `get_info` reports (whether the stage answers, which limits and
  * calibration it loaded, where images go), each waiting until its answer
  * arrives. How a microscope is set up -- its limits, its origin, its
@@ -60,14 +63,26 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
      box, the box holding the work. What the session was opened with is
      already in the fields and in the rail beside them, so a third copy in the
      corner was the panel talking about itself. */
-  const { group, body: card } = sideGroup("Connect to the microscope");
-  card.classList.add("session-card");
-  if (connected) card.classList.add("done");
+  /* Three boxes, read downward: what reaches the microscope, how the
+     driver works with it (its config and the output folder), and the
+     protocol the run opens on. The button that acts on all of them stands
+     at the end of the last. */
+  const box = (title: string) => {
+    const made = sideGroup(title);
+    made.body.classList.add("session-card");
+    if (connected) made.body.classList.add("done");
+    const form = document.createElement("div");
+    form.className = "session-form";
+    made.body.append(form);
+    return { group: made.group, body: made.body, form };
+  };
+  const reach = box("Connect to the microscope");
+  const working = box("Driver configuration");
+  const groups = [reach.group, working.group];
+  let card = working.body;
 
   {
     const locked = connected || connecting;
-    const form = document.createElement("div");
-    form.className = "session-form";
 
     const scope = document.createElement("label");
     scope.className = "field";
@@ -103,10 +118,11 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
 
     /* A field the operator types into. Typing must not rebuild the card:
        re-rendering destroys the very input being typed into, which drops
-       focus after every keystroke. Only the session is touched. A setting
-       the driver does not need is greyed out and says so. */
+       focus after every keystroke. Only the session is touched. Every field
+       can be typed into; one the driver's connection does not name is
+       filled with nothing, and a driver leaves a word it does not need. */
     const named = ctx.chosenMicroscope()?.settings ?? {};
-    const typed = (label: string, key: "host" | "password" | "config" | "outputRoot", needed: boolean) => {
+    const typed = (label: string, key: "host" | "client" | "password" | "config" | "outputRoot", needed: boolean) => {
       const row = document.createElement("label");
       row.className = "field";
       row.innerHTML = key === "password"
@@ -114,19 +130,22 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
         : '<span></span><input type="text">';
       row.querySelector("span")!.textContent = label;
       const input = row.querySelector("input")!;
-      if (needed) input.value = session[key];
-      else input.placeholder = "not needed";
-      input.disabled = locked || !needed;
+      input.value = session[key];
+      if (!needed) input.placeholder = "not used by this driver";
+      input.disabled = locked;
       input.addEventListener("input", () => {
         session[key] = input.value;
       });
       return row;
     };
 
-    form.append(
+    reach.form.append(
       scope, api,
       typed("Host", "host", "host" in named),
+      typed("Client", "client", "client" in named),
       typed("Password", "password", "password" in named),
+    );
+    working.form.append(
       typed("Config", "config", "config" in named),
       typed("Output folder", "outputRoot", true),
     );
@@ -186,15 +205,17 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
         if (pick.value === "__file__") { fileInput.click(); return; }
         ctx.chooseProtocol(pick.value || null);
       });
-      form.append(row, fileInput);
+      const protocol = box("Protocol");
+      protocol.form.append(row, fileInput);
       const note = document.createElement("p");
       note.className = "setup-note";
       note.id = "protocol-note";
       note.textContent = ctx.protocolNote?.() ?? "";
       note.hidden = !note.textContent;
-      form.append(note);
+      protocol.form.append(note);
+      groups.push(protocol.group);
+      card = protocol.body;
     }
-    card.append(form);
   }
 
   /* What the session was opened with is one thing; what came back when it
@@ -282,7 +303,7 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
     card.append(foot);
   }
 
-  host.prepend(group);
+  host.prepend(...groups);
 
   /* Only the answer lands. The row is already on screen, so filling one in
      touches that row rather than rebuilding the card under the operator —

@@ -260,18 +260,19 @@ test("the page offers exactly the workflows that are declared", async ({ page })
   }
 });
 
-test("the same six fields for every microscope, and what its driver does not need says so", async ({ page }) => {
-  // the mock's connection names no host, password or config: each is shown,
-  // greyed out as not needed, and Connect is ready without them. The page
-  // ships with no password at all: a prefilled one is a credential everybody has.
+test("the same seven fields for every microscope, filled with what its driver saved", async ({ page }) => {
+  // the controller's seven connection words: the mock's connection names them,
+  // so each typed one is filled with what it saved and can be typed over, and
+  // Connect is ready without more. The page ships with no password at all: a
+  // prefilled one is a credential everybody has.
   const rows = page.locator(".session-form .field");
   await expect(rows.locator("> span:first-child")).toHaveText(
-    ["Microscope", "API", "Host", "Password", "Config", "Output folder", "Protocol"]);
-  for (const name of ["Host", "Password", "Config"]) {
+    ["Microscope", "API", "Host", "Client", "Password", "Config", "Output folder", "Protocol"]);
+  const saved: [string, string][] = [["Host", "localhost"], ["Client", "mock-client"], ["Password", ""], ["Config", ""]];
+  for (const [name, value] of saved) {
     const input = rows.filter({ hasText: name }).locator("input");
-    await expect(input, name).toBeDisabled();
-    await expect(input, name).toHaveValue("");
-    await expect(input, name).toHaveAttribute("placeholder", "not needed");
+    await expect(input, name).toBeEnabled();
+    await expect(input, name).toHaveValue(value);
   }
   await expect(rows.filter({ hasText: "Output folder" }).locator("input")).toBeEnabled();
   await expect(page.locator(".session-foot button.run")).toBeEnabled();
@@ -412,8 +413,9 @@ test("an open session is not editable, and Disconnect is the way out", async ({ 
   await page.locator(".session-foot button.danger").click();
   await expect(fields.first(), "and the form is answerable again").toBeEnabled();
   await expect(page.locator(".check-row")).toHaveCount(0);
-  // the checks box goes with them, leaving the session's own heading alone
-  await expect(page.locator("#canvas-side .side-group-title")).toHaveCount(1);
+  // the checks box goes with them, leaving the session's own three boxes alone
+  await expect(page.locator("#canvas-side .side-group-title"))
+    .toHaveText(["Connect to the microscope", "Driver configuration", "Protocol"]);
   await expect(folder).toHaveValue("D:/runs");
   await expect(page.locator('.step:has-text("Define Carrier")').first()).toBeDisabled();
 
@@ -554,13 +556,12 @@ test("the microscope is a mock or a registered driver, and the api follows it", 
   expect(scopes).toHaveLength(2);
   expect(scopes[0]).toContain("Mock");
   expect(scopes[1]).toContain("stellaris");
-  /* One API per microscope: said, not chosen. A driver that names none is
-     reached through itself, so its name is what is said. */
+  /* One API per microscope: said, not chosen, as the driver's connection names it. */
   const api = page.locator(".session-form .field").nth(1);
   await expect(api).toContainText("Mock API");
   await expect(api.locator("select, input")).toHaveCount(0);
-  await page.locator(".field select").first().selectOption({ label: "stellaris" });
-  await expect(api).toHaveText(/^API\s*stellaris$/);
+  await page.locator(".field select").first().selectOption("stellaris");
+  await expect(api).toHaveText(/^API\s*LAS X CAM API - Navigator Expert$/);
 });
 
 test("nothing advances by itself, and the next step stays locked until it can run",

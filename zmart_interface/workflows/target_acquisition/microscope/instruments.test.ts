@@ -28,8 +28,15 @@ describe("choicesFrom", () => {
     expect(mock.label).toBe("Mock");
     expect(mock.apis[0].label).toBe("Mock API");
     expect(leica.label).toBe("stellaris");
-    /* No API named in its connection: the driver's name says what it is reached through. */
-    expect(leica.apis[0].label).toBe("stellaris");
+    /* Not known to the page: its connection's own words say what it is. */
+    expect(leica.detail).toBe("stellaris-y42h93");
+    expect(leica.apis[0].label).toBe("LAS X CAM API - Navigator Expert");
+  });
+
+  it("names the API by the driver's name when its connection gives none", () => {
+    const [scope] = choicesFrom(named("beads"));
+    expect(scope.apis[0].label).toBe("beads");
+    expect(scope.detail).toBe("");
   });
 
   it("names the API by the driver's api_type when its connection gives one", () => {
@@ -58,19 +65,23 @@ describe("choicesFrom", () => {
 });
 
 describe("takeTheSavedSettings", () => {
-  it("fills the host and the config with what the chosen driver saved", () => {
-    const session = { ...DEFAULT_SESSION, host: "typed before", config: "typed before" };
-    const [scope] = choicesFrom([{ name: "stellaris", settings: { host: "10.0.0.5", config: "C:/scope/setup.xml" } }]);
+  it("fills the host, the client and the config with what the chosen driver saved", () => {
+    const session = { ...DEFAULT_SESSION, host: "typed before", client: "typed before", config: "typed before" };
+    const [scope] = choicesFrom([{ name: "stellaris", settings: {
+      host: "10.0.0.5", client: "PythonClient", config: "C:/scope/setup.xml",
+    } }]);
     takeTheSavedSettings(session, scope);
     expect(session.host).toBe("10.0.0.5");
+    expect(session.client).toBe("PythonClient");
     expect(session.config).toBe("C:/scope/setup.xml");
   });
 
   it("leaves them empty where the driver saved no value, or names no such setting", () => {
-    const session = { ...DEFAULT_SESSION, host: "typed before", config: "typed before" };
+    const session = { ...DEFAULT_SESSION, host: "typed before", client: "typed before", config: "typed before" };
     const [scope] = choicesFrom([{ name: "stellaris", settings: { host: null } }]);
     takeTheSavedSettings(session, scope);
     expect(session.host).toBe("");
+    expect(session.client).toBe("");
     expect(session.config).toBe("");
   });
 
