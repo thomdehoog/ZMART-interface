@@ -23,7 +23,7 @@ Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 """
 
-__version__ = "0.1.0rc8"
+__version__ = "0.1.0rc9"
 __author__ = "Thom de Hoog"
 __email__ = "thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com"
 __affiliation__ = "Center for Microscopy and Image Analysis (ZMB), University of Zurich"

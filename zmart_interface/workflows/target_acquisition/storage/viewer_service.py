@@ -55,7 +55,7 @@ from urllib.parse import unquote
 VIEWER_REQUEST_TIMEOUT_S = 30.0
 _metadata_reads = threading.Lock()
 
-#: The viewer versions this interface is tested with: 0.5.0rc9 and later,
+#: The viewer versions this interface is tested with: 0.5.0rc10 and later,
 #: up to but not including 0.6. From 0.5.0rc2 the viewer itself names the
 #: operator's page as allowed to read it, and refuses pages from elsewhere;
 #: from 0.5.0rc3 its engine no longer takes the viewer window's own settings,
@@ -67,12 +67,14 @@ _metadata_reads = threading.Lock()
 #: ships the drawing primitives this page draws through; from 0.5.0rc8
 #: a store fed in later keeps its own depth; and from 0.5.0rc9 a piece
 #: asked for right after a publication is never answered from the one
-#: before. An older viewer would leave the page unable to read it, to be
+#: before; and from 0.5.0rc10 a projection of flat tiles at different
+#: heights (a focus map's) shows them all. An older viewer would leave the page unable to read it, to be
 #: built, or to show a driver's projections, would draw the picture half
 #: a voxel from where it was taken, or would leave pieces of an earlier
-#: publication on the canvas for good, so it is refused, as are the 0.5.0
+#: publication on the canvas for good, or would show one flat tile of
+#: many, so it is refused, as are the 0.5.0
 #: development builds that came before its public names settled.
-VIEWER_VERSIONS = ">=0.5.0rc9,<0.6"
+VIEWER_VERSIONS = ">=0.5.0rc10,<0.6"
 
 #: The service's whole state: one viewer per bridge process, like the run.
 _viewer: dict = {

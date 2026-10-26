@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zmart-interface"
-version = "0.1.0rc8"
+version = "0.1.0rc9"
 description = "The ZMART operator window: walk a smart-microscopy run step by step, on any microscope the ZMART Controller drives."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
@@ -29,7 +29,7 @@ dependencies = [
     # The picture server that shows the run as it is acquired. Pinned to a
     # release, because the page is built with the viewer's drawing files: the
     # build stops when the installed viewer is not this one.
-    "zmart-viewer @ git+https://github.com/ZMB-UZH/ZMART-viewer@v0.5.0rc9",
+    "zmart-viewer @ git+https://github.com/ZMB-UZH/ZMART-viewer@v0.5.0rc10",
     # The engine that scores focus and finds objects, each step in its own
     # environment (the zmart_analysis package). Its workflows stay in a
     # checkout of the repository; see zmart_interface/workflows/target_acquisition/analysis/workflows.py.
@@ -58,7 +58,7 @@ dependencies = [
 [project.optional-dependencies]
 # The drivers for real microscopes. Install the extra of the driver too, for
 # example the Leica's: pip install "zmart-drivers[leica] @ git+...".
-drivers = ["zmart-drivers @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b8"]
+drivers = ["zmart-drivers @ git+https://github.com/ZMB-UZH/ZMART-drivers@v0.7.0b9"]
 # What working on the interface needs beyond running it: pytest, the reader
 # of the OME description inside a TIFF, which the analysis steps run in-process
 # use, and ruff, which checks the Python as the automatic checks do (pinned, so
