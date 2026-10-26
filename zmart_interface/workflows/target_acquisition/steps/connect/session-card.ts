@@ -5,11 +5,12 @@
  * needs to see the answers: an autofocus that fails an hour into a run
  * because the storage path was never writable is a bad way to find out. So
  * the card is two boxes. The first is what the session is opened with — the
- * same six fields for every microscope: the microscope, its API, the host,
- * the password, the config and the output folder — and it locks once the
- * session is open, because everything after this was read through it. Host,
- * password and config are the driver's to need: typed over what it saved
- * where its connection names them, "not needed" where it does not. The
+ * controller's seven connection words, the same for every microscope: the
+ * microscope, its API, the host, the client, the password, the config and
+ * the output folder — and it locks once the session is open, because
+ * everything after this was read through it. The microscope and its API are
+ * the driver's; the rest are typed, filled with what the driver saved, and a
+ * driver leaves the ones it does not need. The
  * second box is what the driver said when it opened: one row per check its
  * `get_info` reports (whether the stage answers, which limits and
  * calibration it loaded, where images go), each waiting until its answer
@@ -103,10 +104,11 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
 
     /* A field the operator types into. Typing must not rebuild the card:
        re-rendering destroys the very input being typed into, which drops
-       focus after every keystroke. Only the session is touched. A setting
-       the driver does not need is greyed out and says so. */
+       focus after every keystroke. Only the session is touched. Every field
+       can be typed into; one the driver's connection does not name is
+       filled with nothing, and a driver leaves a word it does not need. */
     const named = ctx.chosenMicroscope()?.settings ?? {};
-    const typed = (label: string, key: "host" | "password" | "config" | "outputRoot", needed: boolean) => {
+    const typed = (label: string, key: "host" | "client" | "password" | "config" | "outputRoot", needed: boolean) => {
       const row = document.createElement("label");
       row.className = "field";
       row.innerHTML = key === "password"
@@ -114,9 +116,9 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
         : '<span></span><input type="text">';
       row.querySelector("span")!.textContent = label;
       const input = row.querySelector("input")!;
-      if (needed) input.value = session[key];
-      else input.placeholder = "not needed";
-      input.disabled = locked || !needed;
+      input.value = session[key];
+      if (!needed) input.placeholder = "not used by this driver";
+      input.disabled = locked;
       input.addEventListener("input", () => {
         session[key] = input.value;
       });
@@ -126,6 +128,7 @@ export function renderSessionCard(host: HTMLElement, ctx: SessionCardContext): S
     form.append(
       scope, api,
       typed("Host", "host", "host" in named),
+      typed("Client", "client", "client" in named),
       typed("Password", "password", "password" in named),
       typed("Config", "config", "config" in named),
       typed("Output folder", "outputRoot", true),

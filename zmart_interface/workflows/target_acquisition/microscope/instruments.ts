@@ -35,8 +35,10 @@ export const MICROSCOPES: Record<string, KnownMicroscope> = {
  * name is one the driver does not need. A password is only ever named.
  */
 export interface DriverSettings {
+  microscope?: string | null;
   api_type?: string | null;
   host?: string | null;
+  client?: string | null;
   password?: null;
   config?: string | null;
 }
@@ -68,7 +70,7 @@ export function choicesFrom(instruments: ListedInstrument[] | null | undefined):
     return {
       key: name,
       label: known?.label ?? name,
-      detail: known?.detail ?? "",
+      detail: known?.detail ?? settings.microscope ?? "",
       apis: [{
         key: name, label: settings.api_type || known?.api || name, detail: known?.apiDetail ?? "", instrument: name,
       }],
@@ -93,6 +95,7 @@ export interface Session {
   api: string | null;
   password: string;
   host: string;
+  client: string;
   config: string;
   /** The folder the run is made under: the last one used, until the operator names another. */
   outputRoot: string;
@@ -111,14 +114,16 @@ export const DEFAULT_SESSION: Session = {
   password: "",
   /* The chosen driver's, once a microscope is chosen (`takeTheSavedSettings`). */
   host: "",
+  client: "",
   config: "",
   /* The bridge's, once the instruments are listed: where the last run went. */
   outputRoot: "",
 };
 
-/** Put the chosen driver's saved host and config in the session, for the operator to change. */
+/** Put the chosen driver's saved host, client and config in the session, for the operator to change. */
 export function takeTheSavedSettings(session: Session, choice: Choice | undefined): void {
   session.host = choice?.settings.host ?? "";
+  session.client = choice?.settings.client ?? "";
   session.config = choice?.settings.config ?? "";
 }
 

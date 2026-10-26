@@ -551,10 +551,17 @@ export const backend: Backend = {
 const TRAVEL_UM = { x: 120_000, y: 80_000 };
 
 /** The list a microscope PC with the Leica installed as "stellaris" would
- *  offer: the interface's mock first, then the controller's list. As their
- *  drivers' connections are saved, neither names a host, a password or a config. */
-export const pretendInstruments = (): ListedInstrument[] =>
-  [THE_MOCK, "stellaris"].map((name) => ({ name, settings: {} }));
+ *  offer: the interface's mock first, then the controller's list, each with
+ *  the connection words its driver's file names, as they are saved. */
+export const pretendInstruments = (): ListedInstrument[] => [
+  { name: THE_MOCK, settings: {
+    microscope: "mock", api_type: "Mock API", host: "localhost", client: "mock-client", password: null, config: null,
+  } },
+  { name: "stellaris", settings: {
+    microscope: "stellaris-y42h93", api_type: "LAS X CAM API - Navigator Expert", host: "localhost",
+    client: "PythonClient", password: null, config: null,
+  } },
+];
 
 const pretendConnectionStatus = ({ instrument }: { instrument?: string }): Record<string, string> => ({
   "Microscope reachable": instrument && MICROSCOPES[instrument] ? "in-process" : "127.0.0.1:8895",

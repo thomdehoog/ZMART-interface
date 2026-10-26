@@ -38,13 +38,17 @@ offered: dict[str, tuple[object, dict]] = {}
 
 
 #: The settings of a driver's connection the Connect step shows, when the
-#: connection names them; the API is the driver's own and is only shown.
-SHOWN_SETTINGS = ("api_type", "host", "password", "config")
+#: connection names them: the controller's connection words but the output
+#: folder, which is the bridge's own. The microscope and its API are the
+#: driver's and are only shown.
+SHOWN_SETTINGS = ("microscope", "api_type", "host", "client", "password", "config")
 
-#: The ones the operator may type over what was saved. A password is only
-#: ever typed: the controller refuses a driver file that holds one, and the
-#: bridge never hands one out or keeps one.
-TYPED_SETTINGS = ("host", "password", "config")
+#: The ones the operator may type over what was saved. Each one typed is
+#: handed on, named by the driver's connection or not: a driver uses the
+#: words it needs and leaves the rest. A password is only ever typed: the
+#: controller refuses a driver file that holds one, and the bridge never
+#: hands one out or keeps one.
+TYPED_SETTINGS = ("host", "client", "password", "config")
 
 
 def listed() -> dict[str, dict]:
@@ -123,8 +127,8 @@ def connect(asked: dict) -> dict:
 
     ``asked["instrument"]`` is a name from :func:`instruments`. What the
     operator typed on the Connect step goes over the connection that was
-    saved for it: ``host``, ``password`` and ``config`` for the ones that
-    connection names, and ``output_root``, the folder the run is made under.
+    saved for it: ``host``, ``client``, ``password`` and ``config``, and
+    ``output_root``, the folder the run is made under.
     A field left empty keeps what was saved, and the folder is the one the
     last run went to (at first ``--output-root``). Once the run folder is
     made, the folder is kept as the last one used.
@@ -139,7 +143,7 @@ def connect(asked: dict) -> dict:
     experiment = checked_name(asked.get("experiment") or A_RUN, field="experiment")
     connection = saved_connection(name)
     for key in TYPED_SETTINGS:
-        if key in connection and asked.get(key):
+        if asked.get(key):
             connection[key] = asked[key]
     output_root = asked.get("output_root") or state.output_root
     if output_root is not None:

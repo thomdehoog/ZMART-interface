@@ -1,7 +1,7 @@
 /**
- * The Connect card for a driver whose connection names a host, a password
- * and a config: each is shown for the operator to fill, the host and the
- * config with what the driver saved, the password empty, and the output
+ * The Connect card's seven fields for a driver whose connection names them:
+ * the microscope and its API shown, the host, the client and the config
+ * filled with what the driver saved, the password empty, and the output
  * folder with where the last run went. Connect hands all of it to the
  * bridge. The bridge here is the page's own requests, answered by the test:
  * no driver on this machine names these settings.
@@ -16,7 +16,10 @@ test("a driver's named settings are shown filled, and handed over on Connect", a
     json: {
       instruments: [
         { name: "interface-mock", settings: {} },
-        { name: "stellaris", settings: { api_type: "Navigator Expert", host: "10.0.0.5", password: null, config: null } },
+        { name: "stellaris", settings: {
+          microscope: "stellaris-y42h93", api_type: "Navigator Expert", host: "10.0.0.5", client: "PythonClient",
+          password: null, config: null,
+        } },
       ],
       output_root: "D:/runs",
     },
@@ -32,11 +35,16 @@ test("a driver's named settings are shown filled, and handed over on Connect", a
 
   const rows = page.locator(".session-form .field");
   const field = (name: string) => rows.filter({ hasText: name }).locator("input");
-  await page.locator(".field select").first().selectOption({ label: "stellaris" });
+  await page.locator(".field select").first().selectOption("stellaris");
 
+  await expect(page.locator(".field select").first().locator("option:checked")).toHaveText("stellaris · stellaris-y42h93");
   await expect(rows.nth(1)).toHaveText(/^API\s*Navigator Expert$/);
+  await expect(rows.locator("span:first-child")).toHaveText([
+    "Microscope", "API", "Host", "Client", "Password", "Config", "Output folder", "Protocol",
+  ]);
   await expect(field("Host")).toBeEnabled();
   await expect(field("Host")).toHaveValue("10.0.0.5");
+  await expect(field("Client")).toHaveValue("PythonClient");
   await expect(field("Password")).toBeEnabled();
   await expect(field("Password")).toHaveAttribute("type", "password");
   await expect(field("Password")).toHaveValue("");
@@ -45,17 +53,20 @@ test("a driver's named settings are shown filled, and handed over on Connect", a
   await expect(field("Output folder")).toHaveValue("D:/runs");
 
   await field("Host").fill("10.0.0.9");
+  await field("Client").fill("zmart");
   await field("Password").fill("hunter2");
   await field("Config").fill("C:/scope/setup.xml");
   await page.locator(".session-foot button.run").click();
   await expect(page.locator(".check-row.failed")).toContainText("the test opens no session");
   expect(sent).toEqual([{
-    instrument: "stellaris", host: "10.0.0.9", config: "C:/scope/setup.xml", password: "hunter2",
+    instrument: "stellaris", host: "10.0.0.9", client: "zmart", config: "C:/scope/setup.xml", password: "hunter2",
     output_root: "D:/runs", experiment: "target-acquisition",
   }]);
 
-  // another microscope brings its own driver's settings: the mock needs none of them
+  // another microscope brings its own driver's settings: one its connection does not
+  // name is empty, and can still be typed into -- a driver leaves a word it does not need
   await page.locator(".field select").first().selectOption("interface-mock");
-  await expect(field("Host")).toBeDisabled();
-  await expect(field("Host")).toHaveAttribute("placeholder", "not needed");
+  await expect(field("Host")).toBeEnabled();
+  await expect(field("Host")).toHaveValue("");
+  await expect(field("Host")).toHaveAttribute("placeholder", "not used by this driver");
 });

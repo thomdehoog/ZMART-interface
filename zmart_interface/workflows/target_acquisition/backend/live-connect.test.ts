@@ -71,15 +71,16 @@ describe("the live connect", () => {
     expect(answers).toEqual([[0, "mock"], [1, "failed — not writable"]]);
   });
 
-  it("hands the bridge what the operator typed: host, config, password and the output folder", async () => {
+  it("hands the bridge what the operator typed: host, client, config, password and the output folder", async () => {
     const { calls } = bridgeAnswering([{ driver: "mock" }]);
     const done = backend.connect({
-      instrument: "stellaris", host: "10.0.0.9", config: "C:/scope/setup.xml", password: "hunter2", outputRoot: "D:/runs",
+      instrument: "stellaris", host: "10.0.0.9", client: "zmart", config: "C:/scope/setup.xml", password: "hunter2",
+      outputRoot: "D:/runs",
     });
     await vi.runAllTimersAsync();
     await done;
     expect(calls[0]).toEqual(["/api/target_acquisition/connect", {
-      instrument: "stellaris", host: "10.0.0.9", config: "C:/scope/setup.xml", password: "hunter2",
+      instrument: "stellaris", host: "10.0.0.9", client: "zmart", config: "C:/scope/setup.xml", password: "hunter2",
       output_root: "D:/runs", experiment: "target-acquisition",
     }]);
   });

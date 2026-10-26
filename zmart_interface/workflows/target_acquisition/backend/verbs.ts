@@ -195,6 +195,7 @@ export interface Opening {
   instrument?: string;
   password?: string;
   host?: string;
+  client?: string;
   config?: string;
   outputRoot?: string;
   [more: string]: unknown;

@@ -1853,6 +1853,8 @@ def test_the_microscopes_offered_are_the_interfaces_mock_then_the_registered_dri
     assert [one["name"] for one in connecting.instruments()] == ["interface-mock", "beads"]
     assert connecting.saved_connection("beads") == {"mock_timing": "instant"}
     # As the interface offers it: with its own window opened beside the session.
-    assert connecting.saved_connection("interface-mock") == {"client": "mock-client", "open_window": True}
+    assert connecting.saved_connection("interface-mock") == {
+        **mock_microscope.CONNECTION, "client": "mock-client", "open_window": True,
+    }
     with pytest.raises(ValueError, match="no microscope is listed as 'os'"):
         connecting.connect({"instrument": "os"})
