@@ -11,36 +11,9 @@
 
 import { sideGroup } from "../../../../api/index.ts";
 import { progressBox } from "../../shared/progress.ts";
-import { sharePoints } from "../../shared/scanfields.ts";
+import { spreadTestTiles } from "./test-tiles.ts";
 import type { Channel } from "../../../../api/index.ts";
-import type { TaPage, TaRun, TargetAcquisition } from "../../types.ts";
-
-/* So many tiles in each tileset, spread over it the way Step 4 spreads its
-   focus points: the ground is shared out by `sharePoints`, and each share
-   takes the nearest tile not yet taken. Not a random draw -- the same
-   press gives the same tiles (Thom, 2026-09-28). */
-function testTilesPerTileset(state: TaRun, n: number): number[] {
-  const groups = new Map<string | number, number[]>();
-  state.plan.forEach((t, i) => {
-    const key = t.tileset ?? t.fieldId ?? "plan";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(i);
-  });
-  const chosen: number[] = [];
-  for (const held of groups.values()) {
-    const taken = new Set<number>();
-    for (const p of sharePoints(held.map((i) => state.plan[i]), n)) {
-      let best: { i: number; d: number } | null = null;
-      for (const i of held) {
-        if (taken.has(i)) continue;
-        const d = Math.hypot(state.plan[i].x - p.x, state.plan[i].y - p.y);
-        if (!best || d < best.d) best = { i, d };
-      }
-      if (best) { taken.add(best.i); chosen.push(best.i); }
-    }
-  }
-  return chosen;
-}
+import type { TaPage, TargetAcquisition } from "../../types.ts";
 
 /* The test tiles changed, on the picture or in the box: Step 5's own
    setting edited, so the steps after it are orange and the box says the
@@ -88,39 +61,50 @@ export const scanChannel: Channel<TargetAcquisition> = {
     body.append(summary);
 
     /* The test tiles: a few of the plan pressed green, on the picture or
-       drawn at random, so the protocol is rehearsed on them before the
-       whole area is scanned. The scan takes only the green tiles while
-       any are green; the protocol run takes the whole plan regardless. */
+       picked by the box, so the protocol is rehearsed on them before the
+       whole area is scanned. The box picks them as Step 4 lays its focus
+       points: so many in each tileset, or so many over the whole carrier.
+       The scan takes only the green tiles while any are green; the
+       protocol run takes the whole plan regardless. */
     const test = sideGroup("Test tiles");
     test.group.id = "test-tiles";
     const draw = document.createElement("div");
-    draw.className = "test-tiles-row";
+    draw.className = "fp-row";
     draw.id = "test-tiles-count";
     draw.dataset.green = String(state.testTiles.size);
-    const lay = document.createElement("div");
-    lay.className = "fp-lay";
-    const n = document.createElement("input");
-    n.type = "number"; n.min = "1"; n.max = String(Math.max(1, state.plan.length)); n.step = "1";
-    n.id = "test-n";
-    n.title = "How many tiles to select in each tileset, spread over it as the focus points are";
-    n.value = String(Math.min(state.plan.length, state.testN ?? 3));
-    n.addEventListener("input", () => { state.testN = Number(n.value); });
-    const random = document.createElement("button");
-    random.type = "button"; random.className = "sf-flat sf-doing"; random.id = "test-random";
-    random.textContent = "Select tiles";
-    random.disabled = !!state.running || state.walk.running || !state.plan.length;
-    random.addEventListener("click", () => {
-      const asked = Math.max(1, Number(n.value) || 1);
-      state.testTiles = new Set(testTilesPerTileset(state, asked));
-      testTilesChanged(page);
-    });
+    const busy = !!state.running || state.walk.running;
+    /* A count joined to its press, as in Step 4's Automatic row. */
+    const pick = (over: "tileset" | "carrier", key: "testN" | "testNCarrier",
+                  nId: string, pressId: string, label: string) => {
+      const lay = document.createElement("div");
+      lay.className = "fp-lay";
+      const n = document.createElement("input");
+      n.type = "number"; n.min = "1"; n.max = String(Math.max(1, state.plan.length)); n.step = "1";
+      n.id = nId;
+      n.title = `How many tiles to select ${over === "carrier" ? "over the whole carrier" : "in each tileset"}, spread over it as the focus points are`;
+      n.value = String(Math.min(state.plan.length, state[key] ?? 3));
+      n.addEventListener("input", () => { state[key] = Number(n.value); });
+      const press = document.createElement("button");
+      press.type = "button"; press.className = "sf-flat sf-doing"; press.id = pressId;
+      press.textContent = label;
+      press.disabled = busy || !state.plan.length;
+      press.addEventListener("click", () => {
+        const asked = Math.max(1, Number(n.value) || 1);
+        state.testTiles = new Set(spreadTestTiles(state.plan, asked, over));
+        testTilesChanged(page);
+      });
+      lay.append(n, press);
+      return lay;
+    };
     const clear = document.createElement("button");
     clear.type = "button"; clear.className = "sf-flat"; clear.id = "test-clear";
     clear.textContent = "Clear all";
-    clear.disabled = !!state.running || state.walk.running || !state.testTiles.size;
+    clear.disabled = busy || !state.testTiles.size;
     clear.addEventListener("click", () => { state.testTiles = new Set(); testTilesChanged(page); });
-    lay.append(n, random);
-    draw.append(lay, clear);
+    draw.append(
+      pick("tileset", "testN", "test-n", "test-random", "Per tileset"),
+      pick("carrier", "testNCarrier", "test-n-carrier", "test-carrier", "Per carrier"),
+      clear);
     test.body.append(draw);
 
     /* The scan's progress, the same box the acquisition has: built with the
