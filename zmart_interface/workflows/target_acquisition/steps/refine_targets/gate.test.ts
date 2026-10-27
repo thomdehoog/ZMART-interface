@@ -20,7 +20,7 @@ const measured = [
   cell(2, { area: 12, intensity_mean: 7, eccentricity: 0.6, solidity: 0.85, perimeter: 36 }),
 ];
 
-const mounted = (cells: ReturnType<typeof cell>[]) => {
+const mounted = (cells: ReturnType<typeof cell>[], asked: unknown[][] = []) => {
   const host = document.createElement("div");
   let current = cells;
   const panel = gate.mount(host, {
@@ -32,7 +32,7 @@ const mounted = (cells: ReturnType<typeof cell>[]) => {
     showing: () => true,
     sizeCanvas: () => false,
     css: () => "#000",
-    computePlot: async () => ({ stopped: false }),
+    computePlot: async (...args: unknown[]) => { asked.push(args); return { stopped: false }; },
   });
   const pair = () => [host.querySelector<HTMLSelectElement>("#gate-fx")!.value, host.querySelector<HTMLSelectElement>("#gate-fy")!.value];
   return { host, pair, land: (cells: ReturnType<typeof cell>[]) => { current = cells; panel.redraw(); } };
@@ -67,5 +67,16 @@ describe("the plot's pair", () => {
     expect(plot.pair()).toEqual(["intensity_mean", "eccentricity"]);
     plot.land(measured);
     expect(plot.pair()).toEqual(["intensity_mean", "eccentricity"]);
+  });
+});
+
+describe("complex feature dimensions", () => {
+  it("are offered: PCA and UMAP ticked and computed, as one UMAP with the components it stands on", async () => {
+    const asked: unknown[][] = [];
+    const { host } = mounted(measured, asked);
+    for (const id of ["#reduce-pca", "#reduce-umap"]) host.querySelector<HTMLInputElement>(id)!.click();
+    host.querySelector<HTMLButtonElement>("#reduce-compute")!.click();
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(asked).toEqual([["umap", ["pca_1", "pca_2", "umap_1", "umap_2"]]]);
   });
 });

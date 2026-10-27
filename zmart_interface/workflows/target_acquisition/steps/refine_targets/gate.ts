@@ -214,14 +214,6 @@ export default {
     reduceNote.className = "reduce-note";
     reduceAct.append(computePress, reduceNote);
     reduceBox.body.append(reduceAct);
-    /* Greyed out for now (Thom, 2026-09-28): a gate drawn on these axes
-       cannot be reapplied -- the components are fitted to the population at
-       hand and a UMAP is drawn anew each run -- so a protocol cannot carry
-       one. The box stays where it is, saying so, until that has an answer. */
-    for (const tick of Object.values(ticks)) tick.disabled = true;
-    computePress.disabled = true;
-    reduceNote.textContent = "not available yet";
-    reduceBox.group.classList.add("parked");
     let reducing = false;
     const forget = (columns: string[]) => {
       ctx.forgetColumns?.(columns);

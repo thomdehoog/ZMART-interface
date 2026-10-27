@@ -633,15 +633,8 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await rest(600);
         await expect(page.locator("#gate-list .gate-row")).toHaveCount(1);
         await shot(page, "discover-gated");
-        /* Complex feature dimensions: on screen, greyed out, saying so. A
-           gate on those axes could not be carried by a protocol. */
         await expect(page.locator("#reduction .side-group-title")).toHaveText("Complex feature dimensions");
-        await expect(page.locator("#reduce-pca")).toBeDisabled();
-        await expect(page.locator("#reduce-umap")).toBeDisabled();
-        await expect(page.locator("#reduce-compute")).toBeDisabled();
-        await expect(page.locator("#reduction .reduce-note")).toHaveText("not available yet");
         await expect(page.locator('#gate-fx option[value="pca_1"]')).toHaveCount(0);
-        await expect(page.locator("#gate-list .gate-row")).toHaveCount(1);
 
         /* Step 8: the target job, its optics recorded, a cap per tileset,
            and the scan areas placed. */
@@ -886,6 +879,49 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         expect(ofTheRun.protocol.detect.threshold).toBe(120);
         expect(ofTheRun.protocol.targetZOffsetUm).toBe(2);
         await shot(page, "protocol-done");
+
+        /* PCA and UMAP, computed by the analysis over every object the run
+           found, are axes like any other and can be gated on in this run.
+           A gate on them cannot go into a protocol, since both are fitted
+           anew on every run: the export says so and writes nothing, and
+           Run protocol waits with every step done. */
+        await walkTo(page, "Discover Targets");
+        await page.locator("#reduce-pca").check();
+        await page.locator("#reduce-umap").check();
+        await page.locator("#reduce-compute").click();
+        await expect(page.locator("#reduce-compute")).toHaveText("Compute", { timeout: 600_000 });
+        await expect(page.locator("#reduction .reduce-note")).toHaveText("");
+        for (const kind of ["pca", "umap"]) {
+          await page.locator("#gate-fx").selectOption(`${kind}_1`);
+          await page.locator("#gate-fy").selectOption(`${kind}_2`);
+          await rest(600);
+          await shot(page, `discover-${kind}`);
+        }
+        const onUmap = (await page.locator("#scatter-canvas").boundingBox())!;
+        const around = [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]];
+        for (const [gx, gy] of around) {
+          await page.mouse.click(...plotPoint(onUmap, gx, gy));
+          await rest(150);
+        }
+        await page.mouse.click(...plotPoint(onUmap, around[0][0], around[0][1]));
+        await rest(600);
+        await expect(page.locator("#gate-list .gate-row")).toHaveCount(2);
+        await shot(page, "discover-umap-gated");
+        /* The targets placed and taken again under it, in this run. */
+        await walkTo(page, "Target scan area");
+        await page.locator(".panel.on button.step-run").click();
+        await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 60_000 });
+        await walkTo(page, "Acquire Targets");
+        await page.locator(".panel.on button.step-run").click();
+        await expect(page.locator(".panel.on button.step-run")).toHaveText("Rerun all", { timeout: 300_000 });
+        await walkTo(page, "Run protocol");
+        await expect(page.locator(".step.stale")).toHaveCount(0);
+        await expect(page.locator(".panel.on button.step-run")).toBeDisabled();
+        await page.locator("#protocol-export").click();
+        await expect(page.locator("#protocol-export-note")).toHaveText("not written — a gate on umap_1 × umap_2 "
+          + "cannot go into a protocol: PCA and UMAP are fitted anew on every run; gate on measured features instead");
+        expect((await ask(page, PORT, "/api/target_acquisition/protocols")).protocols).toHaveLength(written.protocols.length);
+        await shot(page, "protocol-refused-umap-gate");
 
         /* A fresh session opened on it: every step's settings are back, and
            every step but Connect is orange, to be confirmed on this sample. */

@@ -11,7 +11,7 @@
  * `run.protocol` how far it has got and what it came to.
  */
 
-import { protocolFrom } from "../../shared/protocol.ts";
+import { gatesNotCarried, protocolFrom } from "../../shared/protocol.ts";
 import { hasRecording } from "../../microscope/recordings.ts";
 import type { TaPage } from "../../types.ts";
 
@@ -113,6 +113,8 @@ export function protocolBlockers(page: TaPage): string[] {
   if (!hasRecording(state.overviewPreset)) blockers.push("Overview scan area: import the optical configuration first");
   if (!state.plan.length) blockers.push("Overview scan area: nothing to scan yet");
   if (!state.gates.length) blockers.push("Discover Targets: draw a gate first");
+  const notCarried = gatesNotCarried(state.gates);
+  if (notCarried) blockers.push(`Discover Targets: ${notCarried}`);
   if (!hasRecording(state.targetType)) blockers.push("Target scan area: import the target settings first");
   if (state.targetFocusOn && !hasRecording(state.targetFocus)) blockers.push("Acquire Targets: import the focussing settings first");
   return blockers;
