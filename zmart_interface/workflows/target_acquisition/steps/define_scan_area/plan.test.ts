@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { plan } from "./scanfield-editor.ts";
 import {
-  carrierType, fromPreset, nearestArea, type Preset,
+  carrierType, centres, fromPreset, nearestArea, type Preset,
 } from "../../shared/carriers.ts";
 import type { PlanTile } from "../../shared/run-document.ts";
-import type { Field, PointField, RectangleField } from "../../shared/scanfields.ts";
+import { block, type Field, type PointField, type RectangleField } from "../../shared/scanfields.ts";
 
 /** A catalogue part of this type, by the label it is listed under. */
 const part = (type: string, named: (label: string) => boolean): Preset =>
@@ -188,6 +188,46 @@ describe("a position is not slid anywhere: it fits where it was put or it is not
 
   it("drops one pressed into the corner, where the frame would hang over", () => {
     expect(plan([at(0.1, 0.1)], overview, slide)).toEqual([]);
+  });
+});
+
+describe("a grid keeps the block it was asked for in every well", () => {
+  /* What `Add grid` lays: rows by columns at the pitch asked for, centred on
+     every well. Five by four at 1024 µm with a 1024 µm frame is a block 4 mm
+     by 5 mm, wider than a 96-well plate's 6.6 mm well is square — its outer
+     positions reach past the rim. They used to be dropped there, and every
+     well came back with a ragged block of twelve. */
+  const mock = { id: "p", frameUm: 1024 };
+  const grid = (): Field[] => centres(plate).flatMap((a, w) =>
+    block({ x: a.x * 1000, y: a.y * 1000 }, 5, 4, 1024, 1024)
+      .map((p, i): Field => ({ id: `g${w}.${i}`, type: "point", source: "grid", ...p })));
+
+  it("keeps all twenty positions in every well", () => {
+    const tiles = plan(grid(), mock, plate);
+    expect(tiles).toHaveLength(96 * 20);
+    const perWell = new Map<number, number>();
+    for (const t of tiles) perWell.set(t.compartment, (perWell.get(t.compartment) ?? 0) + 1);
+    expect(perWell.size).toBe(96);
+    for (const n of perWell.values()) expect(n).toBe(20);
+  });
+
+  it("numbers a position past the rim with the well it was laid in", () => {
+    /* One well's block is one tileset, edge positions included: B3 is the
+       fifteenth well and the fifteenth tileset. */
+    const tiles = plan(grid(), mock, plate).filter((t) => String(t.fieldId).startsWith("g14."));
+    expect(tiles).toHaveLength(20);
+    for (const t of tiles) {
+      expect(t.compartment).toBe(15);
+      expect(t.group).toBe(15);
+      expect(t.tileset).toBe("area-1.2");
+    }
+  });
+
+  it("still drops a position placed by hand whose frame hangs over the rim", () => {
+    /* The same spot as A1's grid corner position, put there by hand. */
+    const [a1] = centres(plate);
+    const [corner] = block({ x: a1.x * 1000, y: a1.y * 1000 }, 5, 4, 1024, 1024);
+    expect(plan([{ id: "p", type: "point", ...corner }], mock, plate)).toEqual([]);
   });
 });
 
