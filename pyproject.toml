@@ -51,8 +51,9 @@ dependencies = [
     "pyyaml>=6",
     # Checking that the installed viewer is a version this interface was tested with.
     "packaging>=23",
-    # The operator window itself (WebView2 on Windows).
+    # The operator window itself (WebView2 on Windows, Chromium through Qt on a Mac).
     "pywebview>=5",
+    "pywebview[pyside6]>=5; sys_platform == 'darwin'",
 ]
 
 [project.optional-dependencies]
