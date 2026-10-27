@@ -59,7 +59,7 @@ const COMPUTED_AXIS = /^(pca|umap)_/;
  * this one once its objects are detected again. Leaving such a gate out
  * would be worse: the protocol would quietly take more than was chosen.
  */
-export function gatesNotCarried(gates: Gate[]): string | null {
+export function whyGatesNotCarried(gates: Gate[]): string | null {
   const computed = gates.filter((g) => COMPUTED_AXIS.test(g.fx) || COMPUTED_AXIS.test(g.fy));
   if (!computed.length) return null;
   return `a gate on ${computed.map((g) => `${g.fx} × ${g.fy}`).join(", ")} cannot go into a protocol: `
@@ -72,12 +72,12 @@ const slot = (s: Slot): Slot => JSON.parse(JSON.stringify(s));
 /**
  * The run's settings, picked out of the state.
  *
- * A gate on computed axes is refused, with `gatesNotCarried`'s reason. The
+ * A gate on computed axes is refused, with `whyGatesNotCarried`'s reason. The
  * carrier's corners are kept as places on the drawing, without the stage
  * readings taken at them, which belong to the mount they were taken on.
  */
 export function protocolFrom(state: TaRun): Protocol {
-  const notCarried = gatesNotCarried(state.gates);
+  const notCarried = whyGatesNotCarried(state.gates);
   if (notCarried) throw new Error(notCarried);
   const f = state.focus;
   const d = state.detect;
