@@ -460,25 +460,29 @@ export default {
       paint.fillRect(0, 0, w, h);
 
       const cells = theCells();
-      xHi = 1; yHi = 1; xLo = 0; yLo = 0;
-      for (const c of cells) {
-        if (!hasFeature(c, fx) || !hasFeature(c, fy)) continue;
-        const vx = cellFeature(c, fx), vy = cellFeature(c, fy);
-        xHi = Math.max(xHi, vx); yHi = Math.max(yHi, vy);
-        xLo = Math.min(xLo, vx); yLo = Math.min(yLo, vy);
+      /* While the gate is held the axes stay where they are: a scale that
+         followed the hand would move the plot under it. */
+      if (!held) {
+        xHi = 1; yHi = 1; xLo = 0; yLo = 0;
+        for (const c of cells) {
+          if (!hasFeature(c, fx) || !hasFeature(c, fy)) continue;
+          const vx = cellFeature(c, fx), vy = cellFeature(c, fy);
+          xHi = Math.max(xHi, vx); yHi = Math.max(yHi, vy);
+          xLo = Math.min(xLo, vx); yLo = Math.min(yLo, vy);
+        }
+        /* The gate on this pair stays in view whatever the objects span --
+           all of it, when there are no objects yet to span anything. */
+        for (const [gx, gy] of shownGate()?.vertices ?? []) {
+          xHi = Math.max(xHi, gx); yHi = Math.max(yHi, gy);
+          xLo = Math.min(xLo, gx); yLo = Math.min(yLo, gy);
+        }
+        /* A little headroom, so the outermost cells sit inside the plot
+           instead of on its axis line -- at the bottom too, when the feature
+           goes below zero. */
+        xHi += (xHi - xLo) * 0.05; yHi += (yHi - yLo) * 0.05;
+        if (xLo < 0) xLo -= (xHi - xLo) * 0.05;
+        if (yLo < 0) yLo -= (yHi - yLo) * 0.05;
       }
-      /* The gate on this pair stays in view whatever the objects span --
-         all of it, when there are no objects yet to span anything. */
-      for (const [gx, gy] of shownGate()?.vertices ?? []) {
-        xHi = Math.max(xHi, gx); yHi = Math.max(yHi, gy);
-        xLo = Math.min(xLo, gx); yLo = Math.min(yLo, gy);
-      }
-      /* A little headroom, so the outermost cells sit inside the plot
-         instead of on its axis line -- at the bottom too, when the feature
-         goes below zero. */
-      xHi += (xHi - xLo) * 0.05; yHi += (yHi - yLo) * 0.05;
-      if (xLo < 0) xLo -= (xHi - xLo) * 0.05;
-      if (yLo < 0) yLo -= (yHi - yLo) * 0.05;
 
       // recessive grid
       paint.strokeStyle = ctx.css("--line");
