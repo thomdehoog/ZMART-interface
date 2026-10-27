@@ -53,6 +53,10 @@ dependencies = [
     "packaging>=23",
     # The operator window itself (WebView2 on Windows).
     "pywebview>=5",
+    # On a Mac, Chromium through Qt draws the window, as WebView2 does on
+    # Windows: macOS's own WebKit drops the overview's picture after a deep zoom.
+    "PySide6>=6.8; sys_platform == 'darwin'",
+    "qtpy>=2; sys_platform == 'darwin'",
 ]
 
 [project.optional-dependencies]

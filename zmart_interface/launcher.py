@@ -24,7 +24,11 @@ background programs, and a browser refuses to start one for a page opened off
 the disk, because such a page has no address of its own. So the page is
 served over HTTP, by the bridge, which is already here.
 
-The window is drawn by pywebview, which on Windows uses the WebView2 runtime.
+The window is drawn by pywebview, which on Windows uses the WebView2 runtime,
+a Chromium. On a Mac it is drawn by Chromium too, through Qt: macOS's own
+WebKit, which pywebview would take there, drops the overview's picture after a
+deep zoom and draws the tiles flat until the view refreshes. With Qt missing
+the window falls back to WebKit, and PYWEBVIEW_GUI still picks another.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -54,6 +58,19 @@ def _dev_server_is_up(url: str, timeout: float = 1.5) -> bool:
             return True
     except (urllib.error.URLError, OSError):
         return False
+
+
+def _engine() -> str | None:
+    """Qt's Chromium on a Mac, when it is installed; otherwise pywebview's own choice."""
+    import importlib.util
+    import os
+    if sys.platform != "darwin" or os.environ.get("PYWEBVIEW_GUI"):
+        return None
+    try:
+        found = importlib.util.find_spec("PySide6.QtWebEngineWidgets") and importlib.util.find_spec("qtpy")
+    except ModuleNotFoundError:
+        found = None
+    return "qt" if found else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"opening the {note}")
     webview.create_window(listening.title, target, width=1500, height=950)
     try:
-        webview.start()
+        webview.start(gui=_engine())
     finally:
         # The window is closed: the session with the microscope software is
         # closed with it, rather than left open until the process is killed.
