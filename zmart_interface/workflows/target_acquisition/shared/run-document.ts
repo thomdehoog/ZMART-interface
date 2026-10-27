@@ -270,9 +270,10 @@ export function freshState({ backend }: { backend: Pick<Backend, "viewOf"> }) {
     checks: [] as Check[],
     /* The tiles the overview is rehearsed on: plan indices pressed green in
        Step 5. Empty means the whole plan. And how many the box offers to
-       pick per tileset. */
+       pick per tileset, and over the whole carrier. */
     testTiles: new Set<number>(),
     testN: 3,
+    testNCarrier: 3,
     /* The plan index under the pointer on the scan step, a press from
        being a test tile; -1 when it is over none. */
     testHovered: -1,

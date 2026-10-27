@@ -239,6 +239,13 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await drag();
         expect((await page.evaluate(() => window.__theRunState!() as TheRun)).testTiles).toEqual([]);
       }
+      /* Per carrier picks so many over the whole plan, and Clear all
+         takes them off again. */
+      await page.locator("#test-n-carrier").fill("2");
+      await page.locator("#test-carrier").click();
+      await expect(page.locator("#test-tiles-count")).toHaveAttribute("data-green", "2");
+      await page.locator("#test-clear").click();
+      await expect(page.locator("#test-tiles-count")).toHaveAttribute("data-green", "0");
       await page.locator("#test-n").fill("3");
       await page.locator("#test-random").click();
       await rest(400);
