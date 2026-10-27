@@ -292,8 +292,8 @@ export const presetInk = (i: number): string => PRESET_INK[(i < 0 ? 0 : i) % PRE
  *
  * What the objective sees is a square of sample, and a square hanging over the
  * edge of a well is a square of plastic — imaging it costs the same as imaging
- * sample and returns nothing. So the frame stays inside an area, in two
- * different ways for the two kinds of field:
+ * sample and returns nothing. So the frame stays inside an area, except a
+ * grid's, in two different ways for the two kinds of field:
  *
  * A **position** is a place somebody chose. Its frame either fits where it was
  * put or the position is not in the plan. A grid position is the exception:
@@ -824,9 +824,8 @@ export default {
      */
     const layGrid = (base = ed.fields) => {
       const [px, py] = pitch();
-    /* The whole block in every area, wider than the area or not; see `plan`.
-       Only what the stage cannot reach is left out, rather than pulled in to
-       the edge of travel, where it would sit on top of its neighbours. */
+      /* Only what the stage cannot reach is left out, rather than pulled in to
+         the edge of travel, where it would sit on top of its neighbours. */
       const made: Field[] = [];
       for (const area of centres(carrier)) {
         for (const p of block({ x: area.x * MM_UM, y: area.y * MM_UM }, ed.rows, ed.cols, px, py)) {

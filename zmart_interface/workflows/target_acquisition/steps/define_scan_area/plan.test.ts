@@ -224,8 +224,9 @@ describe("a grid keeps the block it was asked for in every well", () => {
   });
 
   it("still drops a position placed by hand whose frame hangs over the rim", () => {
-    /* The same spot as a grid's corner position, put there by hand. */
-    const [corner] = block({ x: 3300, y: 3300 }, 5, 4, 1024, 1024);
+    /* The same spot as A1's grid corner position, put there by hand. */
+    const [a1] = centres(plate);
+    const [corner] = block({ x: a1.x * 1000, y: a1.y * 1000 }, 5, 4, 1024, 1024);
     expect(plan([{ id: "p", type: "point", ...corner }], mock, plate)).toEqual([]);
   });
 });
