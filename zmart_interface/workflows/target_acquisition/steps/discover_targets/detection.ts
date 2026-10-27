@@ -507,7 +507,7 @@ export default {
          channels are; one colour leaves nothing to choose. */
       const names = ctx.channels?.() ?? [];
       const segment = document.createElement("div");
-      segment.className = "param";
+      segment.className = "param channel";
       segment.innerHTML = "<label>Channel</label><select></select>";
       /* Written into the wrap on the line above. */
       const channelPick = segment.querySelector("select")!;
