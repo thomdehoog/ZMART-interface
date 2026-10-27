@@ -771,7 +771,7 @@ button.danger:disabled { opacity: 0.4; cursor: default; }
 .fp-lay input:focus { outline: none; }
 /* No stepper in a box this narrow: WebKit on macOS always draws one, and it
    covers the second digit. The arrow keys still step the count. */
-.fp-lay input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.fp-lay input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .fp-lay .sf-flat { height: 100%; border-radius: 0 6px 6px 0; }
 /* The step's own press shares Rerun's row: one of the two is always put
    away, and a `display` of its own beats the `hidden` attribute, so both

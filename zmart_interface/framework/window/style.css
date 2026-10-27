@@ -282,9 +282,8 @@ button.run:disabled { opacity: 0.4; cursor: default; }
 .action-hint.ok { color: var(--good); }
 /* names the channel over the column it heads, at the far end of the tab row */
 .side-tab {
-  /* at the very end of the row, which has no padding there, so it stands
-     over the whole channel. Pulled out past a padding instead, WebKit counts
-     it as overflow and draws a scrollbar under the row. */
+  /* at the very end of the row, which has no padding there: a negative
+     margin past a padding makes WebKit draw a scrollbar under the row. */
   margin-left: auto;
   width: var(--side-w); flex: none;
   display: flex; align-items: flex-end; height: 100%;
@@ -301,14 +300,13 @@ button.run:disabled { opacity: 0.4; cursor: default; }
   padding: 0 var(--tab-pad-x) var(--tab-pad-b);
 }
 .tabs {
-  --tabs-pad: 12px;
   /* what a tab holds off its own name, so the heading standing in for one at
      the end of the row sits the same distance off its own and lands on the
      same rule */
   --tab-pad-x: 13px;
   --tab-pad-b: 11px;
   display: flex; align-items: stretch; gap: 2px;
-  padding-left: var(--tabs-pad); border-bottom: 1px solid var(--line);
+  padding-left: 12px; border-bottom: 1px solid var(--line);
   background: var(--surface-2); overflow-x: auto;
 }
 .tab {
