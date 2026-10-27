@@ -28,7 +28,7 @@ The window is drawn by pywebview, which on Windows uses the WebView2 runtime,
 which is Chromium. On a Mac it is drawn by Chromium too, through Qt: macOS's
 own WebKit, which pywebview would take there, drops the overview's picture
 after a deep zoom and draws the tiles flat until the view refreshes. With Qt
-missing the window falls back to WebKit, and PYWEBVIEW_GUI still picks another.
+missing the window does not open on WebKit; it says what to install instead.
 
 Author: Thom de Hoog, Center for Microscopy and Image Analysis (ZMB),
 University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
@@ -37,7 +37,6 @@ University of Zurich (thom.dehoog@zmb.uzh.ch, thomdehoog@gmail.com).
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import urllib.error
 import urllib.request
@@ -86,6 +85,16 @@ def main(argv: list[str] | None = None) -> int:
         print("this needs the 'pywebview' package; or run "
               "`python -m zmart_interface.framework.bridge` and open its address in a browser")
         return 1
+    # On a Mac, Qt's Chromium and never WebKit, which draws the overview's
+    # tiles flat after a deep zoom.
+    qt = sys.platform == "darwin"
+    if qt:
+        try:
+            import qtpy.QtWebEngineWidgets  # noqa: F401
+        except Exception:
+            print("on a Mac the window needs Qt's Chromium: "
+                  "pip install \"pywebview[pyside6]\"")
+            return 1
 
     listening = server.serve(0, args, halves=halves)
     bridge_at = f"http://127.0.0.1:{listening.server_address[1]}"
@@ -100,10 +109,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"opening the {note}")
     webview.create_window(listening.title, target, width=1500, height=950)
     try:
-        # On a Mac, Qt's Chromium. pywebview falls back to WebKit itself when Qt
-        # is missing, and PYWEBVIEW_GUI still picks another engine.
-        webview.start(gui="qt" if sys.platform == "darwin"
-                      and "PYWEBVIEW_GUI" not in os.environ else None)
+        webview.start(gui="qt" if qt else None)
     finally:
         # The window is closed: the session with the microscope software is
         # closed with it, rather than left open until the process is killed.
