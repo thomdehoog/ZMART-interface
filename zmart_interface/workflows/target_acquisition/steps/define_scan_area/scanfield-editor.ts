@@ -296,8 +296,11 @@ export const presetInk = (i: number): string => PRESET_INK[(i < 0 ? 0 : i) % PRE
  * different ways for the two kinds of field:
  *
  * A **position** is a place somebody chose. Its frame either fits where it was
- * put or the position is not in the plan, which is why a block of positions is
- * only as big as a well can hold.
+ * put or the position is not in the plan. A grid position is the exception:
+ * it is one place in a block of rows by columns the operator asked for, and
+ * the block is kept whole, its outer positions reaching past the rim included.
+ * Dropping them left every well with a ragged block of whatever happened to
+ * fit, not the grid that was asked for.
  *
  * A **region** is an outline drawn around something, and its tiles are only
  * the means of covering it. They are laid as one lattice at the preset's step,
@@ -350,7 +353,8 @@ export function plan(fields: Field[], preset: PlanPreset | null, carrier: Carrie
     const byArea = new Map<string, { area: Area; over: number }>();
     for (const t of laid) {
       const x = t.x / MM_UM, y = t.y / MM_UM;
-      const keep = chosen ? frameFitsArea(carrier, x, y, frame) : insideArea(carrier, x, y);
+      const keep = f.source === "grid"
+        || (chosen ? frameFitsArea(carrier, x, y, frame) : insideArea(carrier, x, y));
       if (!keep) continue;
       const a = nearestArea(carrier, x, y);
       const key = `${a.row}.${a.col}`;
@@ -820,18 +824,18 @@ export default {
      */
     const layGrid = (base = ed.fields) => {
       const [px, py] = pitch();
-    /* Only what the well can hold. A block wider than the area it is laid in
-       used to put its outer positions on the plastic — nine positions of which
-       four saw the edge of the well — so the ones whose frame does not fit are
-       not laid at all. The block thins from the outside in as the frame grows,
-       which is what changing the objective actually does to a plate. */
+    /* The whole block in every area, wider than the area or not; see `plan`.
+       Only what the stage cannot reach is left out, rather than pulled in to
+       the edge of travel, where it would sit on top of its neighbours. */
       const made: Field[] = [];
       for (const area of centres(carrier)) {
         for (const p of block({ x: area.x * MM_UM, y: area.y * MM_UM }, ed.rows, ed.cols, px, py)) {
           /* Laid as asked, including the ones whose frame reaches past the rim.
              A block thinned from the outside in as the objective changed, which
              is the plate answering back at a number the operator set. */
-          made.push({ id: nextId(), type: "point", source: "grid", ...inside(p.x, p.y) });
+          const at = inside(p.x, p.y);
+          if (at.x !== p.x || at.y !== p.y) continue;
+          made.push({ id: nextId(), type: "point", source: "grid", ...p });
         }
       }
       commit([...base.filter((f) => f.source !== "grid"), ...made]);
