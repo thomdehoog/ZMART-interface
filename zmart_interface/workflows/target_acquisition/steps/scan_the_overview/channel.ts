@@ -75,13 +75,13 @@ export const scanChannel: Channel<TargetAcquisition> = {
     const busy = !!state.running || state.walk.running;
     /* A count joined to its press, as in Step 4's Automatic row. */
     const pick = (over: "tileset" | "carrier", key: "testN" | "testNCarrier",
-                  nId: string, pressId: string, label: string) => {
+                  nId: string, pressId: string, label: string, where: string) => {
       const lay = document.createElement("div");
       lay.className = "fp-lay";
       const n = document.createElement("input");
       n.type = "number"; n.min = "1"; n.max = String(Math.max(1, state.plan.length)); n.step = "1";
       n.id = nId;
-      n.title = `How many tiles to select ${over === "carrier" ? "over the whole carrier" : "in each tileset"}, spread over it as the focus points are`;
+      n.title = `How many tiles to select ${where}, spread over it as the focus points are`;
       n.value = String(Math.min(state.plan.length, state[key] ?? 3));
       n.addEventListener("input", () => { state[key] = Number(n.value); });
       const press = document.createElement("button");
@@ -102,8 +102,8 @@ export const scanChannel: Channel<TargetAcquisition> = {
     clear.disabled = busy || !state.testTiles.size;
     clear.addEventListener("click", () => { state.testTiles = new Set(); testTilesChanged(page); });
     draw.append(
-      pick("tileset", "testN", "test-n", "test-random", "Per tileset"),
-      pick("carrier", "testNCarrier", "test-n-carrier", "test-carrier", "Per carrier"),
+      pick("tileset", "testN", "test-n", "test-random", "Per tileset", "in each tileset"),
+      pick("carrier", "testNCarrier", "test-n-carrier", "test-carrier", "Per carrier", "over the whole carrier"),
       clear);
     test.body.append(draw);
 

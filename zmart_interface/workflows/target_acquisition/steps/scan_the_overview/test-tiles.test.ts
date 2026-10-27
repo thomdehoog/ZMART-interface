@@ -40,7 +40,7 @@ const wellOf = (i: number) => wells[i].tileset;
 
 describe("the box picks test tiles spread as the focus points are", () => {
   it("so many in each tileset", () => {
-    const picked = spreadTestTiles(wells, 2);
+    const picked = spreadTestTiles(wells, 2, "tileset");
     expect(picked).toHaveLength(8);
     for (const w of ["well 0", "well 1", "well 2", "well 3"]) {
       expect(picked.filter((i) => wellOf(i) === w)).toHaveLength(2);
@@ -61,7 +61,8 @@ describe("the box picks test tiles spread as the focus points are", () => {
     }
   });
 
-  it("the same press gives the same tiles", () => {
-    expect(spreadTestTiles(wells, 3, "carrier")).toEqual(spreadTestTiles(wells, 3, "carrier"));
+  it("over the carrier, identical wells do not all give the same tile", () => {
+    const within = spreadTestTiles(wells, 4, "carrier").map((i) => i % 9);
+    expect(new Set(within).size).toBeGreaterThan(1);
   });
 });

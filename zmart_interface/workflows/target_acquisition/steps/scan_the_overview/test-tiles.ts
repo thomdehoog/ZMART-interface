@@ -50,7 +50,7 @@ export function afterMarquee(green: Set<number>, inside: number[]): Set<number> 
    is more than one tileset, as Step 4's are, so identical wells do not all
    give the same tile. Not a random draw -- the same press gives the same
    tiles (Thom, 2026-09-28). */
-export function spreadTestTiles(plan: PlanTile[], n: number, over: "tileset" | "carrier" = "tileset"): number[] {
+export function spreadTestTiles(plan: PlanTile[], n: number, over: "tileset" | "carrier"): number[] {
   const groups = new Map<string | number, number[]>();
   plan.forEach((t, i) => {
     const key = t.tileset ?? t.fieldId ?? "plan";
