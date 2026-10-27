@@ -32,7 +32,7 @@ const ALGOS = {
  * nothing the page keeps for its own bookkeeping.
  */
 export const settingsFor = (settings: Detect) => ({
-  method: settings.algo, diameter: settings.diameter,
+  method: settings.algo, channel: settings.channel, diameter: settings.diameter,
   cellprob: settings.cellprob, threshold: settings.threshold,
   border: settings.border, binning: settings.binning,
 });
@@ -66,6 +66,7 @@ export interface DetectionContext {
   inGrey?: () => boolean;
   setGrey?: (grey: boolean) => void;
   plan: () => PlanTile[];
+  channels?: () => string[];
   tryOn: (field: number, settings: DetectionSettings) => Promise<TestAnswer>;
   stopTargets?: () => unknown;
   pictureOf: (label: string | undefined) => string | null;
@@ -500,6 +501,33 @@ export default {
         });
         params.append(wrap);
       };
+
+      /* Which colour the objects are found in; every other colour is
+         measured on them, a column to gate on. Named as the overview's
+         channels are; one colour leaves nothing to choose. */
+      const names = ctx.channels?.() ?? [];
+      const segment = document.createElement("div");
+      segment.className = "param channel";
+      segment.innerHTML = "<label>Channel</label><select></select>";
+      /* Written into the segment on the line above. */
+      const channelPick = segment.querySelector("select")!;
+      channelPick.id = "detect-channel";
+      channelPick.setAttribute("aria-label", "the colour the objects are found in");
+      for (let at = 0; at < Math.max(names.length, settings.channel + 1); at++) {
+        const option = document.createElement("option");
+        option.value = String(at);
+        option.textContent = names[at] || `channel ${at}`;
+        channelPick.append(option);
+      }
+      channelPick.value = String(settings.channel);
+      channelPick.disabled = channelPick.options.length < 2;
+      channelPick.addEventListener("change", () => {
+        settings.channel = Number(channelPick.value);
+        settings.tested = false;
+        refresh();
+        ctx.edited?.();
+      });
+      params.append(segment);
 
       number("Diameter", "diameter", 4, 200, 1, "µm");
       /* What each method is sure by: Cellpose its probability, the

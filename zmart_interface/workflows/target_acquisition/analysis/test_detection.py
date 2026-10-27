@@ -129,9 +129,24 @@ def test_segmentation_reads_the_first_channel_and_the_rest_ride_along(tmp_path):
     assert given["extra_channel_indices"] == [1, 2]
 
 
+def test_the_chosen_channel_is_segmented_and_the_others_ride_along(tmp_path):
+    """The page may choose another colour to find the objects in: that one is
+    segmented, and the first becomes a measured colour like the rest."""
+    given = detection.what_was_captured(_record(tmp_path), field=0, settings={"channel": 2})
+
+    assert given["channels"] == [2]
+    assert given["extra_channel_indices"] == [0, 1]
+
+
+def test_a_channel_the_capture_does_not_have_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="channel 3"):
+        detection.what_was_captured(_record(tmp_path), field=0, settings={"channel": 3})
+
+
 def test_a_single_colour_capture_carries_no_extra_channels(tmp_path):
     given = detection.what_was_captured(_record(tmp_path, channels=(0,)), field=0, settings={})
 
+    assert given["channels"] == [0]
     assert "extra_channel_indices" not in given
 
 

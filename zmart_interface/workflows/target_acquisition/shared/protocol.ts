@@ -44,7 +44,7 @@ export type Protocol = {
   targetZOffsetUm: number;
   /** An older file may carry more: a fixed height, a run to reuse. */
   focus: { strategy: string; metric: string; perField: number; perCarrier: number; points: XY[]; [older: string]: unknown };
-  detect: { algo: string; diameter: number; cellprob: number; threshold: number; border: number; binning: number };
+  detect: { algo: string; channel: number; diameter: number; cellprob: number; threshold: number; border: number; binning: number };
   gates: Gate[];
   placing: TaRun["placing"];
   testTiles?: { tiles: number[]; of: number };
@@ -105,6 +105,7 @@ export function protocolFrom(state: TaRun): Protocol {
     },
     detect: {
       algo: d.algo,
+      channel: d.channel,
       diameter: d.diameter,
       cellprob: d.cellprob,
       threshold: d.threshold,
@@ -173,7 +174,8 @@ export function applyProtocol(state: TaRun, protocol: Protocol): TaRun {
     /* Places to measure, not yet measured: `z: null` is how a point says so. */
     points: protocol.focus.points.map(({ x, y }) => ({ x, y, z: null })),
   });
-  Object.assign(state.detect, protocol.detect);
+  /* A file written before the channel could be chosen segmented the first. */
+  Object.assign(state.detect, { channel: 0 }, protocol.detect);
   state.gates = protocol.gates.map((g) => ({ fx: g.fx, fy: g.fy, vertices: g.vertices.map(([x, y]): [number, number] => [x, y]) }));
   state.placing = { ...protocol.placing };
   state.testTiles = new Set(protocol.testTiles?.tiles ?? []);

@@ -1065,6 +1065,9 @@ button.danger:disabled { opacity: 0.4; cursor: default; }
   display: grid; grid-template-columns: 1fr 1fr;
   grid-auto-flow: column; grid-template-rows: auto auto; gap: 6px 16px;
 }
+/* The channel on a line of its own, above those two rows. */
+.detect-params:has(> .channel) { grid-template-rows: auto auto auto; }
+.detect-params .param.channel { grid-row: 1; grid-column: 1 / -1; }
 /* Label, input, unit: three settled columns, so every input starts on one
    line whether or not a unit follows it -- flexed labels left the rows
    ragged wherever the unit was missing. */
