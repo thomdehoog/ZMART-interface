@@ -509,14 +509,14 @@ export default {
       const segment = document.createElement("div");
       segment.className = "param channel";
       segment.innerHTML = "<label>Channel</label><select></select>";
-      /* Written into the wrap on the line above. */
+      /* Written into the segment on the line above. */
       const channelPick = segment.querySelector("select")!;
       channelPick.id = "detect-channel";
       channelPick.setAttribute("aria-label", "the colour the objects are found in");
       for (let at = 0; at < Math.max(names.length, settings.channel + 1); at++) {
         const option = document.createElement("option");
         option.value = String(at);
-        option.textContent = names[at] || `Channel ${at + 1}`;
+        option.textContent = names[at] || `channel ${at}`;
         channelPick.append(option);
       }
       channelPick.value = String(settings.channel);

@@ -67,7 +67,7 @@ def what_was_captured(record: dict, *, field: int, settings: dict) -> dict:
     # before the choice existed says nothing, and that was the first colour.
     chosen = int(settings.get("channel") or 0)
     if not 0 <= chosen < colours:
-        raise ValueError(f"channel {chosen + 1} was chosen, but the capture has {colours}")
+        raise ValueError(f"channel {chosen} was chosen, but the capture has {colours}")
     given = {
         "image_path": str(store),
         "tile_id": [record["acquisition_type"], int(field), 0],
