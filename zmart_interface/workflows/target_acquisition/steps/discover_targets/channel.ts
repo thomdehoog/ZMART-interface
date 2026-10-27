@@ -36,6 +36,8 @@ export const detectionChannel: Channel<TargetAcquisition> = {
       inGrey: () => Boolean(page.thePicture.panel()?.acquisitionGrey?.("overview")),
       setGrey: (grey: boolean) => page.thePicture.panel()?.drawInGrey?.("overview", grey),
       plan: () => page.scannedPlan(),
+      /* The overview's colours by the names the canvas gives them. */
+      channels: () => page.thePicture.panel()?.channelsOf?.("overview").map((one) => one.name) ?? [],
       tryOn: (field: number, settings: Record<string, unknown>): Promise<TestAnswer> => {
         overviewGoesGreyForTheMasks(page);
         /* The bridge reads a field's name as its number, and so does the pretend backend. */

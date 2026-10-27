@@ -51,10 +51,11 @@ def what_was_captured(record: dict, *, field: int, settings: dict) -> dict:
 
     The store says where the field lies, how large a pixel is and which
     colours it holds; the analysis reads all of that from it, so none of it is
-    handed alongside. Segmentation reads the first colour and the Z maximum;
-    the other colours ride along by index, each a column of features to gate
-    on. The settings arrive in the page's units -- a diameter in micrometres
-    -- and leave in the detector's, pixels, at the store's pixel size.
+    handed alongside. Segmentation reads the colour the page chose -- the
+    first unless it said otherwise -- and the Z maximum; the other colours
+    ride along by index, each a column of features to gate on. The settings
+    arrive in the page's units -- a diameter in micrometres -- and leave in
+    the detector's, pixels, at the store's pixel size.
     """
     planes = record.get("planes") or []
     if not planes:
@@ -62,15 +63,20 @@ def what_was_captured(record: dict, *, field: int, settings: dict) -> dict:
     pixel_um = pixel_size_of(record)
     store = Path(record["zarr"])
     colours = len({int(plane.get("c", 0)) for plane in planes})
+    # Which colour is segmented, by its place in the store; a protocol written
+    # before the choice existed says nothing, and that was the first colour.
+    chosen = int(settings.get("channel") or 0)
+    if not 0 <= chosen < colours:
+        raise ValueError(f"channel {chosen + 1} was chosen, but the capture has {colours}")
     given = {
         "image_path": str(store),
         "tile_id": [record["acquisition_type"], int(field), 0],
-        "channels": [0],
+        "channels": [chosen],
         "z_selection": "max",
         "gpu": True,
     }
     if colours > 1:
-        given["extra_channel_indices"] = list(range(1, colours))
+        given["extra_channel_indices"] = [c for c in range(colours) if c != chosen]
     # The results are filed beside the ``data`` the capture was saved in, where the
     # page reads the masks from: found from a plane's file, since a capture saved
     # as files is kept as a store of its own in the run's ``positions``.

@@ -451,6 +451,15 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await rest(800);
       await expect(page.locator("#ramp-chip")).toHaveAttribute("aria-pressed", "false");
       await shot(page, "detect-before");
+      /* The objects are found in the colour chosen here, named as the
+         canvas names the overview's three; the third is chosen, so every
+         ask below is seen to carry it rather than the first. */
+      const segmentOn = page.locator("#detect-channel");
+      await expect(segmentOn).toBeEnabled();
+      await expect(segmentOn.locator("option")).toHaveCount(3);
+      await segmentOn.selectOption("2");
+      await shot(page, "detect-channel");
+      const asked = page.waitForRequest((one) => one.url().endsWith("/targets/discover") && one.method() === "POST");
       /* A press on a field on the picture makes it the field the preview
          shows: the picker says which, and the picture is that field's. */
       const shownBefore = await page.evaluate(() => document.querySelector<HTMLCanvasElement>(".tile-picture canvas")?.dataset.picture ?? "");
@@ -466,6 +475,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       await expect.poll(() => page.evaluate(() => document.querySelector<HTMLCanvasElement>(".tile-picture canvas")?.dataset.picture ?? ""),
         "the preview shows the pressed field").not.toBe(shownBefore);
       await page.getByRole("button", { name: "Test detection on this tile" }).click();
+      expect((await asked).postDataJSON().settings.channel, "the tile is segmented on the chosen colour").toBe(2);
       await expect(page.locator("#ramp-chip")).toHaveAttribute("aria-pressed", "true");
       await expect.poll(async () => {
         const state = await ask(page, PORT, "/api/target_acquisition/targets/discover");
@@ -884,6 +894,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         const ofTheRun = written.protocols.find((one: { id: string }) => one.id.startsWith("target-acquisition_"));
         expect(ofTheRun.protocol.testTiles.tiles).toHaveLength(3);
         expect(ofTheRun.protocol.detect.threshold).toBe(120);
+        expect(ofTheRun.protocol.detect.channel).toBe(2);
         expect(ofTheRun.protocol.targetZOffsetUm).toBe(2);
         await shot(page, "protocol-done");
 
@@ -968,7 +979,10 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await page.locator(".panel.on button.step-run").click();
         await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 400_000 });
         await walkTo(page, "Detect objects");
+        await expect(page.locator("#detect-channel")).toHaveValue("2");
+        const replayed = page.waitForRequest((one) => one.url().endsWith("/targets/discover") && one.method() === "POST");
         await page.locator(".panel.on button.step-run").click();
+        expect((await replayed).postDataJSON().settings.channel, "the protocol's colour is segmented again").toBe(2);
         await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 600_000 });
         await walkTo(page, "Discover Targets");
         await expect(page.locator('.step.stale:has-text("Discover Targets")')).toHaveCount(0);

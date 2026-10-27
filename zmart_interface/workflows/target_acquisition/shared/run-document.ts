@@ -190,6 +190,7 @@ export function newFocus() {
 function newDetect() {
   return {
     algo: "fast",  // how objects are found: fast (watershed) | robust (Cellpose)
+    channel: 0,      // which colour of the overview is segmented, by its place; the others are measured
     diameter: 30,
     cellprob: 0,
     threshold: 100,  // fast only: a nucleus's mean above background, in counts

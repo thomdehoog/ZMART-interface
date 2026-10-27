@@ -48,7 +48,7 @@ const settled = () => asRun({
     applied: true, surface: { model: "plane" }, residual: 0.4, worst: 1,
   },
   detect: {
-    algo: "fast", diameter: 24, cellprob: 0.5, threshold: 150, border: 5, binning: 2,
+    algo: "fast", channel: 2, diameter: 24, cellprob: 0.5, threshold: 150, border: 5, binning: 2,
     maskShow: "line", maskColour: "#f00", maskAlpha: 0.5, tile: 3, targetTile: 1,
     hovered: 2, tested: true, tried: [1, 2],
   },
@@ -71,7 +71,7 @@ const fresh = () => asRun({
   targetZOffsetUm: 0,
   focus: { strategy: "plane", metric: "brenner", points: [], perField: 1, perCarrier: 4,
     selected: 0, picked: new Set(), applied: false, surface: null },
-  detect: { algo: "fast", diameter: 30, cellprob: 0, threshold: 100, border: 0, binning: 1,
+  detect: { algo: "fast", channel: 0, diameter: 30, cellprob: 0, threshold: 100, border: 0, binning: 1,
     maskShow: "fill", tile: 0, tested: false, tried: [] },
   gates: [], gated: new Set(), placing: { margin: 1, objectsMax: 50, minimise: true, overlapMin: 0.2 },
   testTiles: new Set(),
@@ -105,7 +105,7 @@ describe("a protocol is the run's settings and nothing else", () => {
       strategy: "plane", metric: "vollath", perField: 2, perCarrier: 4,
       points: [{ x: 1, y: 1 }, { x: 2, y: 2 }],
     });
-    expect(p.detect).toEqual({ algo: "fast", diameter: 24, cellprob: 0.5, threshold: 150, border: 5, binning: 2 });
+    expect(p.detect).toEqual({ algo: "fast", channel: 2, diameter: 24, cellprob: 0.5, threshold: 150, border: 5, binning: 2 });
     expect(p.placing).toEqual({ margin: 2, objectsMax: 20, minimise: false, overlapMin: 0.3 });
     expect(p.testTiles).toEqual({ tiles: [1, 3], of: 4 });
   });
@@ -143,6 +143,7 @@ describe("read into a fresh session, the settings are back", () => {
     expect(s.focus.perField).toBe(2);
     expect(s.detect.threshold).toBe(150);
     expect(s.detect.binning).toBe(2);
+    expect(s.detect.channel).toBe(2);
     expect(s.gates).toHaveLength(1);
     expect(s.placing.objectsMax).toBe(20);
     expect(s.testTiles).toEqual(new Set([1, 3]));
@@ -170,6 +171,17 @@ describe("read into a fresh session, the settings are back", () => {
     const withoutReadings = (one: Protocol) => Object.fromEntries(
       Object.entries(one).filter(([key]) => !(SLOTS as readonly string[]).includes(key)));
     expect(withoutReadings(again)).toEqual(withoutReadings(p));
+  });
+});
+
+describe("a protocol written before the channel could be chosen", () => {
+  it("segments the first channel, whatever the session held", () => {
+    const { channel, ...older } = protocolFrom(settled()).detect;
+    expect(channel).toBe(2);
+    const s = fresh();
+    s.detect.channel = 1;
+    applyProtocol(s, { ...protocolFrom(settled()), detect: older as Protocol["detect"] });
+    expect(s.detect.channel).toBe(0);
   });
 });
 
