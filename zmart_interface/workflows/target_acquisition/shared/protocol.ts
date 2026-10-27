@@ -50,7 +50,21 @@ export type Protocol = {
   testTiles?: { tiles: number[]; of: number };
 };
 
-const AUTOMATABLE_GATE = /^(?!pca_|umap_)/;
+const COMPUTED_AXIS = /^(pca|umap)_/;
+
+/**
+ * Why these gates cannot go into a protocol, or null when they can. A PCA
+ * axis is fitted to the population at hand and UMAP is drawn anew each run,
+ * so a polygon on either selects other objects on the next sample, and on
+ * this one once its objects are detected again. Leaving such a gate out
+ * would be worse: the protocol would quietly take more than was chosen.
+ */
+export function whyGatesNotCarried(gates: Gate[]): string | null {
+  const computed = gates.filter((g) => COMPUTED_AXIS.test(g.fx) || COMPUTED_AXIS.test(g.fy));
+  if (!computed.length) return null;
+  return `a gate on ${computed.map((g) => `${g.fx} × ${g.fy}`).join(", ")} cannot go into a protocol: `
+    + "PCA and UMAP are fitted anew on every run; gate on measured features instead";
+}
 
 /** The settings-only copy of a recording slot: the whole slot is settings. */
 const slot = (s: Slot): Slot => JSON.parse(JSON.stringify(s));
@@ -58,13 +72,13 @@ const slot = (s: Slot): Slot => JSON.parse(JSON.stringify(s));
 /**
  * The run's settings, picked out of the state.
  *
- * Gates on computed axes are left out: a PCA axis is fitted to the population
- * at hand and UMAP is drawn anew each run, so a polygon on either means
- * nothing on the next sample. The carrier's corners are kept as places on the
- * drawing, without the stage readings taken at them, which belong to the
- * mount they were taken on.
+ * A gate on computed axes is refused, with `whyGatesNotCarried`'s reason. The
+ * carrier's corners are kept as places on the drawing, without the stage
+ * readings taken at them, which belong to the mount they were taken on.
  */
 export function protocolFrom(state: TaRun): Protocol {
+  const notCarried = whyGatesNotCarried(state.gates);
+  if (notCarried) throw new Error(notCarried);
   const f = state.focus;
   const d = state.detect;
   return {
@@ -97,9 +111,7 @@ export function protocolFrom(state: TaRun): Protocol {
       border: d.border,
       binning: d.binning,
     },
-    gates: state.gates
-      .filter((g) => AUTOMATABLE_GATE.test(g.fx) && AUTOMATABLE_GATE.test(g.fy))
-      .map((g) => ({ fx: g.fx, fy: g.fy, vertices: g.vertices.map(([x, y]): [number, number] => [x, y]) })),
+    gates: state.gates.map((g) => ({ fx: g.fx, fy: g.fy, vertices: g.vertices.map(([x, y]): [number, number] => [x, y]) })),
     placing: { ...state.placing },
     testTiles: { tiles: [...(state.testTiles ?? [])].sort((a, b) => a - b), of: state.plan.length },
   };

@@ -640,13 +640,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         await rest(600);
         await expect(page.locator("#gate-list .gate-row")).toHaveCount(1);
         await shot(page, "discover-gated");
-        /* Complex feature dimensions: on screen, greyed out, saying so. A
-           gate on those axes could not be carried by a protocol. */
         await expect(page.locator("#reduction .side-group-title")).toHaveText("Complex feature dimensions");
-        await expect(page.locator("#reduce-pca")).toBeDisabled();
-        await expect(page.locator("#reduce-umap")).toBeDisabled();
-        await expect(page.locator("#reduce-compute")).toBeDisabled();
-        await expect(page.locator("#reduction .reduce-note")).toHaveText("not available yet");
         await expect(page.locator('#gate-fx option[value="pca_1"]')).toHaveCount(0);
         await expect(page.locator("#gate-list .gate-row")).toHaveCount(1);
 
@@ -893,6 +887,40 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         expect(ofTheRun.protocol.detect.threshold).toBe(120);
         expect(ofTheRun.protocol.targetZOffsetUm).toBe(2);
         await shot(page, "protocol-done");
+
+        /* PCA and UMAP, computed by the analysis over every object the run
+           found, are axes like any other and can be gated on in this run.
+           A gate on them cannot go into a protocol, since both are fitted
+           anew on every run: the export says so and writes nothing. */
+        await walkTo(page, "Discover Targets");
+        await page.locator("#reduce-pca").check();
+        await page.locator("#reduce-umap").check();
+        await page.locator("#reduce-compute").click();
+        await expect(page.locator("#reduce-compute")).toHaveText("Compute", { timeout: 600_000 });
+        await expect(page.locator("#reduction .reduce-note")).toHaveText("");
+        await page.locator("#gate-fx").selectOption("umap_1");
+        await page.locator("#gate-fy").selectOption("umap_2");
+        await rest(600);
+        const onUmap = (await page.locator("#scatter-canvas").boundingBox())!;
+        const around = [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9], [0.1, 0.1]];
+        for (const [gx, gy] of around) {
+          await page.mouse.click(...plotPoint(onUmap, gx, gy));
+          await rest(150);
+        }
+        await expect(page.locator("#gate-list .gate-row")).toHaveCount(2);
+        await shot(page, "discover-umap-gated");
+        /* The export is reached once the targets are taken again under it. */
+        await walkTo(page, "Target scan area");
+        await page.locator(".panel.on button.step-run").click();
+        await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 60_000 });
+        await walkTo(page, "Acquire Targets");
+        await page.locator(".panel.on button.step-run").click();
+        await expect(page.locator(".panel.on button.step-run")).toHaveText("Rerun all", { timeout: 300_000 });
+        await walkTo(page, "Run protocol");
+        await page.locator("#protocol-export").click();
+        await expect(page.locator("#protocol-export-note")).toHaveText("not written — a gate on umap_1 × umap_2 "
+          + "cannot go into a protocol: PCA and UMAP are fitted anew on every run; gate on measured features instead");
+        expect((await ask(page, PORT, "/api/target_acquisition/protocols")).protocols).toHaveLength(written.protocols.length);
 
         /* A fresh session opened on it: every step's settings are back, and
            every step but Connect is orange, to be confirmed on this sample. */

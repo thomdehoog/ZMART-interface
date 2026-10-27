@@ -52,11 +52,7 @@ const settled = () => asRun({
     maskShow: "line", maskColour: "#f00", maskAlpha: 0.5, tile: 3, targetTile: 1,
     hovered: 2, tested: true, tried: [1, 2],
   },
-  gates: [
-    { fx: "area", fy: "mean", vertices: [[0, 0], [1, 0], [1, 1]] },
-    { fx: "pca_1", fy: "pca_2", vertices: [[0, 0], [1, 0], [1, 1]] },
-    { fx: "umap_1", fy: "area", vertices: [[0, 0], [1, 0], [1, 1]] },
-  ],
+  gates: [{ fx: "area", fy: "mean", vertices: [[0, 0], [1, 0], [1, 1]] }],
   gated: new Set(["c1", "c2"]),
   placing: { margin: 2, objectsMax: 20, minimise: false, overlapMin: 0.3 },
   testTiles: new Set([1, 3]),
@@ -114,8 +110,18 @@ describe("a protocol is the run's settings and nothing else", () => {
     expect(p.anchors).toEqual([{ x: 1, y: 2, at: "A1" }, { x: 3, y: 4, at: "C2" }]);
   });
 
-  it("carries gates on measured features only", () => {
+  it("carries the gates", () => {
     expect(p.gates).toEqual([{ fx: "area", fy: "mean", vertices: [[0, 0], [1, 0], [1, 1]] }]);
+  });
+
+  it("refuses a gate on computed axes, and says which, rather than leave it out", () => {
+    const s = settled();
+    s.gates.push({ fx: "pca_1", fy: "pca_2", vertices: [[0, 0], [1, 0], [1, 1]] },
+      { fx: "umap_1", fy: "area", vertices: [[0, 0], [1, 0], [1, 1]] });
+    expect(() => protocolFrom(s)).toThrow(
+      "a gate on pca_1 × pca_2, umap_1 × area cannot go into a protocol: "
+      + "PCA and UMAP are fitted anew on every run; gate on measured features instead",
+    );
   });
 
   it("carries no results, no password and nothing the page invents while it works", () => {
