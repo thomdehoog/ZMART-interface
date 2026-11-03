@@ -20,7 +20,7 @@ One module per concern, and one that holds what they share:
 * ``readings`` — a preset is the instrument's state, shaped for the window;
   capture and apply settings are the controller's own verbs carried through.
 * ``stage`` — where the stage is, and driving it.
-* ``pictures`` — each capture's OME-Zarr position, and the pictures served.
+* ``pictures`` — each capture's position, and the pictures served.
 * ``hooks`` — what a workflow tells the bridge: whether one of its runs holds
   the stage, what to stop before another session opens, what to forget when
   a fresh one does, and the pictures it draws itself.

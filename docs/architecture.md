@@ -50,9 +50,10 @@ parts that plug into the interface's sides:
   under `actuators`, and the `canvas`. A drive therefore keeps the answer
   `set_xyz` gives, read back after the stage arrived, instead of asking the
   stage a second time.
-- **ZMART-viewer.** Every capture is converted the moment it lands into one
-  OME-Zarr image per position (`parts/storage/zarr_positions.py`, declared by
-  the small writer in `zmart_interface/zmart_storage/`). The viewer's server,
+- **ZMART-viewer.** Every capture becomes one position the moment it lands,
+  in the format chosen on the Connect step: one OME-TIFF file or one OME-Zarr
+  image per position (`parts/storage/positions.py`; OME-Zarr images are
+  declared by the small writer in `zmart_interface/zmart_storage/`). The viewer's server,
   started beside the run by `parts/storage/viewer_service.py`, links each
   acquisition's positions into one live picture and serves it to the page's
   drawing engine.

@@ -1,7 +1,7 @@
 """What a workflow tells the bridge, so that the bridge needs to know no workflow.
 
 The bridge's general part connects, drives the stage, reads and applies
-settings, captures, keeps each capture as an OME-Zarr position, and serves
+settings, captures, keeps each capture as a position of the run, and serves
 the pictures. Everything a workflow runs on top of that -- a focus map, a
 scan, finding targets -- lives in the workflow's own Python half, which
 plugs into the bridge here under its own name:

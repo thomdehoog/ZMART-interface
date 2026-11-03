@@ -66,7 +66,17 @@ export const DEFAULT_SESSION = {
      is driven from, and a default credential is not a convenience: it is a
      credential everybody has. Connect stays disabled until one is typed. */
   password: "",
+  /* How the run's images are saved: one OME-TIFF file per position, which
+     opens with a drag and drop in Fiji, napari, QuPath or Imaris, or one
+     OME-Zarr image per position, for very large data. OME-TIFF first. */
+  format: "ome-tiff",
 };
+
+/** The formats a run can be saved in, as the Connect step offers them. */
+export const IMAGE_FORMATS = [
+  { key: "ome-tiff", label: "OME-TIFF", detail: "opens in Fiji, napari, QuPath" },
+  { key: "ome-zarr", label: "OME-Zarr", detail: "for very large data" },
+];
 
 export const describeSession = ({ instrument }) => {
   if (!instrument) return "not chosen";

@@ -26,8 +26,9 @@ found only at the end.
 The interface turns the run into ten steps in a window, each with its own controls beside
 a picture of the sample, and keeps every result where the operator can see and correct it:
 
-1. **Connect** to a microscope chosen from the interface's list, and see what its driver
-   reports: whether the stage answers, which limits and calibration it loaded, where images go.
+1. **Connect** to a microscope chosen from the interface's list, choose how the run's
+   images are saved, and see what its driver reports: whether the stage answers, which
+   limits and calibration it loaded, where images go.
 2. **Define the carrier**: a slide, a dish or a well plate, aligned to the stage.
 3. **Overview scan area**: the fields to survey, drawn on the carrier.
 4. **Focus strategy**: a few focus points measured, and a focus map fitted through them.
@@ -111,6 +112,22 @@ zmart-interface --output-root D:/ZMART-data
 
 `--output-root` is the folder the interface keeps its runs in, one folder per run inside it.
 The interface needs one to connect; it does not ask the microscope where to put them.
+
+On the Connect step you also choose how the run's images are saved. Each capture becomes
+one *position* of the run, beside the microscope's own files:
+
+- **OME-TIFF** (the default): one `.ome.tif` file per position, holding every channel and
+  plane, with smaller copies of the picture inside it. It opens with a drag and drop in Fiji,
+  napari, QuPath or Imaris, as one stack with the right pixel size. A stack's maximum
+  projection is saved beside it, in the acquisition's `projections` folder, as an OME-TIFF
+  too.
+- **OME-Zarr**: one `.ome.zarr` image per position, the format of choice for very large data
+  and for reading over a network.
+
+Both hold the same pixels and the same information, and the viewer, the analysis and every
+step of the interface work the same way with either. A small ZMART note inside each OME-TIFF
+keeps what the OME standard has no place for, such as how the planes of a stack were taken;
+other programs skip it.
 
 The window opens on the first step with **Mock** chosen. Press **Connect**; a second small
 window opens beside it, the mock's own software, where you choose the job each step is

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from zmart_interface.parts.storage import viewer_service as service
-from zmart_interface.parts.storage.zarr_positions import _describe_mean_pyramid
+from zmart_interface.parts.storage.positions import _describe_mean_pyramid
 from zmart_interface.zmart_storage import declare_image
 
 root = Path(sys.argv[1])

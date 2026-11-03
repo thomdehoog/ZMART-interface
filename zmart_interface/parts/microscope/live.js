@@ -159,9 +159,11 @@ export const backend = {
     /* The password travels with the connection: a gate that demanded it and
        then discarded it authenticated nothing. What a driver does with it is
        the driver's business. `experiment` is what the workflow calls its
-       runs: the bridge makes the run folder `<experiment>_<hash>`. */
+       runs: the bridge makes the run folder `<experiment>_<hash>`. `format`
+       is how the run's images are saved. */
     await ask("/api/connect", {
       instrument: session?.instrument, password: session?.password, experiment,
+      format: session?.format,
     });
     let keys = null;
     const answered = new Set();

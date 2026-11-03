@@ -36,28 +36,24 @@ IMAGE_TO_STAGE = [[1.0, 0.0], [0.0, 1.0]]
 def pixel_size_of(record: dict, fallback: float) -> float:
     """The pixel size the capture was taken at, in micrometres.
 
-    From the capture's own OME-Zarr store when it has one: the scale the
+    From the capture's own position when it has one: the pixel size the
     writer recorded is the instrument's word at the time of the capture.
     ``fallback`` is what the instrument reports *now*, which is only right
     while the same job is still selected -- a detection re-run after the
     target job was chosen took the 40x pixel size for the 10x overview, and
     a 30 um diameter became 211 px.
     """
-    store = record.get("zarr")
-    if not store:
+    position = record.get("position_path")
+    if not position:
         return float(fallback)
     try:
-        import zarr  # noqa: PLC0415 -- kept off the import path, as the bridge does
+        from zmart_interface.parts.storage import (
+            positions,  # noqa: PLC0415 -- kept off the import path
+        )
 
-        attrs = dict(zarr.open(str(store), mode="r").attrs)
-        multiscale = ((attrs.get("ome") or attrs).get("multiscales") or [{}])[0]
-        axes = [axis.get("name") for axis in multiscale.get("axes", [])]
-        for transform in multiscale["datasets"][0].get("coordinateTransformations", []):
-            if transform.get("type") == "scale":
-                return float(transform["scale"][axes.index("x") if "x" in axes else -1])
-    except Exception:  # noqa: BLE001 -- a store that will not say is answered by the fallback
-        pass
-    return float(fallback)
+        return positions.pixel_size_um_of(position)
+    except Exception:  # noqa: BLE001 -- a position that will not say is answered by the fallback
+        return float(fallback)
 
 
 def what_was_captured(record: dict, *, field: int, pixel_um: float, settings: dict) -> dict:
@@ -98,23 +94,23 @@ def what_was_captured(record: dict, *, field: int, pixel_um: float, settings: di
     }
     pixel_um = given["source_pixel_size_um"][0]
     stacked = len({p.get("z", 0) for p in planes}) > 1
-    if stacked and not record.get("zarr"):
-        raise RuntimeError("Stack detection requires the completed OME-Zarr position")
+    if stacked and not record.get("position_path"):
+        raise RuntimeError("Stack detection requires the completed position")
     if others:
         # Segmentation stays on the first channel; the rest ride along so
         # the features can be measured on every colour -- each measured
         # column (intensity_mean_c1, ...) becomes a gating axis with no
         # page work at all.
         given["extra_channel_paths"] = [p["path"] for p in others]
-    if record.get("zarr"):
-        # The capture's canonical form is its OME-Zarr position, and the
-        # analysis reads it when there is one: the same reader handles both
-        # (`load_plane`), so this only renames the door. The store's channels
+    if record.get("position_path"):
+        # The capture's own form is its position, and the analysis reads it
+        # when there is one: the same reader handles both formats
+        # (`load_plane`), so this only renames the door. A position's channels
         # are packed 0..n-1, so channel 0 is the first channel whatever the
         # instrument numbered it; segmentation stays on it, and the rest ride
         # along by index for the per-colour features. Results stay filed
         # beside the vendor's `data`, where every reader already looks.
-        given["image_path"] = record["zarr"]
+        given["image_path"] = record["position_path"]
         given["channels"] = [0]
         given["z_selection"] = "max"
         if stacked:

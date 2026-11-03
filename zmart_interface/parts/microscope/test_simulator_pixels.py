@@ -5,8 +5,8 @@ import pytest
 import zarr
 
 from zmart_interface.parts.microscope.simulator_pixels import SimulatorPixels
-from zmart_interface.parts.storage.test_zarr_positions import a_z_stack
-from zmart_interface.parts.storage.zarr_positions import position_store_from_record
+from zmart_interface.parts.storage.positions import position_from_record
+from zmart_interface.parts.storage.test_positions import a_z_stack
 
 
 @pytest.mark.parametrize("heights", [(-4, 0, 4), (4, 0, -4)])
@@ -18,8 +18,8 @@ def test_saved_planes_stay_unchanged_and_pixels_follow_specimen_z(tmp_path, heig
     for plane in record["planes"]:
         plane.update(x_um=32, y_um=32)
     original = {p["path"]: Path(p["path"]).read_bytes() for p in record["planes"]}
-    store = position_store_from_record(
-        record, tmp_path / "positions", pixel_provider=SimulatorPixels()
+    store = position_from_record(
+        record, tmp_path / "positions", pixel_provider=SimulatorPixels(), format="ome-zarr"
     )
     group = zarr.open_group(str(store), mode="r")
     # World cell at (32, 32) is at physical Z=-4, regardless of vendor index.
@@ -40,7 +40,7 @@ def test_identity_and_missing_files_do_not_become_synthetic_success(tmp_path, id
         record["vendor_metadata"] = [vendor]
     record["planes"][0]["path"] = str(tmp_path / "missing.tif")
     with pytest.raises((RuntimeError, FileNotFoundError)):
-        position_store_from_record(record, tmp_path / "positions", pixel_provider=SimulatorPixels())
+        position_from_record(record, tmp_path / "positions", pixel_provider=SimulatorPixels(), format="ome-zarr")
     assert not (tmp_path / "positions").exists()
 
 
@@ -62,5 +62,5 @@ def test_incomplete_or_duplicate_slots_are_not_published_as_acquired_black(tmp_p
     else:
         record["planes"].append({**record["planes"][0], "c": 1})
     with pytest.raises(ValueError, match="one saved plane per T/C/Z"):
-        position_store_from_record(record, tmp_path / "positions")
+        position_from_record(record, tmp_path / "positions", format="ome-zarr")
     assert not (tmp_path / "positions").exists()

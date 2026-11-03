@@ -120,7 +120,9 @@ def free_stem(data: Any, stem: str) -> str:
     """
     data = Path(data)
     candidate, number = stem, 0
-    while any(data.glob(f"{glob.escape(candidate)}_T*")) or (data / f"{candidate}.ome.zarr").exists():
+    while any(data.glob(f"{glob.escape(candidate)}_T*")) or any(
+        (data / f"{candidate}{ending}").exists() for ending in (".ome.zarr", ".ome.tif")
+    ):
         number += 1
         candidate = f"{stem}_{number:03d}"
     return candidate

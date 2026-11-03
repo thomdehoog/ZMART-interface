@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from zmart_interface.parts.storage import zarr_positions
+from zmart_interface.parts.storage import positions
 
 
 @pytest.mark.parametrize("missing", ["x_um", "y_um"])
@@ -22,10 +22,10 @@ def test_a_plane_without_a_stage_position_is_refused(missing):
     plane = {"x_um": 100.0, "y_um": 200.0}
     plane[missing] = None
     with pytest.raises(ValueError, match=f"does not say where it was taken .*{missing}"):
-        zarr_positions._the_corner_of([plane], (10, 20), (1.0, 1.0), z_origin_um=0.0)
+        positions._the_corner_of([plane], (10, 20), (1.0, 1.0), z_origin_um=0.0)
 
 
 def test_a_plane_at_the_stage_zero_is_still_at_zero():
-    corner = zarr_positions._the_corner_of(
+    corner = positions._the_corner_of(
         [{"x_um": 0.0, "y_um": 0.0}], (10, 20), (1.0, 1.0), z_origin_um=5.0)
     assert corner == (5.0, -5.0, -10.0)

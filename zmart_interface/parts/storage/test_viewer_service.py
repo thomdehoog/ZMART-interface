@@ -40,7 +40,7 @@ def _empty_service(*, port: int | None = None) -> dict:
 @pytest.mark.parametrize("bad_first", [False, True])
 @pytest.mark.parametrize("opened_overview", [False, True])
 def test_invalid_overview_does_not_hide_committed_targets(monkeypatch, tmp_path, bad_first, opened_overview):
-    from zmart_interface.parts.storage.zarr_positions import _describe_mean_pyramid
+    from zmart_interface.parts.storage.positions import _describe_mean_pyramid
     from zmart_interface.zmart_storage import declare_image
 
     def write(kind, name, pixel, value):
@@ -173,13 +173,14 @@ def test_the_installed_viewer_is_a_version_this_interface_accepts():
     assert Path(found["path"]).name == "__init__.py"
 
 
-@pytest.mark.parametrize("installed_version", ["0.5.0rc4", "0.5.0", "0.5.3"])
+@pytest.mark.parametrize("installed_version", ["0.5.0rc5", "0.5.0", "0.5.3"])
 def test_the_tested_viewer_line_is_accepted(installed_version):
     service._accept_the_version(installed_version)
 
 
 @pytest.mark.parametrize(
-    "installed_version", ["0.4.0", "0.5.0.dev0", "0.5.0rc1", "0.5.0rc2", "0.5.0rc3", "0.6.0", "1.0.0"]
+    "installed_version",
+    ["0.4.0", "0.5.0.dev0", "0.5.0rc1", "0.5.0rc2", "0.5.0rc3", "0.5.0rc4", "0.6.0", "1.0.0"],
 )
 def test_a_viewer_outside_the_tested_line_is_refused(installed_version):
     with pytest.raises(RuntimeError, match=f"the ZMART viewer {installed_version} is installed"):
@@ -910,7 +911,7 @@ def test_real_viewer_publishes_100_positions_without_holding_up_notifications(
             )
             arrays[0][:] = i + 1
             arrays[1][:] = i + 1
-            from zmart_interface.parts.storage.zarr_positions import _describe_mean_pyramid
+            from zmart_interface.parts.storage.positions import _describe_mean_pyramid
             description_path = staging / "zarr.json"
             description = json.loads(description_path.read_text())
             _describe_mean_pyramid(description)

@@ -36,7 +36,7 @@ from zmart_interface.parts.storage.output import (  # noqa: E402
     prepare_acquisition,
     prepare_experiment,
 )
-from zmart_interface.parts.storage.zarr_positions import position_store_from_record  # noqa: E402
+from zmart_interface.parts.storage.positions import position_from_record  # noqa: E402
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ def run(tmp_path):
 
 def test_a_capture_from_the_controllers_mock_is_kept_as_a_position(capture, run):
     record = move_record_images(capture("A1"), prepare_acquisition(run, "overview").data)
-    store = position_store_from_record(record, run / "positions" / "overview")
+    store = position_from_record(record, run / "positions" / "overview", format="ome-zarr")
 
     attributes = json.loads((store / "zarr.json").read_text())["attributes"]
     multiscale = attributes["ome"]["multiscales"][0]
@@ -81,7 +81,7 @@ def test_a_capture_from_the_controllers_mock_is_kept_as_a_position(capture, run)
 def test_a_stack_from_the_controllers_mock_keeps_its_depths(capture, run):
     record = capture("B1", z_planes=3, z_step_um=2.0)
     record = move_record_images(record, prepare_acquisition(run, "overview").data)
-    store = position_store_from_record(record, run / "positions" / "overview")
+    store = position_from_record(record, run / "positions" / "overview", format="ome-zarr")
 
     import zarr
 

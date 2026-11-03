@@ -21,6 +21,7 @@
 
 import { sideGroup } from "../../../../framework/window/panels.js";
 import { isFailed } from "../../../../parts/microscope/connection-status.js";
+import { IMAGE_FORMATS } from "../../../../parts/microscope/instruments.js";
 
 export function renderSessionCard(host, ctx) {
   const session = ctx.session();
@@ -94,7 +95,28 @@ export function renderSessionCard(host, ctx) {
       session.password = pwInput.value;
     });
 
-    form.append(scope, api, pw);
+    /* How the run's images are saved, decided once for the whole run:
+       every position of it is written the same way, so the choice locks
+       with the rest of the session. */
+    const saving = document.createElement("label");
+    saving.className = "field";
+    saving.innerHTML = "<span>Save images as</span><select></select>";
+    const savingSel = saving.querySelector("select");
+    savingSel.id = "image-format";
+    for (const f of IMAGE_FORMATS) {
+      const o = document.createElement("option");
+      o.value = f.key;
+      o.textContent = `${f.label} · ${f.detail}`;
+      savingSel.append(o);
+    }
+    savingSel.value = session.format ?? IMAGE_FORMATS[0].key;
+    savingSel.disabled = locked;
+    savingSel.addEventListener("change", () => {
+      session.format = savingSel.value;
+      ctx.changed();
+    });
+
+    form.append(scope, api, pw, saving);
 
     /* The protocol to open on: a new one, or one a finished run wrote on
        this machine. The list is the

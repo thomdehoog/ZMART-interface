@@ -55,17 +55,18 @@ from urllib.parse import unquote
 VIEWER_REQUEST_TIMEOUT_S = 30.0
 _metadata_reads = threading.Lock()
 
-#: The viewer versions this interface is tested with: 0.5.0rc4 and later,
+#: The viewer versions this interface is tested with: 0.5.0rc5 and later,
 #: up to but not including 0.6. From 0.5.0rc2 the viewer itself names the
 #: operator's page as allowed to read it, and refuses pages from elsewhere;
 #: from 0.5.0rc3 its engine no longer takes the viewer window's own settings,
 #: and it ships the shader programs and neuroglancer edits this page is built
 #: with; from 0.5.0rc4 it reads the projections a driver already made
-#: (views "projections_given") instead of making its own. An older viewer
+#: (views "projections_given") instead of making its own; from 0.5.0rc5 it
+#: composes positions saved as OME-TIFF as well as OME-Zarr. An older viewer
 #: would leave the page unable to read it, to be built, or to show a
-#: driver's projections, so it is refused, as are the 0.5.0 development
+#: driver's projections or an OME-TIFF run, so it is refused, as are the 0.5.0 development
 #: builds that came before its public names settled.
-VIEWER_VERSIONS = ">=0.5.0rc4,<0.6"
+VIEWER_VERSIONS = ">=0.5.0rc5,<0.6"
 
 #: The service's whole state: one viewer per bridge process, like the run.
 _viewer: dict = {
@@ -359,7 +360,7 @@ def _publish_once(wake: threading.Event, pending: set[str]) -> bool:
         try:
             completed = {
                 name: revision for (source_kind, name), revision in versions.items()
-                if source_kind == kind and (Path(folder) / name).is_dir()
+                if source_kind == kind and (Path(folder) / name).exists()
             }
             if not completed and folder not in opened:
                 continue
@@ -483,7 +484,7 @@ def _still_on_disk(address: str) -> bool:
     if not found or not folders:
         return True
     name = unquote(found.group(1))
-    return any((folder / name).is_dir() for folder in folders)
+    return any((folder / name).exists() for folder in folders)
 
 
 def _the_heading_of(row: dict) -> str:
@@ -497,7 +498,7 @@ def _the_heading_of(row: dict) -> str:
     group = str(row.get("group") or "picture")
     group = group.rsplit(" · ", 1)[-1]
     group = re.sub(r" \(\d+\)$", "", group)
-    for suffix in (".zmartview.zarr", ".ome.zarr", ".zarr"):
+    for suffix in (".zmartview.zarr", ".ome.zarr", ".zarr", ".ome.tif"):
         group = group.removesuffix(suffix)
     return group
 

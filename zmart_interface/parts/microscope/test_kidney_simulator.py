@@ -9,8 +9,8 @@ from zmart_interface.parts.analysis import focus_score
 from zmart_interface.parts.analysis.workflows import step_module
 from zmart_interface.parts.microscope.simulator_pixels import KidneyPixels
 from zmart_interface.parts.storage import jpeg_tiles
-from zmart_interface.parts.storage.test_zarr_positions import a_z_stack
-from zmart_interface.parts.storage.zarr_positions import position_store_from_record
+from zmart_interface.parts.storage.positions import position_from_record
+from zmart_interface.parts.storage.test_positions import a_z_stack
 
 
 def test_kidney_overlap_and_focus_are_independent_of_capture_order():
@@ -43,8 +43,8 @@ def test_focus_and_preview_use_canonical_kidney_not_vendor_tiffs(tmp_path, monke
         plane.update(x_um=512, y_um=512)
     from pathlib import Path
     hashes = {p["path"]:hashlib.sha256(Path(p["path"]).read_bytes()).hexdigest() for p in record["planes"]}
-    record["zarr"] = str(position_store_from_record(record, tmp_path / "positions", pixel_provider=KidneyPixels(focus_z_um=focus)))
-    assert focus_score.what_was_captured(record) == {"image_path":record["zarr"]}
+    record["position_path"] = str(position_from_record(record, tmp_path / "positions", pixel_provider=KidneyPixels(focus_z_um=focus), format="ome-zarr"))
+    assert focus_score.what_was_captured(record) == {"image_path":record["position_path"]}
     read = step_module("alignment", "read_images").run(
         {"input": focus_score.what_was_captured(record), "metadata": {"verbose": 0}}, {}
     )
@@ -56,7 +56,7 @@ def test_focus_and_preview_use_canonical_kidney_not_vendor_tiffs(tmp_path, monke
     import tifffile
     monkeypatch.setattr(tifffile, "imread", lambda *a, **k: pytest.fail("preview read vendor TIFF"))
     previews = jpeg_tiles.make_slice_copies(tmp_path / "preview", record["planes"],
-                                            store=record["zarr"])
+                                            store=record["position_path"])
     assert [p["z_um"] for p in previews] == pytest.approx(heights)
     with Image.open(tmp_path / "preview" / previews[8]["name"]) as image:
         assert np.asarray(image).std() > 1
@@ -65,7 +65,7 @@ def test_focus_and_preview_use_canonical_kidney_not_vendor_tiffs(tmp_path, monke
 
 def test_failed_canonical_ingestion_never_scores_vendor_pixels():
     with pytest.raises(RuntimeError, match="canonical"):
-        focus_score.what_was_captured({"zarr_error":"incomplete", "planes":[{"path":"vendor.tif"}]})
+        focus_score.what_was_captured({"position_error":"incomplete", "planes":[{"path":"vendor.tif"}]})
 
 
 @pytest.mark.parametrize("enabled", [False, True])

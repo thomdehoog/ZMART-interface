@@ -21,7 +21,7 @@ from zmart_controller.registry import find_driver, get_instruments
 
 from zmart_interface.parts.analysis import warm
 from zmart_interface.parts.microscope.instrument import Instrument
-from zmart_interface.parts.storage import viewer_service
+from zmart_interface.parts.storage import positions, viewer_service
 from zmart_interface.parts.storage.output import checked_name, prepare_experiment
 
 from . import hooks, state
@@ -94,14 +94,19 @@ def connect(asked: dict) -> dict:
     handed to the driver with the connection that was saved for it.
     ``asked["experiment"]`` is what the workflow calls its runs: the run
     folder is ``<experiment>_<hash>``. It is checked to be a plain folder
-    name before anything is opened.
+    name before anything is opened. ``asked["format"]`` is how the run's
+    positions are saved, ``"ome-tiff"`` (the default) or ``"ome-zarr"``; it
+    is handed to the driver in the connection too, so a driver that saves
+    positions itself saves them that way.
     """
     accept_the_controller(version("zmart-controller"))
     name = asked.get("instrument")
     if not isinstance(name, str):
         raise ValueError("connect needs the name of one of the microscopes listed by /api/instruments")
     experiment = checked_name(asked.get("experiment") or A_RUN, field="experiment")
+    image_format = positions.checked_format(asked.get("format"))
     connection = saved_connection(name)
+    connection["format"] = image_format
     if asked.get("password"):
         connection["password"] = asked["password"]
     if state.output_root is not None:
@@ -153,6 +158,7 @@ def connect(asked: dict) -> dict:
     state.session = session
     state.context = {**session.context, "name": name}
     state.pixel_provider = provider
+    state.image_format = image_format
     session.run = run
     state.run = run
     # The analysis writes its records and files into this run.
@@ -176,7 +182,7 @@ def connect(asked: dict) -> dict:
     # position measured seconds a chunk against milliseconds baked, and the
     # first screen of a scan is zoomed out.
     viewer_service.start(state.run, bake=True, canvas=area)
-    return {"context": state.context, "info": info, "run": str(state.run)}
+    return {"context": state.context, "info": info, "run": str(state.run), "format": image_format}
 
 
 def the_viewers_area(reading: dict) -> dict[str, list[float]]:

@@ -195,7 +195,7 @@ def test_a_single_colour_capture_carries_no_extra_channels():
 
 
 def test_a_capture_with_a_position_store_is_read_from_it():
-    """The canonical OME-Zarr position, when the capture has one, is what the
+    """The capture's own position, when it has one, is what the
     analysis reads: segmentation on packed channel 0 (the first channel,
     whatever the instrument numbered it), the rest riding along by index, and
     the results still filed beside the vendor's data."""
@@ -205,7 +205,7 @@ def test_a_capture_with_a_position_store_is_read_from_it():
     run = Path("run")
     record = {
         "acquisition_type": "overview",
-        "zarr": str(run / "positions" / "overview" / "overview_P000001.ome.zarr"),
+        "position_path": str(run / "positions" / "overview" / "overview_P000001.ome.zarr"),
         "planes": [
             {"t": 0, "z": 0, "c": 1, "z_um": 8.5, "x_um": 3000.0, "y_um": 2000.0,
              "path": str(run / "overview" / "data" / "f_C01_Z00000.ome.tiff")},
@@ -214,7 +214,7 @@ def test_a_capture_with_a_position_store_is_read_from_it():
         ],
     }
     given = detection.what_was_captured(record, field=0, pixel_um=4.0, settings={})
-    assert given["image_path"] == record["zarr"]
+    assert given["image_path"] == record["position_path"]
     assert given["channels"] == [0]
     assert given["extra_channel_indices"] == [1]
     assert "extra_channel_paths" not in given

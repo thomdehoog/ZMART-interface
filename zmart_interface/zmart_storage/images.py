@@ -246,7 +246,7 @@ def declare_image(
         # computing and storing a second set. Averaging would mix voxels across
         # the join between two positions, and no position would own its result.
         # The shrinking itself is done where the pixels are written, in
-        # ``zmart_interface/parts/storage/zarr_positions.py``.
+        # ``zmart_interface/parts/storage/positions.py``.
         "type": "nearest",
         "metadata": {
             "description": (

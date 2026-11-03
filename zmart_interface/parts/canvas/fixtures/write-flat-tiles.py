@@ -3,7 +3,7 @@
     python write-flat-tiles.py <folder> <tiles> [<z_um>,<z_um>,...]
 
 ``<tiles>`` one-plane fields side by side along x, each written through the
-run's own writer (``position_store_from_record``) at its own stage z, a
+run's own writer (``position_from_record``) at its own stage z, a
 fraction of a micrometre apart -- the way a scanned overview lands once a
 focus map has given every field its height. The size the rig's fields are,
 1024 pixels square in two channels, so the stores carry the pyramid levels
@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import tifffile
 
-from zmart_interface.parts.storage.zarr_positions import position_store_from_record
+from zmart_interface.parts.storage.positions import position_from_record
 
 folder = Path(sys.argv[1])
 tiles = int(sys.argv[2])
@@ -49,5 +49,5 @@ for index in range(tiles):
         "position_label": f"K00_M000000_G000000_P{index:06d}_V00",
         "planes": planes,
     }
-    store = position_store_from_record(record, folder / "positions")
+    store = position_from_record(record, folder / "positions", format="ome-zarr")
     print(store.relative_to(folder).as_posix())

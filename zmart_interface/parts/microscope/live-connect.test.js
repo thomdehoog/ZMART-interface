@@ -53,6 +53,21 @@ describe("the live connect", () => {
     expect(calls.filter((u) => u.endsWith("/api/info"))).toHaveLength(3);
   });
 
+  it("sends how the run's images are saved with the connection", async () => {
+    const bodies = [];
+    globalThis.fetch = vi.fn(async (url, options) => {
+      if (url.endsWith("/api/connect")) {
+        bodies.push(JSON.parse(options.body));
+        return { ok: true, json: async () => ({ context: {}, info: {} }) };
+      }
+      return { ok: true, json: async () => ({ connection_status: { driver: "mock" } }) };
+    });
+    const done = backend.connect({ instrument: "mock", password: "pw", format: "ome-tiff" });
+    await vi.runAllTimersAsync();
+    await done;
+    expect(bodies).toEqual([{ instrument: "mock", password: "pw", format: "ome-tiff" }]);
+  });
+
   it("rejects naming the check that failed, after showing it", async () => {
     bridgeAnswering([
       { driver: "mock", storage: PENDING },

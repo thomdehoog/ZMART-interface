@@ -237,7 +237,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       expect(overview.records).toHaveLength(TEST_TILES);
       expect((await page.evaluate(() => window.__theRunState())).scannedFields, "the fields are the test tiles")
         .toHaveLength(TEST_TILES);
-      expect(overview.records.filter(record => record.zarr_error)).toEqual([]);
+      expect(overview.records.filter(record => record.position_error)).toEqual([]);
       await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 60_000 });
       await rest(3000);
       await shot(page, "scan-done");
@@ -718,7 +718,7 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
         expect(await page.evaluate(() => window.__theStageCanvas.layerShown("ground"))).toBe(true);
         const acquired = await ask(page, PORT, "/api/target_acquisition/targets/acquire");
         expect(acquired.error).toBeNull();
-        expect(acquired.records.filter(record => record.zarr_error)).toEqual([]);
+        expect(acquired.records.filter(record => record.position_error)).toEqual([]);
         expect(acquired.records.length, "the ledger holds a record a tile").toBe(run.targetTiles);
         for (const one of acquired.records) {
           expect(one.requested_position_um.z - one.focus.z_peak_um, "taken 2 µm above the peak").toBeCloseTo(2, 6);

@@ -3,7 +3,7 @@
 Every capture the interface keeps is converted, the moment it lands, into one
 OME-Zarr image of its own -- one position, its channels, its planes, and a
 few progressively smaller copies for viewing it zoomed out (see
-``zmart_interface/parts/storage/zarr_positions.py``). Declaring such an image
+``zmart_interface/parts/storage/positions.py``). Declaring such an image
 is all this package does: it writes an empty image of the right shape, with a
 description a viewer can read, and hands back its levels to be filled.
 

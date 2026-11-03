@@ -83,10 +83,10 @@ def test_the_drivers_store_is_used_and_no_copy_is_made(run, announced):
     store = a_driver_store(run / "overview" / "data", "overview_000001_A1.ome.zarr", pixels)
     record = a_record_from(store, channels=2)
 
-    pictures.keep_position_as_zarr(record, "overview")
+    pictures.keep_the_position(record, "overview")
 
-    assert "zarr_error" not in record
-    assert record["zarr"] == str(store)
+    assert "position_error" not in record
+    assert record["position_path"] == str(store)
     assert record["frame_um"] == pytest.approx(64 * 2.0)
     assert not (run / "positions").exists(), "no second copy of the capture"
     assert announced == [("overview", store.parent, store)]
@@ -95,13 +95,13 @@ def test_the_drivers_store_is_used_and_no_copy_is_made(run, announced):
 def test_a_tiff_capture_is_still_converted(run, announced, monkeypatch):
     converted = []
     monkeypatch.setattr(
-        pictures, "position_store_from_record",
-        lambda record, folder, *, pixel_provider=None: converted.append(folder) or Path(folder) / "x.ome.zarr",
+        pictures.positions, "position_from_record",
+        lambda record, folder, *, format, pixel_provider=None: converted.append(folder) or Path(folder) / "x.ome.zarr",
     )
-    monkeypatch.setattr(pictures, "frame_um_of", lambda store: 1.0)
+    monkeypatch.setattr(pictures.positions, "frame_um_of", lambda store: 1.0)
     record = {"position_label": "A1", "planes": [{"path": str(run / "a.ome.tif"), "c": 0, "z": 0, "t": 0}]}
 
-    pictures.keep_position_as_zarr(record, "overview")
+    pictures.keep_the_position(record, "overview")
 
     assert converted == [run / "positions" / "overview"]
 
@@ -230,8 +230,8 @@ def test_the_viewer_is_told_where_the_drivers_projections_are(run, monkeypatch):
     record["projections"] = [str(projection)]
     flat = a_driver_store(run / "overview" / "data", "overview_000002_A1.ome.zarr", np.zeros((1, 1, 1, 8, 8), np.uint16))
 
-    pictures.keep_position_as_zarr(record, "focussing")
-    pictures.keep_position_as_zarr(a_record_from(flat, channels=1), "overview")
+    pictures.keep_the_position(record, "focussing")
+    pictures.keep_the_position(a_record_from(flat, channels=1), "overview")
 
     assert landed == [
         ("focussing", run / "focussing" / "projections"),
