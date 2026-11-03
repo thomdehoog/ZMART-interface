@@ -74,6 +74,9 @@ def test_the_same_capture_holds_the_same_picture_either_way(tmp_path, capture):
     note = positions._the_note_in(str(as_tiff), *_stamp(as_tiff))
     assert json.loads(note["zmart_microscopy"]) == group.attrs["zmart_microscopy"]
     assert note["pyramid"] == "mean" and note["position_origin"] == "corner"
+    # Each channel opens with the colour and brightness window the OME-Zarr says:
+    # OME-XML has no place for a window, and without it the run opens nearly black.
+    assert json.loads(note["omero"]) == group.attrs["ome"]["omero"]
 
 
 def test_an_ome_tiff_position_is_an_ordinary_ome_tiff(tmp_path):
@@ -110,6 +113,9 @@ def test_the_projection_is_the_brightest_of_every_plane_at_the_same_place(tmp_pa
         flat = five_axes(tif.series[0])
         placed = ome_types.from_xml(tif.ome_metadata).images[0].pixels.planes[0]
     np.testing.assert_array_equal(flat, stack.max(axis=2, keepdims=True))
+    assert positions._the_note_in(str(projection), *_stamp(projection))["omero"] == (
+        positions._the_note_in(str(as_tiff), *_stamp(as_tiff))["omero"]
+    ), "the projection opens looking like its stack"
     assert (placed.position_x, placed.position_y) == (corner.position_x, corner.position_y)
     assert positions.format_of(projection) == "ome-tiff"
 

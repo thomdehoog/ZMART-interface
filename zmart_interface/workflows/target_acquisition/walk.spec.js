@@ -111,7 +111,9 @@ const inTheInstrument = {
 test.describe("the target acquisition workflow, walked screen by screen", () => {
   test.setTimeout(A_WHOLE_WALK);
 
-  for (const bake of [true]) test(`from Connect to acquired targets, bake ${bake ? "on" : "off"}`, async ({ page }) => {
+  /* Walked once for each way a run can be saved: every step must work the
+     same whether the positions are OME-TIFF files or OME-Zarr images. */
+  for (const [bake, format] of [[true, "ome-tiff"], [true, "ome-zarr"]]) test(`from Connect to acquired targets, bake ${bake ? "on" : "off"}, saved as ${format}`, async ({ page }) => {
     const bridge = await startTheBridge({ port: PORT });
     const errors = [];
     const imageRequests = [];
@@ -130,6 +132,9 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       const scope = page.locator(".panel.on .session-form select").first();
       await expect(scope).toHaveValue(/mock/);
       await expect(page.locator("#protocol-pick")).toBeEnabled();
+      /* How the run's images are saved: OME-TIFF unless the operator says otherwise. */
+      await expect(page.locator("#image-format")).toHaveValue("ome-tiff");
+      await page.locator("#image-format").selectOption(format);
       await page.locator(".panel.on .session-buttons button.run").click();
       await expect(page.locator('.step.done:has-text("Connect")')).toBeVisible({ timeout: 60_000 });
       await expect(page.locator(".check-row.pending")).toHaveCount(0);
@@ -238,6 +243,9 @@ test.describe("the target acquisition workflow, walked screen by screen", () => 
       expect((await page.evaluate(() => window.__theRunState())).scannedFields, "the fields are the test tiles")
         .toHaveLength(TEST_TILES);
       expect(overview.records.filter(record => record.position_error)).toEqual([]);
+      const ending = format === "ome-tiff" ? ".ome.tif" : ".ome.zarr";
+      expect(overview.records.map(record => record.position_path.endsWith(ending)), `every position is saved as ${format}`)
+        .toEqual(overview.records.map(() => true));
       await expect(page.locator(".panel.on button.step-run")).toHaveText("Run again", { timeout: 60_000 });
       await rest(3000);
       await shot(page, "scan-done");

@@ -83,7 +83,9 @@ _TIFF_ENDINGS = (".ome.tif", ".ome.tiff")
 
 #: The namespace of ZMART's note inside an OME-TIFF position. The ZMART viewer
 #: reads the same note: ``zmart_microscopy`` (how the planes were taken, as
-#: JSON), ``pyramid`` (``mean``: each smaller copy averages 2 × 2 pixels) and
+#: JSON), ``omero`` (each channel's name, colour and the brightness window it
+#: first opens with, as JSON, exactly as an OME-Zarr position says it),
+#: ``pyramid`` (``mean``: each smaller copy averages 2 × 2 pixels) and
 #: ``position_origin`` (``corner``: the stage position given is the corner of
 #: the picture, not its middle). Another program's OME-TIFF has no such note,
 #: and is turned into a position rather than used as one.
@@ -193,8 +195,7 @@ def format_of(path: Path | str) -> str | None:
     if path.name.endswith(ENDINGS["ome-zarr"]) and path.is_dir():
         return "ome-zarr"
     if path.name.lower().endswith(_TIFF_ENDINGS) and path.is_file():
-        stat = path.stat()
-        if _the_note_in(str(path), stat.st_mtime_ns, stat.st_size):
+        if _the_note_in(str(path), *_the_stamp_of(path)):
             return "ome-tiff"
     return None
 
@@ -228,10 +229,13 @@ def write_a_projection(position: Path | str, into: Path | str) -> Path:
     voxel_um = tuple(_length_um(pixels, f"PhysicalSize{axis}") or 1.0 for axis in "ZYX")
     plane = _the_first(pixels, "Plane")
     corner_um = tuple(_length_um(plane, f"Position{axis}") or 0.0 for axis in "ZYX")
-    channel_blocks = [
+    # The position's own channels, windows included, when ZMART's note has
+    # them; else what the standard part of its description says.
+    note = _the_note_in(str(position), *_the_stamp_of(position))
+    channel_blocks = (json.loads(note["omero"])["channels"] if note.get("omero") else [
         {"label": channel.get("Name") or f"channel {index}", "color": _hex_of(channel.get("Color"))}
         for index, channel in enumerate(one for one in pixels if one.tag.endswith("}Channel"))
-    ]
+    ])
     return _write_a_tiff(
         into / position.name,
         volume.max(axis=2, keepdims=True),
@@ -761,6 +765,10 @@ def _ome_xml(
         for z in range(depth)
     )
     note = {"pyramid": "mean", "position_origin": "corner"}
+    # OME-XML has no place for a channel's brightness window, and without one
+    # a viewer stretches the camera's whole range, which shows a real
+    # acquisition nearly black; so the channels are said here in full.
+    note["omero"] = json.dumps({"channels": channel_blocks}, sort_keys=True)
     if zmart_microscopy is not None:
         note["zmart_microscopy"] = json.dumps(zmart_microscopy, sort_keys=True)
     entries = "".join(f"<M K={quoteattr(key)}>{escape(value)}</M>" for key, value in note.items())
@@ -807,6 +815,12 @@ def _the_geometry_of(position: Path) -> tuple[int, float]:
         if transform.get("type") == "scale":
             return width_px, float(transform["scale"][axes.index("x") if "x" in axes else -1])
     raise RuntimeError(f"{position} declares no pixel size")
+
+
+def _the_stamp_of(path: Path) -> tuple[int, int]:
+    """When a file was last written, and its size: a replaced file differs in one."""
+    stat = path.stat()
+    return stat.st_mtime_ns, stat.st_size
 
 
 @lru_cache(maxsize=4096)
